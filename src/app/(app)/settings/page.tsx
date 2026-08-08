@@ -4,7 +4,7 @@ import { OnboardingIcon, SecurityIcon, SupportIcon, DocsIcon, TermsIcon } from "
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { GoogleIcon } from "@/components/google-icon";
-import { StravaIcon } from "@/components/strava-icon";
+import { ConnectWithStravaButton } from "@/components/strava-brand";
 import { StravaAthleteId } from "@/components/strava-athlete-id";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,20 +231,25 @@ export default async function SettingsPage({
 
         <SettingsSection title={dict.settings.strava.title} description={dict.settings.strava.description}>
           <div className="flex flex-col gap-2 rounded-sm bg-muted px-3.5 py-3">
-            <div className="flex items-center gap-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white ring-1 ring-inset ring-border">
-                <StravaIcon className="size-4" />
-              </span>
-              <span className="text-sm font-semibold">{dict.settings.strava.strava}</span>
-              {isStravaConnected ? (
-                <span className="ml-auto shrink-0 rounded-[7px] bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-                  {dict.settings.strava.connected}
-                </span>
-              ) : (
-                <form action={connectStrava} className="ml-auto">
-                  <Button type="submit" variant="outline" size="sm">
-                    {dict.settings.strava.connect}
-                  </Button>
+            {/* Connected, the row stays one line — the pill is small. Not
+                connected, Strava's button is a fixed 237px that we may not
+                shrink, so below sm it takes a line of its own. */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {/* No glyph beside the name. It was a mark we drew ourselves,
+                  sitting a couple of centimetres above Strava's own button —
+                  and with the section title, this label and the button, it was
+                  the fourth time the word appeared in one card. */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold">{dict.settings.strava.strava}</span>
+                {isStravaConnected && (
+                  <span className="ml-auto shrink-0 rounded-[7px] bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                    {dict.settings.strava.connected}
+                  </span>
+                )}
+              </div>
+              {!isStravaConnected && (
+                <form action={connectStrava} className="sm:ml-auto">
+                  <ConnectWithStravaButton label={dict.settings.strava.connect} />
                 </form>
               )}
             </div>
