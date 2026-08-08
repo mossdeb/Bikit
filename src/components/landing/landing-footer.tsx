@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PoweredByStrava } from "@/components/strava-brand";
 import type { LandingDictionary } from "@/components/landing/i18n/en";
 
 export function LandingFooter({
@@ -59,8 +60,12 @@ export function LandingFooter({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-4 text-xs text-[#8A8D93] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 pt-4 text-xs text-[#8A8D93] sm:flex-row sm:items-center sm:justify-between">
           <p>{dict.copyright}</p>
+          {/* Fixed black, not the themed variant: this footer is #fff whatever
+              the visitor's theme is doing, and the app's `dark` class sits on
+              the same <html> when a signed-in reader lands on /privacy. */}
+          <PoweredByStrava variant="black" className="order-first sm:order-none" />
           <p>{dict.madeFor}</p>
         </div>
       </div>

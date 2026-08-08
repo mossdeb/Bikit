@@ -15,6 +15,7 @@ import { ServiceIntervalBar } from "@/components/service-interval-bar";
 import { BikeIcon } from "@/components/bike-icon";
 import { BikeDetailsToggle } from "@/components/bike-details-toggle";
 import { StravaBadgeIcon } from "@/components/strava-icon";
+import { PoweredByStrava } from "@/components/strava-brand";
 import { StravaSyncToast } from "@/components/strava-sync-toast";
 import { StravaSyncButton } from "@/components/strava-sync-button";
 import { ComponentIcon } from "@/components/component-icon";
@@ -401,6 +402,19 @@ export default async function BikeDetailPage({
             expanded={detailsGrid}
           />
         </div>
+
+        {/* Strava asks for their mark wherever their data is on screen, and on
+            this page that is the totals — which sit in the details grid on
+            desktop and in the toggle's compact half on mobile, so the foot of
+            the card is the one place under both. Only on a bike that is
+            actually linked: an unlinked bike's totals are typed by hand, and
+            crediting Strava for them would be the mark saying something
+            untrue. */}
+        {bike.strava_gear_id && (
+          <div className="mt-6 flex sm:mt-4 sm:justify-end">
+            <PoweredByStrava />
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="components">
