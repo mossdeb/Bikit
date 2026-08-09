@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { Check, Sparkles } from "lucide-react";
 import { getBikeIndexManufacturers } from "@/lib/bikeindex";
 import { createClient } from "@/lib/supabase/server";
 import { createBike } from "@/lib/actions/bikes";
@@ -15,6 +16,8 @@ import { BikeOptionalFields } from "@/components/bike-optional-fields";
 import { bikeOptionalFieldLabels } from "@/lib/bike-optional-field-labels";
 import { NewBikeWizard } from "@/components/new-bike-wizard";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
+import { getUserSubscription } from "@/lib/subscription";
+import { hasAiSetupAccess } from "@/lib/ai-setup-access";
 
 export default async function NewBikePage({
   searchParams,
@@ -31,8 +34,9 @@ export default async function NewBikePage({
   // Manufacturers (external API) and the Strava lookup chain don't depend on
   // each other, so they fire together instead of the Strava round trips
   // queuing up after the manufacturers fetch.
-  const [manufacturers, { stravaAccessToken, stravaBikes, gearOwnerByGearId }] = await Promise.all([
+  const [manufacturers, subscription, { stravaAccessToken, stravaBikes, gearOwnerByGearId }] = await Promise.all([
     getBikeIndexManufacturers(),
+    userId ? getUserSubscription(userId) : Promise.resolve(null),
     (async () => {
       const stravaAccessToken = userId ? await getValidStravaAccessToken(supabase, userId) : null;
       const stravaBikes = stravaAccessToken ? await fetchStravaBikes(stravaAccessToken) : [];
@@ -171,6 +175,28 @@ export default async function NewBikePage({
   return (
     <div className="flex flex-1 flex-col max-w-2xl pt-4 sm:block sm:pt-8">
       <FormError message={error} />
+
+      {/* Entry to Smart Setup — closed beta, so the door only shows for
+          allowlisted testers (hasAiSetupAccess). When the beta opens this
+          goes back to always-visible with the Premium pill doing the
+          upselling; the /bikes/new/ai page keeps that pitch ready. */}
+      {subscription && hasAiSetupAccess(subscription.plan, userData?.claims?.email as string | undefined) && (
+        <Link
+          href="/bikes/new/ai"
+          className="mb-5 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:bg-muted"
+        >
+          <Sparkles className="size-5 shrink-0" />
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 font-semibold">
+              {dict.bikes.aiSetup.entryTitle}
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                {dict.bikes.aiSetup.premium}
+              </span>
+            </span>
+            <span className="block text-sm text-muted-foreground">{dict.bikes.aiSetup.entryDescription}</span>
+          </span>
+        </Link>
+      )}
 
       <NewBikeWizard
         action={createBike}

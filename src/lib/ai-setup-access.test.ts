@@ -1,0 +1,26 @@
+import { describe, expect, it } from "vitest";
+import { hasAiSetupAccess } from "./ai-setup-access";
+
+describe("hasAiSetupAccess", () => {
+  it("grants a beta email on a paid plan", () => {
+    expect(hasAiSetupAccess("pro", "miguelgomesdzn@gmail.com")).toBe(true);
+    expect(hasAiSetupAccess("personal", "miguelgomesdzn@gmail.com")).toBe(true);
+  });
+
+  it("is case- and whitespace-insensitive on the email", () => {
+    expect(hasAiSetupAccess("pro", " MiguelGomesDZN@gmail.com ")).toBe(true);
+  });
+
+  it("denies paid-plan users outside the beta list", () => {
+    expect(hasAiSetupAccess("pro", "roque.rangel.ines@gmail.com")).toBe(false);
+  });
+
+  it("denies the free plan even for a beta email", () => {
+    expect(hasAiSetupAccess("free", "miguelgomesdzn@gmail.com")).toBe(false);
+  });
+
+  it("denies a missing email", () => {
+    expect(hasAiSetupAccess("pro", undefined)).toBe(false);
+    expect(hasAiSetupAccess("pro", null)).toBe(false);
+  });
+});

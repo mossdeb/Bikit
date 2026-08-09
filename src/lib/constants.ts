@@ -26,6 +26,10 @@ export const COMPONENT_CATEGORIES = [
   "Wheels",
   "Tire",
   "Cockpit",
+  // Between Cockpit and Frame: contact points together, and it entered the
+  // list for AI Auto Setup — droppers were falling into Other, where the
+  // maintenance search couldn't tell them from saddles (2026-08-09).
+  "Seatpost",
   "Frame",
   "Other",
 ] as const;

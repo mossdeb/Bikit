@@ -12,10 +12,10 @@ export const PLAN_LIMITS: Record<Plan, { maxBikes: number | null; maxComponents:
  * PLAN_LIMITS because a limit is a number the UI counts against and a feature
  * is a door that is either open or shut.
  */
-export const PLAN_FEATURES: Record<Plan, { timeline: boolean }> = {
-  free: { timeline: false },
-  personal: { timeline: true },
-  pro: { timeline: true },
+export const PLAN_FEATURES: Record<Plan, { timeline: boolean; aiSetup: boolean }> = {
+  free: { timeline: false, aiSetup: false },
+  personal: { timeline: true, aiSetup: true },
+  pro: { timeline: true, aiSetup: true },
 };
 
 /** How often a paid plan bills. Both intervals are prices on the same Stripe

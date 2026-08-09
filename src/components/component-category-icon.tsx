@@ -213,6 +213,10 @@ export const COMPONENT_CATEGORY_ICON: Record<ComponentCategory, ComponentType<Ic
   Wheels: WheelsIcon,
   Tire: TireIcon,
   Cockpit: CockpitIcon,
+  // Placeholder while a dedicated seatpost glyph doesn't exist in the flat
+  // set — deliberate, not a fallthrough: the map is non-Partial precisely so
+  // this is a visible decision instead of a silent default.
+  Seatpost: OtherIcon,
   Frame: FrameIcon,
   Other: OtherIcon,
 };

@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_request_log: {
+        Row: {
+          created_at: string
+          id: string
+          input: Json
+          kind: string
+          outcome: string
+          tokens: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input: Json
+          kind: string
+          outcome: string
+          tokens?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input?: Json
+          kind?: string
+          outcome?: string
+          tokens?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bike_catalog: {
+        Row: {
+          brand: string
+          components: Json
+          confidence: number | null
+          created_at: string
+          display: Json
+          id: string
+          model: string
+          source_url: string | null
+          status: string
+          updated_at: string
+          version: string
+          year: number
+        }
+        Insert: {
+          brand: string
+          components: Json
+          confidence?: number | null
+          created_at?: string
+          display: Json
+          id?: string
+          model: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          version?: string
+          year: number
+        }
+        Update: {
+          brand?: string
+          components?: Json
+          confidence?: number | null
+          created_at?: string
+          display?: Json
+          id?: string
+          model?: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          version?: string
+          year?: number
+        }
+        Relationships: []
+      }
       bikes: {
         Row: {
           active: boolean
@@ -350,6 +425,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      maintenance_profiles: {
+        Row: {
+          brand: string
+          confidence: number | null
+          created_at: string
+          id: string
+          intervals: Json
+          model: string
+          source_url: string | null
+          status: string
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          brand: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          intervals: Json
+          model: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          brand?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          intervals?: Json
+          model?: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: []
       }
       notification_log: {
         Row: {
