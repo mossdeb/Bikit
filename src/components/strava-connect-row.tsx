@@ -1,4 +1,3 @@
-import { StravaIcon } from "@/components/strava-icon";
 import { ConnectWithStravaButton } from "@/components/strava-brand";
 import { connectStrava } from "@/lib/actions/strava";
 
@@ -14,12 +13,10 @@ export function StravaConnectRow({ label, connectLabel }: { label: string; conne
     // give at 375px — enough for its own line, nothing like enough to sit
     // beside a label.
     <div className="flex flex-col gap-3 rounded-sm bg-muted px-3.5 py-3 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white ring-1 ring-inset ring-border">
-          <StravaIcon className="size-4" />
-        </span>
-        <span className="text-sm font-semibold">{label}</span>
-      </div>
+      {/* No glyph beside the label. It was a Strava mark we had drawn
+          ourselves, sitting directly above Strava's own button, and the label
+          next to it already said the same word. */}
+      <span className="text-sm font-semibold">{label}</span>
       <ConnectWithStravaButton label={connectLabel} formAction={connectStrava} className="sm:ml-auto" />
     </div>
   );

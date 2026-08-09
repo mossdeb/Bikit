@@ -7,7 +7,6 @@ import { updateBike, deleteBike } from "@/lib/actions/bikes";
 import { getValidStravaAccessToken, fetchStravaBikes } from "@/lib/strava";
 import { BIKE_TYPES } from "@/lib/constants";
 import { BrandField } from "@/components/brand-field";
-import { StravaIcon } from "@/components/strava-icon";
 import { StravaConnectRow } from "@/components/strava-connect-row";
 import { FormError } from "@/components/form-error";
 import { DeleteConfirmButton } from "@/components/delete-confirm-button";
@@ -157,16 +156,17 @@ export default async function EditBikePage({
 
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{dict.bikes.form.stravaTitle}</Label>
+            {/* The select fills the box now that the glyph beside it is gone.
+                Kept at w-56 and pushed right, it would have left the row half
+                empty for no reason — the label above already names the field,
+                which is what the icon was doing. */}
             {stravaAccessToken ? (
               <div className="flex items-center gap-3 rounded-sm bg-muted px-3.5 py-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white ring-1 ring-inset ring-border">
-                  <StravaIcon className="size-4" />
-                </span>
                 <NativeSelect
                   id="strava_gear_id"
                   name="strava_gear_id"
                   defaultValue={bike.strava_gear_id ?? ""}
-                  wrapperClassName="ml-auto w-56"
+                  wrapperClassName="w-full"
                   className="bg-background"
                 >
                   <option value="">{dict.bikes.form.stravaNone}</option>
