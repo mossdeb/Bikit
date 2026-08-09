@@ -7,24 +7,28 @@ export function StravaIcon({ className }: { className?: string }) {
   );
 }
 
-/** Round badge variant — used inline next to a bike's details to flag that
- * it's synced with Strava (as opposed to StravaIcon's flat wordmark glyph,
- * used for the standalone "Connected accounts" row). */
+/** Square badge variant — used inline next to a bike's details to flag that
+ * it's synced with Strava.
+ *
+ * Geometry taken verbatim from assets/icons/geral/strava-2.svg, including its
+ * 422 viewBox, so the mark is the supplied artwork rather than a redraw of it.
+ * The source's clipPath is dropped: it clips to a rect the size of the whole
+ * viewBox, so it never removed anything. */
 export function StravaBadgeIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 100 100" className={className} aria-hidden="true">
-      <circle cx="50" cy="50" r="42" fill="#FC4C02" />
+    <svg viewBox="0 0 422 422" className={className} aria-hidden="true">
+      <path d="M0 0H422V422H0V0Z" fill="#FC4C02" />
       <path
         opacity="0.6"
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M44.225 54.2L57.35 77.825L69.95 54.2H62.075L57.35 63.125L52.1 54.2H44.225Z"
+        d="M181.987 232.1L247.925 350.787L311.225 232.1H271.662L247.925 276.937L221.55 232.1H181.987Z"
         fill="white"
       />
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M45.8 21.125L62.075 54.2H29L45.8 21.125ZM45.8 41.075L52.1 54.2H38.975L45.8 41.075Z"
+        d="M189.9 65.9375L271.663 232.1H105.5L189.9 65.9375ZM189.9 166.163L221.55 232.1H155.613L189.9 166.163Z"
         fill="white"
       />
     </svg>
