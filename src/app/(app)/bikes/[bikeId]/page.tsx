@@ -393,6 +393,7 @@ export default async function BikeDetailPage({
           <BikeDetailsToggle
             viewLabel={dict.bikes.detail.viewDetails}
             closeLabel={dict.bikes.detail.closeDetails}
+            mark={bike.strava_gear_id ? <PoweredByStrava /> : null}
             compact={
               <div className="flex flex-wrap gap-6">
                 <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono />
@@ -410,8 +411,11 @@ export default async function BikeDetailPage({
             actually linked: an unlinked bike's totals are typed by hand, and
             crediting Strava for them would be the mark saying something
             untrue. */}
+        {/* Desktop only. On a phone the mark travels with the figures inside
+            the toggle, so that it sits beside them in either state instead of
+            stranded under a collapsed row. */}
         {bike.strava_gear_id && (
-          <div className="mt-6 flex sm:mt-4 sm:justify-end">
+          <div className="mt-4 hidden sm:flex sm:justify-end">
             <PoweredByStrava />
           </div>
         )}

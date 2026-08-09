@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PoweredByStrava } from "@/components/strava-brand";
 import { LandingHeroCarousel } from "@/components/landing/landing-hero-carousel";
 import type { LandingDictionary } from "@/components/landing/i18n/en";
 
@@ -108,6 +109,24 @@ export function LandingHero({ dict }: { dict: LandingDictionary["hero"] }) {
             >
               {dict.ctaSecondary}
             </a>
+          </div>
+
+          {/* Stays in the flow rather than pinned to the card's bottom-left.
+              Pinned, the gap above it is whatever the centred copy happens to
+              leave: measured 49px at 1400 and 3px at 1280, where the heading
+              wraps onto another line and pushes the buttons down into it. In
+              the flow the gap is the same at every width, which is the
+              relationship worth holding — it reads as belonging under the
+              buttons, not as floating in a corner.
+
+              `order-last` twice is deliberate: the subtitle block carries it
+              too, and equal order values fall back to DOM order, so this stays
+              underneath it.
+
+              Black, not the themed variant — the card is #B8B3AF whatever the
+              reader's theme is doing. */}
+          <div className="order-last mt-6 flex justify-center xl:mt-4 xl:justify-start">
+            <PoweredByStrava variant="black" />
           </div>
         </div>
       </div>
