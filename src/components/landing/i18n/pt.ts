@@ -213,6 +213,7 @@ const pt: LandingDictionary = {
       { label: "Preços", href: "#precos" },
       { label: "FAQ", href: "#faq" },
     ],
+    productSupport: "Ajuda e suporte",
     accountHeading: "Conta",
     accountLogin: "Entrar",
     accountSignup: "Criar conta",

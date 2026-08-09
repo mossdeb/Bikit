@@ -7,7 +7,12 @@ import { NextResponse, type NextRequest } from "next/server";
 // "/start" carries the landing page's plan choice into signup, so it has to be
 // reachable without a session — the proxy runs before routing, and a protected
 // route and a nonexistent one produce the same 307 to /login.
-const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/forgot-password", "/privacy", "/terms", "/start"];
+// The fifth time this matcher has had to be told about a public path — after
+// the legal pages, the root verification files, /_vercel/ and /start. A route
+// missing here 307s to /login, which looks exactly like a route that does not
+// exist. /support is public on purpose: a help page behind a login fails the
+// readers most likely to need it. The app's own copy lives at /help/support.
+const PUBLIC_ROUTES = ["/login", "/signup", "/auth", "/forgot-password", "/privacy", "/terms", "/start", "/support"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

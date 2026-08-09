@@ -211,6 +211,7 @@ const en = {
       { label: "Pricing", href: "#precos" },
       { label: "FAQ", href: "#faq" },
     ],
+    productSupport: "Help & Support",
     accountHeading: "Account",
     accountLogin: "Log in",
     accountSignup: "Create account",

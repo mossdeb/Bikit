@@ -38,6 +38,12 @@ export function LandingFooter({
                   {link.label}
                 </a>
               ))}
+              {/* A page of its own rather than an anchor, so it takes no
+                  hrefBase — that prefix exists to send the anchors above back
+                  to the landing, and applied here it would build "//support". */}
+              <Link href="/support" className="text-sm text-[#101014] hover:text-[#35363C]">
+                {dict.productSupport}
+              </Link>
             </div>
             <div className="flex flex-col gap-2.5">
               <p className="text-xs font-bold uppercase tracking-wide text-[#8A8D93]">{dict.accountHeading}</p>

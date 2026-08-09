@@ -25,7 +25,7 @@ export function useIsBikeDetailPage() {
  * plus the legal documents reached from Settings. */
 const MOBILE_BACK_ROUTES: { re: RegExp; backHref: (m: RegExpMatchArray) => string }[] = [
   { re: /^\/legal\/(privacy|terms)$/, backHref: () => "/settings" },
-  { re: /^\/(support|docs)$/, backHref: () => "/settings" },
+  { re: /^\/help\/(support|docs)$/, backHref: () => "/settings" },
   { re: /^\/bikes\/new$/, backHref: () => "/bikes" },
   { re: /^\/bikes\/([^/]+)\/edit$/, backHref: (m) => `/bikes/${m[1]}` },
   { re: /^\/bikes\/([^/]+)\/components\/new$/, backHref: (m) => `/bikes/${m[1]}` },
