@@ -127,7 +127,7 @@ export default async function BikesPage() {
               </div>
               <h2 className="font-display text-[20px] font-bold">{bike.name}</h2>
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                {bike.strava_gear_id && <StravaBadgeIcon className="size-[16.8px] shrink-0" />}
+                {bike.strava_gear_id && <StravaBadgeIcon className="size-[12px] shrink-0" />}
                 {[bike.type, bike.brand, bike.model, bike.year].filter(Boolean).join(" · ") || dict.bikes.noDetailsYet}
               </p>
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">

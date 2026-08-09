@@ -241,7 +241,7 @@ export default async function DashboardPage({
                   <BikeIcon type={bike.type} plain className="mb-1 sm:hidden" />
                   <h3 className="font-display text-[26px] font-bold sm:text-[20px]">{bike.name}</h3>
                   <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                    {bike.strava_gear_id && <StravaBadgeIcon className="size-[16.8px] shrink-0" />}
+                    {bike.strava_gear_id && <StravaBadgeIcon className="size-[12px] shrink-0" />}
                     {[bike.type, bike.brand, bike.model, bike.year].filter(Boolean).join(" · ") || dict.bikes.noDetailsYet}
                   </p>
                 </div>

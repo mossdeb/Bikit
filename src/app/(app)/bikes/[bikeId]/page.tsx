@@ -331,7 +331,7 @@ export default async function BikeDetailPage({
           label={dict.bikes.detail.stravaGear}
           value={
             <span className="inline-flex items-center gap-1.5">
-              <StravaBadgeIcon className="size-[14px] shrink-0" />
+              <StravaBadgeIcon className="size-[12px] shrink-0" />
               {dict.settings.strava.connected}
             </span>
           }
