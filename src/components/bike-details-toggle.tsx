@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Collapsible } from "@/components/collapsible";
 
@@ -33,20 +34,24 @@ export function BikeDetailsToggle({
 }) {
   const [open, setOpen] = useState(false);
 
+  const trigger = (
+    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="bg-transparent">
+      {viewLabel}
+      <ChevronDown className="size-3.5" />
+    </Button>
+  );
+
   return (
     <div className="sm:hidden">
       <Collapsible show={!open}>
-        {/* The trigger takes a line of its own above the figures, which leaves
-            the row itself free to end with the mark. */}
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="bg-transparent">
-            {viewLabel}
-            <ChevronDown className="size-3.5" />
-          </Button>
-        </div>
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+        {/* With a mark to show, the trigger takes a line of its own so the
+            figures' row is free to end with it. Without one — a bike that is
+            not linked to Strava — that line would be the trigger alone above
+            an empty right half, so it goes back onto the row itself. */}
+        {mark && <div className="flex justify-end">{trigger}</div>}
+        <div className={cn("flex flex-wrap items-center justify-between gap-4", mark && "mt-5")}>
           {compact}
-          {mark}
+          {mark ?? trigger}
         </div>
       </Collapsible>
 
