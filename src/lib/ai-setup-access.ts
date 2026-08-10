@@ -16,3 +16,16 @@ export function hasAiSetupAccess(plan: Plan, email: string | null | undefined): 
   if (!email) return false;
   return AI_SETUP_BETA_EMAILS.includes(email.trim().toLowerCase());
 }
+
+/**
+ * Accounts exempt from the daily search quota (2026-08-10: the owner, who
+ * seeds the shared catalog and pays the OpenAI bill anyway). Separate from
+ * the beta list on purpose: widening the beta must not silently hand out
+ * unlimited searches.
+ */
+export const AI_UNLIMITED_SEARCH_EMAILS = ["miguelgomesdzn@gmail.com"];
+
+export function hasUnlimitedAiSearches(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return AI_UNLIMITED_SEARCH_EMAILS.includes(email.trim().toLowerCase());
+}

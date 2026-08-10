@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
-import { hasAiSetupAccess } from "@/lib/ai-setup-access";
+import { hasAiSetupAccess, hasUnlimitedAiSearches } from "@/lib/ai-setup-access";
 import { aiSetupSearchSchema, aiSetupCreateSchema } from "@/lib/validations/ai-setup.schema";
 import { bikeCatalogKey } from "@/lib/ai/normalize";
 import { searchBikeWithAI, type AiBikeComponent, type BikeSearchOutcome } from "@/lib/ai/bike-search";
@@ -38,7 +38,7 @@ export type AiSetupSearchResult =
   | { status: "invalid_input" }
   | { status: "forbidden" }
   | { status: "quota_exhausted" }
-  | { status: "not_found"; remaining: number }
+  | { status: "not_found"; remaining: number | null }
   | { status: "error" }
   | {
       status: "found";
@@ -48,7 +48,8 @@ export type AiSetupSearchResult =
       components: AiSetupComponent[];
       sourceUrl: string | null;
       confidence: number | null;
-      remaining: number;
+      /** null = no daily limit for this account; the UI hides the counter. */
+      remaining: number | null;
     };
 
 export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearchResult> {
@@ -65,8 +66,14 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
   });
   if (!parsed.success) return { status: "invalid_input" };
 
+  const email = userData?.claims?.email as string | undefined;
   const { plan } = await getUserSubscription(userId);
-  if (!hasAiSetupAccess(plan, userData?.claims?.email as string | undefined)) return { status: "forbidden" };
+  if (!hasAiSetupAccess(plan, email)) return { status: "forbidden" };
+
+  // Exempt accounts skip the daily quota entirely: no allowance query, no
+  // gate, and a null `remaining` so the UI drops the counter instead of
+  // showing a number that never moves. The ledger still records every call.
+  const unlimited = hasUnlimitedAiSearches(email);
 
   // Catalog first — a hit costs nothing and consumes no quota.
   const key = bikeCatalogKey(parsed.data);
@@ -76,13 +83,20 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
     .match(key)
     .maybeSingle();
 
-  const allowanceRows = await supabase
-    .from("ai_request_log")
-    .select("outcome")
-    .eq("user_id", userId)
-    .eq("kind", "bike")
-    .gte("created_at", startOfTodayUtcIso());
-  const allowance = computeAllowance((allowanceRows.data ?? []).map((r) => r.outcome));
+  const allowance = unlimited
+    ? { allowed: true, remaining: null }
+    : computeAllowance(
+        (
+          (
+            await supabase
+              .from("ai_request_log")
+              .select("outcome")
+              .eq("user_id", userId)
+              .eq("kind", "bike")
+              .gte("created_at", startOfTodayUtcIso())
+          ).data ?? []
+        ).map((r) => r.outcome)
+      );
 
   if (catalogHit) {
     // The display jsonb holds what the AI's source called the bike; the
@@ -139,7 +153,7 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
         components: await withIntervals(supabase, userId, outcome.data.components, outcome.data.bike.type),
         sourceUrl: outcome.sourceUrl,
         confidence: outcome.data.confidence,
-        remaining: Math.max(0, allowance.remaining - 1),
+        remaining: allowance.remaining === null ? null : Math.max(0, allowance.remaining - 1),
       };
     case "not_found":
     case "invalid":

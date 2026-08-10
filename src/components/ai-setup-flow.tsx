@@ -284,7 +284,9 @@ function AiSetupPreview({
             </a>
           </p>
         )}
-        <p className="text-xs text-muted-foreground">{counted(labels.remainingToday, result.remaining)}</p>
+        {result.remaining !== null && (
+          <p className="text-xs text-muted-foreground">{counted(labels.remainingToday, result.remaining)}</p>
+        )}
       </div>
 
       <div className="space-y-3">
