@@ -118,7 +118,7 @@ export function AiSetupFlow({ labels, brandSlot }: { labels: AiSetupLabels; bran
       {brandSlot}
 
       <div className="space-y-1.5">
-        <Label htmlFor="model">{labels.model}</Label>
+        <Label htmlFor="model">{labels.model} *</Label>
         <Input id="model" name="model" placeholder={labels.modelPlaceholder} required />
       </div>
 
@@ -128,7 +128,7 @@ export function AiSetupFlow({ labels, brandSlot }: { labels: AiSetupLabels; bran
           <Input id="version" name="version" placeholder={labels.versionPlaceholder} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="year">{labels.year}</Label>
+          <Label htmlFor="year">{labels.year} *</Label>
           <Input
             id="year"
             name="year"
