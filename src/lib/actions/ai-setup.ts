@@ -7,7 +7,7 @@ import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { hasAiSetupAccess, hasUnlimitedAiSearches } from "@/lib/ai-setup-access";
 import { aiSetupSearchSchema, aiSetupCreateSchema } from "@/lib/validations/ai-setup.schema";
-import { bikeCatalogKey } from "@/lib/ai/normalize";
+import { bikeCatalogKey, combinedBikeName } from "@/lib/ai/normalize";
 import { searchBikeWithAI, type AiBikeComponent, type BikeSearchOutcome } from "@/lib/ai/bike-search";
 import { computeAllowance, startOfTodayUtcIso } from "@/lib/ai/quota";
 import { resolveIntervalsForComponents } from "@/lib/ai/profiles";
@@ -77,11 +77,28 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
 
   // Catalog first — a hit costs nothing and consumes no quota.
   const key = bikeCatalogKey(parsed.data);
-  const { data: catalogHit } = await supabase
+  let { data: catalogHit } = await supabase
     .from("bike_catalog")
     .select("display, components, source_url, confidence")
     .match(key)
     .maybeSingle();
+
+  if (!catalogHit) {
+    // Fallback: the same bike name split differently across model/version
+    // ("Nomad" + "6 S" vs "Nomad 6" + "S") is a different exact key but the
+    // same combined token string. Brand and year stay exact; ties (duplicate
+    // spellings of the same bike) resolve to the highest-confidence entry.
+    const { data: sameBrandYear } = await supabase
+      .from("bike_catalog")
+      .select("display, components, source_url, confidence, model, version")
+      .eq("brand", key.brand)
+      .eq("year", key.year);
+    const wanted = combinedBikeName(parsed.data.model, parsed.data.version);
+    catalogHit =
+      (sameBrandYear ?? [])
+        .filter((row) => combinedBikeName(row.model, row.version) === wanted)
+        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0] ?? null;
+  }
 
   const allowance = unlimited
     ? { allowed: true, remaining: null }

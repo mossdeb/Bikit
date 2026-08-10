@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 // Relative import: there is no vitest.config.ts, so the @/ alias does not
 // resolve under the test runner.
-import { bikeCatalogKey, normalizeBrand, normalizeKeyPart, normalizeModel } from "./normalize";
+import { bikeCatalogKey, combinedBikeName, normalizeBrand, normalizeKeyPart, normalizeModel } from "./normalize";
 
 describe("normalizeKeyPart", () => {
   it("lowercases and trims", () => {
@@ -74,5 +74,18 @@ describe("bikeCatalogKey", () => {
   it("maps a missing version to the empty string, matching the non-null column", () => {
     expect(bikeCatalogKey({ brand: "Canyon", model: "Spectral", version: null, year: 2023 }).version).toBe("");
     expect(bikeCatalogKey({ brand: "Canyon", model: "Spectral", year: 2023 }).version).toBe("");
+  });
+});
+
+describe("combinedBikeName", () => {
+  it("collapses every model/version split of the same name to one string", () => {
+    expect(combinedBikeName("Nomad", "6 S")).toBe("nomad 6 s");
+    expect(combinedBikeName("Nomad 6", "S")).toBe("nomad 6 s");
+    expect(combinedBikeName("Nomad 6 S", "")).toBe("nomad 6 s");
+    expect(combinedBikeName("Nomad 6 S", null)).toBe("nomad 6 s");
+  });
+
+  it("keeps different build levels distinct", () => {
+    expect(combinedBikeName("Nomad 6", "S")).not.toBe(combinedBikeName("Nomad 6", "R"));
   });
 });

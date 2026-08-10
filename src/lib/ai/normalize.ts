@@ -38,6 +38,19 @@ export function normalizeModel(value: string): string {
   return normalizeKeyPart(value);
 }
 
+/**
+ * Model and version collapsed into one normalized token string — "Nomad" +
+ * "6 S", "Nomad 6" + "S" and "Nomad 6 S" + "" all yield "nomad 6 s". The
+ * catalog lookup falls back to this when the exact model/version split
+ * misses: users split the same bike name differently across the two fields,
+ * and each split is a distinct unique key. Equality of the FULL combined
+ * name is deliberate — no prefix loosening here, because build levels
+ * ("Nomad 6 S" vs "Nomad 6 R") differ in components and must never match.
+ */
+export function combinedBikeName(model: string, version?: string | null): string {
+  return normalizeKeyPart(`${model} ${version ?? ""}`);
+}
+
 /** The bike-catalog key. `version` is "" when the bike has none — the column
  * is non-null so the unique key treats versionless rows as equal. */
 export function bikeCatalogKey(input: { brand: string; model: string; version?: string | null; year: number }) {
