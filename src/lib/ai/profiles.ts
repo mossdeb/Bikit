@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types/database.types";
 import { normalizeBrand, normalizeModel } from "./normalize";
+import { modelMatchCandidates, pickMaintenanceProfile } from "./profile-match";
 import { searchMaintenanceBatchWithAI } from "./maintenance-search";
 import { saveMaintenanceProfile } from "./catalog";
 import { defaultIntervalsFor } from "./default-profiles";
@@ -89,13 +90,16 @@ export async function resolveIntervalsForComponents(
         return;
       }
 
+      // The candidates are every whole-token prefix of the model, fetched in
+      // one select — spec sheets name trims ("38 Factory Grip X2") while the
+      // curated library keys by base model ("38"). profile-match.ts decides.
       const { data: rows } = await supabase
         .from("maintenance_profiles")
-        .select("year, intervals, source_url")
+        .select("model, year, intervals, source_url")
         .eq("brand", normalizeBrand(component.brand))
-        .eq("model", normalizeModel(component.model));
+        .in("model", modelMatchCandidates(normalizeModel(component.model)));
 
-      const profile = pickProfile(rows ?? [], component.year);
+      const profile = pickMaintenanceProfile(rows ?? [], component.year);
       if (profile) {
         const intervals = profile.intervals as unknown as MaintenanceInterval[];
         resolved.set(key, {
@@ -200,17 +204,6 @@ async function resolveBatch(
       resolved.set(key, { intervals: [], selected: [], sourceUrl: null, origin: "none" });
     })
   );
-}
-
-/** An exact model-year row wins; the year-agnostic (null) row is the
- * fallback. A row for a DIFFERENT year is neither — a 2020 damper schedule
- * asserting itself over a 2025 fork would be worse than asking. */
-function pickProfile<T extends { year: number | null }>(rows: T[], componentYear: number | null): T | null {
-  if (componentYear != null) {
-    const exact = rows.find((r) => r.year === componentYear);
-    if (exact) return exact;
-  }
-  return rows.find((r) => r.year === null) ?? null;
 }
 
 /** One ledger row per component, same as the single-call era, so the quota
