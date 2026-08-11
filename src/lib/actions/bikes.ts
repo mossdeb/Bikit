@@ -88,9 +88,15 @@ function parseBikeFormData(formData: FormData) {
  * generated display name so bike.name always has something to show in
  * cards/headers rather than storing an empty string.
  */
-function deriveBikeName(data: { name: string | null; brand: string | null; model: string | null; type: string | null }) {
+function deriveBikeName(
+  data: { name: string | null; brand: string | null; model: string | null; type: string | null },
+  /** The create form's version field. `bikes` has no column for it — it is
+   * part of how the bike is called, not a fact of its own, which is the same
+   * treatment createBikeFromAiSetup gives it. */
+  version?: string | null
+) {
   if (data.name) return data.name;
-  const brandModel = [data.brand, data.model].filter(Boolean).join(" ");
+  const brandModel = [data.brand, data.model, version].filter(Boolean).join(" ");
   return brandModel || data.type || "Unnamed bike";
 }
 
@@ -105,6 +111,13 @@ export async function createBike(formData: FormData) {
     redirect(`/bikes/new?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
+  // Required on create only. Editing keeps the year among the optional
+  // details, and updateBike shares the schema — so the rule lives here
+  // rather than in bikeSchema.
+  if (parsed.data.year == null) {
+    redirect(`/bikes/new?error=${encodeURIComponent("The bike year is required.")}`);
+  }
+
   const { plan } = await getUserSubscription(userId);
   const maxBikes = PLAN_LIMITS[plan].maxBikes;
   if (maxBikes !== null) {
@@ -117,12 +130,13 @@ export async function createBike(formData: FormData) {
   }
 
   const stravaGearId = (formData.get("strava_gear_id") as string) || null;
+  const version = ((formData.get("version") as string) || "").trim() || null;
 
   const { data: bike, error } = await supabase
     .from("bikes")
     .insert({
       ...parsed.data,
-      name: deriveBikeName(parsed.data),
+      name: deriveBikeName(parsed.data, version),
       user_id: userId,
       strava_gear_id: stravaGearId,
     })

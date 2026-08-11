@@ -266,7 +266,9 @@ const en = {
   bikes: {
     aiSetup: {
       entryTitle: "Smart setup",
-      entryDescription: "Tell us the brand, model and year. Bikit finds the components and sets up the maintenance reminders for you.",
+      // Deliberately short: the entry now lives inside the form, under the
+      // fields that already say what to fill in.
+      entryDescription: "Bikit finds the components automatically.",
       premium: "Premium",
       beta: "Beta",
       title: "Smart bike setup",
@@ -413,14 +415,22 @@ const en = {
       editBreadcrumb: "Edit",
       name: "Custom name",
       namePlaceholder: "e.g. Canyon Spectral CF 8",
+      // No asterisk: these three also label read-only fields on the bike
+      // page. Whoever needs them required appends the " *" at the call site.
       model: "Model",
       modelPlaceholder: "e.g. Spectral CF 8",
+      version: "Version",
+      versionPlaceholder: "e.g. CF 8 (optional)",
       year: "Bike Year",
+      // The year is required when creating (it is the catalog key, and both
+      // routes leave from the same screen); editing keeps it optional.
+      yearRequired: "Year *",
       type: "Type",
       color: "Color",
       colorPlaceholder: "e.g. Raw Carbon",
       serialNumber: "Serial Number",
       purchaseDate: "Purchase Date",
+      purchaseDateHint: "Used in the Bike Log, and as the install date for the original components.",
       warranty: "Warranty",
       warrantyLabel: "Warranty (years)",
       warrantyPlaceholder: "e.g. 2",

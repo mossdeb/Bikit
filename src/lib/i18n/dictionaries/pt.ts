@@ -262,8 +262,9 @@ const pt: Dictionary = {
   bikes: {
     aiSetup: {
       entryTitle: "Configuração Inteligente",
-      entryDescription:
-        "Indica a marca, o modelo e o ano. A Bikit encontra os componentes e configura os lembretes de manutenção por ti.",
+      // Curta de propósito: a entrada vive dentro do formulário, por baixo
+      // dos campos que já dizem o que preencher.
+      entryDescription: "A Bikit encontra os componentes automaticamente.",
       premium: "Premium",
       beta: "Beta",
       title: "Configuração Inteligente",
@@ -411,14 +412,22 @@ const pt: Dictionary = {
       editBreadcrumb: "Editar",
       name: "Nome personalizado",
       namePlaceholder: "ex. Canyon Spectral CF 8",
+      // Sem asterisco: estes três também rotulam campos de leitura na página
+      // da bicicleta. Quem os quer obrigatórios acrescenta o " *" no sítio.
       model: "Modelo",
       modelPlaceholder: "ex. Spectral CF 8",
+      version: "Versão",
+      versionPlaceholder: "ex. CF 8 (opcional)",
       year: "Ano da bicicleta",
+      // O ano é obrigatório ao criar (é a chave do catálogo, e as duas rotas
+      // saem do mesmo ecrã); ao editar continua a ser opcional.
+      yearRequired: "Ano *",
       type: "Tipo",
       color: "Cor",
       colorPlaceholder: "ex. Carbono Cru",
       serialNumber: "Nº de série",
       purchaseDate: "Data de compra",
+      purchaseDateHint: "Usada na Bike Log e como data de instalação dos componentes de origem.",
       warranty: "Garantia",
       warrantyLabel: "Garantia (anos)",
       warrantyPlaceholder: "ex. 2",

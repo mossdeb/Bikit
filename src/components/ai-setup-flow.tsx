@@ -10,7 +10,7 @@
 // rendered by the server page (BrandField is a server component). The page
 // header lives here too, because the Strava step swaps the subtitle.
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, CheckCircle2, Loader2, Pencil, Sparkles } from "lucide-react";
 import {
@@ -103,6 +103,12 @@ function counted(template: { one: string; many: string }, n: number): string {
 }
 
 type Phase =
+  // 'searching' only exists for the arrival that already carries the four
+  // values: the bike form's first step asked for them, so showing the same
+  // four fields again on the way through would be asking twice. The form
+  // still exists — it is where a failed search lands, prefilled, and where
+  // anyone arriving without values starts.
+  | { name: "searching" }
   | { name: "form"; error: "not_found" | "quota" | "error" | null }
   | { name: "preview"; result: Extract<AiSetupSearchResult, { status: "found" }> };
 
@@ -111,6 +117,7 @@ export function AiSetupFlow({
   brandSlot,
   strava,
   componentCap,
+  initial,
 }: {
   labels: AiSetupLabels;
   brandSlot: ReactNode;
@@ -118,9 +125,43 @@ export function AiSetupFlow({
   /** How many components the plan still allows (null = unlimited). The
    * preview starts everything off and caps the switches when finite. */
   componentCap: number | null;
+  /** Handed over by the bike form's first step, which asks for the same
+   * four fields. With `autoSearch` the reader already pressed a button
+   * knowing what it does, so asking for the same values again would just
+   * be a second tap. */
+  initial?: { brand: string; model: string; version: string; year: string; autoSearch: boolean };
 }) {
-  const [phase, setPhase] = useState<Phase>({ name: "form", error: null });
+  const [phase, setPhase] = useState<Phase>(
+    initial?.autoSearch ? { name: "searching" } : { name: "form", error: null }
+  );
   const [searching, startSearch] = useTransition();
+
+  // A paid call, so it fires once and only once: React runs effects twice in
+  // development, and the ref is what keeps that from buying two searches.
+  const autoSearched = useRef(false);
+  useEffect(() => {
+    if (!initial?.autoSearch || autoSearched.current) return;
+    autoSearched.current = true;
+    // Burn the trigger out of the history entry before searching. `go` means
+    // "a button was just pressed"; left in the URL it becomes "search again",
+    // and coming back here — browser back, a reload, a shared link — would
+    // silently buy a second search. The values stay, so the form is still
+    // filled in. replaceState and not router.replace: no re-render, no
+    // navigation, nothing that could remount this and re-enter the effect.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("go");
+    window.history.replaceState(null, "", url.toString());
+
+    const formData = new FormData();
+    formData.set("brand", initial.brand);
+    formData.set("model", initial.model);
+    formData.set("version", initial.version);
+    formData.set("year", initial.year);
+    handleSearch(formData);
+    // Runs on arrival only — the values come from the URL and never change
+    // without a navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSearch(formData: FormData) {
     startSearch(async () => {
@@ -135,6 +176,27 @@ export function AiSetupFlow({
         setPhase({ name: "form", error: "error" });
       }
     });
+  }
+
+  // The pass-through screen: no fields, because they were just filled in on
+  // the previous one. A failure moves to 'form' and they are all still here.
+  if (phase.name === "searching") {
+    return (
+      <div className="space-y-6 rounded-[20px] border border-border bg-card p-5 sm:p-6">
+        <FlowHeader title={labels.title} subtitle={labels.subtitle} />
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <Loader2 className="size-6 animate-spin" />
+          <p className="font-semibold">{labels.searching}</p>
+          <p className="text-sm text-muted-foreground">{labels.searchingHint}</p>
+        </div>
+        {/* Leaving does not stop the call already in flight — it just stops
+            waiting for it. Worth having: the hint says this can take a
+            minute. */}
+        <Link href="/bikes/new" className={cn(buttonVariants({ variant: "outline" }), "w-full")}>
+          {labels.cancel}
+        </Link>
+      </div>
+    );
   }
 
   if (phase.name === "preview") {
@@ -167,13 +229,24 @@ export function AiSetupFlow({
 
         <div className="space-y-1.5">
           <Label htmlFor="model">{labels.model} *</Label>
-          <Input id="model" name="model" placeholder={labels.modelPlaceholder} required />
+          <Input
+            id="model"
+            name="model"
+            placeholder={labels.modelPlaceholder}
+            defaultValue={initial?.model}
+            required
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-5">
           <div className="space-y-1.5">
             <Label htmlFor="version">{labels.version}</Label>
-            <Input id="version" name="version" placeholder={labels.versionPlaceholder} />
+            <Input
+              id="version"
+              name="version"
+              placeholder={labels.versionPlaceholder}
+              defaultValue={initial?.version}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="year">{labels.year} *</Label>
@@ -183,7 +256,7 @@ export function AiSetupFlow({
               type="number"
               min={2010}
               max={new Date().getFullYear() + 1}
-              defaultValue={new Date().getFullYear()}
+              defaultValue={initial?.year || new Date().getFullYear()}
               required
             />
           </div>
@@ -631,7 +704,10 @@ function AiSetupPreview({
 
       <div className="space-y-3 rounded-[20px] border border-border bg-card p-5">
         <p className="font-semibold">{labels.usageQuestion}</p>
-        <div className="space-y-2.5">
+        {/* Side by side, and each button hugs its label — two words don't
+            earn a line each, and a full-width target would split the row in
+            half with the tick floating far from the word it ticks. */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
           <button
             type="button"
             onClick={() => {
@@ -642,7 +718,7 @@ function AiSetupPreview({
               setTotalHours("0");
               setFactory(true);
             }}
-            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+            className="flex cursor-pointer items-center gap-2.5 text-left text-sm"
           >
             <CheckSquare selected={isNew} />
             {labels.usageNew}
@@ -650,7 +726,7 @@ function AiSetupPreview({
           <button
             type="button"
             onClick={() => setIsNew(false)}
-            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+            className="flex cursor-pointer items-center gap-2.5 text-left text-sm"
           >
             <CheckSquare selected={!isNew} />
             {labels.usageUsed}

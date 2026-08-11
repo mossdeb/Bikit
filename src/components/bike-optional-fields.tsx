@@ -95,10 +95,16 @@ const FULL_WIDTH_FIELDS = new Set<FieldKey>(["serial_number", "notes"]);
 export function BikeOptionalFields({
   labels,
   defaults = {},
+  omit,
 }: {
   labels: BikeOptionalFieldLabels;
   defaults?: BikeOptionalFieldDefaults;
+  /** Fields the surrounding form already asks for. The create form promotes
+   * the year to its first step, and the same `name="year"` twice in one
+   * form would submit two values. */
+  omit?: FieldKey[];
 }) {
+  const hidden = new Set(omit ?? []);
   const fieldConfig: Record<
     FieldKey,
     { label: string; placeholder?: string; type?: string; min?: number; step?: number }
@@ -115,6 +121,7 @@ export function BikeOptionalFields({
 
   const initialActive = new Set(
     CHECKBOX_ORDER.filter((key) => {
+      if (hidden.has(key)) return false;
       const value = defaults[key];
       return value != null && value !== "";
     })
@@ -126,7 +133,7 @@ export function BikeOptionalFields({
 
   return (
     <>
-      {FIELD_ORDER.filter((key) => activeFields.has(key)).map((key) => {
+      {FIELD_ORDER.filter((key) => activeFields.has(key) && !hidden.has(key)).map((key) => {
         const { label, placeholder, type, min, step } = fieldConfig[key];
         const fullWidth = FULL_WIDTH_FIELDS.has(key);
         // Warranty is stored as text (the column predates the numeric field),
@@ -176,7 +183,7 @@ export function BikeOptionalFields({
             </DialogHeader>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {CHECKBOX_ORDER.map((key) => {
+              {CHECKBOX_ORDER.filter((key) => !hidden.has(key)).map((key) => {
                 const checked = pendingFields.has(key);
                 return (
                   <label

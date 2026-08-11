@@ -24,6 +24,7 @@ export function NewBikeWizard({
   cancelLabel,
   saveLabel,
   steps,
+  step1Footer,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
@@ -36,13 +37,19 @@ export function NewBikeWizard({
   cancelLabel: string;
   saveLabel: string;
   steps: [ReactNode, ReactNode, ReactNode];
+  /** Sits at the bottom of step 1 on mobile, pushed down against the Next
+   * button — CSS cannot reparent an element, so the caller renders its
+   * desktop copy inside the step-1 group and hands the mobile one here. */
+  step1Footer?: ReactNode;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formRef = useRef<HTMLFormElement>(null);
 
   function goNext() {
     if (step === 1 && formRef.current) {
-      const step1Fields = ["type", "brand", "model"];
+      // The bike's identity, which is also exactly what the Smart Setup
+      // route needs — the type moved to step 2 with the rest of the usage.
+      const step1Fields = ["brand", "model", "year"];
       for (const name of step1Fields) {
         const field = formRef.current.elements.namedItem(name) as
           | HTMLInputElement
@@ -104,7 +111,17 @@ export function NewBikeWizard({
         </Button>
       </div>
 
-      <div className="mt-auto flex flex-col gap-3 pt-6 sm:hidden">
+      {/* Takes the slack so the card lands against the buttons instead of
+          floating under the fields. Whichever of the two carries mt-auto
+          must be the only one — two auto margins split the free space. */}
+      {step1Footer && step === 1 && <div className="mt-auto pt-6 sm:hidden">{step1Footer}</div>}
+
+      <div
+        className={cn(
+          "flex flex-col gap-3 pt-6 sm:hidden",
+          !(step1Footer && step === 1) && "mt-auto"
+        )}
+      >
         {step < 3 ? (
           <Button
             key="next"

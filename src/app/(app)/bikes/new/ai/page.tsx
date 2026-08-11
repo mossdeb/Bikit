@@ -18,7 +18,15 @@ import { aiSetupLabels } from "@/lib/ai-setup-labels";
 import { BrandField } from "@/components/brand-field";
 import { buttonVariants } from "@/components/ui/button";
 
-export default async function AiSetupPage() {
+export default async function AiSetupPage({
+  searchParams,
+}: {
+  // Handed over by the bike form's first step, which asks for exactly these
+  // four fields. `go` means the reader already pressed a button knowing what
+  // it does, so the search starts on arrival instead of asking again.
+  searchParams: Promise<{ brand?: string; model?: string; version?: string; year?: string; go?: string }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
@@ -98,9 +106,20 @@ export default async function AiSetupPage() {
     <div className="mx-auto max-w-2xl space-y-6 pt-4 sm:pt-8">
       <AiSetupFlow
         labels={aiSetupLabels(dict, distanceUnit)}
-        brandSlot={<BrandField manufacturers={manufacturers} dict={dict} required />}
+        brandSlot={
+          <BrandField manufacturers={manufacturers} dict={dict} defaultValue={params.brand} required />
+        }
         strava={strava}
         componentCap={componentCap}
+        initial={{
+          model: params.model ?? "",
+          version: params.version ?? "",
+          year: params.year ?? "",
+          // Only auto-search with everything the search needs in hand; a
+          // hand-edited URL missing a field falls back to the normal form.
+          autoSearch: params.go === "1" && !!params.brand && !!params.model && !!params.year,
+          brand: params.brand ?? "",
+        }}
       />
     </div>
   );
