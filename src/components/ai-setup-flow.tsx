@@ -62,6 +62,9 @@ export interface AiSetupLabels {
   maxIntervalsHint: string;
   category: string;
   brand: string;
+  usageQuestion: string;
+  usageNew: string;
+  usageUsed: string;
   factoryQuestion: string;
   factoryHint: string;
   factoryYes: string;
@@ -301,6 +304,9 @@ function AiSetupPreview({
     }))
   );
   const [factory, setFactory] = useState(true);
+  /** New bike: totals stay locked at 0 and the origin question is moot —
+   * with zero on the clock, factory and fresh parts are the same baseline. */
+  const [isNew, setIsNew] = useState(true);
   const [totalKm, setTotalKm] = useState("0");
   const [totalHours, setTotalHours] = useState("0");
   const [gearId, setGearId] = useState("");
@@ -608,49 +614,86 @@ function AiSetupPreview({
       </div>
 
       <div className="space-y-3 rounded-[20px] border border-border bg-card p-5">
-        <p className="font-semibold">{labels.factoryQuestion}</p>
-        <p className="text-sm text-muted-foreground">{labels.factoryHint}</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="ai-total-km">{labels.totalDistance}</Label>
-            <Input
-              id="ai-total-km"
-              type="number"
-              step="0.1"
-              min="0"
-              value={totalKm}
-              onChange={(e) => setTotalKm(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ai-total-hours">{labels.totalHours}</Label>
-            <Input
-              id="ai-total-hours"
-              type="number"
-              step="0.1"
-              min="0"
-              value={totalHours}
-              onChange={(e) => setTotalHours(e.target.value)}
-            />
-          </div>
+        <p className="font-semibold">{labels.usageQuestion}</p>
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              // Back to "new" resets everything the used path unlocked, so
+              // a stray value can't ride along disabled and invisible.
+              setIsNew(true);
+              setTotalKm("0");
+              setTotalHours("0");
+              setFactory(true);
+            }}
+            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+          >
+            <CheckSquare selected={isNew} />
+            {labels.usageNew}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsNew(false)}
+            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+          >
+            <CheckSquare selected={!isNew} />
+            {labels.usageUsed}
+          </button>
         </div>
-        <div className="space-y-2.5 pt-1">
-          <button
-            type="button"
-            onClick={() => setFactory(true)}
-            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
-          >
-            <CheckSquare selected={factory} />
-            {labels.factoryYes}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFactory(false)}
-            className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
-          >
-            <CheckSquare selected={!factory} />
-            {labels.factoryNo}
-          </button>
+
+        {/* Everything below only matters for a used bike; the choice above
+            is the visible reason this half is off. */}
+        <div className={isNew ? "pointer-events-none space-y-3 opacity-40" : "space-y-3"}>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="ai-total-km">{labels.totalDistance}</Label>
+              <Input
+                id="ai-total-km"
+                type="number"
+                step="0.1"
+                min="0"
+                disabled={isNew}
+                value={totalKm}
+                onChange={(e) => setTotalKm(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ai-total-hours">{labels.totalHours}</Label>
+              <Input
+                id="ai-total-hours"
+                type="number"
+                step="0.1"
+                min="0"
+                disabled={isNew}
+                value={totalHours}
+                onChange={(e) => setTotalHours(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1 pt-1">
+            <p className="font-semibold">{labels.factoryQuestion}</p>
+            <p className="text-sm text-muted-foreground">{labels.factoryHint}</p>
+          </div>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              disabled={isNew}
+              onClick={() => setFactory(true)}
+              className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+            >
+              <CheckSquare selected={factory} />
+              {labels.factoryYes}
+            </button>
+            <button
+              type="button"
+              disabled={isNew}
+              onClick={() => setFactory(false)}
+              className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
+            >
+              <CheckSquare selected={!factory} />
+              {labels.factoryNo}
+            </button>
+          </div>
         </div>
       </div>
 

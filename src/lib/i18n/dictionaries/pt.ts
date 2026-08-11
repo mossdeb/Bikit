@@ -305,6 +305,9 @@ const pt: Dictionary = {
       include: "Incluir",
       noIntervals: "Sem manutenção documentada — podes adicionar lembretes mais tarde.",
       maxIntervalsHint: "Até 3 lembretes por componente. Desmarca um para escolher outro.",
+      usageQuestion: "A bicicleta é nova ou usada?",
+      usageNew: "Nova",
+      usageUsed: "Usada",
       factoryQuestion: "Estes são os componentes de origem?",
       factoryHint:
         "Componentes de origem herdam os quilómetros e horas atuais da bicicleta; caso contrário começam do zero.",

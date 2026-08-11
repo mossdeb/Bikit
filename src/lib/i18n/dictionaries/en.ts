@@ -310,6 +310,9 @@ const en = {
       include: "Include",
       noIntervals: "No documented maintenance found — you can add reminders later.",
       maxIntervalsHint: "Up to 3 reminders per component. Untick one to pick another.",
+      usageQuestion: "Is the bike new or used?",
+      usageNew: "New",
+      usageUsed: "Used",
       factoryQuestion: "Are these the original factory components?",
       factoryHint:
         "Factory components inherit the bike's current mileage and hours; otherwise they start from zero.",
