@@ -14,6 +14,9 @@ import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { unitToKm } from "@/lib/format";
 import { rebaseBaselineOverAbsence } from "@/lib/maintenance/calculation";
+import { getDictionary, localeFromMetadata } from "@/lib/i18n";
+import { canonicalIntervalName } from "@/lib/interval-name";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // 5, not 3: Smart Setup components carry up to 5 reminders and the edit
 // form shows them all. The manual CREATE form still renders only 3 slots,
@@ -44,7 +47,11 @@ function parseComponentFormData(formData: FormData) {
  * empty) is simply skipped rather than validated.
  */
 function parseComponentIntervals(
-  formData: FormData
+  formData: FormData,
+  /** The reader's dictionary, used to turn a translated name back into the
+   * canonical English the catalog and every other reader share. The form
+   * shows Portuguese; the database keeps the key. */
+  dict: Dictionary
 ): { success: true; data: ComponentIntervalFormValues[] } | { success: false; error: string } {
   const intervals: ComponentIntervalFormValues[] = [];
   for (let slot = 1; slot <= MAX_INTERVAL_SLOTS; slot++) {
@@ -53,7 +60,7 @@ function parseComponentIntervals(
     const value = formData.get(`interval_value_${slot}`);
     if (!name && !type && !value) continue;
     const parsed = componentIntervalSchema.safeParse({
-      name,
+      name: typeof name === "string" ? canonicalIntervalName(dict, name) : name,
       interval_type: type,
       interval_value: value,
     });
@@ -87,7 +94,7 @@ export async function createComponent(bikeId: string, formData: FormData) {
     );
   }
 
-  const parsedIntervals = parseComponentIntervals(formData);
+  const parsedIntervals = parseComponentIntervals(formData, getDictionary(localeFromMetadata(userData?.claims?.user_metadata)));
   if (!parsedIntervals.success) {
     redirect(`/bikes/${bikeId}/components/new?error=${encodeURIComponent(parsedIntervals.error)}`);
   }
@@ -185,7 +192,7 @@ export async function updateComponent(bikeId: string, componentId: string, formD
     );
   }
 
-  const parsedIntervals = parseComponentIntervals(formData);
+  const parsedIntervals = parseComponentIntervals(formData, getDictionary(localeFromMetadata(userData?.claims?.user_metadata)));
   if (!parsedIntervals.success) {
     redirect(
       `/bikes/${bikeId}/components/${componentId}/edit?error=${encodeURIComponent(parsedIntervals.error)}`
