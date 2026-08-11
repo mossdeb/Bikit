@@ -8,6 +8,7 @@ import { Sparkles } from "lucide-react";
 export const maxDuration = 300;
 import { createClient } from "@/lib/supabase/server";
 import { getUserSubscription } from "@/lib/subscription";
+import { PLAN_LIMITS } from "@/lib/plans";
 import { hasAiSetupAccess } from "@/lib/ai-setup-access";
 import { getBikeIndexManufacturers } from "@/lib/bikeindex";
 import { getValidStravaAccessToken, fetchStravaBikes } from "@/lib/strava";
@@ -49,7 +50,7 @@ export default async function AiSetupPage() {
   // names) don't depend on each other. Gear labels are resolved here because
   // stravaAlreadyLinked is a dictionary function, which cannot cross into
   // the client flow.
-  const [manufacturers, strava] = await Promise.all([
+  const [manufacturers, strava, componentCap] = await Promise.all([
     getBikeIndexManufacturers(),
     (async (): Promise<AiSetupStrava> => {
       const accessToken = userId ? await getValidStravaAccessToken(supabase, userId) : null;
@@ -78,6 +79,19 @@ export default async function AiSetupPage() {
         }),
       };
     })(),
+    (async (): Promise<number | null> => {
+      // What the plan still allows, mirroring createComponent's fitted-only
+      // count; the preview caps its picker with this, the create action
+      // re-checks it server-side.
+      const maxComponents = PLAN_LIMITS[plan].maxComponents;
+      if (maxComponents === null || !userId) return null;
+      const { count } = await supabase
+        .from("components")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .is("retired_at", null);
+      return Math.max(0, maxComponents - (count ?? 0));
+    })(),
   ]);
 
   return (
@@ -86,6 +100,7 @@ export default async function AiSetupPage() {
         labels={aiSetupLabels(dict, distanceUnit)}
         brandSlot={<BrandField manufacturers={manufacturers} dict={dict} required />}
         strava={strava}
+        componentCap={componentCap}
       />
     </div>
   );

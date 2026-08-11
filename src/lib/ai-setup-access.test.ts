@@ -15,8 +15,9 @@ describe("hasAiSetupAccess", () => {
     expect(hasAiSetupAccess("pro", "roque.rangel.ines@gmail.com")).toBe(false);
   });
 
-  it("denies the free plan even for a beta email", () => {
-    expect(hasAiSetupAccess("free", "miguelgomesdzn@gmail.com")).toBe(false);
+  it("grants the free plan too — capped by quota, not locked out (2026-08-11)", () => {
+    expect(hasAiSetupAccess("free", "miguelgomesdzn@gmail.com")).toBe(true);
+    expect(hasAiSetupAccess("free", "roque.rangel.ines@gmail.com")).toBe(false);
   });
 
   it("denies a missing email", () => {

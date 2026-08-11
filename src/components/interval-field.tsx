@@ -128,11 +128,14 @@ function IntervalSlotFields({
 }
 
 /**
- * A component has 0-3 independent, named maintenance intervals (e.g. "Fork
- * lower leg service" every 200km). Each revealed slot submits as
- * interval_name_{slot}/interval_type_{slot}/interval_value_{slot} — a slot
- * left untouched (fields never revealed) is simply absent from the
- * submission and skipped server-side.
+ * A component has up to 3 independent, named maintenance intervals when
+ * created by hand (e.g. "Fork lower leg service" every 200km) — but Smart
+ * Setup may have stored up to 5, and an edit form that hid the extra two
+ * would read as a bug. So the slot count is max(3, what already exists),
+ * capped at 5: manual creation keeps its 3, editing shows everything.
+ * Each revealed slot submits as interval_name_{slot}/interval_type_{slot}/
+ * interval_value_{slot} — a slot left untouched (fields never revealed) is
+ * simply absent from the submission and skipped server-side.
  */
 export function IntervalFieldGroup({
   defaults = [],
@@ -157,15 +160,21 @@ export function IntervalFieldGroup({
   reminderToggleLabel: string;
   addAnotherLabel: string;
 }) {
+  const slotCount = Math.min(5, Math.max(3, defaults.length));
+
   // Only the create form pre-arms the first reminder, to nudge one into being
   // set up. Everywhere else the toggles mirror what's stored, which is what
   // makes "off" reachable at all: a component saved without reminders used to
   // reopen with the first one back on, so switching it off never stuck.
-  const [enabled, setEnabled] = useState<[boolean, boolean, boolean]>([
-    startWithReminder || defaults.length >= 1,
-    defaults.length >= 2,
-    defaults.length >= 3,
-  ]);
+  const [enabled, setEnabled] = useState<boolean[]>(() =>
+    Array.from({ length: slotCount }, (_, i) => (i === 0 ? startWithReminder || defaults.length >= 1 : defaults.length >= i + 1))
+  );
+
+  // Turning a slot off also turns off everything after it — the numbered
+  // form fields must stay contiguous for the server's 1..N parse.
+  function toggleSlot(index: number, value: boolean) {
+    setEnabled((prev) => prev.map((on, i) => (i < index ? on : i === index ? value : value && on)));
+  }
 
   const slotFieldsProps = { nameLabel, namePlaceholder, kmLabel, hoursLabel, monthsLabel, hint };
 
@@ -177,32 +186,27 @@ export function IntervalFieldGroup({
             icon={<AlarmIcon className="size-4" />}
             label={reminderToggleLabel}
             checked={enabled[0]}
-            onChange={(v) => setEnabled([v, v && enabled[1], v && enabled[2]])}
+            onChange={(v) => toggleSlot(0, v)}
           />
           {enabled[0] && <IntervalSlotFields slot={1} defaultValue={defaults[0]} {...slotFieldsProps} />}
         </div>
 
-        {enabled[0] && (
-          <>
-            <div className="space-y-3 border-t border-border py-5">
+        {enabled[0] &&
+          Array.from({ length: slotCount - 1 }, (_, i) => i + 1).map((index) => (
+            <div
+              key={index}
+              className="space-y-3 border-t border-border py-5 last:pb-0"
+            >
               <ToggleRow
                 label={addAnotherLabel}
-                checked={enabled[1]}
-                onChange={(v) => setEnabled([enabled[0], v, v && enabled[2]])}
+                checked={enabled[index]}
+                onChange={(v) => toggleSlot(index, v)}
               />
-              {enabled[1] && <IntervalSlotFields slot={2} defaultValue={defaults[1]} {...slotFieldsProps} />}
+              {enabled[index] && (
+                <IntervalSlotFields slot={index + 1} defaultValue={defaults[index]} {...slotFieldsProps} />
+              )}
             </div>
-
-            <div className="space-y-3 border-t border-border py-5 last:pb-0">
-              <ToggleRow
-                label={addAnotherLabel}
-                checked={enabled[2]}
-                onChange={(v) => setEnabled([enabled[0], enabled[1], v])}
-              />
-              {enabled[2] && <IntervalSlotFields slot={3} defaultValue={defaults[2]} {...slotFieldsProps} />}
-            </div>
-          </>
-        )}
+          ))}
       </div>
     </div>
   );

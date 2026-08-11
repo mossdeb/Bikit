@@ -15,7 +15,12 @@ import { PLAN_LIMITS } from "@/lib/plans";
 import { unitToKm } from "@/lib/format";
 import { rebaseBaselineOverAbsence } from "@/lib/maintenance/calculation";
 
-const MAX_INTERVAL_SLOTS = 3;
+// 5, not 3: Smart Setup components carry up to 5 reminders and the edit
+// form shows them all. The manual CREATE form still renders only 3 slots,
+// so nothing new becomes possible there — the parser just stops being the
+// thing that silently drops an AI-created component's 4th and 5th reminder
+// on its first manual edit.
+const MAX_INTERVAL_SLOTS = 5;
 
 function parseComponentFormData(formData: FormData) {
   return componentSchema.safeParse({

@@ -20,7 +20,7 @@ import {
   type AiSetupComponent,
 } from "@/lib/actions/ai-setup";
 import { connectStrava } from "@/lib/actions/strava";
-import type { MaintenanceInterval } from "@/lib/ai/intervals";
+import { AI_SETUP_MAX_INTERVALS, type MaintenanceInterval } from "@/lib/ai/intervals";
 import { COMPONENT_CATEGORIES, type BikeType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
@@ -52,7 +52,7 @@ export interface AiSetupLabels {
   componentsFound: { one: string; many: string };
   intervalsConfigured: { one: string; many: string };
   source: string;
-  remainingToday: { one: string; many: string };
+  remainingThisMonth: { one: string; many: string };
   every: { km: string; hours: string; months: string; monthOne: string };
   componentsTitle: string;
   editHint: string;
@@ -60,6 +60,7 @@ export interface AiSetupLabels {
   include: string;
   noIntervals: string;
   maxIntervalsHint: string;
+  componentCapNote: { one: string; many: string };
   category: string;
   brand: string;
   usageQuestion: string;
@@ -109,10 +110,14 @@ export function AiSetupFlow({
   labels,
   brandSlot,
   strava,
+  componentCap,
 }: {
   labels: AiSetupLabels;
   brandSlot: ReactNode;
   strava: AiSetupStrava;
+  /** How many components the plan still allows (null = unlimited). The
+   * preview starts everything off and caps the switches when finite. */
+  componentCap: number | null;
 }) {
   const [phase, setPhase] = useState<Phase>({ name: "form", error: null });
   const [searching, startSearch] = useTransition();
@@ -137,6 +142,7 @@ export function AiSetupFlow({
       <AiSetupPreview
         labels={labels}
         strava={strava}
+        componentCap={componentCap}
         result={phase.result}
         onBack={() => setPhase({ name: "form", error: null })}
       />
@@ -284,11 +290,13 @@ interface EditableComponent extends AiSetupComponent {
 function AiSetupPreview({
   labels,
   strava,
+  componentCap,
   result,
   onBack,
 }: {
   labels: AiSetupLabels;
   strava: AiSetupStrava;
+  componentCap: number | null;
   result: Extract<AiSetupSearchResult, { status: "found" }>;
   onBack: () => void;
 }) {
@@ -300,7 +308,9 @@ function AiSetupPreview({
     result.components.map((component) => ({
       ...component,
       selectedIdx: component.selected.map((s) => component.intervals.indexOf(s)).filter((i) => i >= 0),
-      enabled: true,
+      // A capped plan starts with everything off: pre-picking N of 25 for
+      // the user would be our guess, not their choice.
+      enabled: componentCap === null,
     }))
   );
   const [factory, setFactory] = useState(true);
@@ -327,7 +337,7 @@ function AiSetupPreview({
         if (i !== index) return c;
         const selected = c.selectedIdx.includes(intervalIdx)
           ? c.selectedIdx.filter((s) => s !== intervalIdx)
-          : c.selectedIdx.length < 3
+          : c.selectedIdx.length < AI_SETUP_MAX_INTERVALS
             ? [...c.selectedIdx, intervalIdx]
             : c.selectedIdx;
         return { ...c, selectedIdx: selected };
@@ -487,13 +497,16 @@ function AiSetupPreview({
             </p>
           )}
           {result.remaining !== null && (
-            <p className="text-xs text-muted-foreground">{counted(labels.remainingToday, result.remaining)}</p>
+            <p className="text-xs text-muted-foreground">{counted(labels.remainingThisMonth, result.remaining)}</p>
           )}
         </div>
 
         <div className="space-y-1 p-5 sm:p-6">
           <p className="font-semibold">{labels.componentsTitle}</p>
           <p className="text-sm text-muted-foreground">{labels.editHint}</p>
+          {componentCap !== null && (
+            <p className="pt-1 text-sm font-semibold">{counted(labels.componentCapNote, componentCap)}</p>
+          )}
         </div>
       </div>
 
@@ -510,6 +523,9 @@ function AiSetupPreview({
               <Switch
                 checked={component.enabled}
                 onChange={() => {
+                  // Enabling past the plan's component cap is a no-op; the
+                  // cap note above the list is the explanation.
+                  if (!component.enabled && componentCap !== null && enabledComponents.length >= componentCap) return;
                   updateComponent(index, { enabled: !component.enabled });
                   if (editing === index) setEditing(null);
                 }}
@@ -603,7 +619,7 @@ function AiSetupPreview({
                       </button>
                     );
                   })}
-                  {component.intervals.length > 3 && (
+                  {component.intervals.length > AI_SETUP_MAX_INTERVALS && (
                     <p className="pt-1 text-center text-xs text-muted-foreground">{labels.maxIntervalsHint}</p>
                   )}
                 </div>

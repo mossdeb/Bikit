@@ -53,6 +53,8 @@ export const aiSetupCreateSchema = z.object({
         model: z.string().trim().min(1).max(120),
         variant: z.string().trim().max(120),
         year: z.number().int().min(1990).max(2100).nullable(),
+        // Smart Setup components carry up to 5 reminders (the manual form
+        // stays at 3) — matched by the slot 1-5 check in migration 00029.
         intervals: z
           .array(
             z.object({
@@ -61,7 +63,7 @@ export const aiSetupCreateSchema = z.object({
               interval: z.number().positive().max(100000),
             })
           )
-          .max(3),
+          .max(5),
       })
     )
     .min(1)

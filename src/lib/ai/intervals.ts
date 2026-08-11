@@ -5,6 +5,10 @@
 // deliberately does not reopen). So something has to choose, and it should
 // be the same something for every user: the app, not the AI and not chance.
 
+/** Smart Setup components may fill up to 5 reminder slots (2026-08-11,
+ * migration 00029); the manual form deliberately keeps its 3. */
+export const AI_SETUP_MAX_INTERVALS = 5;
+
 export const INTERVAL_TYPES = ["km", "hours", "months"] as const;
 export type IntervalType = (typeof INTERVAL_TYPES)[number];
 

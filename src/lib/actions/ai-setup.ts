@@ -9,7 +9,7 @@ import { hasAiSetupAccess, hasUnlimitedAiSearches } from "@/lib/ai-setup-access"
 import { aiSetupSearchSchema, aiSetupCreateSchema } from "@/lib/validations/ai-setup.schema";
 import { bikeCatalogKey, combinedBikeName } from "@/lib/ai/normalize";
 import { searchBikeWithAI, type AiBikeComponent, type BikeSearchOutcome } from "@/lib/ai/bike-search";
-import { computeAllowance, startOfTodayUtcIso } from "@/lib/ai/quota";
+import { computeAllowance, startOfMonthUtcIso } from "@/lib/ai/quota";
 import { resolveIntervalsForComponents } from "@/lib/ai/profiles";
 import { saveBikeCatalogEntry } from "@/lib/ai/catalog";
 import type { MaintenanceInterval } from "@/lib/ai/intervals";
@@ -110,9 +110,10 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
               .select("outcome")
               .eq("user_id", userId)
               .eq("kind", "bike")
-              .gte("created_at", startOfTodayUtcIso())
+              .gte("created_at", startOfMonthUtcIso())
           ).data ?? []
-        ).map((r) => r.outcome)
+        ).map((r) => r.outcome),
+        plan
       );
 
   if (catalogHit) {
@@ -213,6 +214,24 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
       return {
         status: "limit_reached",
         message: `Your ${plan} plan is limited to ${maxBikes} bike${maxBikes === 1 ? "" : "s"}. Upgrade in Settings to add more.`,
+      };
+    }
+  }
+
+  // Same component ceiling the manual form enforces (fitted parts only, like
+  // createComponent) — the preview caps the picker, but the payload is
+  // client-supplied and must be re-checked here.
+  const maxComponents = PLAN_LIMITS[plan].maxComponents;
+  if (maxComponents !== null) {
+    const { count } = await supabase
+      .from("components")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .is("retired_at", null);
+    if ((count ?? 0) + parsed.data.components.length > maxComponents) {
+      return {
+        status: "limit_reached",
+        message: `Your ${plan} plan is limited to ${maxComponents} components. Upgrade in Settings to add more.`,
       };
     }
   }

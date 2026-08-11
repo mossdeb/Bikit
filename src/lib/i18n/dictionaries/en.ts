@@ -287,16 +287,16 @@ const en = {
       },
       fromCatalog: "Loaded instantly from the Bikit catalog",
       source: "Source",
-      remainingToday: { one: "1 AI search left today", many: "{n} AI searches left today" },
+      remainingThisMonth: { one: "1 AI search left this month", many: "{n} AI searches left this month" },
       every: { km: "Every {n} km", hours: "Every {n} h", months: "Every {n} mo", monthOne: "Every month" },
       notFoundTitle: "We couldn't find your bike",
       notFoundBody:
         "No official spec sheet turned up for that exact model and year. Check the spelling and year, or create the bike manually.",
       createManually: "Create manually",
       tryAgain: "Try again",
-      quotaTitle: "Daily limit reached",
+      quotaTitle: "Monthly limit reached",
       quotaBody:
-        "AI search is limited to 3 successful searches per day. Bikes already in the Bikit catalog are always free to load — or create this one manually.",
+        "You've used this month's AI searches on your plan. Bikes already in the Bikit catalog are always free to load — or create this one manually.",
       errorBody: "Something went wrong while searching. Try again in a moment.",
       betaTitle: "Smart setup is in closed beta",
       betaBody:
@@ -309,7 +309,11 @@ const en = {
       editHint: "Review anything before creating — changes here only affect your bike.",
       include: "Include",
       noIntervals: "No documented maintenance found — you can add reminders later.",
-      maxIntervalsHint: "Up to 3 reminders per component. Untick one to pick another.",
+      maxIntervalsHint: "Up to 5 reminders per component. Untick one to pick another.",
+      componentCapNote: {
+        one: "Your plan allows 1 component — choose which one to create.",
+        many: "Your plan allows {n} components — choose which ones to create.",
+      },
       usageQuestion: "Is the bike new or used?",
       usageNew: "New",
       usageUsed: "Used",

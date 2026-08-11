@@ -13,7 +13,10 @@ export const PLAN_LIMITS: Record<Plan, { maxBikes: number | null; maxComponents:
  * is a door that is either open or shut.
  */
 export const PLAN_FEATURES: Record<Plan, { timeline: boolean; aiSetup: boolean }> = {
-  free: { timeline: false, aiSetup: false },
+  // aiSetup on Free is real but tight: 1 search a month, and the component
+  // picker respects the 2-component plan limit. The closed beta's email list
+  // still sits on top of this while it lasts.
+  free: { timeline: false, aiSetup: true },
   personal: { timeline: true, aiSetup: true },
   pro: { timeline: true, aiSetup: true },
 };

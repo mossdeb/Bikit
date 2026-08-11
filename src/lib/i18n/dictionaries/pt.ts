@@ -282,16 +282,19 @@ const pt: Dictionary = {
       },
       fromCatalog: "Carregada instantaneamente do catálogo da Bikit",
       source: "Fonte",
-      remainingToday: { one: "1 pesquisa com IA disponível hoje", many: "{n} pesquisas com IA disponíveis hoje" },
+      remainingThisMonth: {
+        one: "1 pesquisa com IA disponível este mês",
+        many: "{n} pesquisas com IA disponíveis este mês",
+      },
       every: { km: "a cada {n} km", hours: "a cada {n} h", months: "a cada {n} meses", monthOne: "a cada mês" },
       notFoundTitle: "Não encontrámos a tua bicicleta",
       notFoundBody:
         "Não apareceu nenhuma ficha técnica oficial para esse modelo e ano exatos. Confirma a escrita e o ano, ou cria a bicicleta manualmente.",
       createManually: "Criar manualmente",
       tryAgain: "Tentar novamente",
-      quotaTitle: "Limite diário atingido",
+      quotaTitle: "Limite mensal atingido",
       quotaBody:
-        "A pesquisa com IA está limitada a 3 pesquisas com sucesso por dia. Bicicletas já no catálogo da Bikit carregam sempre sem custo — ou cria esta manualmente.",
+        "Esgotaste as pesquisas com IA deste mês no teu plano. Bicicletas já no catálogo da Bikit carregam sempre sem custo — ou cria esta manualmente.",
       errorBody: "Algo correu mal durante a pesquisa. Tenta novamente daqui a pouco.",
       betaTitle: "A Configuração Inteligente está em beta fechada",
       betaBody:
@@ -304,7 +307,11 @@ const pt: Dictionary = {
       editHint: "Revê o que quiseres antes de criar — as alterações aqui só afetam a tua bicicleta.",
       include: "Incluir",
       noIntervals: "Sem manutenção documentada — podes adicionar lembretes mais tarde.",
-      maxIntervalsHint: "Até 3 lembretes por componente. Desmarca um para escolher outro.",
+      maxIntervalsHint: "Até 5 lembretes por componente. Desmarca um para escolher outro.",
+      componentCapNote: {
+        one: "O teu plano permite 1 componente — escolhe qual queres criar.",
+        many: "O teu plano permite {n} componentes — escolhe quais queres criar.",
+      },
       usageQuestion: "A bicicleta é nova ou usada?",
       usageNew: "Nova",
       usageUsed: "Usada",
