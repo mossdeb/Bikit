@@ -4,6 +4,7 @@
 // schema, Zod as the second line, citations for the source, no persistence.
 
 import { getOpenAIClient, OPENAI_MODEL } from "./openai";
+import { clampConfidence, zodIssueSummary } from "./bike-search";
 import { extractFirstCitationUrl } from "./citations";
 import { CANONICAL_INTERVAL_NAMES, INTERVAL_TYPES } from "./intervals";
 import { z } from "zod";
@@ -103,11 +104,15 @@ export async function searchMaintenanceWithAI(input: MaintenanceSearchInput): Pr
   try {
     parsed = JSON.parse(response.output_text);
   } catch {
+    console.error(`[ai-setup] maintenance search: output_text is not JSON (${response.output_text.length} chars)`);
     return { outcome: "invalid", tokens };
   }
 
   const result = maintenanceSearchResponseSchema.safeParse(sanitizeMaintenance(parsed));
-  if (!result.success) return { outcome: "invalid", tokens };
+  if (!result.success) {
+    console.error("[ai-setup] maintenance search: schema rejected response:", zodIssueSummary(result.error));
+    return { outcome: "invalid", tokens };
+  }
   if (!result.data.found || result.data.maintenance.length === 0) return { outcome: "not_found", tokens };
 
   return {
@@ -252,6 +257,7 @@ export async function searchMaintenanceBatchWithAI(
   try {
     parsed = JSON.parse(response.output_text);
   } catch {
+    console.error(`[ai-setup] maintenance batch: output_text is not JSON (${response.output_text.length} chars)`);
     return { outcome: "invalid", tokens };
   }
 
@@ -265,7 +271,10 @@ export async function searchMaintenanceBatchWithAI(
   }
 
   const result = batchResponseSchema.safeParse(parsed);
-  if (!result.success) return { outcome: "invalid", tokens };
+  if (!result.success) {
+    console.error("[ai-setup] maintenance batch: schema rejected response:", zodIssueSummary(result.error));
+    return { outcome: "invalid", tokens };
+  }
 
   // Align answers with requests: echoed brand/model first, order as fallback.
   const byKey = new Map<string, MaintenanceBatchResult>();
@@ -283,11 +292,15 @@ export async function searchMaintenanceBatchWithAI(
 
 /** Same mercy as bike-search's sanitizeComponents: one malformed entry —
  * a zero interval, an over-long name, a list past the cap — must not turn
- * the whole schedule into an 'invalid'. Bad entries are dropped. */
-function sanitizeMaintenance(parsed: unknown): unknown {
+ * the whole schedule into an 'invalid'. Bad entries are dropped.
+ * Exported for tests only. */
+export function sanitizeMaintenance(parsed: unknown): unknown {
   if (typeof parsed !== "object" || parsed === null) return parsed;
   const p = parsed as Record<string, unknown>;
-  if (!Array.isArray(p.maintenance)) return parsed;
+  // Same clamp as the bike search — the wire schema can't bound numbers,
+  // and a 95-for-0.95 must not void the schedule that carries it.
+  const confidence = clampConfidence(p.confidence);
+  if (!Array.isArray(p.maintenance)) return { ...p, confidence };
   const maintenance = p.maintenance
     .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
     .filter(
@@ -300,5 +313,5 @@ function sanitizeMaintenance(parsed: unknown): unknown {
         m.interval <= 100000
     )
     .slice(0, 20);
-  return { ...p, maintenance };
+  return { ...p, confidence, maintenance };
 }

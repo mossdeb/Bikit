@@ -152,15 +152,23 @@ export async function searchBikeWithAI(input: BikeSearchInput): Promise<BikeSear
 
   const tokens = response.usage?.total_tokens ?? null;
 
+  // An 'invalid' says WHY in the logs from here on: the ledger only keeps
+  // the outcome, and a blind invalid cost five user searches and a paid
+  // reproduction to diagnose (the Moterra, 2026-08-11) before anyone knew
+  // a single overlong variant was the killer.
   let parsed: unknown;
   try {
     parsed = JSON.parse(response.output_text);
   } catch {
+    console.error(`[ai-setup] bike search: output_text is not JSON (${response.output_text.length} chars)`);
     return { outcome: "invalid", tokens };
   }
 
-  const result = bikeSearchResponseSchema.safeParse(sanitizeComponents(parsed));
-  if (!result.success) return { outcome: "invalid", tokens };
+  const result = bikeSearchResponseSchema.safeParse(sanitizeComponents(parsed, input));
+  if (!result.success) {
+    console.error("[ai-setup] bike search: schema rejected response:", zodIssueSummary(result.error));
+    return { outcome: "invalid", tokens };
+  }
 
   const { data } = result;
   if (!data.found || !data.bike || data.components.length === 0) {
@@ -179,24 +187,79 @@ export async function searchBikeWithAI(input: BikeSearchInput): Promise<BikeSear
   };
 }
 
+/** Overlong strings are cut to the schema's cap rather than rejected: the
+ * model quotes spec sheets, and spec sheets ramble ("DownLow dropper,
+ * 100–150 mm travel depending on frame size, …"). Only display suffers,
+ * and only in the tail. */
+function clamp(value: unknown, max: number): unknown {
+  return typeof value === "string" ? value.slice(0, max) : value;
+}
+
+/** The first few Zod issues as one log line — enough to name the field that
+ * killed a response without dumping the response. Shared with the
+ * maintenance search. */
+export function zodIssueSummary(error: z.ZodError): string {
+  return error.issues
+    .slice(0, 3)
+    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+    .join("; ");
+}
+
+/** Confidence pinned into [0,1]: the wire schema can't bound numbers, and a
+ * model that writes 95 for 0.95 must not void an otherwise good answer.
+ * Clamping to 1 at worst files the catalog entry as 'unverified' — the
+ * status a high confidence earns anyway. Exported for tests. */
+export function clampConfidence(value: unknown): unknown {
+  return typeof value === "number" ? Math.min(1, Math.max(0, value)) : value;
+}
+
 /** One bad component must not sink the whole answer. The wire schema pins
  * the shape, but the model still emits things Zod rejects — year 0 on a
  * component, an empty brand, more entries than the cap — and rejecting the
  * response wholesale turned a 19-component find into an 'invalid'. Bad
- * years become null; components with no brand or model are dropped. */
-function sanitizeComponents(parsed: unknown): unknown {
+ * years become null; components with no brand or model are dropped;
+ * overlong strings are clamped to the schema cap (a 2024 Moterra SL was
+ * found with 24 components and 0.98 confidence, then thrown away whole
+ * because ONE variant ran past 120 characters — strict mode can't carry
+ * maxLength, so the wire schema can't stop it upstream).
+ *
+ * Exported for tests only — production's sole caller is searchBikeWithAI.
+ *
+ * `searched` fills an empty bike brand/model: Zod demands min(1), the wire
+ * schema can't, and the one honest substitute is what the user typed —
+ * the same authority the caller already gives the year. */
+export function sanitizeComponents(parsed: unknown, searched?: { brand: string; model: string }): unknown {
   if (typeof parsed !== "object" || parsed === null) return parsed;
   const p = parsed as Record<string, unknown>;
-  if (!Array.isArray(p.components)) return parsed;
+
+  // The bike's own strings share the 120 cap and the model's verbosity.
+  let bike = p.bike;
+  if (typeof bike === "object" && bike !== null) {
+    const b = bike as Record<string, unknown>;
+    const orSearched = (value: unknown, fallback: string | undefined) =>
+      typeof value === "string" && value.trim() ? value : (fallback ?? value);
+    bike = {
+      ...b,
+      brand: clamp(orSearched(b.brand, searched?.brand), 120),
+      model: clamp(orSearched(b.model, searched?.model), 120),
+      version: clamp(b.version, 120),
+    };
+  }
+
+  const confidence = clampConfidence(p.confidence);
+  if (!Array.isArray(p.components)) return { ...p, bike, confidence };
   const components = p.components
     .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
     .map(
       (c): Record<string, unknown> => ({
         ...c,
+        brand: clamp(c.brand, 120),
+        model: clamp(c.model, 120),
+        variant: clamp(c.variant, 120),
         year: typeof c.year === "number" && c.year >= 1990 && c.year <= 2100 ? c.year : null,
       })
     )
     .filter((c) => typeof c.brand === "string" && c.brand.trim() && typeof c.model === "string" && c.model.trim())
     .slice(0, 40);
-  return { ...p, components };
+  return { ...p, bike, confidence, components };
 }
