@@ -713,6 +713,7 @@ const en = {
       intervalNamePlaceholder: "e.g. Fork lower leg service",
       reminderToggleLabel: "Maintenance reminder",
       addAnotherReminder: "+ Add another reminder",
+      intervalSuggestionNote: "Filled in from Bikit's catalog. Change anything you like.",
       totalDistance: (unit: "km" | "mi"): string => (unit === "mi" ? "Total miles" : "Total kms"),
       totalHours: "Total hours",
       totalUsageHint: "Only editable when adding the component (e.g. installing a used part). Afterwards it updates automatically from the bike's totals.",

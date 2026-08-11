@@ -4,6 +4,8 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
+import { IntervalSuggestionContext } from "@/components/interval-suggestion";
+import { suggestComponentIntervals, type IntervalSuggestion } from "@/lib/actions/component-intervals";
 import { cn } from "@/lib/utils";
 
 /** Splits the "add component" form into a 3-step wizard on mobile only —
@@ -23,6 +25,7 @@ export function NewComponentWizard({
   cancelLabel,
   saveLabel,
   steps,
+  bikeType,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
@@ -35,9 +38,42 @@ export function NewComponentWizard({
   cancelLabel: string;
   saveLabel: string;
   steps: [ReactNode, ReactNode, ReactNode];
+  /** The bike's BIKE_TYPES entry — the code defaults scale their cadence to
+   * how the bike is ridden, which only the bike knows. */
+  bikeType: string;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [suggestion, setSuggestion] = useState<IntervalSuggestion | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  /** Leaving step 1 is the moment: the four fields the lookup needs are
+   * filled, and step 2 gives the round trip time to land before step 3 is
+   * ever seen. Free — catalog and code defaults only, never the AI. */
+  function fetchSuggestion(form: HTMLFormElement) {
+    const value = (name: string) =>
+      ((form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "").trim();
+
+    // Never overwrite what the reader wrote. On desktop every step is on
+    // screen at once, so the reminder slots may already be filled in by the
+    // time step 1 is finished.
+    const written = [...form.querySelectorAll<HTMLInputElement>('input[name^="interval_name_"], input[name^="interval_value_"]')];
+    if (written.some((input) => input.value.trim() !== "")) return;
+
+    const year = Number(value("year"));
+    suggestComponentIntervals({
+      category: value("category"),
+      brand: value("brand"),
+      model: value("model"),
+      year: Number.isFinite(year) && year > 0 ? year : null,
+      bikeType,
+    })
+      .then((result) => {
+        if (result) setSuggestion(result);
+      })
+      // A lookup that fails leaves the form exactly as it was — this is a
+      // convenience, never a precondition for creating a component.
+      .catch(() => {});
+  }
 
   function goNext() {
     if (step === 1 && formRef.current) {
@@ -49,11 +85,13 @@ export function NewComponentWizard({
           | null;
         if (field && !field.reportValidity()) return;
       }
+      fetchSuggestion(formRef.current);
     }
     setStep((s) => ((s + 1) as 1 | 2 | 3));
   }
 
   return (
+    <IntervalSuggestionContext value={suggestion}>
     <form
       ref={formRef}
       action={action}
@@ -141,5 +179,6 @@ export function NewComponentWizard({
         )}
       </div>
     </form>
+    </IntervalSuggestionContext>
   );
 }

@@ -5,6 +5,8 @@ import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlarmIcon, DistanceIcon, HoursIcon, MonthsIcon } from "@/components/interval-icons";
+import { useIntervalSuggestion } from "@/components/interval-suggestion";
+import type { IntervalSuggestion } from "@/lib/actions/component-intervals";
 import type { IntervalType } from "@/lib/validations/component.schema";
 
 const PLACEHOLDER: Record<IntervalType, string> = { km: "800", hours: "50", months: "6" };
@@ -148,6 +150,8 @@ export function IntervalFieldGroup({
   monthsLabel,
   reminderToggleLabel,
   addAnotherLabel,
+  suggestionNote,
+  intervalNames,
 }: {
   defaults?: IntervalSlotDefault[];
   startWithReminder?: boolean;
@@ -159,8 +163,28 @@ export function IntervalFieldGroup({
   monthsLabel: string;
   reminderToggleLabel: string;
   addAnotherLabel: string;
+  /** Shown when the slots were filled from the shared catalog rather than
+   * by the reader — fields that fill themselves without saying why read as
+   * a glitch. */
+  suggestionNote?: string;
+  /** Canonical English → the reader's language, so a suggested name arrives
+   * in Portuguese instead of as the storage key. What goes back to the
+   * database is turned around again by canonicalIntervalName on save. */
+  intervalNames?: Record<string, string>;
 }) {
-  const slotCount = Math.min(5, Math.max(3, defaults.length));
+  // The wizard only offers a suggestion when every slot is still empty, so
+  // accepting it can never overwrite something typed.
+  const suggestion = useIntervalSuggestion();
+  const [applied, setApplied] = useState<IntervalSuggestion | null>(null);
+
+  const slots: IntervalSlotDefault[] = applied
+    ? applied.intervals.map((iv) => ({
+        name: intervalNames?.[iv.name] ?? iv.name,
+        type: iv.type,
+        value: iv.interval,
+      }))
+    : defaults;
+  const slotCount = Math.min(5, Math.max(3, slots.length));
 
   // Only the create form pre-arms the first reminder, to nudge one into being
   // set up. Everywhere else the toggles mirror what's stored, which is what
@@ -170,6 +194,15 @@ export function IntervalFieldGroup({
     Array.from({ length: slotCount }, (_, i) => (i === 0 ? startWithReminder || defaults.length >= 1 : defaults.length >= i + 1))
   );
 
+  // Adjusting state during render, not in an effect: the suggestion lands
+  // after mount and the toggles have to follow it, and this is the one
+  // pattern React sanctions for "derived state that must react to a prop".
+  // An effect here would also trip the project's set-state-in-effect rule.
+  if (suggestion && suggestion !== applied) {
+    setApplied(suggestion);
+    setEnabled(Array.from({ length: slotCount }, (_, i) => i < suggestion.intervals.length));
+  }
+
   // Turning a slot off also turns off everything after it — the numbered
   // form fields must stay contiguous for the server's 1..N parse.
   function toggleSlot(index: number, value: boolean) {
@@ -178,8 +211,15 @@ export function IntervalFieldGroup({
 
   const slotFieldsProps = { nameLabel, namePlaceholder, kmLabel, hoursLabel, monthsLabel, hint };
 
+  // The inputs are uncontrolled, so a suggestion arriving later only lands
+  // if they remount — hence the key changing with it.
+  const slotKey = applied ? "suggested" : "stored";
+
   return (
     <div className="space-y-1.5 sm:col-span-2">
+      {applied && suggestionNote && (
+        <p className="rounded-sm bg-muted px-3.5 py-3 text-sm text-muted-foreground">{suggestionNote}</p>
+      )}
       <div>
         <div className="space-y-3 py-5 first:pt-0">
           <ToggleRow
@@ -188,7 +228,9 @@ export function IntervalFieldGroup({
             checked={enabled[0]}
             onChange={(v) => toggleSlot(0, v)}
           />
-          {enabled[0] && <IntervalSlotFields slot={1} defaultValue={defaults[0]} {...slotFieldsProps} />}
+          {enabled[0] && (
+            <IntervalSlotFields key={slotKey} slot={1} defaultValue={slots[0]} {...slotFieldsProps} />
+          )}
         </div>
 
         {enabled[0] &&
@@ -203,7 +245,12 @@ export function IntervalFieldGroup({
                 onChange={(v) => toggleSlot(index, v)}
               />
               {enabled[index] && (
-                <IntervalSlotFields slot={index + 1} defaultValue={defaults[index]} {...slotFieldsProps} />
+                <IntervalSlotFields
+                  key={slotKey}
+                  slot={index + 1}
+                  defaultValue={slots[index]}
+                  {...slotFieldsProps}
+                />
               )}
             </div>
           ))}

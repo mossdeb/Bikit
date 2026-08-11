@@ -54,10 +54,16 @@ const CHECKBOX_ORDER: FieldKey[] = ["serial_number", "purchase_date", "warranty"
 export function ComponentOptionalFields({
   labels,
   defaults = {},
+  omit,
 }: {
   labels: ComponentOptionalFieldLabels;
   defaults?: ComponentOptionalFieldDefaults;
+  /** Fields the surrounding form already asks for. The create form moved
+   * the year up to step 1, and the same `name="year"` twice in one form
+   * would submit two values. */
+  omit?: FieldKey[];
 }) {
+  const hidden = new Set(omit ?? []);
   const fieldConfig: Record<
     FieldKey,
     { label: string; placeholder?: string; type?: string; min?: number; step?: number }
@@ -71,6 +77,7 @@ export function ComponentOptionalFields({
 
   const initialActive = new Set(
     CHECKBOX_ORDER.filter((key) => {
+      if (hidden.has(key)) return false;
       const value = defaults[key];
       return value != null && value !== "";
     })
@@ -111,7 +118,7 @@ export function ComponentOptionalFields({
       {activeFields.has("purchase_date") && renderField("purchase_date", true)}
       {activeFields.has("warranty") && renderField("warranty", true)}
 
-      {activeFields.has("year") && renderField("year", false)}
+      {activeFields.has("year") && !hidden.has("year") && renderField("year", false)}
       {activeFields.has("notes") && renderField("notes", true)}
 
       <div className="sm:col-span-2">
@@ -138,7 +145,7 @@ export function ComponentOptionalFields({
             </DialogHeader>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {CHECKBOX_ORDER.map((key) => {
+              {CHECKBOX_ORDER.filter((key) => !hidden.has(key)).map((key) => {
                 const checked = pendingFields.has(key);
                 return (
                   <label

@@ -705,6 +705,7 @@ const pt: Dictionary = {
       intervalNamePlaceholder: "ex. Serviço à suspensão dianteira",
       reminderToggleLabel: "Lembrete de manutenção",
       addAnotherReminder: "+ Adicionar outro lembrete",
+      intervalSuggestionNote: "Preenchido a partir do catálogo da Bikit. Altera à vontade.",
       totalDistance: (unit: "km" | "mi"): string => (unit === "mi" ? "Total de milhas" : "Total de kms"),
       totalHours: "Total de horas",
       totalUsageHint: "Apenas editável ao adicionar o componente (ex.: instalar uma peça em segunda mão). Depois disso é atualizado automaticamente com base na utilização da bicicleta.",

@@ -35,7 +35,7 @@ export default async function NewComponentPage({
   // is an external API call) — fired together instead of one after another.
   const [{ data: userData }, { data: bike }, manufacturers] = await Promise.all([
     supabase.auth.getClaims(),
-    supabase.from("bikes").select("id, name, total_km, total_hours, purchase_date").eq("id", bikeId).single(),
+    supabase.from("bikes").select("id, name, type, total_km, total_hours, purchase_date").eq("id", bikeId).single(),
     getBikeIndexManufacturers(),
   ]);
 
@@ -67,6 +67,15 @@ export default async function NewComponentPage({
       <div className="space-y-1.5">
         <Label htmlFor="model">{dict.components.form.model}</Label>
         <Input id="model" name="model" required placeholder={dict.components.form.modelPlaceholder} />
+      </div>
+
+      {/* Up from the optional details, because this is where it earns its
+          keep: the curated library is keyed per model year, and the year is
+          what makes the lookup pick the right generation. Still optional —
+          without it the nearest listed year is used. */}
+      <div className="space-y-1.5">
+        <Label htmlFor="year">{dict.components.form.year}</Label>
+        <Input id="year" name="year" type="number" min={1990} max={new Date().getFullYear() + 1} />
       </div>
     </Fragment>
   );
@@ -104,7 +113,7 @@ export default async function NewComponentPage({
         bikeTotalHours={bike.total_hours}
       />
 
-      <ComponentOptionalFields labels={componentOptionalFieldLabels(dict)} />
+      <ComponentOptionalFields labels={componentOptionalFieldLabels(dict)} omit={["year"]} />
     </Fragment>
   );
 
@@ -120,6 +129,8 @@ export default async function NewComponentPage({
       monthsLabel={dict.components.form.intervalTypeMonths}
       reminderToggleLabel={dict.components.form.reminderToggleLabel}
       addAnotherLabel={dict.components.form.addAnotherReminder}
+      suggestionNote={dict.components.form.intervalSuggestionNote}
+      intervalNames={dict.components.intervalNames}
     />
   );
 
@@ -159,6 +170,7 @@ export default async function NewComponentPage({
         cancelLabel={dict.components.form.cancel}
         saveLabel={dict.components.form.saveNew}
         steps={[step1, step2, step3]}
+        bikeType={bike.type ?? "Other"}
       />
     </div>
   );
