@@ -21,9 +21,11 @@ import {
 } from "@/lib/actions/ai-setup";
 import { connectStrava } from "@/lib/actions/strava";
 import { AI_SETUP_MAX_INTERVALS, type MaintenanceInterval } from "@/lib/ai/intervals";
-import { COMPONENT_CATEGORIES, type BikeType } from "@/lib/constants";
+import { COMPONENT_CATEGORIES, type BikeType, type ComponentCategory } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import { COMPONENT_CATEGORY_ICON } from "@/components/component-category-icon";
+import { ComponentIcon } from "@/components/component-icon";
 import { ConnectWithStravaButton } from "@/components/strava-brand";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -622,9 +624,20 @@ function AiSetupPreview({
 
             <div className={component.enabled ? "space-y-3" : "pointer-events-none space-y-3 opacity-40"}>
               <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
-                  {labels.categoryLabels[component.category] ?? component.category}
-                </p>
+                {/* Same pairing the bike page's component cards use, at the
+                    size this smaller caps label can carry. The category is
+                    the canonical English string, which is exactly what
+                    COMPONENT_CATEGORY_ICON is keyed by. */}
+                <div className="flex items-center gap-1.5">
+                  <ComponentIcon
+                    size="flat"
+                    icon={COMPONENT_CATEGORY_ICON[component.category as ComponentCategory]}
+                    className="size-[18px] text-muted-foreground"
+                  />
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    {labels.categoryLabels[component.category] ?? component.category}
+                  </p>
+                </div>
                 <p className="font-semibold">
                   {component.brand} {[component.model, component.variant].filter(Boolean).join(" ")}
                   {component.year ? ` (${component.year})` : ""}
