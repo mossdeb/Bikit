@@ -68,7 +68,7 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
 
   const email = userData?.claims?.email as string | undefined;
   const { plan } = await getUserSubscription(userId);
-  if (!hasAiSetupAccess(plan, email)) return { status: "forbidden" };
+  if (!hasAiSetupAccess(plan)) return { status: "forbidden" };
 
   // Exempt accounts skip the daily quota entirely: no allowance query, no
   // gate, and a null `remaining` so the UI drops the counter instead of
@@ -205,7 +205,7 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
   if (!parsed.success) return { status: "invalid_input" };
 
   const { plan } = await getUserSubscription(userId);
-  if (!hasAiSetupAccess(plan, userData?.claims?.email as string | undefined)) return { status: "forbidden" };
+  if (!hasAiSetupAccess(plan)) return { status: "forbidden" };
 
   const maxBikes = PLAN_LIMITS[plan].maxBikes;
   if (maxBikes !== null) {

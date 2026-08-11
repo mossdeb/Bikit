@@ -58,11 +58,11 @@ export default async function NewBikePage({
   // Step 1 asks exactly what Smart Setup asks — brand, model, version, year
   // — because the two routes leave from here and the reader shouldn't have
   // to type the same four things twice to change their mind.
-  // Closed beta, so the second route only exists for allowlisted testers.
-  // When the beta opens this goes back to always-visible with the Premium
-  // pill doing the upselling; /bikes/new/ai keeps that pitch ready.
-  const aiSetupAvailable =
-    !!subscription && hasAiSetupAccess(subscription.plan, userData?.claims?.email as string | undefined);
+  // Open to every plan since the beta ended (2026-08-11); the gate stays
+  // because the answer is PLAN_FEATURES', not this page's. The Beta badge on
+  // the card is deliberate and outlives the allowlist — the feature is
+  // available, not finished.
+  const aiSetupAvailable = !!subscription && hasAiSetupAccess(subscription.plan);
 
   const smartSetupCard = (
     <SmartSetupLink

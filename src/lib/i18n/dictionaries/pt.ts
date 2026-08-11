@@ -297,9 +297,6 @@ const pt: Dictionary = {
       quotaBody:
         "Esgotaste as pesquisas com IA deste mês no teu plano. Bicicletas já no catálogo da Bikit carregam sempre sem custo — ou cria esta manualmente.",
       errorBody: "Algo correu mal durante a pesquisa. Tenta novamente daqui a pouco.",
-      betaTitle: "A Configuração Inteligente está em beta fechada",
-      betaBody:
-        "Estamos a afinar a identificação automática de bicicletas com um grupo restrito antes de abrir a funcionalidade. Em breve estará disponível nos planos Personal e Pro.",
       premiumTitle: "A Configuração Inteligente é uma funcionalidade Premium",
       premiumBody:
         "A identificação automática da bicicleta, dos componentes e dos intervalos de manutenção está disponível nos planos Personal e Pro.",

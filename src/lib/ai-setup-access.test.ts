@@ -1,28 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { hasAiSetupAccess, hasUnlimitedAiSearches } from "./ai-setup-access";
+import { PLAN_FEATURES } from "./plans";
 
 describe("hasAiSetupAccess", () => {
-  it("grants a beta email on a paid plan", () => {
-    expect(hasAiSetupAccess("pro", "miguelgomesdzn@gmail.com")).toBe(true);
-    expect(hasAiSetupAccess("personal", "miguelgomesdzn@gmail.com")).toBe(true);
+  // The closed beta ended on 2026-08-11: no allowlist, no email, access is
+  // whatever the plan says.
+  it("grants every plan, Free included — capped by quota, not locked out", () => {
+    expect(hasAiSetupAccess("pro")).toBe(true);
+    expect(hasAiSetupAccess("personal")).toBe(true);
+    expect(hasAiSetupAccess("free")).toBe(true);
   });
 
-  it("is case- and whitespace-insensitive on the email", () => {
-    expect(hasAiSetupAccess("pro", " MiguelGomesDZN@gmail.com ")).toBe(true);
-  });
-
-  it("denies paid-plan users outside the beta list", () => {
-    expect(hasAiSetupAccess("pro", "roque.rangel.ines@gmail.com")).toBe(false);
-  });
-
-  it("grants the free plan too — capped by quota, not locked out (2026-08-11)", () => {
-    expect(hasAiSetupAccess("free", "miguelgomesdzn@gmail.com")).toBe(true);
-    expect(hasAiSetupAccess("free", "roque.rangel.ines@gmail.com")).toBe(false);
-  });
-
-  it("denies a missing email", () => {
-    expect(hasAiSetupAccess("pro", undefined)).toBe(false);
-    expect(hasAiSetupAccess("pro", null)).toBe(false);
+  it("answers from PLAN_FEATURES, so a plan losing the capability loses access", () => {
+    for (const plan of ["free", "personal", "pro"] as const) {
+      expect(hasAiSetupAccess(plan)).toBe(PLAN_FEATURES[plan].aiSetup);
+    }
   });
 });
 

@@ -300,9 +300,6 @@ const en = {
       quotaBody:
         "You've used this month's AI searches on your plan. Bikes already in the Bikit catalog are always free to load — or create this one manually.",
       errorBody: "Something went wrong while searching. Try again in a moment.",
-      betaTitle: "Smart setup is in closed beta",
-      betaBody:
-        "We're fine-tuning automatic bike identification with a small group before opening it up. It will be available on the Personal and Pro plans soon.",
       premiumTitle: "Smart setup is a Premium feature",
       premiumBody:
         "Automatic identification of your bike, its components and maintenance intervals is available on the Personal and Pro plans.",

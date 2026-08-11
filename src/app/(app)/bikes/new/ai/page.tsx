@@ -35,17 +35,18 @@ export default async function AiSetupPage({
   const t = dict.bikes.aiSetup;
 
   // The server action re-checks access on every call; this gate only
-  // decides which page the reader sees. While the closed beta lasts, every
-  // outsider — paying or not — gets the beta notice: the Premium pitch
-  // would promise something an upgrade can't currently deliver.
+  // decides which page the reader sees. Since the beta opened it answers
+  // true for every plan, so this branch is currently unreachable — it is
+  // kept, with the Premium wording, because it is what should appear the
+  // day PLAN_FEATURES stops giving Smart Setup to a plan.
   const { plan } = userId ? await getUserSubscription(userId) : { plan: "free" as const };
 
-  if (!hasAiSetupAccess(plan, userData?.claims?.email as string | undefined)) {
+  if (!hasAiSetupAccess(plan)) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 pt-8 text-center">
         <Sparkles className="mx-auto size-8" />
-        <h1 className="text-xl font-bold">{t.betaTitle}</h1>
-        <p className="text-muted-foreground">{t.betaBody}</p>
+        <h1 className="text-xl font-bold">{t.premiumTitle}</h1>
+        <p className="text-muted-foreground">{t.premiumBody}</p>
         <Link href="/bikes/new" className={buttonVariants()}>
           {t.createManually}
         </Link>

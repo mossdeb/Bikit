@@ -2,19 +2,21 @@
 import { PLAN_FEATURES, type Plan } from "./plans";
 
 /**
- * Smart Setup is in CLOSED BETA: the plan feature says who could have it
- * (paid plans), this list says who does. A code constant rather than an env
- * var on purpose — the list isn't secret, an env var would fail silently
- * when unset, and either way changing testers means a deploy on this
- * single-branch push-to-deploy repo. Widening the beta is editing this
- * list; ending it is deleting the list and this check.
+ * The closed beta ended on 2026-08-11: the email allowlist that sat on top
+ * of the plan feature is gone, and access is now what the plan says it is —
+ * which today is every plan, Free included.
+ *
+ * The gate stays even though it currently answers true for everyone. It is
+ * the honest expression of "this is a plan capability", and PLAN_FEATURES is
+ * the one place to change if Smart Setup ever becomes paid-only.
+ *
+ * What holds the cost back is no longer who is let in, it is what they can
+ * spend once inside: AI_BIKE_SEARCHES_PER_MONTH (Free 1, Personal 5, Pro
+ * 10) with an attempts ceiling at 2x, and the Free component cap in the
+ * preview. Those were written for this moment and are already live.
  */
-export const AI_SETUP_BETA_EMAILS = ["miguelgomesdzn@gmail.com"];
-
-export function hasAiSetupAccess(plan: Plan, email: string | null | undefined): boolean {
-  if (!PLAN_FEATURES[plan].aiSetup) return false;
-  if (!email) return false;
-  return AI_SETUP_BETA_EMAILS.includes(email.trim().toLowerCase());
+export function hasAiSetupAccess(plan: Plan): boolean {
+  return PLAN_FEATURES[plan].aiSetup;
 }
 
 /**

@@ -14,8 +14,9 @@ export const PLAN_LIMITS: Record<Plan, { maxBikes: number | null; maxComponents:
  */
 export const PLAN_FEATURES: Record<Plan, { timeline: boolean; aiSetup: boolean }> = {
   // aiSetup on Free is real but tight: 1 search a month, and the component
-  // picker respects the 2-component plan limit. The closed beta's email list
-  // still sits on top of this while it lasts.
+  // picker respects the 2-component plan limit. Since the closed beta ended
+  // (2026-08-11) this table is the whole answer — there is no allowlist over
+  // it any more, so a false here is what takes the feature away.
   free: { timeline: false, aiSetup: true },
   personal: { timeline: true, aiSetup: true },
   pro: { timeline: true, aiSetup: true },
