@@ -25,6 +25,7 @@ export function NewBikeWizard({
   saveLabel,
   steps,
   step1Footer,
+  step1NextLabel,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   title: string;
@@ -41,6 +42,10 @@ export function NewBikeWizard({
    * button — CSS cannot reparent an element, so the caller renders its
    * desktop copy inside the step-1 group and hands the mobile one here. */
   step1Footer?: ReactNode;
+  /** Replaces `nextLabel` on step 1 only. The bike form passes it when the
+   * Smart Setup card is on screen, so the button can name the road it
+   * takes; without that card there is nothing to be manual about. */
+  step1NextLabel?: string;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const formRef = useRef<HTMLFormElement>(null);
@@ -130,7 +135,7 @@ export function NewBikeWizard({
             className="w-full"
             onClick={goNext}
           >
-            {nextLabel}
+            {step === 1 && step1NextLabel ? step1NextLabel : nextLabel}
           </Button>
         ) : (
           <SubmitButton key="save" className="w-full">

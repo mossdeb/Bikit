@@ -476,6 +476,11 @@ const en = {
       wizardStep2Label: "Bike details",
       wizardStep3Label: "Connect to Strava",
       wizardNext: "Next",
+      // Step 1 only, and only while the Smart Setup card sits beside it —
+      // that card is what this button is distinguished from. On the other
+      // steps nothing automatic is on offer and "manually" says nothing.
+      wizardNextManual: "Continue manually",
+      wizardOr: "Or",
       wizardBack: "Back",
     },
   },

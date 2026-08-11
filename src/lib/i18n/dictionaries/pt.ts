@@ -473,6 +473,11 @@ const pt: Dictionary = {
       wizardStep2Label: "Detalhes da bicicleta",
       wizardStep3Label: "Associar ao Strava",
       wizardNext: "Seguinte",
+      // Só no passo 1, e só quando o card da Configuração Inteligente está
+      // ao lado: é dele que este botão se distingue. Nos outros passos não
+      // há nada de automático em contraste, e "manualmente" não diria nada.
+      wizardNextManual: "Continuar manualmente",
+      wizardOr: "Ou",
       wizardBack: "Voltar",
     },
   },

@@ -247,7 +247,22 @@ export default async function NewBikePage({
         cancelLabel={dict.bikes.form.cancel}
         saveLabel={dict.bikes.form.saveNew}
         steps={[step1, step2, step3]}
-        step1Footer={aiSetupAvailable ? smartSetupCard : undefined}
+        step1Footer={
+          aiSetupAvailable ? (
+            <>
+              {smartSetupCard}
+              {/* Only here, and therefore only on mobile: the wrapper this
+                  lands in is sm:hidden. On desktop the card sits among the
+                  fields and the two roads never line up as a choice. */}
+              <div className="flex items-center gap-4 pt-5">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-sm text-muted-foreground">{dict.bikes.form.wizardOr}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </>
+          ) : undefined
+        }
+        step1NextLabel={aiSetupAvailable ? dict.bikes.form.wizardNextManual : undefined}
       />
     </div>
   );
