@@ -79,13 +79,28 @@ describe("bikeCatalogKey", () => {
 
 describe("combinedBikeName", () => {
   it("collapses every model/version split of the same name to one string", () => {
-    expect(combinedBikeName("Nomad", "6 S")).toBe("nomad 6 s");
-    expect(combinedBikeName("Nomad 6", "S")).toBe("nomad 6 s");
-    expect(combinedBikeName("Nomad 6 S", "")).toBe("nomad 6 s");
-    expect(combinedBikeName("Nomad 6 S", null)).toBe("nomad 6 s");
+    expect(combinedBikeName("Nomad", "6 S")).toBe("nomad6s");
+    expect(combinedBikeName("Nomad 6", "S")).toBe("nomad6s");
+    expect(combinedBikeName("Nomad 6 S", "")).toBe("nomad6s");
+    expect(combinedBikeName("Nomad 6 S", null)).toBe("nomad6s");
+  });
+
+  // The real case, measured: these four spellings of one Atherton were four
+  // catalog rows and four paid searches.
+  it("is indifferent to where the punctuation and spaces fell", () => {
+    const spellings = [
+      combinedBikeName("S.170E", "Build 2"),
+      combinedBikeName("S170E", "Build2"),
+      combinedBikeName("S.170 E", "Build 2"),
+      combinedBikeName("S170E", "Build 2"),
+      combinedBikeName("S 170 E Build 2", ""),
+    ];
+    expect(new Set(spellings)).toEqual(new Set(["s170ebuild2"]));
   });
 
   it("keeps different build levels distinct", () => {
     expect(combinedBikeName("Nomad 6", "S")).not.toBe(combinedBikeName("Nomad 6", "R"));
+    // Dropping the spaces must not merge names that differ by a digit.
+    expect(combinedBikeName("Nomad 6 S", "")).not.toBe(combinedBikeName("Nomad 65", ""));
   });
 });

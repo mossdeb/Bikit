@@ -39,16 +39,27 @@ export function normalizeModel(value: string): string {
 }
 
 /**
- * Model and version collapsed into one normalized token string — "Nomad" +
- * "6 S", "Nomad 6" + "S" and "Nomad 6 S" + "" all yield "nomad 6 s". The
- * catalog lookup falls back to this when the exact model/version split
- * misses: users split the same bike name differently across the two fields,
- * and each split is a distinct unique key. Equality of the FULL combined
- * name is deliberate — no prefix loosening here, because build levels
- * ("Nomad 6 S" vs "Nomad 6 R") differ in components and must never match.
+ * Model and version collapsed into one string with the separators removed —
+ * "Nomad" + "6 S", "Nomad 6" + "S" and "Nomad 6 S" + "" all yield
+ * "nomad6s". The catalog lookup falls back to this when the exact
+ * model/version split misses.
+ *
+ * TWO axes vary in how people write the same bike, and this absorbs both.
+ * The split across the two fields was the first. The second was measured:
+ * one Atherton paid FOUR searches because normalizeKeyPart turns
+ * punctuation into a word boundary, so "S.170E" → "s 170e" and "S170E" →
+ * "s170e" — different strings, and the combined names differed with them.
+ * Dropping the spaces makes the comparison indifferent to where the
+ * punctuation fell.
+ *
+ * Equality of the FULL name is still deliberate — no prefix loosening —
+ * because build levels ("Nomad 6 S" vs "Nomad 6 R") differ in components
+ * and must never match. This is only ever compared in memory against rows
+ * already fetched by brand and year; it is not a stored key, so nothing
+ * needs migrating and existing rows start matching immediately.
  */
 export function combinedBikeName(model: string, version?: string | null): string {
-  return normalizeKeyPart(`${model} ${version ?? ""}`);
+  return normalizeKeyPart(`${model} ${version ?? ""}`).replace(/ /g, "");
 }
 
 /** The bike-catalog key. `version` is "" when the bike has none — the column
