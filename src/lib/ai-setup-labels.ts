@@ -8,6 +8,8 @@ import type { AiSetupLabels } from "@/components/ai-setup-flow";
 export function aiSetupLabels(dict: Dictionary, distanceUnit: "km" | "mi"): AiSetupLabels {
   const t = dict.bikes.aiSetup;
   return {
+    title: t.title,
+    subtitle: t.subtitle,
     model: dict.bikes.form.model,
     modelPlaceholder: dict.bikes.form.modelPlaceholder,
     version: t.version,
@@ -25,7 +27,6 @@ export function aiSetupLabels(dict: Dictionary, distanceUnit: "km" | "mi"): AiSe
     foundTitle: t.foundTitle,
     componentsFound: t.componentsFound,
     intervalsConfigured: t.intervalsConfigured,
-    fromCatalog: t.fromCatalog,
     source: t.source,
     remainingToday: t.remainingToday,
     every: t.every,
@@ -46,6 +47,16 @@ export function aiSetupLabels(dict: Dictionary, distanceUnit: "km" | "mi"): AiSe
     createBike: t.createBike,
     creating: t.creating,
     createError: t.createError,
+    next: t.next,
+    componentOn: t.componentOn,
+    componentOff: t.componentOff,
+    stravaStepTitle: t.stravaStepTitle,
+    stravaBenefits: t.stravaBenefits,
+    stravaSkipHint: t.stravaSkipHint,
+    stravaGearLabel: dict.bikes.form.stravaTitle,
+    stravaNone: dict.bikes.form.stravaNone,
+    stravaConnectLabel: dict.settings.strava.connect,
+    cancel: dict.common.cancel,
     back: dict.bikes.form.wizardBack,
     categoryLabels: dict.components.categories,
     intervalNames: dict.components.intervalNames,

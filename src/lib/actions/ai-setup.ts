@@ -231,6 +231,7 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
       type: bike.type,
       total_km: totalKm,
       total_hours: totalHours,
+      strava_gear_id: bike.strava_gear_id,
       user_id: userId,
     })
     .select("id")

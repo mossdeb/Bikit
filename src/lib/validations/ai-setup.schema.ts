@@ -39,6 +39,8 @@ export const aiSetupCreateSchema = z.object({
     type: z.string().trim().min(1).max(60),
     total_km: z.number().min(0).max(1000000).nullable(),
     total_hours: z.number().min(0).max(1000000).nullable(),
+    /** Chosen on the Strava step; null when skipped or not connected. */
+    strava_gear_id: z.string().trim().max(120).nullable(),
   }),
   /** Factory components inherit the bike's usage (baseline 0); replaced ones
    * start fresh (baseline = the bike's current totals). */

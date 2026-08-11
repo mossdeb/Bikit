@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { Check, Sparkles } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { getBikeIndexManufacturers } from "@/lib/bikeindex";
 import { createClient } from "@/lib/supabase/server";
 import { createBike } from "@/lib/actions/bikes";
@@ -18,6 +18,8 @@ import { NewBikeWizard } from "@/components/new-bike-wizard";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { getUserSubscription } from "@/lib/subscription";
 import { hasAiSetupAccess } from "@/lib/ai-setup-access";
+import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { SmartBikeIcon } from "@/components/smart-bike-icon";
 
 export default async function NewBikePage({
   searchParams,
@@ -183,17 +185,20 @@ export default async function NewBikePage({
       {subscription && hasAiSetupAccess(subscription.plan, userData?.claims?.email as string | undefined) && (
         <Link
           href="/bikes/new/ai"
-          className="mb-5 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:bg-muted"
+          className={`mb-5 flex items-stretch gap-4 rounded-[20px] bg-card p-5 ${CLICKABLE_CARD_HOVER}`}
         >
-          <Sparkles className="size-5 shrink-0" />
-          <span className="min-w-0">
-            <span className="flex items-center gap-2 font-semibold">
-              {dict.bikes.aiSetup.entryTitle}
-              <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
-                {dict.bikes.aiSetup.premium}
-              </span>
-            </span>
+          <SmartBikeIcon className="h-11 w-auto shrink-0 self-center text-foreground" />
+          <span className="min-w-0 flex-1 space-y-0.5 self-center">
+            <span className="block font-semibold">{dict.bikes.aiSetup.entryTitle}</span>
             <span className="block text-sm text-muted-foreground">{dict.bikes.aiSetup.entryDescription}</span>
+          </span>
+          <span className="flex shrink-0 flex-col items-end justify-between gap-3">
+            <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
+              {dict.bikes.aiSetup.beta}
+            </span>
+            <span className="flex size-10 items-center justify-center rounded-full bg-foreground text-background">
+              <ArrowRight className="size-5" />
+            </span>
           </span>
         </Link>
       )}
