@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultIntervalsFor } from "./default-profiles";
+import { defaultIntervalsFor, looksLikeChain } from "./default-profiles";
 
 describe("defaultIntervalsFor", () => {
   it("gives wheels a quarterly spoke check on hard-use bikes", () => {
@@ -36,12 +36,29 @@ describe("defaultIntervalsFor", () => {
     ]);
   });
 
-  it("gives every drivetrain a monthly clean and a per-ride (3h) chain lube", () => {
+  it("gives every drivetrain part a monthly clean, whatever the ride style", () => {
     for (const type of ["Road", "E-MTB", "Downhill"]) {
-      expect(defaultIntervalsFor("Transmission", type)).toEqual([
+      expect(defaultIntervalsFor("Transmission", type, "GX Eagle T-Type Crankset")).toEqual([
         { name: "Drivetrain Cleaning", type: "months", interval: 1 },
-        { name: "Chain Lube", type: "hours", interval: 3 },
       ]);
+    }
+  });
+
+  it("adds the per-ride (3h) lube only to the chain", () => {
+    expect(defaultIntervalsFor("Transmission", "Enduro", "GX Eagle T-Type Chain")).toEqual([
+      { name: "Drivetrain Cleaning", type: "months", interval: 1 },
+      { name: "Chain Lube", type: "hours", interval: 3 },
+    ]);
+  });
+
+  it("reads the part from the name, and a name that never says chain gets no lube", () => {
+    for (const part of ["CN-M8100", "PC-1130 Chain", "Corrente XT", "X01 Eagle Chain"]) {
+      expect(looksLikeChain(part)).toBe(true);
+    }
+    // Carry the letters, are not the chain — a substring match would put a
+    // 3-hour lube reminder on a chainring or a chain guide.
+    for (const part of ["X-Sync 2 Chainring", "MRP 1x Chain Guide", "Chain Catcher", "GX Eagle Cassette", "KMC X12", ""]) {
+      expect(looksLikeChain(part)).toBe(false);
     }
   });
 

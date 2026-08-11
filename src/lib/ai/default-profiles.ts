@@ -34,11 +34,42 @@ const BRAKE_MONTHS: Record<string, { bleed: number; pistons: number; caliper: nu
 // monthly habit, and chain lube is an every-ride one — approximated as 3
 // riding hours, since the interval engine counts km/hours/months, not
 // rides, and a typical outing is about that long.
+//
+// The cleaning goes on every drivetrain part (a spec sheet's crankset,
+// cassette and derailleur all get one) but the LUBE only goes on the chain:
+// "lubricate every 3 hours" on a crankset reads as a bug, and it is one.
+
+/** Whole tokens, never substrings — "Chainring" and "Chainstay" carry the
+ * letters and are not chains. `CN-` and `PC-` are Shimano's and SRAM's part
+ * codes for a chain, which is how spec sheets often name one ("CN-M8100").
+ */
+const CHAIN_TOKENS = new Set(["chain", "chains", "corrente", "correntes"]);
+const CHAIN_CODE_PREFIXES = new Set(["cn", "pc"]);
+/** Parts that legitimately carry the word and are not the chain. */
+const NOT_THE_CHAIN = new Set(["guide", "guides", "guard", "ring", "rings", "catcher", "device", "tensioner", "stay", "stays", "keeper", "guia"]);
+
+/** Is this Transmission component the chain? Decided from the text a spec
+ * sheet used, because the search response has no part-role field — so a
+ * chain named without the word ("KMC X12") is not recognized and simply
+ * gets no lube reminder, which is better than putting one on a crankset. */
+export function looksLikeChain(text: string): boolean {
+  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.some((token) => NOT_THE_CHAIN.has(token))) return false;
+  if (tokens.some((token) => CHAIN_TOKENS.has(token))) return true;
+  return tokens.length > 1 && CHAIN_CODE_PREFIXES.has(tokens[0]);
+}
 
 /** The default schedule for a category, or null when the category has none
  * and the normal catalog/AI path should run. Names are canonical English,
- * translated at presentation like every interval name. */
-export function defaultIntervalsFor(category: string, bikeType: string): MaintenanceInterval[] | null {
+ * translated at presentation like every interval name.
+ *
+ * `partName` is the component's model (plus variant) — only the drivetrain
+ * uses it, to tell the chain from the rest. */
+export function defaultIntervalsFor(
+  category: string,
+  bikeType: string,
+  partName = ""
+): MaintenanceInterval[] | null {
   if (category === "Wheels") {
     return [
       {
@@ -57,10 +88,9 @@ export function defaultIntervalsFor(category: string, bikeType: string): Mainten
     ];
   }
   if (category === "Transmission") {
-    return [
-      { name: "Drivetrain Cleaning", type: "months", interval: 1 },
-      { name: "Chain Lube", type: "hours", interval: 3 },
-    ];
+    const intervals: MaintenanceInterval[] = [{ name: "Drivetrain Cleaning", type: "months", interval: 1 }];
+    if (looksLikeChain(partName)) intervals.push({ name: "Chain Lube", type: "hours", interval: 3 });
+    return intervals;
   }
   return null;
 }

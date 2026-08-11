@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types/database.types";
-import { normalizeBrand, normalizeModel } from "./normalize";
+import { normalizeBrand, normalizeKeyPart, normalizeModel } from "./normalize";
 import { modelMatchCandidates, pickMaintenanceProfile } from "./profile-match";
 import { searchMaintenanceBatchWithAI } from "./maintenance-search";
 import { saveMaintenanceProfile } from "./catalog";
@@ -66,8 +66,16 @@ export async function resolveIntervalsForComponents(
   // house brands reuse one model name across parts ("Canyon G5" is a stem,
   // a bar AND a dropper), and without it the first arrival's resolution —
   // possibly "category not searchable" — silenced the rest.
+  //
+  // The variant is in the key for the same reason one level down: a groupset
+  // names its crankset, chain, cassette and derailleur with ONE model
+  // ("SRAM GX Eagle T-Type") and tells them apart only by variant, and the
+  // chain is the only one that earns a lube reminder. It costs nothing:
+  // parts that differ by variant within a searchable category (one fork,
+  // one shock, one dropper per bike) do not occur — the ones that do are
+  // drivetrain and brakes, whose schedules are free code defaults.
   const keyOf = (c: AiBikeComponent) =>
-    `${c.category}|${normalizeBrand(c.brand)}|${normalizeModel(c.model)}|${c.year ?? ""}`;
+    `${c.category}|${normalizeBrand(c.brand)}|${normalizeModel(c.model)}|${normalizeKeyPart(c.variant)}|${c.year ?? ""}`;
   const unique = new Map<string, AiBikeComponent>();
   for (const component of components) {
     if (!unique.has(keyOf(component))) unique.set(keyOf(component), component);
@@ -80,7 +88,7 @@ export async function resolveIntervalsForComponents(
   // selects; run together).
   await Promise.all(
     [...unique.entries()].map(async ([key, component]) => {
-      const defaults = defaultIntervalsFor(component.category, bikeType);
+      const defaults = defaultIntervalsFor(component.category, bikeType, `${component.model} ${component.variant}`);
       if (defaults) {
         resolved.set(key, {
           intervals: defaults,
