@@ -221,7 +221,12 @@ export function AiSetupFlow({
           <ErrorCard title={labels.notFoundTitle} body={labels.notFoundBody} manualLabel={labels.createManually} />
         )}
         {phase.error === "quota" && (
-          <ErrorCard title={labels.quotaTitle} body={labels.quotaBody} manualLabel={labels.createManually} />
+          <ErrorCard
+            title={labels.quotaTitle}
+            body={labels.quotaBody}
+            manualLabel={labels.createManually}
+            tone="alert"
+          />
         )}
         {phase.error === "error" && (
           <ErrorCard title={labels.notFoundTitle} body={labels.errorBody} manualLabel={labels.createManually} />
@@ -295,11 +300,41 @@ function FlowHeader({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function ErrorCard({ title, body, manualLabel }: { title: string; body: string; manualLabel: string }) {
+/**
+ * `tone="alert"` is for the wall, not the miss. "We couldn't find your bike"
+ * is an outcome — try another spelling and carry on — and shouting it would
+ * be shouting at half the searches. The quota being spent is the one that
+ * stops the reader entirely, and in grey it read as one more grey box.
+ *
+ * Where the red goes was decided by measurement, not taste. On the tinted
+ * surface in light mode --health-critical gives the body 3.02:1 and even
+ * --destructive only 3.70 — no red in this palette reaches 4.5 there. So
+ * the alarm is carried by the frame and the heading (--destructive, 3.70
+ * light / 5.63 dark, the same latitude the toast already takes for a short
+ * bold line) and the body drops to normal foreground, which is legible.
+ * Colour that costs the reader the sentence is not visibility.
+ */
+function ErrorCard({
+  title,
+  body,
+  manualLabel,
+  tone = "neutral",
+}: {
+  title: string;
+  body: string;
+  manualLabel: string;
+  tone?: "neutral" | "alert";
+}) {
+  const alert = tone === "alert";
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-4">
-      <p className="font-semibold">{title}</p>
-      <p className="text-sm text-muted-foreground">{body}</p>
+    <div
+      className={cn(
+        "space-y-2 rounded-lg border p-4",
+        alert ? "border-health-critical bg-health-critical/10" : "border-border bg-muted/50"
+      )}
+    >
+      <p className={cn("font-semibold", alert && "text-destructive")}>{title}</p>
+      <p className={cn("text-sm", alert ? "text-foreground" : "text-muted-foreground")}>{body}</p>
       <Link href="/bikes/new" className="inline-block text-sm font-semibold underline underline-offset-4">
         {manualLabel}
       </Link>
