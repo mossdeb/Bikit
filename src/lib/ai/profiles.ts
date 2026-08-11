@@ -13,7 +13,7 @@ import { modelMatchCandidates, pickMaintenanceProfile } from "./profile-match";
 import { searchMaintenanceBatchWithAI } from "./maintenance-search";
 import { saveMaintenanceProfile } from "./catalog";
 import { defaultIntervalsFor } from "./default-profiles";
-import { AI_SETUP_MAX_INTERVALS, selectTopIntervals, type MaintenanceInterval } from "./intervals";
+import { selectTopIntervals, type MaintenanceInterval } from "./intervals";
 import type { AiBikeComponent } from "./bike-search";
 
 type Supabase = SupabaseClient<Database>;
@@ -21,7 +21,8 @@ type Supabase = SupabaseClient<Database>;
 export interface ResolvedIntervals {
   /** Everything the profile documents — shown in the preview for swapping. */
   intervals: MaintenanceInterval[];
-  /** The app's pick for the slots — up to AI_SETUP_MAX_INTERVALS. */
+  /** The app's default pick: the 3 most frequent. The preview lets the
+   * user grow the selection to AI_SETUP_MAX_INTERVALS (5). */
   selected: MaintenanceInterval[];
   sourceUrl: string | null;
   /** 'none' means no profile and no usable AI answer: the component is still
@@ -83,7 +84,7 @@ export async function resolveIntervalsForComponents(
       if (defaults) {
         resolved.set(key, {
           intervals: defaults,
-          selected: selectTopIntervals(defaults, AI_SETUP_MAX_INTERVALS),
+          selected: selectTopIntervals(defaults),
           sourceUrl: null,
           origin: "default",
         });
@@ -104,7 +105,7 @@ export async function resolveIntervalsForComponents(
         const intervals = profile.intervals as unknown as MaintenanceInterval[];
         resolved.set(key, {
           intervals,
-          selected: selectTopIntervals(intervals, AI_SETUP_MAX_INTERVALS),
+          selected: selectTopIntervals(intervals),
           sourceUrl: profile.source_url,
           origin: "profile",
         });
@@ -179,7 +180,7 @@ async function resolveBatch(
         });
         resolved.set(key, {
           intervals: result.maintenance,
-          selected: selectTopIntervals(result.maintenance, AI_SETUP_MAX_INTERVALS),
+          selected: selectTopIntervals(result.maintenance),
           sourceUrl: outcome.sourceUrl,
           origin: "ai",
         });
