@@ -92,7 +92,49 @@ describe("pickMaintenanceProfile", () => {
   });
 });
 
-describe("pickMaintenanceProfile — category guard", () => {
+describe("pickMaintenanceProfile — the stored category", () => {
+  // The column beats the service names, which is the whole point of it:
+  // curation renames services and must not move which component a profile
+  // serves.
+  const storedShock = { model: "float", year: 2027, category: "Rear Suspension", intervals: [{ name: "Full Service" }] };
+  const storedFork = { model: "36", year: 2027, category: "Front Suspension (Fork)", intervals: [{ name: "Full Service" }] };
+
+  it("keeps a fork off a shock profile that no longer names any shock service", () => {
+    expect(pickMaintenanceProfile([storedShock], 2027, { category: "Front Suspension (Fork)" })).toBeNull();
+  });
+
+  it("picks the stored fork over the stored shock, both silent in their names", () => {
+    const candidates = modelMatchCandidates("float factory 36");
+    expect(
+      pickMaintenanceProfile([storedShock, storedFork], null, {
+        candidates,
+        category: "Front Suspension (Fork)",
+      })
+    ).toBe(storedFork);
+  });
+
+  it("prefers the stored category over what the names suggest", () => {
+    // A shock profile that still carries a fork's word in a service name.
+    const mislabelled = { model: "x", year: 2027, category: "Rear Suspension", intervals: [{ name: "Lower Leg Service" }] };
+    expect(pickMaintenanceProfile([mislabelled], 2027, { category: "Front Suspension (Fork)" })).toBeNull();
+    expect(pickMaintenanceProfile([mislabelled], 2027, { category: "Rear Suspension" })).toBe(mislabelled);
+  });
+
+  it("falls back to the service names when the column is null", () => {
+    const legacy = { model: "float", year: 2027, category: null, intervals: [{ name: "Air Sleeve Service" }] };
+    expect(pickMaintenanceProfile([legacy], 2027, { category: "Front Suspension (Fork)" })).toBeNull();
+  });
+
+  it("keeps a null-category negative cache eligible for any component", () => {
+    // The 66 left null on purpose: skipping one re-buys a search that already
+    // came back empty.
+    const negativeCache = { model: "carbonara", year: 2020, category: null, intervals: [] };
+    expect(pickMaintenanceProfile([negativeCache], 2020, { category: "Front Suspension (Fork)" })).toBe(negativeCache);
+    expect(pickMaintenanceProfile([negativeCache], 2020, { category: "Rear Suspension" })).toBe(negativeCache);
+  });
+});
+
+describe("pickMaintenanceProfile — category guard from service names", () => {
   const fork = { model: "36", year: 2024, intervals: [{ name: "Lower Leg Service" }] };
   const shock = { model: "float", year: 2024, intervals: [{ name: "Air Sleeve Service" }] };
   const post = { model: "reverb", year: 2024, intervals: [{ name: "Upper Post Service" }] };

@@ -429,6 +429,7 @@ export type Database = {
       maintenance_profiles: {
         Row: {
           brand: string
+          category: string | null
           confidence: number | null
           created_at: string
           id: string
@@ -441,6 +442,7 @@ export type Database = {
         }
         Insert: {
           brand: string
+          category?: string | null
           confidence?: number | null
           created_at?: string
           id?: string
@@ -453,6 +455,7 @@ export type Database = {
         }
         Update: {
           brand?: string
+          category?: string | null
           confidence?: number | null
           created_at?: string
           id?: string

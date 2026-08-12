@@ -33,15 +33,14 @@ export function modelMatchCandidates(model: string): string[] {
 }
 
 /**
- * What a profile is FOR, read from the services it documents. The catalog key
- * is (brand, model, year) with no category, so this is the only thing standing
- * between a fork and a shock that share a name.
+ * Fallback for rows written before migration 00031, and for the ones curation
+ * could not classify: what a profile is FOR, guessed from the services it
+ * documents. The markers are services only one kind of part can have.
  *
- * The markers are the services that only one kind of part can have, verified
- * against the whole library on 2026-08-12: of 2.605 profiles carrying any
- * marker, 1.233 were fork/post-only and 320 shock-only, and NOT ONE carried
- * markers of two kinds. Deliberately narrow — "Air Spring Service" and "Damper
- * Service" appear on both and say nothing.
+ * A guess, and it showed: collapsing the FOX shocks' 125 h services into one
+ * "Full Service" erased "Air Sleeve" and the profile stopped declaring what it
+ * was. That is precisely why maintenance_profiles.category exists and why it
+ * is consulted first — this reads the content, and content is editable.
  */
 const KIND_MARKERS = {
   fork: /lower leg|dust wiper/i,
@@ -57,10 +56,9 @@ const CATEGORY_KIND: Readonly<Record<string, ProfileKind>> = {
   Seatpost: "post",
 };
 
-/** Null when nothing matches (most profiles — motors, drivetrains, negative
- * caches) and also when two kinds somehow match: an ambiguous profile must not
- * be filtered out on a guess. */
-function profileKind(intervals: unknown): ProfileKind | null {
+/** Null when nothing matches and also when two kinds somehow match: an
+ * ambiguous profile must not be filtered out on a guess. */
+function kindFromIntervals(intervals: unknown): ProfileKind | null {
   if (!Array.isArray(intervals)) return null;
   const names = intervals
     .map((interval) => (interval as { name?: unknown }).name)
@@ -70,13 +68,26 @@ function profileKind(intervals: unknown): ProfileKind | null {
   return kinds.length === 1 ? kinds[0] : null;
 }
 
+/**
+ * What a profile is for: the stored category first, the service names only
+ * when the column is null. The column is written by saveMaintenanceProfile
+ * from the component the answer was bought for, and was backfilled for 2.603
+ * of the 2.671 rows on 2026-08-12; the 66 negative caches were deliberately
+ * left null, because a wrongly-categorised empty profile would be skipped and
+ * re-buy a search that already found nothing.
+ */
+function profileKind(row: { category?: string | null; intervals?: unknown }): ProfileKind | null {
+  const stored = row.category ? CATEGORY_KIND[row.category] : undefined;
+  return stored ?? kindFromIntervals(row.intervals);
+}
+
 /** A fork never wants a shock's schedule. Only ever excludes when BOTH sides
- * are known — an unknown category or an unmarked profile keeps the row, so
- * this can only remove matches that are provably wrong. */
-function categoryAllows(category: string | null | undefined, intervals: unknown): boolean {
+ * are known — an unknown category on either side keeps the row, so this can
+ * only remove matches that are provably wrong. */
+function categoryAllows(category: string | null | undefined, row: { category?: string | null; intervals?: unknown }): boolean {
   const wanted = category ? CATEGORY_KIND[category] : undefined;
   if (!wanted) return true;
-  const kind = profileKind(intervals);
+  const kind = profileKind(row);
   return kind === null || kind === wanted;
 }
 
@@ -105,24 +116,18 @@ export interface PickProfileOptions {
  * era, and refusing it forced a paid AI search that re-bought the same
  * schedule (or, for a year outside the run, bought nothing).
  */
-export function pickMaintenanceProfile<T extends { model: string; year: number | null; intervals?: unknown }>(
-  rows: T[],
-  componentYear: number | null,
-  options: PickProfileOptions = {}
-): T | null {
-  const eligible = rows.filter((row) => categoryAllows(options.category, row.intervals));
+export function pickMaintenanceProfile<
+  T extends { model: string; year: number | null; category?: string | null; intervals?: unknown },
+>(rows: T[], componentYear: number | null, options: PickProfileOptions = {}): T | null {
+  const eligible = rows.filter((row) => categoryAllows(options.category, row));
   if (eligible.length === 0) return null;
 
-  // Exclusion is not enough on its own, because a profile's kind is READ FROM
-  // ITS SERVICE NAMES and curation can erase the very words it reads. It did:
-  // collapsing the FOX shocks' "Air Sleeve Service" + "Damper Service" into
-  // one "Full Service" (2026-08-12) left those rows saying nothing about what
-  // they are, so the guard had nothing to reject and a fork went back to
-  // matching the "float" shock. So a profile that positively identifies as the
-  // wanted kind beats one that is merely silent; silent rows are still used
-  // when nothing better exists, which is most of the library.
+  // Exclusion alone is not enough: most of the library says nothing, and the
+  // 66 negative caches never will. A profile that positively identifies as the
+  // wanted kind beats one that is merely silent, and silent rows are still
+  // used when nothing better exists.
   const wanted = options.category ? CATEGORY_KIND[options.category] : undefined;
-  const confirmed = wanted ? eligible.filter((row) => profileKind(row.intervals) === wanted) : [];
+  const confirmed = wanted ? eligible.filter((row) => profileKind(row) === wanted) : [];
   const pool = confirmed.length > 0 ? confirmed : eligible;
 
   // Rank by candidate order when we have it; otherwise longest string, which

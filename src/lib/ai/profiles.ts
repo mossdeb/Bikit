@@ -107,7 +107,7 @@ export async function resolveIntervalsForComponents(
       const candidates = modelMatchCandidates(normalizeModel(component.model));
       const { data: rows } = await supabase
         .from("maintenance_profiles")
-        .select("model, year, intervals, source_url")
+        .select("model, year, category, intervals, source_url")
         .eq("brand", normalizeBrand(component.brand))
         .in("model", candidates);
 
@@ -188,6 +188,7 @@ async function resolveBatch(
           brand: component.brand,
           model: component.model,
           year: component.year,
+          category: component.category,
           intervals: result.maintenance,
           sourceUrl: outcome.sourceUrl,
           confidence: result.confidence,
@@ -211,6 +212,7 @@ async function resolveBatch(
           brand: component.brand,
           model: component.model,
           year: component.year,
+          category: component.category,
           intervals: [],
           sourceUrl: null,
           confidence: 0,

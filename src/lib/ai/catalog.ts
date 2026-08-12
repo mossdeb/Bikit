@@ -104,6 +104,11 @@ export async function saveMaintenanceProfile(input: {
   brand: string;
   model: string;
   year: number | null;
+  /** The category of the component this answer was bought for — stored so the
+   * lookup can keep a fork off a shock's profile without having to guess the
+   * kind from the service names (migration 00031). Null only when the caller
+   * genuinely has no category. */
+  category: string | null;
   intervals: MaintenanceInterval[];
   sourceUrl: string | null;
   confidence: number;
@@ -114,6 +119,7 @@ export async function saveMaintenanceProfile(input: {
       brand: normalizeBrand(input.brand),
       model: normalizeModel(input.model),
       year: input.year,
+      category: input.category,
       intervals: input.intervals as unknown as Json,
       source_url: input.sourceUrl,
       confidence: input.confidence,
