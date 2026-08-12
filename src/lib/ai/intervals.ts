@@ -26,7 +26,10 @@ export interface MaintenanceInterval {
  */
 export const CANONICAL_INTERVAL_NAMES = [
   "Lower Leg Service",
-  "Lower Leg Full Service",
+  // "Lower Leg Full Service" is translated but deliberately NOT requested:
+  // where a fork services lowers, damper and air spring on one cadence the
+  // curated library calls that "Full Service", and asking the AI for a
+  // fourth name would reintroduce the duplicate the curation removed.
   "Full Service",
   "Damper Service",
   "Air Spring Service",
