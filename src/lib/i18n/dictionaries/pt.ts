@@ -499,6 +499,12 @@ const pt: Dictionary = {
       "Lower Leg Service": "Revisão dos lower legs",
       "Lower Leg Full Service": "Revisão completa dos lower legs",
       "Full Service": "Revisão completa",
+      // A lista entre parênteses fica em inglês: "lowers" e "damper" são os
+      // termos correntes no ciclismo em português (é por isso que "Lower Leg
+      // Service" e "Damper Service" acima também não traduzem), e traduzir só
+      // "air spring" no meio deles lia-se como descuido.
+      "Full Service (Air Sleeve | Damper)": "Revisão completa (Air Sleeve | Damper)",
+      "Full Service (Lowers | Damper | Air Spring)": "Revisão completa (Lowers | Damper | Air Spring)",
       "Damper Service": "Revisão do damper",
       "Air Spring Service": "Revisão da mola de ar",
       "Annual Service": "Revisão anual",
@@ -595,6 +601,8 @@ const pt: Dictionary = {
       "Coating Polish": "Polimento do revestimento",
       "Protective Foil Replacement": "Substituição da película de proteção",
       "Initial Inspection": "Inspeção inicial",
+      "Regular Inspection": "Inspeção regular",
+      "Headtube Sleeve Inspection & Replacement": "Inspeção e substituição da manga do tubo de direção",
       "Specialist Workshop Service": "Revisão em oficina especializada",
       "Fastener Torque Check": "Verificação do aperto dos parafusos",
       // — Direção, eixo pedaleiro e cubos

@@ -508,6 +508,8 @@ const en = {
       "Lower Leg Service": "Lower Leg Service",
       "Lower Leg Full Service": "Lower Leg Full Service",
       "Full Service": "Full Service",
+      "Full Service (Air Sleeve | Damper)": "Full Service (Air Sleeve | Damper)",
+      "Full Service (Lowers | Damper | Air Spring)": "Full Service (Lowers | Damper | Air Spring)",
       "Damper Service": "Damper Service",
       "Air Spring Service": "Air Spring Service",
       "Annual Service": "Annual Service",
@@ -603,6 +605,8 @@ const en = {
       "Coating Polish": "Coating Polish",
       "Protective Foil Replacement": "Protective Foil Replacement",
       "Initial Inspection": "Initial Inspection",
+      "Regular Inspection": "Regular Inspection",
+      "Headtube Sleeve Inspection & Replacement": "Headtube Sleeve Inspection & Replacement",
       "Specialist Workshop Service": "Specialist Workshop Service",
       "Fastener Torque Check": "Fastener Torque Check",
       // — Headset, bottom bracket, hubs
