@@ -99,16 +99,22 @@ export async function resolveIntervalsForComponents(
         return;
       }
 
-      // The candidates are every whole-token prefix of the model, fetched in
-      // one select — spec sheets name trims ("38 Factory Grip X2") while the
-      // curated library keys by base model ("38"). profile-match.ts decides.
+      // The candidates are every whole-token range of the model, fetched in
+      // one select — spec sheets name trims ("38 Factory Grip X2") and do not
+      // always put the base model first ("Float Factory 36"), while the
+      // curated library keys by base model. profile-match.ts decides, and the
+      // category is what stops a shock's profile landing on a fork.
+      const candidates = modelMatchCandidates(normalizeModel(component.model));
       const { data: rows } = await supabase
         .from("maintenance_profiles")
         .select("model, year, intervals, source_url")
         .eq("brand", normalizeBrand(component.brand))
-        .in("model", modelMatchCandidates(normalizeModel(component.model)));
+        .in("model", candidates);
 
-      const profile = pickMaintenanceProfile(rows ?? [], component.year);
+      const profile = pickMaintenanceProfile(rows ?? [], component.year, {
+        candidates,
+        category: component.category,
+      });
       if (profile) {
         const intervals = profile.intervals as unknown as MaintenanceInterval[];
         resolved.set(key, {

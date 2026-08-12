@@ -2,17 +2,34 @@ import { describe, expect, it } from "vitest";
 import { modelMatchCandidates, pickMaintenanceProfile } from "./profile-match";
 
 describe("modelMatchCandidates", () => {
-  it("produces every whole-token prefix, longest first", () => {
-    expect(modelMatchCandidates("38 factory grip x2")).toEqual([
-      "38 factory grip x2",
-      "38 factory grip",
-      "38 factory",
-      "38",
+  it("produces every whole-token range, longest first and leftmost within a length", () => {
+    expect(modelMatchCandidates("36 factory grip")).toEqual([
+      "36 factory grip",
+      "36 factory",
+      "factory grip",
+      "36",
+      "factory",
+      "grip",
     ]);
+  });
+
+  it("still leads with the whole-token prefixes", () => {
+    const candidates = modelMatchCandidates("38 factory grip x2");
+    expect(candidates.slice(0, 2)).toEqual(["38 factory grip x2", "38 factory grip"]);
+    expect(candidates.indexOf("38")).toBeLessThan(candidates.indexOf("x2"));
+  });
+
+  it("reaches a base model written last", () => {
+    // The Moterra SL 2024 names its fork "Float Factory 36".
+    expect(modelMatchCandidates("float factory 36")).toContain("36");
   });
 
   it("returns a single-token model as-is", () => {
     expect(modelMatchCandidates("transfer")).toEqual(["transfer"]);
+  });
+
+  it("does not repeat a token that appears twice", () => {
+    expect(modelMatchCandidates("float float")).toEqual(["float float", "float"]);
   });
 });
 
@@ -56,5 +73,60 @@ describe("pickMaintenanceProfile", () => {
   it("gives a yearless component the any-year row when one exists", () => {
     const rows = [row("d o s s", null), row("transfer", 2024)];
     expect(pickMaintenanceProfile([rows[0]], null)).toBe(rows[0]);
+  });
+
+  it("ranks by candidate order when given it, not by string length", () => {
+    // "float" is the longer string, but "x2" is the leftmost token of the
+    // component's own name and therefore the stronger match.
+    const candidates = modelMatchCandidates("x2 float");
+    const rows = [row("float", 2027), row("x2", 2027)];
+    expect(pickMaintenanceProfile(rows, null, { candidates })).toBe(rows[1]);
+  });
+
+  it("cannot separate two single-token candidates on rank alone", () => {
+    // Both "float" and "36" are one token of "float factory 36"; the leftmost
+    // wins on rank. Only the category guard tells a shock from a fork here.
+    const candidates = modelMatchCandidates("float factory 36");
+    const rows = [row("float", 2027), row("36", 2027)];
+    expect(pickMaintenanceProfile(rows, null, { candidates })).toBe(rows[0]);
+  });
+});
+
+describe("pickMaintenanceProfile — category guard", () => {
+  const fork = { model: "36", year: 2024, intervals: [{ name: "Lower Leg Service" }] };
+  const shock = { model: "float", year: 2024, intervals: [{ name: "Air Sleeve Service" }] };
+  const post = { model: "reverb", year: 2024, intervals: [{ name: "Upper Post Service" }] };
+  const unmarked = { model: "ep801", year: 2024, intervals: [{ name: "Motor Seal Cleaning" }] };
+
+  it("keeps a fork off a shock profile", () => {
+    expect(pickMaintenanceProfile([shock], 2024, { category: "Front Suspension (Fork)" })).toBeNull();
+  });
+
+  it("keeps a shock off a fork profile", () => {
+    expect(pickMaintenanceProfile([fork], 2024, { category: "Rear Suspension" })).toBeNull();
+  });
+
+  it("picks the fork profile over the shock one for a fork, whatever the ranking", () => {
+    // The production case: "Fox Float Factory 36" reaches both rows.
+    const candidates = modelMatchCandidates("float factory 36");
+    const chosen = pickMaintenanceProfile([shock, fork], null, {
+      candidates,
+      category: "Front Suspension (Fork)",
+    });
+    expect(chosen).toBe(fork);
+  });
+
+  it("does not filter a profile with no kind markers", () => {
+    expect(pickMaintenanceProfile([unmarked], 2024, { category: "Front Suspension (Fork)" })).toBe(unmarked);
+  });
+
+  it("does not filter when the category has no known kind", () => {
+    expect(pickMaintenanceProfile([shock], 2024, { category: "Other" })).toBe(shock);
+    expect(pickMaintenanceProfile([shock], 2024, {})).toBe(shock);
+  });
+
+  it("keeps a seatpost off a fork profile and vice versa", () => {
+    expect(pickMaintenanceProfile([fork], 2024, { category: "Seatpost" })).toBeNull();
+    expect(pickMaintenanceProfile([post], 2024, { category: "Front Suspension (Fork)" })).toBeNull();
   });
 });
