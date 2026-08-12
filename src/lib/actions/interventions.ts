@@ -28,11 +28,20 @@ function parseInterventionFormData(formData: FormData) {
  * is inserted, so the new intervention's own kms/hours don't shift what
  * counts as "currently active".
  */
+interface ResolvedReset {
+  /** The interval the intervention is recorded against. */
+  id: string;
+  /** That interval AND every sibling on the same cadence — the set the view
+   * of migration 00030 treats as serviced by this one intervention, and so
+   * the set whose notification state has to clear. */
+  cadenceIds: string[];
+}
+
 async function resolveActiveIntervalId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   componentId: string,
   bike: { total_km: number | null; total_hours: number | null } | null
-): Promise<string | null> {
+): Promise<ResolvedReset | null> {
   const { data: rows } = await supabase
     .from("component_interval_status")
     .select(
@@ -59,7 +68,21 @@ async function resolveActiveIntervalId(
       bikeHoursAtLastService: r.last_service_hours,
     }));
 
-  return selectActiveInterval(inputs)?.interval.id ?? null;
+  const active = selectActiveInterval(inputs)?.interval;
+  if (!active) return null;
+
+  const cadence = rows.find((r) => r.id === active.id);
+  const cadenceIds = rows
+    .filter(
+      (r) =>
+        r.id != null &&
+        cadence != null &&
+        r.interval_type === cadence.interval_type &&
+        r.interval_value === cadence.interval_value
+    )
+    .map((r) => r.id as string);
+
+  return { id: active.id, cadenceIds: cadenceIds.length > 0 ? cadenceIds : [active.id] };
 }
 
 export async function createIntervention(bikeId: string, componentId: string, formData: FormData) {
@@ -83,9 +106,7 @@ export async function createIntervention(bikeId: string, componentId: string, fo
   // bike_km_at_install works for usage since the component was installed.
   const { data: bike } = await supabase.from("bikes").select("total_km, total_hours").eq("id", bikeId).single();
 
-  const resetIntervalId = parsed.data.resets_interval
-    ? await resolveActiveIntervalId(supabase, componentId, bike)
-    : null;
+  const reset = parsed.data.resets_interval ? await resolveActiveIntervalId(supabase, componentId, bike) : null;
 
   const { error } = await supabase.from("interventions").insert({
     ...parsed.data,
@@ -94,7 +115,7 @@ export async function createIntervention(bikeId: string, componentId: string, fo
     user_id: userId,
     bike_km_at_intervention: bike?.total_km ?? null,
     bike_hours_at_intervention: bike?.total_hours ?? null,
-    reset_interval_id: resetIntervalId,
+    reset_interval_id: reset?.id ?? null,
   });
 
   if (error) {
@@ -108,8 +129,11 @@ export async function createIntervention(bikeId: string, componentId: string, fo
   // cron also clears this once it sees the interval healthy, but doing it
   // here closes the gap for an interval short enough to wear back down
   // before tomorrow's run.
-  if (resetIntervalId) {
-    await supabase.from("component_interval_notifications").delete().eq("service_interval_id", resetIntervalId);
+  // Every reminder on that cadence, not just the one named: they were all
+  // serviced by this intervention, and a sibling left holding a claimed band
+  // would read as "already warned" and go silent until it recovers.
+  if (reset) {
+    await supabase.from("component_interval_notifications").delete().in("service_interval_id", reset.cadenceIds);
   }
 
   revalidatePath(`/bikes/${bikeId}`);
@@ -142,7 +166,7 @@ export async function updateIntervention(
   let resetIntervalId: string | null = null;
   if (parsed.data.resets_interval) {
     const { data: bike } = await supabase.from("bikes").select("total_km, total_hours").eq("id", bikeId).single();
-    resetIntervalId = await resolveActiveIntervalId(supabase, componentId, bike);
+    resetIntervalId = (await resolveActiveIntervalId(supabase, componentId, bike))?.id ?? null;
   }
 
   const { error } = await supabase

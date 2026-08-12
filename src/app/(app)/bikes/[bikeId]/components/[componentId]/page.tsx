@@ -99,12 +99,23 @@ export default async function ComponentDetailPage({
     bikeHoursAtInstall: component.bike_hours_at_install,
   });
 
-  // Each interval's own baseline is the most recent intervention that
-  // specifically reset THAT interval (not just the most recent one on the
-  // component) — derived from the already-fetched interventions array
+  // Each interval's own baseline is the most recent intervention that reset
+  // THAT interval or one on the same cadence (not just the most recent one on
+  // the component) — derived from the already-fetched interventions array
   // (sorted newest-first) rather than a second round-trip.
+  //
+  // Same rule as component_interval_status (migration 00030), and it has to
+  // be: this page and the view would otherwise disagree about when a part was
+  // last serviced. Reminders sharing a cadence describe one visit — a FOX fork
+  // services lowers, damper and air spring together at 125 h — so servicing
+  // any of them services all.
+  const sameCadence = (a: { interval_type: string; interval_value: number }) => (id: string | null) => {
+    const reset = (rawIntervals ?? []).find((i) => i.id === id);
+    return reset != null && reset.interval_type === a.interval_type && reset.interval_value === a.interval_value;
+  };
   const intervals = (rawIntervals ?? []).map((interval) => {
-    const lastReset = (interventions ?? []).find((iv) => iv.reset_interval_id === interval.id) ?? null;
+    const matches = sameCadence(interval);
+    const lastReset = (interventions ?? []).find((iv) => matches(iv.reset_interval_id)) ?? null;
     const input: NamedIntervalStatusInput = {
       id: interval.id,
       name: interval.name,
