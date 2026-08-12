@@ -50,16 +50,23 @@ export async function suggestComponentIntervals(input: {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Every whole-token prefix of the model in one indexed select — spec
-  // sheets name trims ("38 Factory Grip X2") while the curated library keys
-  // by base model ("38"). profile-match.ts decides which row wins.
+  // Every whole-token range of the model in one indexed select — spec sheets
+  // name trims ("38 Factory Grip X2") and do not always put the base model
+  // first ("Float Factory 36"). Same call as the Smart Setup's, candidates and
+  // category included: without the category this path handed a fork the FOX
+  // Float REAR SHOCK's schedule, which is exactly the bug the guard exists to
+  // stop — it was just never wired up here.
+  const candidates = modelMatchCandidates(normalizeModel(model));
   const { data: rows } = await supabase
     .from("maintenance_profiles")
-    .select("model, year, intervals, source_url")
+    .select("model, year, category, intervals, source_url")
     .eq("brand", normalizeBrand(brand))
-    .in("model", modelMatchCandidates(normalizeModel(model)));
+    .in("model", candidates);
 
-  const profile = pickMaintenanceProfile(rows ?? [], input.year);
+  const profile = pickMaintenanceProfile(rows ?? [], input.year, {
+    candidates,
+    category: input.category,
+  });
   if (!profile) return null;
 
   const intervals = profile.intervals as unknown as MaintenanceInterval[];
