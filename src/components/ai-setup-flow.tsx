@@ -21,6 +21,7 @@ import {
 } from "@/lib/actions/ai-setup";
 import { connectStrava } from "@/lib/actions/strava";
 import { AI_SETUP_MAX_INTERVALS, type MaintenanceInterval } from "@/lib/ai/intervals";
+import { splitComponentNaming } from "@/lib/ai/component-name";
 import { COMPONENT_CATEGORIES, type BikeType, type ComponentCategory } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
@@ -621,7 +622,9 @@ function AiSetupPreview({
       </div>
 
       <div className="space-y-4">
-        {components.map((component, index) => (
+        {components.map((component, index) => {
+          const naming = splitComponentNaming(component.brand, component.model, component.variant);
+          return (
           <div
             key={`${component.brand}-${component.model}-${index}`}
             className="space-y-3 rounded-[20px] border border-border bg-card p-5"
@@ -673,10 +676,14 @@ function AiSetupPreview({
                     {labels.categoryLabels[component.category] ?? component.category}
                   </p>
                 </div>
+                {/* Exactly what will be created: splitComponentNaming decides
+                    whether the variant is a qualifier (stays on the name line)
+                    or spec prose (its own line, and the component's notes). */}
                 <p className="font-semibold">
-                  {component.brand} {[component.model, component.variant].filter(Boolean).join(" ")}
+                  {naming.name}
                   {component.year ? ` (${component.year})` : ""}
                 </p>
+                {naming.notes ? <p className="text-sm text-muted-foreground">{naming.notes}</p> : null}
               </div>
 
               {editing === index && (
@@ -747,7 +754,8 @@ function AiSetupPreview({
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="space-y-3 rounded-[20px] border border-border bg-card p-5">

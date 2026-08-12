@@ -8,6 +8,7 @@ import { PLAN_LIMITS } from "@/lib/plans";
 import { hasAiSetupAccess, hasUnlimitedAiSearches } from "@/lib/ai-setup-access";
 import { aiSetupSearchSchema, aiSetupCreateSchema } from "@/lib/validations/ai-setup.schema";
 import { bikeCatalogKey, combinedBikeName } from "@/lib/ai/normalize";
+import { splitComponentNaming } from "@/lib/ai/component-name";
 import { searchBikeWithAI, type AiBikeComponent, type BikeSearchOutcome } from "@/lib/ai/bike-search";
 import { computeAllowance, startOfMonthUtcIso } from "@/lib/ai/quota";
 import { resolveIntervalsForComponents } from "@/lib/ai/profiles";
@@ -261,16 +262,16 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
 
   // Factory parts have been on since the bike's first kilometre — baseline 0
   // hands them the bike's whole usage. Recently replaced parts start fresh at
-  // today's totals. (deriveComponentName's brand+model fallback, inlined:
-  // the variant belongs in the display name but stays out of the model that
-  // keys the maintenance profile.)
+  // today's totals. splitComponentNaming decides what of the variant belongs
+  // in the name and what is spec prose for the notes.
   const componentRows = components.map((component) => {
-    const modelWithVariant = [component.model, component.variant].filter(Boolean).join(" ");
+    const naming = splitComponentNaming(component.brand, component.model, component.variant);
     return {
-      name: [component.brand, modelWithVariant].join(" "),
+      name: naming.name,
+      notes: naming.notes,
       category: component.category,
       brand: component.brand,
-      model: modelWithVariant,
+      model: naming.model,
       year: component.year,
       bike_id: createdBike.id,
       user_id: userId,
