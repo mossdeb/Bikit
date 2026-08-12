@@ -113,14 +113,26 @@ export function pickMaintenanceProfile<T extends { model: string; year: number |
   const eligible = rows.filter((row) => categoryAllows(options.category, row.intervals));
   if (eligible.length === 0) return null;
 
+  // Exclusion is not enough on its own, because a profile's kind is READ FROM
+  // ITS SERVICE NAMES and curation can erase the very words it reads. It did:
+  // collapsing the FOX shocks' "Air Sleeve Service" + "Damper Service" into
+  // one "Full Service" (2026-08-12) left those rows saying nothing about what
+  // they are, so the guard had nothing to reject and a fork went back to
+  // matching the "float" shock. So a profile that positively identifies as the
+  // wanted kind beats one that is merely silent; silent rows are still used
+  // when nothing better exists, which is most of the library.
+  const wanted = options.category ? CATEGORY_KIND[options.category] : undefined;
+  const confirmed = wanted ? eligible.filter((row) => profileKind(row.intervals) === wanted) : [];
+  const pool = confirmed.length > 0 ? confirmed : eligible;
+
   // Rank by candidate order when we have it; otherwise longest string, which
   // is the same thing back when every candidate was a prefix.
   const rank = (model: string) => {
     const index = options.candidates?.indexOf(model) ?? -1;
     return index === -1 ? Number.MAX_SAFE_INTEGER - model.length : index;
   };
-  const specific = eligible.reduce((a, b) => (rank(b.model) < rank(a.model) ? b : a)).model;
-  const candidates = eligible.filter((row) => row.model === specific);
+  const specific = pool.reduce((a, b) => (rank(b.model) < rank(a.model) ? b : a)).model;
+  const candidates = pool.filter((row) => row.model === specific);
 
   if (componentYear != null) {
     const exact = candidates.find((row) => row.year === componentYear);

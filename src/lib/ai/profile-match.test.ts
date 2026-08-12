@@ -125,6 +125,24 @@ describe("pickMaintenanceProfile — category guard", () => {
     expect(pickMaintenanceProfile([shock], 2024, {})).toBe(shock);
   });
 
+  it("prefers a profile that identifies as the right kind over a silent one", () => {
+    // The regression of 2026-08-12: collapsing the FOX shocks' services into
+    // one "Full Service" erased the "Air Sleeve" marker, so the shock profile
+    // stopped declaring what it was and the guard had nothing to reject.
+    const silentShock = { model: "float", year: 2027, intervals: [{ name: "Full Service" }] };
+    const candidates = modelMatchCandidates("float factory 36");
+    const chosen = pickMaintenanceProfile([silentShock, fork], null, {
+      candidates,
+      category: "Front Suspension (Fork)",
+    });
+    expect(chosen).toBe(fork);
+  });
+
+  it("still uses a silent profile when nothing declares the right kind", () => {
+    // Most of the library says nothing — motors, drivetrains, negative caches.
+    expect(pickMaintenanceProfile([unmarked], 2024, { category: "Front Suspension (Fork)" })).toBe(unmarked);
+  });
+
   it("keeps a seatpost off a fork profile and vice versa", () => {
     expect(pickMaintenanceProfile([fork], 2024, { category: "Seatpost" })).toBeNull();
     expect(pickMaintenanceProfile([post], 2024, { category: "Front Suspension (Fork)" })).toBeNull();
