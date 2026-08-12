@@ -26,6 +26,7 @@ export interface MaintenanceInterval {
  */
 export const CANONICAL_INTERVAL_NAMES = [
   "Lower Leg Service",
+  "Lower Leg Full Service",
   "Full Service",
   "Damper Service",
   "Air Spring Service",

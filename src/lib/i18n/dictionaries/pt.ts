@@ -497,6 +497,7 @@ const pt: Dictionary = {
     // termos correntes no ciclismo em português, como o "Cockpit" acima.
     intervalNames: {
       "Lower Leg Service": "Revisão dos lower legs",
+      "Lower Leg Full Service": "Revisão completa dos lower legs",
       "Full Service": "Revisão completa",
       "Damper Service": "Revisão do damper",
       "Air Spring Service": "Revisão da mola de ar",

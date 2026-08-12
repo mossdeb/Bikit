@@ -506,6 +506,7 @@ const en = {
     // open — a name the AI brings that isn't listed shows verbatim.
     intervalNames: {
       "Lower Leg Service": "Lower Leg Service",
+      "Lower Leg Full Service": "Lower Leg Full Service",
       "Full Service": "Full Service",
       "Damper Service": "Damper Service",
       "Air Spring Service": "Air Spring Service",
