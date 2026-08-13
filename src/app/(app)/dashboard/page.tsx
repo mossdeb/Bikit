@@ -26,7 +26,8 @@ import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { InstallAppDialog } from "@/components/install-app-dialog";
 
 import { completeOnboarding } from "@/lib/actions/onboarding";
-import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
+import { NotificationsPromptDialog } from "@/components/notifications-prompt-dialog";
+import { dismissInstallPrompt, dismissNotificationsPrompt } from "@/lib/actions/install-prompt";
 
 export default async function DashboardPage({
   searchParams,
@@ -141,6 +142,11 @@ export default async function DashboardPage({
   const showInstallPrompt =
     totalBikes > 0 &&
     !(claims?.user_metadata as { pwa_install_prompt_seen?: boolean } | undefined)?.pwa_install_prompt_seen;
+  // No bike condition on this one: it only fires inside the installed app,
+  // and getting that far is a stronger signal of intent than owning a bike.
+  // Whether notifications are even askable is the dialog's own call.
+  const showNotificationsPrompt = !(claims?.user_metadata as { push_prompt_seen?: boolean } | undefined)
+    ?.push_prompt_seen;
   const totalComponents = components.length;
   const maxBikes = PLAN_LIMITS[subscription.plan].maxBikes;
   const atBikeLimit = maxBikes !== null && totalBikes >= maxBikes;
@@ -188,6 +194,15 @@ export default async function DashboardPage({
           ask only makes sense once there is a bike to come back to. */}
       {showInstallPrompt && !showOnboarding && (
         <InstallAppDialog labels={dict.installPrompt} action={dismissInstallPrompt} />
+      )}
+      {/* The two never collide: the install card hides itself once the app
+          runs standalone, which is the one state this one appears in. */}
+      {showNotificationsPrompt && !showOnboarding && (
+        <NotificationsPromptDialog
+          labels={dict.notificationsPrompt}
+          vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+          action={dismissNotificationsPrompt}
+        />
       )}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>

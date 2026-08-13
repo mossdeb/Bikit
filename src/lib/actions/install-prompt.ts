@@ -20,3 +20,17 @@ export async function dismissInstallPrompt() {
 
   revalidatePath("/dashboard");
 }
+
+/** Records that the notifications prompt has been answered — granted,
+ * refused, or "not now". All three are answers; none of them is a reason to
+ * ask again on the next launch. The settings switch stays the way back in. */
+export async function dismissNotificationsPrompt() {
+  const supabase = await createClient();
+
+  await supabase.auth.updateUser({
+    data: { push_prompt_seen: true },
+  });
+  await supabase.auth.refreshSession();
+
+  revalidatePath("/dashboard");
+}

@@ -821,6 +821,13 @@ const pt: Dictionary = {
   stravaNote: {
     heading: "Manutenção",
   },
+  notificationsPrompt: {
+    title: "Nunca percas uma manutenção",
+    subtitle: "A Bikit avisa-te quando um componente precisar de manutenção.",
+    note: "Podes gerir as notificações em qualquer altura nas Definições.",
+    enable: "Ativar Notificações",
+    notNow: "Agora Não",
+  },
   installPrompt: {
     title: "Instalar a Bikit",
     subtitle: "Acesso imediato e nunca mais perde um lembrete de manutenção.",

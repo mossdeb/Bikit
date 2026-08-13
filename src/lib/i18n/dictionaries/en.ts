@@ -835,6 +835,13 @@ const en = {
   // One "{icon}" per step marks where the platform's glyph goes; the sentence
   // decides its position, because the button it names sits somewhere else in
   // every language.
+  notificationsPrompt: {
+    title: "Never miss a service",
+    subtitle: "Bikit tells you when a component needs maintenance.",
+    note: "You can manage notifications at any time in Settings.",
+    enable: "Turn on notifications",
+    notNow: "Not now",
+  },
   installPrompt: {
     title: "Install Bikit",
     subtitle: "Get instant access and never miss a maintenance reminder.",

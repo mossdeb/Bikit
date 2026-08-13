@@ -5,18 +5,8 @@ import { BellOff } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/settings-toggle-row";
-import { savePushSubscription, deletePushSubscription, updatePushPreferences } from "@/lib/actions/push";
-
-/** The VAPID public key travels as base64url, but PushManager.subscribe only
- * takes raw bytes. */
-function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64);
-  const output = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
-  return output;
-}
+import { deletePushSubscription, updatePushPreferences } from "@/lib/actions/push";
+import { isPushSupported, subscribeToPush } from "@/lib/push-subscribe";
 
 type Support = "checking" | "ok" | "unsupported" | "ios-not-installed" | "not-configured";
 
@@ -61,9 +51,7 @@ export function PushNotificationsForm({
       // browser can't do — folding it into "unsupported" told an iPhone owner
       // with a perfectly capable installed PWA that Safari was at fault.
       if (!vapidPublicKey) return "not-configured";
-      if ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window) {
-        return "ok";
-      }
+      if (isPushSupported()) return "ok";
       // Safari only exposes PushManager once the app has been added to the
       // Home Screen, so an iPhone lands here for a reason worth explaining
       // rather than a flat "not supported".
@@ -111,17 +99,9 @@ export function PushNotificationsForm({
           return;
         }
 
-        // Safari wants requestPermission() inside the gesture that triggered
-        // it, so this stays ahead of any other await.
-        if ((await Notification.requestPermission()) !== "granted") return;
-
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-        });
-        await savePushSubscription(subscription.toJSON(), navigator.userAgent);
-        setSubscribed(true);
+        // Shared with the prompt that follows an install — one copy, because
+        // the ordering inside it is load-bearing and a second one would drift.
+        setSubscribed(await subscribeToPush(vapidPublicKey));
       } catch (e) {
         console.error("[push] failed to change subscription", e);
       } finally {
