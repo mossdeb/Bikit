@@ -208,6 +208,7 @@ export type Database = {
           component_id: string
           created_at: string
           id: string
+          includes: string[] | null
           interval_type: string
           interval_value: number
           name: string
@@ -219,6 +220,7 @@ export type Database = {
           component_id: string
           created_at?: string
           id?: string
+          includes?: string[] | null
           interval_type: string
           interval_value: number
           name: string
@@ -230,6 +232,7 @@ export type Database = {
           component_id?: string
           created_at?: string
           id?: string
+          includes?: string[] | null
           interval_type?: string
           interval_value?: number
           name?: string

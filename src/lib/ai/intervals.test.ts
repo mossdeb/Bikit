@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frequencyScore, selectTopIntervals, type MaintenanceInterval } from "./intervals";
+import { frequencyScore, selectTopIntervals, withSafeIncludes, type MaintenanceInterval } from "./intervals";
 
 const iv = (name: string, type: MaintenanceInterval["type"], interval: number): MaintenanceInterval => ({
   name,
@@ -56,5 +56,40 @@ describe("selectTopIntervals", () => {
 
   it("returns an empty pick for an empty profile", () => {
     expect(selectTopIntervals([])).toEqual([]);
+  });
+
+  it("carries a merged service list through untouched", () => {
+    const merged: MaintenanceInterval = {
+      ...iv("Full Service", "hours", 125),
+      includes: ["Lower Leg Service", "Damper Service", "Air Spring Service"],
+    };
+    const picked = selectTopIntervals([iv("Lower Leg Service", "hours", 50), merged]);
+    expect(picked.find((i) => i.name === "Full Service")?.includes).toEqual([
+      "Lower Leg Service",
+      "Damper Service",
+      "Air Spring Service",
+    ]);
+  });
+
+  it("returns the SAME objects it was given, not copies", () => {
+    // The Smart Setup preview maps a selected interval back to its row with
+    // indexOf, which compares by reference. Turning this into a mapper would
+    // break the pre-selection silently, so the guarantee is pinned here.
+    const source = [iv("Lower Leg Service", "hours", 50), iv("Full Service", "hours", 125)];
+    const picked = selectTopIntervals(source);
+    expect(picked[0]).toBe(source[0]);
+    expect(source.indexOf(picked[1])).toBe(1);
+  });
+});
+
+describe("withSafeIncludes", () => {
+  it("keeps a good list and erases a malformed one", () => {
+    const good = { ...iv("Full Service", "hours", 125), includes: ["Damper Service"] };
+    expect(withSafeIncludes(good).includes).toEqual(["Damper Service"]);
+
+    // Curation writes this jsonb by hand and it is cast, not parsed — a name
+    // written without the brackets must not reach a .map() in a render.
+    const bad = { ...iv("Full Service", "hours", 125), includes: "Damper Service" as unknown as string[] };
+    expect(withSafeIncludes(bad).includes).toBeUndefined();
   });
 });

@@ -5,6 +5,8 @@
 // deliberately does not reopen). So something has to choose, and it should
 // be the same something for every user: the app, not the AI and not chance.
 
+import { asIncludes } from "../interval-includes";
+
 /** Smart Setup components may fill up to 5 reminder slots (2026-08-11,
  * migration 00029); the manual form deliberately keeps its 3. */
 export const AI_SETUP_MAX_INTERVALS = 5;
@@ -17,6 +19,22 @@ export interface MaintenanceInterval {
   name: string;
   type: IntervalType;
   interval: number;
+  /**
+   * The services this one reminder covers, when curation merged several that
+   * share a cadence — a FOX fork does lowers, damper and air spring together
+   * at 125 h, which is one workshop visit and so one reminder.
+   *
+   * Canonical names, not prose, and that is the whole point: every entry is
+   * already a components.intervalNames key, so the list translates itself and
+   * a merge costs no new strings. The alternative — writing the list into the
+   * name, as "Full Service (Lowers | Damper | Air Spring)" — put untranslated
+   * interface text into a translation key and reached push titles that way.
+   *
+   * Curation writes this, never the AI: it is deliberately absent from the
+   * wire schema in maintenance-search.ts, for the same reason the parenthesised
+   * names were kept out of CANONICAL_INTERVAL_NAMES.
+   */
+  includes?: string[];
 }
 
 /**
@@ -54,6 +72,19 @@ export const CANONICAL_INTERVAL_NAMES = [
   "Battery Health Check",
   "Motor Inspection",
 ] as const;
+
+/**
+ * Catalog rows arrive as jsonb and are cast, not parsed — the shape is
+ * whatever curation last wrote by hand. This does not re-validate the whole
+ * interval (that cast is older than this field and is left alone); it only
+ * guarantees `includes` is an array of strings or absent, because it is the
+ * one field that gets .map()'d straight into a render. A curation slip like
+ * `includes: "Lower Leg Service"` would otherwise crash the page.
+ */
+export function withSafeIncludes(interval: MaintenanceInterval): MaintenanceInterval {
+  const includes = asIncludes(interval.includes);
+  return includes ? { ...interval, includes } : { ...interval, includes: undefined };
+}
 
 // Comparing "every 50 hours" with "every 1000 km" or "every 12 months" needs
 // a common currency. These are riding-pattern guesses, not measurements —
