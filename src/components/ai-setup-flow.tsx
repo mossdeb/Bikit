@@ -857,21 +857,24 @@ function AiSetupPreview({
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-3">
-        <Button
-          type="button"
-          variant="inverted"
-          onClick={() => setStep("strava")}
-          disabled={enabledComponents.length === 0}
-          className="w-full"
-        >
-          {labels.next}
-        </Button>
-        <Button type="button" variant="outline" onClick={onBack} className="w-full">
-          {labels.back}
-        </Button>
+        {/* Dentro do último card e no fim dele: sair da revisão é o passo
+            seguinte àquilo que este card pergunta, não uma acção solta a
+            flutuar por baixo de tudo. */}
+        <div className="space-y-3 pt-2">
+          <Button
+            type="button"
+            variant="inverted"
+            onClick={() => setStep("strava")}
+            disabled={enabledComponents.length === 0}
+            className="w-full"
+          >
+            {labels.next}
+          </Button>
+          <Button type="button" variant="outline" onClick={onBack} className="w-full">
+            {labels.back}
+          </Button>
+        </div>
       </div>
     </div>
   );
