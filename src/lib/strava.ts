@@ -124,11 +124,32 @@ export async function fetchStravaBikes(accessToken: string): Promise<StravaGear[
 
 export interface StravaActivity {
   id: number;
+  name: string;
   type: string;
   sport_type: string;
   distance: number; // meters
-  moving_time: number; // seconds
+  moving_time: number; // seconds — what wear is counted from
+  elapsed_time: number; // seconds — includes stops, so never the wear figure
+  total_elevation_gain: number; // meters
+  start_date: string; // ISO 8601, UTC (start_date_local is the wall clock)
   gear_id: string | null;
+}
+
+/** The stored shape of one activity, from either sync path. Everything past
+ * the first four columns is for a ride history that does not exist yet: the
+ * payload already carries it, so capturing it costs nothing, and a column
+ * filled in later would start empty for every ride already synced. */
+function activityRow(activity: StravaActivity, bikeId: string) {
+  return {
+    strava_activity_id: activity.id,
+    bike_id: bikeId,
+    distance_km: activity.distance / 1000,
+    moving_time_hours: activity.moving_time / 3600,
+    activity_date: activity.start_date ?? null,
+    activity_name: activity.name ?? null,
+    elevation_gain_m: activity.total_elevation_gain ?? null,
+    elapsed_time_hours: activity.elapsed_time == null ? null : activity.elapsed_time / 3600,
+  };
 }
 
 export async function fetchStravaActivity(accessToken: string, activityId: number): Promise<StravaActivity | null> {
@@ -172,12 +193,7 @@ export async function syncActivityToBike(
   const distanceKm = activity.distance / 1000;
   const movingHours = activity.moving_time / 3600;
 
-  const { error: insertError } = await admin.from("strava_activities").insert({
-    strava_activity_id: activity.id,
-    bike_id: bike.id,
-    distance_km: distanceKm,
-    moving_time_hours: movingHours,
-  });
+  const { error: insertError } = await admin.from("strava_activities").insert(activityRow(activity, bike.id));
   if (insertError) {
     if (insertError.code === "23505") return { status: "duplicate" };
     console.error("[strava] failed to record activity", activity.id, insertError.message);
@@ -222,17 +238,7 @@ export async function syncActivitiesToBikes(
     activities.flatMap((activity) => {
       const bike = activity.gear_id ? bikeByGear.get(activity.gear_id) : undefined;
       if (!bike || !isCyclingActivity(activity)) return [];
-      return [
-        [
-          activity.id,
-          {
-            strava_activity_id: activity.id,
-            bike_id: bike.id,
-            distance_km: activity.distance / 1000,
-            moving_time_hours: activity.moving_time / 3600,
-          },
-        ] as const,
-      ];
+      return [[activity.id, activityRow(activity, bike.id)] as const];
     })
   );
   if (rows.size === 0) return 0;

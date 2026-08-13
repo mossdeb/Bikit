@@ -568,22 +568,34 @@ export type Database = {
       }
       strava_activities: {
         Row: {
+          activity_date: string | null
+          activity_name: string | null
           bike_id: string
           distance_km: number
+          elapsed_time_hours: number | null
+          elevation_gain_m: number | null
           moving_time_hours: number
           processed_at: string
           strava_activity_id: number
         }
         Insert: {
+          activity_date?: string | null
+          activity_name?: string | null
           bike_id: string
           distance_km: number
+          elapsed_time_hours?: number | null
+          elevation_gain_m?: number | null
           moving_time_hours: number
           processed_at?: string
           strava_activity_id: number
         }
         Update: {
+          activity_date?: string | null
+          activity_name?: string | null
           bike_id?: string
           distance_km?: number
+          elapsed_time_hours?: number | null
+          elevation_gain_m?: number | null
           moving_time_hours?: number
           processed_at?: string
           strava_activity_id?: number
