@@ -3,7 +3,7 @@
 import { useCallback, useState, useSyncExternalStore, useTransition } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
-import { isPushSupported, isStandaloneDisplay, subscribeToPush } from "@/lib/push-subscribe";
+import { isIosDevice, isPushSupported, isStandaloneDisplay, subscribeToPush } from "@/lib/push-subscribe";
 
 /**
  * Asks for notifications once, on the first launch of the installed app.
@@ -43,10 +43,14 @@ export interface NotificationsPromptLabels {
 export function NotificationsPromptDialog({
   labels,
   vapidPublicKey,
+  installPromptAnswered,
   action,
 }: {
   labels: NotificationsPromptLabels;
   vapidPublicKey: string;
+  /** Whether the install card has already had its answer. Only consulted in
+   * a tab, where the two would otherwise stack into one interruption. */
+  installPromptAnswered: boolean;
   action: () => Promise<void>;
 }) {
   const [dismissed, setDismissed] = useState(false);
@@ -54,6 +58,7 @@ export function NotificationsPromptDialog({
   const [, startTransition] = useTransition();
 
   const standalone = useSyncExternalStore(subscribeDisplayMode, isStandaloneDisplay, () => false);
+  const ios = useSyncExternalStore(emptySubscribe, isIosDevice, () => false);
   const supported = useSyncExternalStore(emptySubscribe, isPushSupported, () => false);
   const permission = useSyncExternalStore(
     emptySubscribe,
@@ -82,8 +87,12 @@ export function NotificationsPromptDialog({
     }
   }, [vapidPublicKey, close]);
 
-  const open =
-    !dismissed && standalone && supported && permission === "default" && vapidPublicKey.length > 0;
+  // Installed: ask, and nothing else is competing for the screen — the
+  // install card hides itself here. In a tab: only off iOS, where a plain tab
+  // can hold a subscription, and only once the install card has had its
+  // answer, so the two never stack.
+  const askable = standalone || (!ios && installPromptAnswered);
+  const open = !dismissed && askable && supported && permission === "default" && vapidPublicKey.length > 0;
 
   return (
     <DialogPrimitive.Root
@@ -92,7 +101,7 @@ export function NotificationsPromptDialog({
         // Only a close the reader caused counts — `open` is derived, and
         // recording a programmatic close would spend the one asking this
         // prompt gets on someone who was never shown it.
-        if (!next && standalone && supported && permission === "default") close();
+        if (!next && askable && supported && permission === "default") close();
       }}
     >
       <DialogPrimitive.Portal>

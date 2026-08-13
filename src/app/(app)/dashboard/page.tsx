@@ -139,9 +139,13 @@ export default async function DashboardPage({
   // with one bike should not be asked again on their third. Whether the app
   // is already installed, and on what, only the browser knows: the dialog
   // itself decides that and renders nothing when it shouldn't.
-  const showInstallPrompt =
-    totalBikes > 0 &&
-    !(claims?.user_metadata as { pwa_install_prompt_seen?: boolean } | undefined)?.pwa_install_prompt_seen;
+  // The flag itself, and not "the install card isn't showing": someone with
+  // no bikes yet also isn't being shown it, and has nothing to be notified
+  // about either. It is what the notifications card reads before asking from
+  // a plain tab.
+  const installPromptSeen = !!(claims?.user_metadata as { pwa_install_prompt_seen?: boolean } | undefined)
+    ?.pwa_install_prompt_seen;
+  const showInstallPrompt = totalBikes > 0 && !installPromptSeen;
   // No bike condition on this one: it only fires inside the installed app,
   // and getting that far is a stronger signal of intent than owning a bike.
   // Whether notifications are even askable is the dialog's own call.
@@ -201,6 +205,7 @@ export default async function DashboardPage({
         <NotificationsPromptDialog
           labels={dict.notificationsPrompt}
           vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+          installPromptAnswered={installPromptSeen}
           action={dismissNotificationsPrompt}
         />
       )}

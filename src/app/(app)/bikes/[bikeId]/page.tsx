@@ -33,6 +33,8 @@ import { UpgradeToPersonalCard } from "@/components/upgrade-to-personal-card";
 import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { previewTimelineEvents } from "@/lib/timeline-preview";
+import { InstallAppDialog } from "@/components/install-app-dialog";
+import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
 
 function DetailField({
   label,
@@ -74,6 +76,13 @@ export default async function BikeDetailPage({
   const locale = localeFromMetadata(userData?.claims?.user_metadata);
   const dict = getDictionary(locale);
   if (!bike) notFound();
+
+  // Standing on a bike page means a bike exists, which is the whole of the
+  // dashboard's condition. Whether the app is already installed, and on what,
+  // is the dialog's own call.
+  const showInstallPrompt = !(
+    userData?.claims?.user_metadata as { pwa_install_prompt_seen?: boolean } | undefined
+  )?.pwa_install_prompt_seen;
 
   const syncIsError = syncStatus === "error" || syncStatus === "rate-limited" || syncStatus === "not-connected";
   const syncMessage =
@@ -355,6 +364,11 @@ export default async function BikeDetailPage({
 
   return (
     <div className="sm:pt-8">
+      {/* Here and not only on the dashboard: both ways of creating a bike
+          land on this page, so this is where someone stands the moment they
+          have something in the app worth coming back to. The flag makes it
+          one-shot, so whichever page they reach first is the one that asks. */}
+      {showInstallPrompt && <InstallAppDialog labels={dict.installPrompt} action={dismissInstallPrompt} />}
       {syncMessage && <StravaSyncToast message={syncMessage} isError={syncIsError} />}
       <div className="hidden text-sm text-muted-foreground sm:mb-2 sm:block">
         <Link href="/bikes" className="hover:text-foreground">

@@ -45,6 +45,15 @@ export function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+/** iOS is the one platform where push needs the app installed: Safari only
+ * exposes the PushManager to a Home Screen launch. Everywhere else a plain
+ * tab can hold a subscription. iPadOS claims to be a Mac, so the touch count
+ * is what separates them. */
+export function isIosDevice(): boolean {
+  const ua = navigator.userAgent;
+  return /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+}
+
 /** True only when the app is running as an installed app rather than a tab. */
 export function isStandaloneDisplay(): boolean {
   return (
