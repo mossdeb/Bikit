@@ -6,6 +6,8 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { GoogleIcon } from "@/components/google-icon";
 import { ConnectWithStravaButton } from "@/components/strava-brand";
 import { StravaAthleteId } from "@/components/strava-athlete-id";
+import { StravaActivityNoteForm } from "@/components/strava-activity-note-form";
+import { hasStravaWriteScope } from "@/lib/strava";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,6 +98,9 @@ export default async function SettingsPage({
     // that syncs rather than on a state the rider needs to act on.
     stravaSync: (user?.user_metadata?.push_strava_sync as boolean) ?? false,
   };
+  // Opt-in and off by default, like the sync push — but this one leaves the
+  // app and lands in the rider's public ride, so it never defaults to true.
+  const activityNoteEnabled = (user?.user_metadata?.strava_activity_note as boolean) ?? false;
   const providers = (user?.app_metadata?.providers as string[] | undefined) ?? [];
   const isGoogleUser = providers.includes("google");
 
@@ -105,7 +110,11 @@ export default async function SettingsPage({
   // Independent of each other (both only need user.sub) — one round trip.
   const [{ data: stravaConnection }, subscription] = await Promise.all([
     user?.sub
-      ? supabase.from("strava_connections").select("user_id, athlete_id").eq("user_id", user.sub as string).maybeSingle()
+      ? supabase
+          .from("strava_connections")
+          .select("user_id, athlete_id, scopes")
+          .eq("user_id", user.sub as string)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     user?.sub
       ? getUserSubscription(user.sub as string)
@@ -271,6 +280,18 @@ export default async function SettingsPage({
               </div>
             )}
           </div>
+          {/* Only with a connection: a switch that writes to Strava is
+              meaningless without one, and it asks for a permission the
+              connect button deliberately does not. */}
+          {isStravaConnected && (
+            <div className="mt-4">
+              <StravaActivityNoteForm
+                enabled={activityNoteEnabled}
+                hasWriteScope={hasStravaWriteScope(stravaConnection?.scopes)}
+                dict={dict.settings.strava}
+              />
+            </div>
+          )}
         </SettingsSection>
 
         <SettingsSection title={dict.settings.installApp.title} description={dict.settings.installApp.description}>

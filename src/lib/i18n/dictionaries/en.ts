@@ -202,6 +202,9 @@ const en = {
       athleteIdLabel: "User ID:",
       showAthleteId: "Show Strava athlete ID",
       hideAthleteId: "Hide Strava athlete ID",
+      activityNote: "Add maintenance to the ride",
+      activityNoteSub: "When a ride brings a component due, the alert is added to the end of that ride's description on Strava. Nothing you wrote is replaced.",
+      activityNoteNeedsAuth: "Strava hasn't granted permission to edit your activities yet. Switch this on again to authorise it.",
     },
     installApp: {
       title: "Install app",
@@ -821,6 +824,13 @@ const en = {
       title: (bikeName: string): string => `${bikeName} updated`,
       body: (distance: string, hours: string): string => `Strava added ${distance} · ${hours}.`,
     },
+  },
+  // Written into someone else's field, read by their followers: a heading and
+  // the same sentences the alerts already use, and nothing else. No product
+  // name and no link — the athlete opted in, the people reading their feed
+  // did not, and an advert placed there would be theirs to answer for.
+  stravaNote: {
+    heading: "Maintenance",
   },
   auth: {
     login: {

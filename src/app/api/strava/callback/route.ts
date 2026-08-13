@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
       access_token: token.access_token,
       refresh_token: token.refresh_token,
       expires_at: new Date(token.expires_at * 1000).toISOString(),
+      // What was granted, not what was asked for — Strava lets the athlete
+      // untick a scope on the consent screen, and the app has to believe the
+      // redirect rather than its own request.
+      scopes: searchParams.get("scope"),
     });
     if (error) throw error;
   } catch (error) {

@@ -618,6 +618,7 @@ export type Database = {
           expires_at: string
           last_manual_sync_at: string | null
           refresh_token: string
+          scopes: string | null
           updated_at: string
           user_id: string
         }
@@ -628,6 +629,7 @@ export type Database = {
           expires_at: string
           last_manual_sync_at?: string | null
           refresh_token: string
+          scopes?: string | null
           updated_at?: string
           user_id: string
         }
@@ -638,6 +640,7 @@ export type Database = {
           expires_at?: string
           last_manual_sync_at?: string | null
           refresh_token?: string
+          scopes?: string | null
           updated_at?: string
           user_id?: string
         }

@@ -198,6 +198,9 @@ const pt: Dictionary = {
       athleteIdLabel: "ID de utilizador:",
       showAthleteId: "Mostrar ID do atleta Strava",
       hideAthleteId: "Ocultar ID do atleta Strava",
+      activityNote: "Juntar a manutenção à volta",
+      activityNoteSub: "Quando uma volta deixa um componente a precisar de serviço, o alerta é acrescentado ao fim da descrição dessa volta no Strava. Nada do que escreveu é substituído.",
+      activityNoteNeedsAuth: "O Strava ainda não deu permissão para editar as suas atividades. Volte a ligar esta opção para autorizar.",
     },
     installApp: {
       title: "Instalar aplicação",
@@ -814,6 +817,9 @@ const pt: Dictionary = {
       title: (bikeName: string): string => `${bikeName} atualizada`,
       body: (distance: string, hours: string): string => `O Strava somou ${distance} · ${hours}.`,
     },
+  },
+  stravaNote: {
+    heading: "Manutenção",
   },
   auth: {
     login: {

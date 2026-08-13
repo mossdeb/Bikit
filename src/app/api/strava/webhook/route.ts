@@ -68,7 +68,9 @@ export async function POST(request: Request) {
       ]);
       // The ride just moved this bike's totals, so any km or hours reminder
       // it pushed into a worse band is news now rather than at 08:00 UTC.
-      await notifyUsageServicesForBike(admin, userId, bikeId);
+      // The activity id travels with it because this is the one moment the
+      // alert can be written into the ride that caused it.
+      await notifyUsageServicesForBike(admin, userId, bikeId, activity.id);
     });
   }
 

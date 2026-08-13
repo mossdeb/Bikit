@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { stravaAuthorizeUrl, accessTokenForConnection, syncActivitiesToBikes, type StravaActivity } from "@/lib/strava";
+import {
+  stravaAuthorizeUrl,
+  accessTokenForConnection,
+  hasStravaWriteScope,
+  syncActivitiesToBikes,
+  type StravaActivity,
+} from "@/lib/strava";
 
 const MANUAL_SYNC_LOOKBACK_DAYS = 30;
 const MANUAL_SYNC_COOLDOWN_MINUTES = 60;
@@ -13,6 +19,41 @@ const MANUAL_SYNC_COOLDOWN_MINUTES = 60;
 export async function connectStrava() {
   const origin = (await headers()).get("origin");
   redirect(stravaAuthorizeUrl(`${origin}/api/strava/callback`));
+}
+
+/** Turns the "write the maintenance alert into the ride's description" option
+ * on or off. Off is the default and needs nothing from Strava; on needs
+ * activity:write, which no connection has by default, so the first time it is
+ * switched on the athlete goes through the consent screen again.
+ *
+ * The preference is saved before the redirect on purpose: coming back from
+ * Strava with the scope granted and the option still off would read as the
+ * consent having failed. */
+export async function updateStravaActivityNote(formData: FormData) {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const userId = userData?.claims?.sub as string | undefined;
+  if (!userId) redirect("/login");
+
+  const enabled = formData.get("strava_activity_note") === "on";
+  await supabase.auth.updateUser({ data: { strava_activity_note: enabled } });
+  // Same JWT-staleness dance as the other preference actions — without the
+  // refresh, getClaims() on this render still reports the old value.
+  await supabase.auth.refreshSession();
+
+  if (enabled) {
+    const { data: connection } = await supabase
+      .from("strava_connections")
+      .select("scopes")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!hasStravaWriteScope(connection?.scopes)) {
+      const origin = (await headers()).get("origin");
+      redirect(stravaAuthorizeUrl(`${origin}/api/strava/callback`, { write: true }));
+    }
+  }
+
+  revalidatePath("/settings");
 }
 
 export async function disconnectStrava() {

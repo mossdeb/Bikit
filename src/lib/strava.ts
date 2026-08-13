@@ -16,19 +16,36 @@ const CYCLING_TYPES = new Set([
   "Velomobile",
 ]);
 
-export function stravaAuthorizeUrl(redirectUri: string): string {
+/** The scope that lets the app write back to an activity. Asked for on its
+ * own, never at first connect: it reads on the consent screen as permission
+ * to modify the athlete's activities, which is a lot to ask of someone who
+ * only wants their kilometres imported. */
+export const STRAVA_WRITE_SCOPE = "activity:write";
+
+// activity:read_all so activities marked private still count (wear on a
+// component doesn't care whether the ride was shared publicly);
+// profile:read_all so GET /athlete actually includes the athlete's
+// registered bikes — without it the `bikes` field comes back empty.
+const STRAVA_READ_SCOPES = "activity:read_all,profile:read_all";
+
+export function stravaAuthorizeUrl(redirectUri: string, options?: { write?: boolean }): string {
   const params = new URLSearchParams({
     client_id: process.env.STRAVA_CLIENT_ID!,
     redirect_uri: redirectUri,
     response_type: "code",
-    approval_prompt: "auto",
-    // activity:read_all so activities marked private still count (wear on a
-    // component doesn't care whether the ride was shared publicly);
-    // profile:read_all so GET /athlete actually includes the athlete's
-    // registered bikes — without it the `bikes` field comes back empty.
-    scope: "activity:read_all,profile:read_all",
+    // "force" when the ask is wider than last time: with "auto" Strava may
+    // return an already-granted authorisation without ever showing the new
+    // scope, and the app would be told it had a permission nobody granted.
+    approval_prompt: options?.write ? "force" : "auto",
+    scope: options?.write ? `${STRAVA_READ_SCOPES},${STRAVA_WRITE_SCOPE}` : STRAVA_READ_SCOPES,
   });
   return `${STRAVA_OAUTH}/authorize?${params.toString()}`;
+}
+
+/** Whether a stored connection may write. Null scopes means a connection made
+ * before the column existed, which by definition never asked for write. */
+export function hasStravaWriteScope(scopes: string | null | undefined): boolean {
+  return (scopes ?? "").split(",").includes(STRAVA_WRITE_SCOPE);
 }
 
 interface StravaTokenResponse {
@@ -158,6 +175,50 @@ export async function fetchStravaActivity(accessToken: string, activityId: numbe
   });
   if (!res.ok) return null;
   return res.json();
+}
+
+/** Adds `note` to the end of an activity's description ("Como correu?"),
+ * keeping whatever the athlete wrote.
+ *
+ * Read-then-write, because the API has no append and the field is a single
+ * free-text box that belongs to the rider — replacing it would delete their
+ * words. That leaves a race with the athlete typing in the Strava app at the
+ * same moment, which is likely: this runs seconds after the ride lands. The
+ * window is one round trip and there is no conditional write to close it
+ * with, so the read is made as late as possible and nothing else is touched.
+ *
+ * Requires activity:write. A connection without it gets 401/403, which is
+ * reported rather than retried — the fix is the athlete re-authorising, not
+ * another call.
+ */
+export async function appendActivityDescription(
+  accessToken: string,
+  activityId: number,
+  note: string
+): Promise<boolean> {
+  const res = await fetch(`${STRAVA_API}/activities/${activityId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    console.error("[strava] cannot read activity before writing note", activityId, res.status);
+    return false;
+  }
+  const current = ((await res.json()) as { description?: string | null }).description ?? "";
+
+  // A retried webhook would otherwise stack the same paragraph twice.
+  if (current.includes(note)) return true;
+
+  const description = current.trim() ? `${current.trimEnd()}\n\n${note}` : note;
+  const update = await fetch(`${STRAVA_API}/activities/${activityId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  });
+  if (!update.ok) {
+    console.error("[strava] failed to write note to activity", activityId, update.status);
+    return false;
+  }
+  return true;
 }
 
 export function isCyclingActivity(activity: StravaActivity): boolean {

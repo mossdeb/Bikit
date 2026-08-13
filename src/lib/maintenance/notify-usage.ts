@@ -5,6 +5,7 @@ import { healthPercent, classifyHealth } from "@/lib/maintenance/health";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { formatDistance, formatHours } from "@/lib/format";
 import { sendPushToUser } from "@/lib/push";
+import { appendActivityDescription, getValidStravaAccessToken } from "@/lib/strava";
 
 /**
  * The real-time half of the maintenance alerts: one bike, push only, and only
@@ -29,7 +30,8 @@ import { sendPushToUser } from "@/lib/push";
 export async function notifyUsageServicesForBike(
   admin: SupabaseClient<Database>,
   userId: string,
-  bikeId: string
+  bikeId: string,
+  stravaActivityId?: number
 ): Promise<void> {
   try {
     const { data: userData } = await admin.auth.admin.getUserById(userId);
@@ -37,7 +39,15 @@ export async function notifyUsageServicesForBike(
     // Same defaults as the cron: both maintenance alerts are opt-out.
     const pushDueSoon = (meta.push_due_soon as boolean) ?? true;
     const pushOverdue = (meta.push_overdue as boolean) ?? true;
-    if (!pushDueSoon && !pushOverdue) return;
+    // The ride's description is a third channel, opt-in and off by default,
+    // and it is only reachable from the webhook — the cron has no activity to
+    // write to. It does not answer to the push switches: turning push off is
+    // about the phone buzzing, not about being told.
+    const wantsNote = ((meta.strava_activity_note as boolean) ?? false) && stravaActivityId != null;
+    if (!pushDueSoon && !pushOverdue && !wantsNote) return;
+
+    const noteLines: string[] = [];
+    const noteClaims: { intervalId: string; level: string; previousLevel: string; previousAt: string }[] = [];
 
     const locale = localeFromMetadata(meta);
     const dict = getDictionary(locale);
@@ -105,7 +115,8 @@ export async function notifyUsageServicesForBike(
       if (!level) continue;
 
       const type = level === "critical" ? "overdue" : "due_soon";
-      if (type === "due_soon" ? !pushDueSoon : !pushOverdue) continue;
+      const pushWanted = type === "due_soon" ? pushDueSoon : pushOverdue;
+      if (!pushWanted && !wantsNote) continue;
 
       // km/hours criteria always carry an amount; a null would mean the
       // interval isn't configured, which can't produce a level above.
@@ -128,47 +139,109 @@ export async function notifyUsageServicesForBike(
       // evaluating the same interval at the same time, and read-then-write
       // would let them both decide nothing had been sent yet. Whoever the
       // database hands the band to is the one that sends.
-      const { data: claims } = await admin.rpc("claim_interval_notification", {
-        p_service_interval_id: interval.id,
-        p_channel: "push",
-        p_user_id: userId,
-        p_level: level,
-      });
-      const claim = claims?.[0];
-      if (!claim?.claimed) continue;
-
-      let delivered = false;
-      try {
-        delivered = await sendPushToUser(admin, userId, {
-          title: emailDict.heading,
-          body,
-          url: componentUrl,
-          tag: `${type}:${interval.id}`,
-        });
-      } catch (e) {
-        console.error("[notify-usage] push send threw", e);
-      }
-
-      if (!delivered) {
-        // Hand the band back, or the interval would sit there looking as
-        // though the owner had been told and stay silent until it recovered.
-        await admin.rpc("release_interval_notification", {
+      if (pushWanted) {
+        const { data: claims } = await admin.rpc("claim_interval_notification", {
           p_service_interval_id: interval.id,
           p_channel: "push",
-          p_claimed_level: level,
-          p_previous_level: claim.previous_level,
-          p_previous_notified_at: claim.previous_notified_at,
+          p_user_id: userId,
+          p_level: level,
         });
-        continue;
+        const claim = claims?.[0];
+        if (claim?.claimed) {
+          let delivered = false;
+          try {
+            delivered = await sendPushToUser(admin, userId, {
+              title: emailDict.heading,
+              body,
+              url: componentUrl,
+              tag: `${type}:${interval.id}`,
+            });
+          } catch (e) {
+            console.error("[notify-usage] push send threw", e);
+          }
+
+          if (delivered) {
+            await admin.from("notification_log").insert({
+              user_id: userId,
+              component_id: component.id,
+              service_interval_id: interval.id,
+              type,
+              episode_date: interval.lastInterventionDate ?? interval.installDate ?? null,
+              channel: "push",
+            });
+          } else {
+            // Hand the band back, or the interval would sit there looking as
+            // though the owner had been told and stay silent until it
+            // recovered.
+            await admin.rpc("release_interval_notification", {
+              p_service_interval_id: interval.id,
+              p_channel: "push",
+              p_claimed_level: level,
+              p_previous_level: claim.previous_level,
+              p_previous_notified_at: claim.previous_notified_at,
+            });
+          }
+        }
       }
 
+      // Its own channel in the same ledger, so the description says something
+      // only when the band actually worsened. Sharing the push claim would
+      // have meant a rider without push notifications never getting a note,
+      // and every later ride re-writing the same paragraph.
+      if (wantsNote) {
+        const { data: claimed } = await admin.rpc("claim_interval_notification", {
+          p_service_interval_id: interval.id,
+          p_channel: "strava",
+          p_user_id: userId,
+          p_level: level,
+        });
+        const claim = claimed?.[0];
+        if (claim?.claimed) {
+          noteLines.push(body);
+          noteClaims.push({
+            intervalId: interval.id,
+            level,
+            previousLevel: claim.previous_level,
+            previousAt: claim.previous_notified_at,
+          });
+        }
+      }
+    }
+
+    if (!noteLines.length) return;
+
+    // Nothing above depends on this, so a Strava that refuses the write costs
+    // the note and nothing else — the push has already gone out.
+    const accessToken = await getValidStravaAccessToken(admin, userId);
+    const written =
+      accessToken != null &&
+      (await appendActivityDescription(
+        accessToken,
+        stravaActivityId!,
+        `${dict.stravaNote.heading}\n${noteLines.join("\n")}`
+      ));
+
+    if (!written) {
+      // Same reasoning as the push release: a claimed band that was never
+      // written would keep this interval silent until it recovered.
+      for (const claim of noteClaims) {
+        await admin.rpc("release_interval_notification", {
+          p_service_interval_id: claim.intervalId,
+          p_channel: "strava",
+          p_claimed_level: claim.level,
+          p_previous_level: claim.previousLevel,
+          p_previous_notified_at: claim.previousAt,
+        });
+      }
+      return;
+    }
+
+    for (const claim of noteClaims) {
       await admin.from("notification_log").insert({
         user_id: userId,
-        component_id: component.id,
-        service_interval_id: interval.id,
-        type,
-        episode_date: interval.lastInterventionDate ?? interval.installDate ?? null,
-        channel: "push",
+        service_interval_id: claim.intervalId,
+        type: claim.level === "critical" ? "overdue" : "due_soon",
+        channel: "strava",
       });
     }
   } catch (e) {
