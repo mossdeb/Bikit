@@ -207,7 +207,6 @@ const pt: Dictionary = {
       description: "Adicione o Bikit ao ecrã principal para um acesso mais rápido.",
       installButton: "Adicionar ao ecrã principal",
       installed: "Instalada",
-      iosInstructions: "Toque no ícone de partilha e depois em \"Adicionar ao ecrã principal\".",
       howToButton: "Como instalar",
     },
     about: {

@@ -211,7 +211,6 @@ const en = {
       description: "Add Bikit to your home screen for quicker access.",
       installButton: "Add to Home Screen",
       installed: "Installed",
-      iosInstructions: 'Tap the Share icon, then "Add to Home Screen".',
       howToButton: "How to install",
     },
     about: {
