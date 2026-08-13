@@ -678,6 +678,8 @@ const en = {
       noIntervalsYet: "No maintenance reminders configured for this component.",
       remainingLabel: (formatted: string): string => `${formatted} remaining`,
       overdueLabel: (formatted: string): string => `${formatted} overdue`,
+      includesTitle: "Includes",
+      includesLabel: "See what this service includes",
     },
     form: {
       addTitle: "Add a component",

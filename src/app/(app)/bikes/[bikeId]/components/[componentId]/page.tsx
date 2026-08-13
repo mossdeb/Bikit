@@ -22,6 +22,9 @@ import { Button } from "@/components/ui/button";
 import { HealthBadge, HealthPercentBadge } from "@/components/health-badge";
 import { ServiceIntervalBar } from "@/components/service-interval-bar";
 import { MaintenanceIcon } from "@/components/interval-icons";
+import { IntervalIncludesButton } from "@/components/interval-includes-button";
+import { intervalName } from "@/lib/interval-name";
+import { asIncludes } from "@/lib/interval-includes";
 import { TypeBadge, INTERVENTION_TYPE_DOT_STYLES } from "@/components/type-badge";
 import { ComponentIcon } from "@/components/component-icon";
 import { COMPONENT_CATEGORY_ICON } from "@/components/component-category-icon";
@@ -131,7 +134,10 @@ export default async function ComponentDetailPage({
       bikeKmAtLastService: lastReset?.bike_km_at_intervention ?? null,
       bikeHoursAtLastService: lastReset?.bike_hours_at_intervention ?? null,
     };
-    return { interval: input, status: calculateComponentStatus(input) };
+    // `includes` rides alongside rather than inside the input:
+    // NamedIntervalStatusInput is the contract selectActiveInterval shares
+    // with interventions.ts and the view, and this is presentation detail.
+    return { interval: input, status: calculateComponentStatus(input), includes: asIncludes(interval.includes) };
   });
 
   const activeResult = selectActiveInterval(intervals.map((i) => i.interval));
@@ -316,7 +322,7 @@ export default async function ComponentDetailPage({
           // then padded back in — half the card's own 24px on mobile, so the
           // pills sit wider than the text above them.
           <div className="-mx-6 mt-6 space-y-4 border-t border-border px-3 pt-6 sm:px-6">
-            {intervals.map(({ interval, status }) => {
+            {intervals.map(({ interval, status, includes }) => {
               const rowPercent = healthPercent(status.fractionUsed);
               const isActive = activeResult?.interval.id === interval.id;
               const cadence =
@@ -382,6 +388,14 @@ export default async function ComponentDetailPage({
                         </p>
                       )}
                       <HealthPercentBadge percent={rowPercent} className="ml-auto shrink-0" />
+                      {/* Translated here, on the server, so the client button
+                          stays a dumb list and neither dictionary crosses
+                          into the bundle. Renders nothing without a list. */}
+                      <IntervalIncludesButton
+                        title={dict.components.detail.includesTitle}
+                        label={dict.components.detail.includesLabel}
+                        items={(includes ?? []).map((name) => intervalName(dict, name))}
+                      />
                     </div>
                     {/* The pill is near enough the bar's own `bg-muted` track
                         that the empty half disappeared into it, and the bar

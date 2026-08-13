@@ -674,6 +674,8 @@ const pt: Dictionary = {
       noIntervalsYet: "Sem lembretes de manutenção configurados para este componente.",
       remainingLabel: (formatted: string): string => `Faltam ${formatted}`,
       overdueLabel: (formatted: string): string => `${formatted} em atraso`,
+      includesTitle: "Inclui",
+      includesLabel: "Ver o que este serviço inclui",
     },
     form: {
       addTitle: "Adicionar um componente",
