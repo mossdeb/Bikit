@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeBrand, normalizeModel } from "@/lib/ai/normalize";
 import { modelMatchCandidates, pickMaintenanceProfile } from "@/lib/ai/profile-match";
 import { defaultIntervalsFor } from "@/lib/ai/default-profiles";
-import { selectTopIntervals, type MaintenanceInterval } from "@/lib/ai/intervals";
+import { selectTopIntervals, withSafeIncludes, type MaintenanceInterval } from "@/lib/ai/intervals";
 
 export interface IntervalSuggestion {
   intervals: MaintenanceInterval[];
@@ -69,7 +69,7 @@ export async function suggestComponentIntervals(input: {
   });
   if (!profile) return null;
 
-  const intervals = profile.intervals as unknown as MaintenanceInterval[];
+  const intervals = (profile.intervals as unknown as MaintenanceInterval[]).map(withSafeIncludes);
   // A curated empty profile is a negative cache — "this genuinely has no
   // schedule" — and must not be presented as a suggestion.
   if (intervals.length === 0) return null;

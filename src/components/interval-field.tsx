@@ -20,6 +20,16 @@ export interface IntervalSlotDefault {
   name: string;
   type: IntervalType;
   value: number | null;
+  /** Canonical service names this reminder covers, when it came from the
+   * catalog already merged. Carried through the form untouched — the visible
+   * name is translated for reading and turned back on save, this list is not
+   * shown and must stay canonical. */
+  includes?: string[] | null;
+  /** The canonical name the list above belongs to. The name field is free
+   * text: rename "Full Service" to "my fork thing" and a list that travelled
+   * along would start describing a reminder that no longer exists. Submitted
+   * with the list so the server can drop one when the other changed. */
+  canonicalName?: string | null;
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
@@ -125,6 +135,18 @@ function IntervalSlotFields({
           defaultValue={defaultValue?.name ?? ""}
         />
       </div>
+      {/* What a merged reminder covers, riding along so an edit — which
+          deletes and reinserts every slot — can't drop it. Nothing to edit
+          here: the list is curation, and the form only has to not lose it.
+          `for` is the canonical name it describes, so the server can tell a
+          rename from a rewrite. */}
+      {defaultValue?.includes && defaultValue.includes.length > 0 && (
+        <input
+          type="hidden"
+          name={`interval_includes_${slot}`}
+          value={JSON.stringify({ for: defaultValue.canonicalName ?? defaultValue.name, includes: defaultValue.includes })}
+        />
+      )}
     </div>
   );
 }
@@ -182,6 +204,8 @@ export function IntervalFieldGroup({
         name: intervalNames?.[iv.name] ?? iv.name,
         type: iv.type,
         value: iv.interval,
+        includes: iv.includes,
+        canonicalName: iv.name,
       }))
     : defaults;
   const slotCount = Math.min(5, Math.max(3, slots.length));

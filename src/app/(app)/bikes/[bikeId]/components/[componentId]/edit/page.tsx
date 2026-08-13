@@ -41,7 +41,10 @@ export default async function EditComponentPage({
       supabase.from("components").select("*").eq("id", componentId).eq("bike_id", bikeId).single(),
       supabase
         .from("component_service_intervals")
-        .select("name, interval_type, interval_value")
+        // `includes` is read for one reason: updateComponent replaces the whole
+        // interval set from the form, so anything this query doesn't fetch is
+        // erased the first time someone edits the part.
+        .select("name, interval_type, interval_value, includes")
         .eq("component_id", componentId)
         .order("slot"),
       getBikeIndexManufacturers(),
@@ -60,6 +63,7 @@ export default async function EditComponentPage({
       interval.interval_type === "km"
         ? Math.round(kmToUnit(interval.interval_value, distanceUnit) * 10) / 10
         : interval.interval_value,
+    includes: interval.includes,
   }));
 
   return (

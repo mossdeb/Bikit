@@ -45,6 +45,13 @@ export const componentIntervalSchema = z.object({
   name: z.string().trim().min(1).max(120),
   interval_type: z.enum(INTERVAL_TYPES),
   interval_value: z.coerce.number().min(0.1).max(1000000),
+  // The services one merged reminder covers, carried through the form as a
+  // hidden field so an edit — which deletes and reinserts every slot — can't
+  // quietly drop what the catalog supplied. Canonical names, never the
+  // translated labels: the visible name makes that round trip through
+  // canonicalIntervalName, this list does not. 20 because the largest merge
+  // measured is a Canyon frame's 11-service annual.
+  includes: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
 });
 
 export type ComponentIntervalFormValues = z.infer<typeof componentIntervalSchema>;

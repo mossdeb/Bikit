@@ -61,6 +61,12 @@ export const aiSetupCreateSchema = z.object({
               name: z.string().trim().min(1).max(120),
               type: z.enum(INTERVAL_TYPES),
               interval: z.number().positive().max(100000),
+              // Declared, and it has to be: z.object strips what it doesn't
+              // name, without erroring. Leaving it out let the preview send
+              // the merged service list and the server drop it on the floor
+              // — a silent loss, which is the failure mode this project keeps
+              // paying for. Curation writes it, so it is optional here.
+              includes: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
             })
           )
           .max(5),

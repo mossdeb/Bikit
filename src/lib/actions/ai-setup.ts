@@ -300,6 +300,7 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
       name: interval.name,
       interval_type: interval.type,
       interval_value: interval.interval,
+      includes: interval.includes ?? null,
     }))
   );
   if (intervalRows.length > 0) {

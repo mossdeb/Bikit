@@ -16,6 +16,7 @@ import { unitToKm } from "@/lib/format";
 import { rebaseBaselineOverAbsence } from "@/lib/maintenance/calculation";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { canonicalIntervalName } from "@/lib/interval-name";
+import { parseIntervalIncludes } from "@/lib/interval-includes";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // 5, not 3: Smart Setup components carry up to 5 reminders and the edit
@@ -59,10 +60,15 @@ function parseComponentIntervals(
     const type = formData.get(`interval_type_${slot}`);
     const value = formData.get(`interval_value_${slot}`);
     if (!name && !type && !value) continue;
+    const canonical = typeof name === "string" ? canonicalIntervalName(dict, name) : name;
     const parsed = componentIntervalSchema.safeParse({
-      name: typeof name === "string" ? canonicalIntervalName(dict, name) : name,
+      name: canonical,
       interval_type: type,
       interval_value: value,
+      includes:
+        typeof canonical === "string"
+          ? parseIntervalIncludes(formData.get(`interval_includes_${slot}`), canonical)
+          : undefined,
     });
     if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
     intervals.push(parsed.data);

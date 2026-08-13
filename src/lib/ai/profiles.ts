@@ -13,7 +13,7 @@ import { modelMatchCandidates, pickMaintenanceProfile } from "./profile-match";
 import { searchMaintenanceBatchWithAI } from "./maintenance-search";
 import { saveMaintenanceProfile } from "./catalog";
 import { defaultIntervalsFor } from "./default-profiles";
-import { selectTopIntervals, type MaintenanceInterval } from "./intervals";
+import { selectTopIntervals, withSafeIncludes, type MaintenanceInterval } from "./intervals";
 import type { AiBikeComponent } from "./bike-search";
 
 type Supabase = SupabaseClient<Database>;
@@ -116,7 +116,9 @@ export async function resolveIntervalsForComponents(
         category: component.category,
       });
       if (profile) {
-        const intervals = profile.intervals as unknown as MaintenanceInterval[];
+        // Normalised once, and both fields built from the same array: the
+        // preview matches a selected interval to its row by object identity.
+        const intervals = (profile.intervals as unknown as MaintenanceInterval[]).map(withSafeIncludes);
         resolved.set(key, {
           intervals,
           selected: selectTopIntervals(intervals),
