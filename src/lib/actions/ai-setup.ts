@@ -7,7 +7,8 @@ import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { hasAiSetupAccess, hasUnlimitedAiSearches } from "@/lib/ai-setup-access";
 import { aiSetupSearchSchema, aiSetupCreateSchema } from "@/lib/validations/ai-setup.schema";
-import { bikeCatalogKey, combinedBikeName } from "@/lib/ai/normalize";
+import { bikeCatalogKey } from "@/lib/ai/normalize";
+import { nearestBrand, pickCatalogEntry } from "@/lib/ai/bike-catalog-match";
 import { splitComponentNaming } from "@/lib/ai/component-name";
 import { searchBikeWithAI, type AiBikeComponent, type BikeSearchOutcome } from "@/lib/ai/bike-search";
 import { computeAllowance, startOfMonthUtcIso } from "@/lib/ai/quota";
@@ -87,18 +88,30 @@ export async function searchBikeSetup(formData: FormData): Promise<AiSetupSearch
   if (!catalogHit) {
     // Fallback: the same bike name split differently across model/version
     // ("Nomad" + "6 S" vs "Nomad 6" + "S") is a different exact key but the
-    // same combined token string. Brand and year stay exact; ties (duplicate
-    // spellings of the same bike) resolve to the highest-confidence entry.
-    const { data: sameBrandYear } = await supabase
-      .from("bike_catalog")
-      .select("display, components, source_url, confidence, model, version")
-      .eq("brand", key.brand)
-      .eq("year", key.year);
-    const wanted = combinedBikeName(parsed.data.model, parsed.data.version);
-    catalogHit =
-      (sameBrandYear ?? [])
-        .filter((row) => combinedBikeName(row.model, row.version) === wanted)
-        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0] ?? null;
+    // same combined token string. The name still has to match in full — see
+    // bike-catalog-match.ts for why nothing here is fuzzy on the model.
+    const rowsFor = async (brand: string) =>
+      (
+        await supabase
+          .from("bike_catalog")
+          .select("display, components, source_url, confidence, model, version, year")
+          .eq("brand", brand)
+      ).data ?? [];
+
+    let rows = await rowsFor(key.brand);
+
+    if (rows.length === 0) {
+      // The brand itself missed, so it may be a typo — and a typo strands the
+      // row it created, unreachable by anyone spelling the brand correctly.
+      // Only on this path, which is already a miss: the extra read costs
+      // nothing on the hot path. Worth an RPC if the catalog ever gets big
+      // enough for one column of every row to matter.
+      const { data: brands } = await supabase.from("bike_catalog").select("brand");
+      const guess = nearestBrand(key.brand, [...new Set((brands ?? []).map((b) => b.brand))]);
+      if (guess) rows = await rowsFor(guess);
+    }
+
+    catalogHit = pickCatalogEntry(rows, parsed.data);
   }
 
   const allowance = unlimited
