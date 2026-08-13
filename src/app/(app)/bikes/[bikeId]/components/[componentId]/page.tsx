@@ -380,22 +380,30 @@ export default async function ComponentDetailPage({
                       )}
                     </p>
                     <div className="mt-0.5 flex items-center justify-between gap-2">
-                      {label && (
-                        <p className="min-w-0 truncate text-base">
-                          {before}
-                          <span className="font-semibold">{amount}</span>
-                          {after}
-                        </p>
-                      )}
-                      <HealthPercentBadge percent={rowPercent} className="ml-auto shrink-0" />
-                      {/* Translated here, on the server, so the client button
+                      {/* Next to the text it belongs to, not at the end of the
+                          row: it explains what the reminder covers, and the
+                          percentage is what the eye scans down the column for.
+                          The line goes inside the trigger so the text opens
+                          the popover as well — and comes back out untouched
+                          when there is no list. A span and not a `p`, because
+                          a button may only hold phrasing content.
+                          Translated here, on the server, so the client button
                           stays a dumb list and neither dictionary crosses
-                          into the bundle. Renders nothing without a list. */}
+                          into the bundle. */}
                       <IntervalIncludesButton
                         title={dict.components.detail.includesTitle}
                         label={dict.components.detail.includesLabel}
                         items={(includes ?? []).map((name) => intervalName(dict, name))}
-                      />
+                      >
+                        {label && (
+                          <span className="min-w-0 truncate text-base">
+                            {before}
+                            <span className="font-semibold">{amount}</span>
+                            {after}
+                          </span>
+                        )}
+                      </IntervalIncludesButton>
+                      <HealthPercentBadge percent={rowPercent} className="ml-auto shrink-0" />
                     </div>
                     {/* The pill is near enough the bar's own `bg-muted` track
                         that the empty half disappeared into it, and the bar
