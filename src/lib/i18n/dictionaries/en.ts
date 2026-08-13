@@ -212,6 +212,7 @@ const en = {
       installButton: "Add to Home Screen",
       installed: "Installed",
       iosInstructions: 'Tap the Share icon, then "Add to Home Screen".',
+      howToButton: "How to install",
     },
     about: {
       title: "About Bikit",
@@ -831,6 +832,21 @@ const en = {
   // did not, and an advert placed there would be theirs to answer for.
   stravaNote: {
     heading: "Maintenance",
+  },
+  // One "{icon}" per step marks where the platform's glyph goes; the sentence
+  // decides its position, because the button it names sits somewhere else in
+  // every language.
+  installPrompt: {
+    title: "Install Bikit",
+    subtitle: "Get instant access and never miss a maintenance reminder.",
+    gotIt: "Got it",
+    ios: [
+      "Tap the {icon} Share button in your browser's toolbar.",
+      "Select Add {icon} to Home Screen.",
+      "Tap Add.",
+    ],
+    android: ["Tap the {icon} menu.", "Select Install app {icon}.", "Follow the on-screen instructions."],
+    mac: ["On Safari", "Click {icon} Share in the toolbar.", "Choose Add {icon} to Dock.", "Confirm the installation."],
   },
   auth: {
     login: {

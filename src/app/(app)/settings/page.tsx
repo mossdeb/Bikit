@@ -19,6 +19,7 @@ import { PushNotificationsForm } from "@/components/push-notifications-form";
 import { DeleteAccountButton } from "@/components/delete-account-button";
 import { BillingSection } from "@/components/billing-section";
 import { InstallAppButton } from "@/components/install-app-button";
+import { InstallAppHowToButton } from "@/components/install-app-dialog";
 import { getInitials } from "@/lib/initials";
 import { updateFullName, deleteAccount } from "@/lib/actions/settings";
 import { logout } from "@/lib/actions/auth";
@@ -295,11 +296,20 @@ export default async function SettingsPage({
         </SettingsSection>
 
         <SettingsSection title={dict.settings.installApp.title} description={dict.settings.installApp.description}>
-          <InstallAppButton
-            installButtonLabel={dict.settings.installApp.installButton}
-            installedLabel={dict.settings.installApp.installed}
-            iosInstructions={dict.settings.installApp.iosInstructions}
-          />
+          {/* Two controls, two jobs: the first installs where the browser
+              lets it, the second explains where it doesn't — and the second
+              renders nothing once the app is installed. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <InstallAppButton
+              installButtonLabel={dict.settings.installApp.installButton}
+              installedLabel={dict.settings.installApp.installed}
+              iosInstructions={dict.settings.installApp.iosInstructions}
+            />
+            <InstallAppHowToButton
+              labels={dict.installPrompt}
+              buttonLabel={dict.settings.installApp.howToButton}
+            />
+          </div>
         </SettingsSection>
 
         <SettingsSection title={dict.settings.about.title}>

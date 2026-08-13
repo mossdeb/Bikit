@@ -23,7 +23,10 @@ import { UpgradeToPersonalCard } from "@/components/upgrade-to-personal-card";
 import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
+import { InstallAppDialog } from "@/components/install-app-dialog";
+
 import { completeOnboarding } from "@/lib/actions/onboarding";
+import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
 
 export default async function DashboardPage({
   searchParams,
@@ -130,6 +133,14 @@ export default async function DashboardPage({
   );
 
   const totalBikes = bikes?.length ?? 0;
+  // The first bike is the earliest point where installing buys the owner
+  // anything, so it is the gate — not the count. Someone who dismissed this
+  // with one bike should not be asked again on their third. Whether the app
+  // is already installed, and on what, only the browser knows: the dialog
+  // itself decides that and renders nothing when it shouldn't.
+  const showInstallPrompt =
+    totalBikes > 0 &&
+    !(claims?.user_metadata as { pwa_install_prompt_seen?: boolean } | undefined)?.pwa_install_prompt_seen;
   const totalComponents = components.length;
   const maxBikes = PLAN_LIMITS[subscription.plan].maxBikes;
   const atBikeLimit = maxBikes !== null && totalBikes >= maxBikes;
@@ -173,6 +184,11 @@ export default async function DashboardPage({
         }}
         action={completeOnboarding}
       />
+      {/* Not while the tour is up: two dialogs would stack, and the install
+          ask only makes sense once there is a bike to come back to. */}
+      {showInstallPrompt && !showOnboarding && (
+        <InstallAppDialog labels={dict.installPrompt} action={dismissInstallPrompt} />
+      )}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold">{dict.dashboard.welcome(displayName)}</h1>

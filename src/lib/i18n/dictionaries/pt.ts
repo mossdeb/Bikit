@@ -208,6 +208,7 @@ const pt: Dictionary = {
       installButton: "Adicionar ao ecrã principal",
       installed: "Instalada",
       iosInstructions: "Toque no ícone de partilha e depois em \"Adicionar ao ecrã principal\".",
+      howToButton: "Como instalar",
     },
     about: {
       title: "Sobre a Bikit",
@@ -820,6 +821,27 @@ const pt: Dictionary = {
   },
   stravaNote: {
     heading: "Manutenção",
+  },
+  installPrompt: {
+    title: "Instalar a Bikit",
+    subtitle: "Acesso imediato e nunca mais perde um lembrete de manutenção.",
+    gotIt: "Percebi",
+    ios: [
+      "Toque no botão {icon} Partilhar, na barra do browser.",
+      "Escolha Adicionar {icon} ao ecrã principal.",
+      "Toque em Adicionar.",
+    ],
+    android: [
+      "Toque no menu {icon}.",
+      "Escolha Instalar aplicação {icon}.",
+      "Siga as instruções no ecrã.",
+    ],
+    mac: [
+      "No Safari",
+      "Clique em {icon} Partilhar, na barra de ferramentas.",
+      "Escolha Adicionar {icon} à Dock.",
+      "Confirme a instalação.",
+    ],
   },
   auth: {
     login: {
