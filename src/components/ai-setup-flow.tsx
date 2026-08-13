@@ -28,6 +28,7 @@ import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import { COMPONENT_CATEGORY_ICON } from "@/components/component-category-icon";
 import { ComponentIcon } from "@/components/component-icon";
 import { ConnectWithStravaButton } from "@/components/strava-brand";
+import { IntervalIncludesButton } from "@/components/interval-includes-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +92,8 @@ export interface AiSetupLabels {
   back: string;
   categoryLabels: Record<string, string>;
   intervalNames: Record<string, string>;
+  includesTitle: string;
+  includesLabel: string;
 }
 
 /** Strava state resolved by the server page: gear labels arrive ready
@@ -734,17 +737,28 @@ function AiSetupPreview({
                   {component.intervals.map((interval, intervalIdx) => {
                     const checked = component.selectedIdx.includes(intervalIdx);
                     return (
-                      <button
-                        type="button"
-                        key={`${interval.name}-${intervalIdx}`}
-                        onClick={() => toggleInterval(index, intervalIdx)}
-                        className="flex w-full cursor-pointer items-center gap-2.5 text-left text-sm"
-                      >
-                        <CheckSquare selected={checked} />
-                        <span className={checked ? "" : "text-muted-foreground"}>
-                          {labels.intervalNames[interval.name] ?? interval.name} — {formatInterval(labels, interval)}
-                        </span>
-                      </button>
+                      // A row and not one big button: the info popover is
+                      // itself a button, and nesting one inside another is
+                      // invalid — the click would have toggled the reminder
+                      // on its way out. Two siblings, one job each.
+                      <div key={`${interval.name}-${intervalIdx}`} className="flex items-center gap-2.5 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => toggleInterval(index, intervalIdx)}
+                          className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left"
+                        >
+                          <CheckSquare selected={checked} />
+                          <span className={checked ? "" : "text-muted-foreground"}>
+                            {labels.intervalNames[interval.name] ?? interval.name} — {formatInterval(labels, interval)}
+                          </span>
+                        </button>
+                        <IntervalIncludesButton
+                          size="compact"
+                          title={labels.includesTitle}
+                          label={labels.includesLabel}
+                          items={(interval.includes ?? []).map((name) => labels.intervalNames[name] ?? name)}
+                        />
+                      </div>
                     );
                   })}
                   {component.intervals.length > AI_SETUP_MAX_INTERVALS && (

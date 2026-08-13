@@ -64,5 +64,7 @@ export function aiSetupLabels(dict: Dictionary, distanceUnit: "km" | "mi"): AiSe
     back: dict.bikes.form.wizardBack,
     categoryLabels: dict.components.categories,
     intervalNames: dict.components.intervalNames,
+    includesTitle: dict.components.detail.includesTitle,
+    includesLabel: dict.components.detail.includesLabel,
   };
 }
