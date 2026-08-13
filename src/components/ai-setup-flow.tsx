@@ -860,8 +860,11 @@ function AiSetupPreview({
 
         {/* Dentro do último card e no fim dele: sair da revisão é o passo
             seguinte àquilo que este card pergunta, não uma acção solta a
-            flutuar por baixo de tudo. */}
-        <div className="space-y-3 pt-2">
+            flutuar por baixo de tudo. Puxado às bordas do card e com o
+            padding reposto por dentro, para o traço atravessar de lado a
+            lado como os do cabeçalho — que fazem o mesmo com divide-y a
+            envolver secções que trazem o seu próprio padding. */}
+        <div className="-mx-5 mt-5 space-y-3 border-t border-border px-5 pt-5">
           <Button
             type="button"
             variant="inverted"
