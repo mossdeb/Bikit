@@ -846,7 +846,7 @@ const en = {
       "Tap Add.",
     ],
     android: ["Tap the {icon} menu.", "Select Install app {icon}.", "Follow the on-screen instructions."],
-    mac: ["On Safari", "Click {icon} Share in the toolbar.", "Choose Add {icon} to Dock.", "Confirm the installation."],
+    mac: ["On Safari.", "Click {icon} Share in the toolbar.", "Choose Add {icon} to Dock.", "Confirm the installation."],
   },
   auth: {
     login: {

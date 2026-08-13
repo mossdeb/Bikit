@@ -837,7 +837,7 @@ const pt: Dictionary = {
       "Siga as instruções no ecrã.",
     ],
     mac: [
-      "No Safari",
+      "No Safari.",
       "Clique em {icon} Partilhar, na barra de ferramentas.",
       "Escolha Adicionar {icon} à Dock.",
       "Confirme a instalação.",
