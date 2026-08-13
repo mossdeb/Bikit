@@ -1,3 +1,9 @@
+// Annotated rather than inferred: one question carries a structured answer and
+// the rest do not, so `typeof en` would hand the Portuguese file a union it
+// has to reproduce shape for shape. Naming the type keeps both dictionaries
+// answering to the same contract.
+import type { FaqItem } from "@/components/faq-accordion";
+
 const en = {
   nav: {
     features: "Features",
@@ -195,7 +201,80 @@ const en = {
         question: "Can I cancel anytime?",
         answer: "Yes, no strings attached. You can cancel at any time directly from your account.",
       },
-    ],
+      {
+        question: "How can I install Bikit on my phone?",
+        answer:
+          "Bikit installs straight from the browser — there is nothing to download from an app store. Pick your platform below.",
+        sections: [
+          {
+            heading: "📱 iPhone (iOS)",
+            steps: [
+              "Open Safari — installing only works from Safari.",
+              "Go to bikit.app.",
+              "Tap the Share button.",
+              "Select Add to Home Screen.",
+              "Tap Add.",
+            ],
+          },
+          {
+            heading: "Requirements",
+            bullets: [
+              "iOS 16.4 or later is recommended.",
+              "Installing only works from Safari. If you are using Chrome or another browser, open Bikit in Safari to install it — after that you can launch it straight from your Home Screen.",
+            ],
+          },
+          {
+            heading: "🤖 Android",
+            steps: [
+              "Open your browser (Chrome recommended).",
+              "Go to bikit.app.",
+              "Tap the ⋮ menu.",
+              "Select Install app or Add to Home screen.",
+              "Follow the on-screen instructions.",
+            ],
+          },
+          {
+            heading: "If you don't see the option",
+            steps: [
+              "Open Google Chrome.",
+              "Go to bikit.app.",
+              "Tap ⋮ → Add to Home screen → Install.",
+              "Follow the on-screen instructions.",
+            ],
+          },
+          {
+            heading: "Requirements",
+            intro:
+              "For the best experience we recommend Android 9.0 or later with Chrome 90+, or a recent Chromium-based browser.",
+          },
+          {
+            heading: "💻 Mac (macOS)",
+            steps: [
+              "Open Safari.",
+              "Go to bikit.app.",
+              "Click Share in the toolbar.",
+              "Choose Add to Dock.",
+              "Confirm the installation.",
+            ],
+          },
+          {
+            heading: "Requirements",
+            bullets: ["macOS Sonoma (14) or later.", "Installing is only available through Safari."],
+          },
+          {
+            heading: "Why install Bikit?",
+            intro: "Once installed, Bikit works just like a native app:",
+            bullets: [
+              "🚴 Launch it straight from your Home Screen or Dock.",
+              "⚡ Faster startup and smoother performance.",
+              "🔔 Receive maintenance reminders and notifications.",
+              "🌐 A full-screen experience, without browser tabs.",
+              "📶 Keeps working on a poor connection, for the parts that support it.",
+            ],
+          },
+        ],
+      },
+    ] as FaqItem[],
   },
   cta: {
     title: "Ready to stop guessing when the last service was?",

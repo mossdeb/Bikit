@@ -4,7 +4,17 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible } from "@/components/collapsible";
 
-export type FaqItem = { question: string; answer: string };
+/** A titled block inside an answer, for the few questions that are a
+ * procedure rather than a sentence. `steps` renders ordered, `bullets`
+ * unordered; a section may carry either, both, or neither. */
+export type FaqSection = {
+  heading: string;
+  intro?: string;
+  steps?: string[];
+  bullets?: string[];
+};
+
+export type FaqItem = { question: string; answer: string; sections?: FaqSection[] };
 
 /**
  * The FAQ, in the app's own surface.
@@ -43,7 +53,32 @@ export function FaqAccordion({ items }: { items: FaqItem[] }) {
               />
             </button>
             <Collapsible show={isOpen}>
-              <p className="px-5 pb-4 text-sm leading-relaxed text-muted-foreground">{item.answer}</p>
+              <div className="px-5 pb-4 text-sm leading-relaxed text-muted-foreground">
+                <p>{item.answer}</p>
+                {item.sections?.map((section, sectionIndex) => (
+                  // Keyed by index and not by heading: "Requirements" appears
+                  // once per platform, and three identical keys is a silent
+                  // remount every time the answer opens.
+                  <div key={sectionIndex} className="mt-4">
+                    <p className="font-semibold text-foreground">{section.heading}</p>
+                    {section.intro && <p className="mt-1">{section.intro}</p>}
+                    {section.steps && (
+                      <ol className="mt-1.5 list-decimal space-y-1 pl-5">
+                        {section.steps.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    )}
+                    {section.bullets && (
+                      <ul className="mt-1.5 list-disc space-y-1 pl-5">
+                        {section.bullets.map((bullet) => (
+                          <li key={bullet}>{bullet}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
             </Collapsible>
           </div>
         );

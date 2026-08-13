@@ -197,6 +197,79 @@ const pt: LandingDictionary = {
         question: "Posso cancelar quando quiser?",
         answer: "Sim, sem compromisso. Podes cancelar a qualquer momento diretamente na tua conta.",
       },
+      {
+        question: "Como instalo a Bikit no telemóvel?",
+        answer:
+          "A Bikit instala-se a partir do browser — não há nada para descarregar de uma loja de aplicações. Escolhe a tua plataforma.",
+        sections: [
+          {
+            heading: "📱 iPhone (iOS)",
+            steps: [
+              "Abre o Safari — a instalação só funciona a partir do Safari.",
+              "Vai a bikit.app.",
+              "Toca no botão Partilhar.",
+              "Escolhe Adicionar ao ecrã principal.",
+              "Toca em Adicionar.",
+            ],
+          },
+          {
+            heading: "Requisitos",
+            bullets: [
+              "Recomenda-se iOS 16.4 ou posterior.",
+              "A instalação só funciona a partir do Safari. Se estiveres no Chrome ou noutro browser, abre a Bikit no Safari para instalar — depois disso podes abri-la diretamente do ecrã principal.",
+            ],
+          },
+          {
+            heading: "🤖 Android",
+            steps: [
+              "Abre o browser (recomendamos o Chrome).",
+              "Vai a bikit.app.",
+              "Toca no menu ⋮.",
+              "Escolhe Instalar aplicação ou Adicionar ao ecrã principal.",
+              "Segue as instruções no ecrã.",
+            ],
+          },
+          {
+            heading: "Se não vires a opção",
+            steps: [
+              "Abre o Google Chrome.",
+              "Vai a bikit.app.",
+              "Toca em ⋮ → Adicionar ao ecrã principal → Instalar.",
+              "Segue as instruções no ecrã.",
+            ],
+          },
+          {
+            heading: "Requisitos",
+            intro:
+              "Para a melhor experiência recomendamos Android 9.0 ou posterior com Chrome 90+, ou um browser recente baseado em Chromium.",
+          },
+          {
+            heading: "💻 Mac (macOS)",
+            steps: [
+              "Abre o Safari.",
+              "Vai a bikit.app.",
+              "Clica em Partilhar na barra de ferramentas.",
+              "Escolhe Adicionar à Dock.",
+              "Confirma a instalação.",
+            ],
+          },
+          {
+            heading: "Requisitos",
+            bullets: ["macOS Sonoma (14) ou posterior.", "A instalação só está disponível através do Safari."],
+          },
+          {
+            heading: "Porquê instalar a Bikit?",
+            intro: "Depois de instalada, a Bikit funciona como uma aplicação nativa:",
+            bullets: [
+              "🚴 Abre diretamente do ecrã principal ou da Dock.",
+              "⚡ Arranque mais rápido e desempenho mais fluido.",
+              "🔔 Recebe lembretes de manutenção e notificações.",
+              "🌐 Ecrã inteiro, sem separadores do browser.",
+              "📶 Continua a funcionar com ligação fraca, nas partes que o suportam.",
+            ],
+          },
+        ],
+      },
     ],
   },
   cta: {

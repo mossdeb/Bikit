@@ -37,7 +37,33 @@ export function LandingFAQ({ dict }: { dict: LandingDictionary["faq"] }) {
                     className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
                   />
                 </button>
-                {isOpen && <div className="px-6 pb-4 text-sm leading-relaxed text-[#35363C]">{item.answer}</div>}
+                {isOpen && (
+                  <div className="px-6 pb-4 text-sm leading-relaxed text-[#35363C]">
+                    <p>{item.answer}</p>
+                    {item.sections?.map((section, sectionIndex) => (
+                      // Keyed by index: "Requirements" repeats once per
+                      // platform, and duplicate keys would collide.
+                      <div key={sectionIndex} className="mt-4">
+                        <p className="font-bold text-[#101014]">{section.heading}</p>
+                        {section.intro && <p className="mt-1">{section.intro}</p>}
+                        {section.steps && (
+                          <ol className="mt-1.5 list-decimal space-y-1 pl-5">
+                            {section.steps.map((step) => (
+                              <li key={step}>{step}</li>
+                            ))}
+                          </ol>
+                        )}
+                        {section.bullets && (
+                          <ul className="mt-1.5 list-disc space-y-1 pl-5">
+                            {section.bullets.map((bullet) => (
+                              <li key={bullet}>{bullet}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
