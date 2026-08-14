@@ -340,7 +340,7 @@ export default async function BikeDetailPage({
           a green badge beside one of them read as a status of the bike, not a
           caveat about the feature. The report behind it still says Beta at
           the top, which is where someone reading the number would look. */}
-      <p className="text-xs text-muted-foreground">{dict.rideStress.intensity}</p>
+      <p className="text-xs text-muted-foreground">{dict.rideStress.rideLoad}</p>
       <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
         <span className="font-mono transition-opacity group-hover:opacity-70">{Math.round(intensity.value)}</span>
         <RideIntensityChip

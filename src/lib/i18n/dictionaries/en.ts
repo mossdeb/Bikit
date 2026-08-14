@@ -833,11 +833,13 @@ const en = {
     heading: "Maintenance",
   },
   rideStress: {
-    title: "Live Ride Stress",
+    title: "Lifetime Ride Load",
     beta: "Beta",
-    intensity: "Ride Intensity",
-    scoreTitle: "LRS Score",
-    lifetime: "Lifetime Ride Stress",
+    // Three names and no more: the feature (title), the 0..100 index over the
+    // last 30 days — which is also the unit a single ride is scored in — and
+    // the accumulated total. "Intensity" and "stress" are out of the UI.
+    rideLoad: "Ride Load",
+    lifetimeLoad: "Lifetime Load",
     subtitle:
       "Measures how demanding your recent rides have been, and helps you see the wear the bike is taking.",
     scoreLead: {
@@ -850,7 +852,7 @@ const en = {
     scaleLow: "Low",
     scaleHigh: "High",
     basedOn: "Based on your last 30 days of rides.",
-    trendTitle: "Ride Intensity trend",
+    trendTitle: "Ride Load trend",
     axisDay: "Day",
     scrubLabel: "Drag to read each day",
     trendUp: "Rising",
@@ -866,10 +868,27 @@ const en = {
     lifetimeLead: "How this bike has been used since it was added to Bikit.",
     ridesCounted: (n: number) => (n === 1 ? "1 ride counted" : `${n} rides counted`),
     rideDetails: "Ride details",
+    howItWorks: "How it works",
+    intro: {
+      tagline: "Not all rides are equal.",
+      lead: "The same distance can place very different demands on your bike. Bikit works out a Ride Load for every ride from distance, time, elevation and the kind of bike.",
+      recentTitle: "Ride Load",
+      recentPoints: [
+        "Shows how demanding your recent riding has been.",
+        "It rises after harder rides and eases off over time.",
+      ],
+      lifetimeTitle: "Lifetime Load",
+      lifetimePoints: [
+        "The total Ride Load your bike has accumulated.",
+        "Unlike Ride Load, it only grows.",
+      ],
+      closing: "Distance doesn't tell the whole story. Ride Load does.",
+      gotIt: "Got it",
+    },
     estimatedNote: "No elevation recorded — scored on distance and time alone.",
-    belowFloorNote: "Too short to move Ride Intensity. It still counts towards the lifetime total.",
+    belowFloorNote: "Too short to move Ride Load. It still counts towards the lifetime total.",
     metric: {
-      stress: "Ride Stress",
+      stress: "Ride Load",
       distance: "Distance",
       movingTime: "Moving time",
       elapsedTime: "Elapsed time",

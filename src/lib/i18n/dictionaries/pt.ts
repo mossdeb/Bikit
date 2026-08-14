@@ -827,14 +827,13 @@ const pt: Dictionary = {
   rideStress: {
     // Nome da página, em inglês nas duas línguas como as métricas: é o nome da
     // coisa, não a descrição dela. Serve o <h1> e a migalha de pão.
-    title: "Live Ride Stress",
+    title: "Lifetime Ride Load",
     beta: "Beta",
-    intensity: "Ride Intensity",
-    // Título da secção do índice. Chave própria e não o `intensity` acima
-    // porque essa serve também o eixo do gráfico e o campo na página da
-    // bicicleta, que continuam a chamar-lhe Ride Intensity.
-    scoreTitle: "LRS Score",
-    lifetime: "Lifetime Ride Stress",
+    // Três nomes e não mais: a funcionalidade (title), o índice de 0 a 100 dos
+    // últimos 30 dias, que é também a unidade de cada volta, e o acumulado.
+    // A palavra "intensity" e a palavra "stress" saíram da interface inteira.
+    rideLoad: "Ride Load",
+    lifetimeLoad: "Lifetime Load",
     subtitle:
       "Mede o quão exigentes têm sido as tuas voltas recentes e ajuda a perceber o desgaste que a bicicleta está a sofrer.",
     // Uma frase por banda, e não uma só com o nome da banda lá dentro: o que
@@ -849,7 +848,7 @@ const pt: Dictionary = {
     scaleLow: "Baixa",
     scaleHigh: "Alta",
     basedOn: "Com base nas voltas dos últimos 30 dias.",
-    trendTitle: "Evolução da intensidade",
+    trendTitle: "Evolução do Ride Load",
     axisDay: "Dia",
     scrubLabel: "Arrasta para ver cada dia",
     trendUp: "A subir",
@@ -865,10 +864,27 @@ const pt: Dictionary = {
     lifetimeLead: "Como esta bicicleta foi usada desde que entrou na Bikit.",
     ridesCounted: (n: number) => (n === 1 ? "1 volta contada" : `${n} voltas contadas`),
     rideDetails: "Detalhes da volta",
+    howItWorks: "Como funciona",
+    intro: {
+      tagline: "Nem todas as voltas são iguais.",
+      lead: "A mesma distância pode exigir coisas muito diferentes da bicicleta. A Bikit calcula um Ride Load para cada volta a partir da distância, do tempo, do desnível e do tipo de bicicleta.",
+      recentTitle: "Ride Load",
+      recentPoints: [
+        "Mostra o quão exigentes têm sido as tuas voltas recentes.",
+        "Sobe depois de voltas duras e desce aos poucos com o tempo.",
+      ],
+      lifetimeTitle: "Lifetime Load",
+      lifetimePoints: [
+        "O total de Ride Load acumulado pela bicicleta.",
+        "Ao contrário do Ride Load, só cresce.",
+      ],
+      closing: "A distância não conta a história toda. O Ride Load conta.",
+      gotIt: "Percebi",
+    },
     estimatedNote: "Sem desnível registado — pontuada só com distância e tempo.",
-    belowFloorNote: "Curta demais para mexer na Ride Intensity. Continua a contar para o total acumulado.",
+    belowFloorNote: "Curta demais para mexer no Ride Load. Continua a contar para o total acumulado.",
     metric: {
-      stress: "Ride Stress",
+      stress: "Ride Load",
       distance: "Distância",
       movingTime: "Tempo em movimento",
       elapsedTime: "Tempo total",

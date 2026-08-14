@@ -9,11 +9,13 @@ import {
   derivedRideMetrics,
   lifetimeRideStress,
   rideIntensity,
+  rideIntensityBand,
   rideIntensityDaily,
   rideIntensityTrend,
   type ScoredRide,
 } from "@/lib/ride-stress";
-import { RideIntensityBar, RideIntensityChip } from "@/components/ride-intensity-visuals";
+import { INTENSITY_BAR_CLASS, RideIntensityBar, RideIntensityChip } from "@/components/ride-intensity-visuals";
+import { cn } from "@/lib/utils";
 import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
 import { PoweredByStrava } from "@/components/strava-brand";
@@ -63,7 +65,6 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   // Newest first: the list is read as a log, and the ride you remember is the
   // one you just did.
   const recent = rides.filter((r) => new Date(r.date) >= windowStart).reverse();
-  const maxStress = Math.max(...recent.map((r) => r.stress), 1);
 
   const number = (value: number, digits = 0) =>
     value.toLocaleString(locale === "pt" ? "pt-PT" : "en-US", {
@@ -147,7 +148,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
         {intensity ? (
           <>
             <section className="px-5 py-6 sm:px-6">
-              <SectionTitle>{dict.rideStress.scoreTitle}</SectionTitle>
+              <SectionTitle>{dict.rideStress.rideLoad}</SectionTitle>
               {/* Foreground and not muted: this is the sentence the reader
                   came for — what the score means for the bike — and the two
                   paragraphs around it are the ones that can recede. */}
@@ -179,15 +180,20 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
               <p className="mt-3 text-xs text-muted-foreground">{dict.rideStress.basedOn}</p>
             </section>
 
-            <section className="px-5 py-6 sm:px-6">
-              <RideIntensityTrend
-                points={series.map((point) => ({ label: dayLabel(point.date), value: point.value }))}
-                title={dict.rideStress.trendTitle}
-                axisTitle={dict.rideStress.intensity}
-                axisDay={dict.rideStress.axisDay}
-                scrubLabel={dict.rideStress.scrubLabel}
-              />
-            </section>
+            {/* One point is not a trend, and the chart declines to draw it —
+                so the section has to decline too, or a bike whose first ride
+                was today gets an empty box between two rules. */}
+            {series.length >= 2 && (
+              <section className="px-5 py-6 sm:px-6">
+                <RideIntensityTrend
+                  points={series.map((point) => ({ label: dayLabel(point.date), value: point.value }))}
+                  title={dict.rideStress.trendTitle}
+                  axisTitle={dict.rideStress.rideLoad}
+                  axisDay={dict.rideStress.axisDay}
+                  scrubLabel={dict.rideStress.scrubLabel}
+                />
+              </section>
+            )}
 
             <section className="px-5 py-6 sm:px-6">
               <SectionTitle>{dict.rideStress.last30Title}</SectionTitle>
@@ -197,36 +203,65 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                 <p className="mt-5 text-sm text-muted-foreground">{dict.rideStress.noRidesIn30}</p>
               ) : (
                 <div className="mt-5">
-                  {/* 50px = the 46px label column plus the 4px gap, so the
-                      zero sits over the left edge of every track. It is the
-                      only axis mark the list needs: the tracks already line
-                      up, and a rule drawn down them was a second edge saying
-                      the same thing. */}
-                  <p className="pl-[50px] text-[10px] text-muted-foreground">0</p>
+                  {/* The scale, written once over the tracks. Same column
+                      widths as a row below, so the 0 and the 100 land on the
+                      ends of every bar. */}
+                  <div aria-hidden className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="w-[46px] shrink-0" />
+                    <span className="flex min-w-0 flex-1 justify-between">
+                      <span>0</span>
+                      <span>100</span>
+                    </span>
+                    <span className="w-7 shrink-0" />
+                    <span className="w-[92px] shrink-0" />
+                    <span className="size-6 shrink-0" />
+                  </div>
                   <ul className="space-y-2.5 pt-1">
                     {recent.map((ride, index) => (
                       <li key={ride.id} className="flex items-center gap-1">
+                        {/* The day, not a running number. Both said "which
+                            row is this" and only one of them says anything
+                            about the ride. */}
                         <span className="w-[46px] shrink-0 truncate text-xs text-muted-foreground">
-                          {dict.rideStress.ride(index + 1)}
+                          {dayLabel(ride.localDate)}
                         </span>
                         <span className="h-3 min-w-0 flex-1 overflow-hidden rounded-[3px] bg-muted">
+                          {/* Against 100, not against the hardest ride of the
+                              month. Scaled to the local maximum, the top ride
+                              always filled the track whether it scored 76 or
+                              30 — and the band beside it already reads off a
+                              0..100 scale, so the two were disagreeing on the
+                              same line. A ride can score past 100; it clamps,
+                              because the alternative is a bar that leaves the
+                              track. */}
                           <span
                             className="block h-full rounded-[3px] bg-foreground"
-                            style={{ width: `${Math.max(1.5, (ride.stress / maxStress) * 100)}%` }}
+                            style={{ width: `${Math.max(1.5, Math.min(100, ride.stress))}%` }}
                           />
                         </span>
-                        {/* The score belongs to the bar it measures, so it
-                            stays at the row's 8px. */}
+                        {/* Padded to two digits so the column is a column:
+                            right-aligned mono already lines the numbers up,
+                            but a lone "1" beside a "73" read as a different
+                            kind of value rather than a smaller one. */}
                         <span className="w-7 shrink-0 text-right font-mono text-sm font-semibold">
-                          {number(ride.stress)}
+                          {number(ride.stress).padStart(2, "0")}
                         </span>
-                        {/* 56px plus the row's 4px gap = 60 clear of the
-                            score. When and which-ride are a different question
-                            from how-hard, and side by side the date read as a
-                            second figure about the bar. */}
-                        <div className="ml-[56px] flex shrink-0 items-center gap-1">
-                        <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
-                          {dayLabel(ride.localDate)}
+                        {/* The ride's own band, read off its score with the
+                            same thresholds the index uses — an 80 is a
+                            high-stress ride whether it is one ride or a
+                            month's average of them. Fixed width so the column
+                            holds still down the list; "Moderada" is the
+                            longest it gets. */}
+                        <span className="flex w-[92px] shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                          [
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              INTENSITY_BAR_CLASS[rideIntensityBand(ride.stress)]
+                            )}
+                          />
+                          {dict.rideStress.bandShort[rideIntensityBand(ride.stress)]}]
                         </span>
                         <RideDetailsButton
                           // The ride's own name lives in here rather than in
@@ -248,7 +283,6 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                               .join(" ") || null
                           }
                         />
-                        </div>
                       </li>
                     ))}
                   </ul>
@@ -279,7 +313,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
               </p>
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">{dict.rideStress.lifetime}</p>
+              <p className="text-xs text-muted-foreground">{dict.rideStress.lifetimeLoad}</p>
               <p className="mt-0.5 font-mono text-sm font-semibold">{number(lifetime)}</p>
             </div>
           </div>
