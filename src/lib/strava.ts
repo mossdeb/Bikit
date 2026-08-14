@@ -149,13 +149,14 @@ export interface StravaActivity {
   elapsed_time: number; // seconds — includes stops, so never the wear figure
   total_elevation_gain: number; // meters
   start_date: string; // ISO 8601, UTC (start_date_local is the wall clock)
+  utc_offset?: number; // seconds east of UTC — how far the rider's clock was from start_date
   gear_id: string | null;
 }
 
 /** The stored shape of one activity, from either sync path. Everything past
- * the first four columns is for a ride history that does not exist yet: the
- * payload already carries it, so capturing it costs nothing, and a column
- * filled in later would start empty for every ride already synced. */
+ * the first four columns is what Ride Stress reads: the payload already
+ * carries it, so capturing it costs nothing, and a column filled in later
+ * would start empty for every ride already synced. */
 function activityRow(activity: StravaActivity, bikeId: string) {
   return {
     strava_activity_id: activity.id,
@@ -166,6 +167,8 @@ function activityRow(activity: StravaActivity, bikeId: string) {
     activity_name: activity.name ?? null,
     elevation_gain_m: activity.total_elevation_gain ?? null,
     elapsed_time_hours: activity.elapsed_time == null ? null : activity.elapsed_time / 3600,
+    sport_type: activity.sport_type ?? activity.type ?? null,
+    utc_offset: activity.utc_offset ?? null,
   };
 }
 

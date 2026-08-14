@@ -576,7 +576,9 @@ export type Database = {
           elevation_gain_m: number | null
           moving_time_hours: number
           processed_at: string
+          sport_type: string | null
           strava_activity_id: number
+          utc_offset: number | null
         }
         Insert: {
           activity_date?: string | null
@@ -587,7 +589,9 @@ export type Database = {
           elevation_gain_m?: number | null
           moving_time_hours: number
           processed_at?: string
+          sport_type?: string | null
           strava_activity_id: number
+          utc_offset?: number | null
         }
         Update: {
           activity_date?: string | null
@@ -598,7 +602,9 @@ export type Database = {
           elevation_gain_m?: number | null
           moving_time_hours?: number
           processed_at?: string
+          sport_type?: string | null
           strava_activity_id?: number
+          utc_offset?: number | null
         }
         Relationships: [
           {
