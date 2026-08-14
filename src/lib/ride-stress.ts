@@ -387,6 +387,13 @@ export function rideIntensityTrend(
  * Rides before the window still count: the chain is folded up to the window's
  * start first, which is what makes the curve begin where the history left it
  * instead of at zero.
+ *
+ * The series starts at the bike's first ride when that is later than the
+ * window would have begun. Before it there is no zero to report — there is no
+ * reading at all, and a flat line on the axis said the bike had been ridden
+ * and scored nothing, which is a different and untrue statement. A checkpoint
+ * is the exception: it means history exists before the rides in hand, so the
+ * window stands.
  */
 export function rideIntensityDaily(
   rides: ScoredRide[],
@@ -399,6 +406,16 @@ export function rideIntensityDaily(
   let state = checkpoint ? ({ value: checkpoint.intensity, at: checkpoint.intensityAt } as RideIntensityState) : null;
   let next = 0;
 
+  // Nothing is plotted before this instant. Without a checkpoint it is the
+  // bike's first ride; with one, the history reaches further back than the
+  // rides in hand and the whole window is fair game. No rides and no
+  // checkpoint means no record at all, and so no curve — not a flat one.
+  const recordBegins = checkpoint
+    ? -Infinity
+    : rides.length === 0
+      ? Infinity
+      : new Date(rides[0].date).getTime();
+
   for (let i = days - 1; i >= 0; i--) {
     const dayEnd = new Date(asOf.getTime() - i * MS_PER_DAY);
 
@@ -410,6 +427,10 @@ export function rideIntensityDaily(
         ? { value: RI_MEMORY * decayed(state, new Date(ride.date)) + RI_ARRIVAL * arriving, at: ride.date }
         : { value: arriving, at: ride.date };
     }
+
+    // The first sample kept is the first one whose day has the first ride in
+    // it — earlier days are days the app has nothing to say about.
+    if (dayEnd.getTime() < recordBegins) continue;
 
     series.push({
       date: localDateOf(dayEnd.toISOString(), utcOffsetSeconds),

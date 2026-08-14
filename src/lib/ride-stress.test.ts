@@ -332,18 +332,40 @@ describe("rideIntensityDaily", () => {
   const asOf = new Date("2026-08-14T12:00:00Z");
 
   it("returns one sample per day, oldest first, ending on asOf", () => {
-    const rides = scoreRides([ride({ date: "2026-08-10T08:00:00Z" })], "E-MTB");
+    const rides = scoreRides([ride({ date: "2026-06-20T08:00:00Z" })], "E-MTB");
     const series = rideIntensityDaily(rides, asOf, 30);
     expect(series).toHaveLength(30);
     expect(series[0].date).toBe("2026-07-16");
     expect(series[29].date).toBe("2026-08-14");
   });
 
-  it("reads zero before the bike's first ride and agrees with rideIntensity on the last day", () => {
+  it("starts at the bike's first ride rather than plotting zeros before it", () => {
+    // The window would begin on 07-16; the record begins on 08-10, and the
+    // days between are days the app knows nothing about, not days at zero.
     const rides = scoreRides([ride({ date: "2026-08-10T08:00:00Z" })], "E-MTB");
     const series = rideIntensityDaily(rides, asOf, 30);
-    expect(series[0].value).toBe(0);
-    expect(series[29].value).toBeCloseTo(rideIntensity(rides, asOf)!.value, 10);
+    expect(series).toHaveLength(5);
+    expect(series[0].date).toBe("2026-08-10");
+    expect(series[0].value).toBeGreaterThan(0);
+  });
+
+  it("agrees with rideIntensity on the last day", () => {
+    const rides = scoreRides([ride({ date: "2026-08-10T08:00:00Z" })], "E-MTB");
+    const series = rideIntensityDaily(rides, asOf, 30);
+    expect(series[series.length - 1].value).toBeCloseTo(rideIntensity(rides, asOf)!.value, 10);
+  });
+
+  it("keeps the whole window when a checkpoint says there is history before the rides", () => {
+    const rides = scoreRides([ride({ date: "2026-08-10T08:00:00Z" })], "E-MTB");
+    const series = rideIntensityDaily(rides, asOf, 30, {
+      checkpoint: { stressTotal: 500, intensity: 40, intensityAt: "2026-07-01T08:00:00Z" },
+    });
+    expect(series).toHaveLength(30);
+    expect(series[0].value).toBeGreaterThan(0);
+  });
+
+  it("returns nothing at all for a bike with no rides", () => {
+    expect(rideIntensityDaily([], asOf, 30)).toEqual([]);
   });
 
   it("starts the curve where the history left it, not at zero, when the rides predate the window", () => {
