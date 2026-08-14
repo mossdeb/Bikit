@@ -28,6 +28,7 @@ const MOBILE_BACK_ROUTES: { re: RegExp; backHref: (m: RegExpMatchArray) => strin
   { re: /^\/help\/(support|docs)$/, backHref: () => "/settings" },
   { re: /^\/bikes\/new$/, backHref: () => "/bikes" },
   { re: /^\/bikes\/([^/]+)\/edit$/, backHref: (m) => `/bikes/${m[1]}` },
+  { re: /^\/bikes\/([^/]+)\/ride-stress$/, backHref: (m) => `/bikes/${m[1]}` },
   { re: /^\/bikes\/([^/]+)\/components\/new$/, backHref: (m) => `/bikes/${m[1]}` },
   {
     re: /^\/bikes\/([^/]+)\/components\/([^/]+)\/edit$/,

@@ -35,6 +35,10 @@ import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { previewTimelineEvents } from "@/lib/timeline-preview";
 import { InstallAppDialog } from "@/components/install-app-dialog";
 import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
+import { hasRideStressAccess } from "@/lib/ride-stress-access";
+import { loadScoredRides } from "@/lib/ride-stress-data";
+import { rideIntensity } from "@/lib/ride-stress";
+import { RideIntensityChip } from "@/components/ride-intensity-visuals";
 
 function DetailField({
   label,
@@ -100,10 +104,17 @@ export default async function BikeDetailPage({
 
   const userId = userData?.claims?.sub as string | undefined;
 
+  // Ride Stress is a closed beta and reads Strava rides, so a bike with its
+  // totals typed by hand has nothing to show: the figure would be an empty
+  // promise on a page that already carries two honest ones. The query is only
+  // fired when both are true, which for everyone but the owner is never.
+  const showRideStress =
+    hasRideStressAccess(userData?.claims?.email as string | undefined) && Boolean(bike.strava_gear_id);
+
   // Subscription, this bike's component/interval rows, and the user's total
   // component count (for the plan-limit check) are all independent of each
   // other — fired together instead of two sequential round trips.
-  const [subscription, { count: totalComponentCount }, { data: componentRows }, { data: intervalRows }] =
+  const [subscription, { count: totalComponentCount }, { data: componentRows }, { data: intervalRows }, rides] =
     await Promise.all([
       userId
         ? getUserSubscription(userId)
@@ -137,7 +148,10 @@ export default async function BikeDetailPage({
         )
         .eq("bike_id", bikeId)
         .is("retired_at", null),
+      showRideStress ? loadScoredRides(supabase, bikeId, bike.type) : Promise.resolve([]),
     ]);
+
+  const intensity = showRideStress ? rideIntensity(rides, new Date()) : null;
 
   // Cards are grouped by category rather than left in the order the parts were
   // added, which said nothing to a reader and scattered the two tyres and the
@@ -307,6 +321,36 @@ export default async function BikeDetailPage({
 
   const fieldBasis = "shrink-0 grow-0 basis-[calc(33.333%-0.75rem)] sm:basis-[calc(25%-1.125rem)] lg:basis-[calc(16.666%-1.25rem)]";
 
+  // Sits beside the totals because it answers the question they leave open:
+  // they say how much the bike has been ridden, this says how hard. The whole
+  // field is the link — a number with a chevron beside it reads as two
+  // controls, and on a phone the number is the part a thumb aims at.
+  const rideIntensityField = (className?: string) =>
+    intensity ? (
+    <Link
+      href={`/bikes/${bike.id}/ride-stress`}
+      className={cn(
+        "group min-w-0 rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        className
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {dict.rideStress.intensity}
+        <span className="rounded-full bg-primary px-1.5 py-px text-[10px] font-semibold text-primary-foreground">
+          {dict.rideStress.beta}
+        </span>
+      </p>
+      <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
+        <span className="font-mono transition-opacity group-hover:opacity-70">{Math.round(intensity.value)}</span>
+        <RideIntensityChip
+          band={intensity.band}
+          label={dict.rideStress.bandShort[intensity.band]}
+          className="px-2 py-0.5 text-[11px]"
+        />
+      </p>
+    </Link>
+    ) : null;
+
   const detailsGrid = (
     <div className="flex flex-wrap gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-5">
       <DetailField label={dict.brandField.brand} value={bike.brand ?? "—"} className={fieldBasis} />
@@ -314,6 +358,7 @@ export default async function BikeDetailPage({
       <DetailField label={dict.bikes.form.type} value={bike.type ?? "—"} className={fieldBasis} />
       <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono className={fieldBasis} />
       <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono className={fieldBasis} />
+      {rideIntensityField(fieldBasis)}
       {bike.serial_number && (
         <DetailField label={dict.bikes.form.serialNumber} value={bike.serial_number} mono className={fieldBasis} />
       )}
@@ -412,6 +457,7 @@ export default async function BikeDetailPage({
               <div className="flex flex-wrap gap-6">
                 <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono />
                 <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono />
+                {rideIntensityField()}
               </div>
             }
             expanded={detailsGrid}
