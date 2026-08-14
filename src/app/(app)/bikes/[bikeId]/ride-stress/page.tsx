@@ -40,7 +40,7 @@ function trendOf(series: { value: number }[]): RideIntensityTrendDirection {
  * started. The trend section carries its own copy of this, inside the client
  * component, since its number changes as the chart is scrubbed. */
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-display text-base leading-tight font-medium">{children}</h2>;
+  return <h2 className="font-display text-xl leading-tight font-bold">{children}</h2>;
 }
 
 export default async function RideStressPage({ params }: { params: Promise<{ bikeId: string }> }) {
