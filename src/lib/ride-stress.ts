@@ -341,6 +341,44 @@ export function rideIntensity(
   return { value, band: rideIntensityBand(value), lastRideAt: state.at };
 }
 
+export type RideIntensityTrendDirection = "up" | "down" | "flat";
+
+/** Against a week ago. Under a point either way is not a trend, it is the
+ * decay doing its job, and an arrow that always points somewhere stops
+ * meaning anything.
+ *
+ * Lives here rather than in either page because both of them draw the same
+ * arrow, and two copies of "is it rising" is two copies that can disagree. */
+export function rideIntensityTrend(
+  rides: ScoredRide[],
+  asOf: Date,
+  checkpoint?: RideStressCheckpoint | null
+): RideIntensityTrendDirection {
+  const now = rideIntensity(rides, asOf, checkpoint);
+  if (!now) return "flat";
+
+  // The rides after the cutoff have to be dropped, not just asked about with
+  // an earlier date: rideIntensity folds whatever list it is given, and the
+  // decay refuses to run backwards, so passing last week's instant with this
+  // week's rides still in the list returns this week's value — which made the
+  // arrow point down on exactly the weeks when a ride had landed.
+  const cutoff = new Date(asOf.getTime() - 7 * MS_PER_DAY);
+  const before = rideIntensity(
+    rides.filter((ride) => new Date(ride.date).getTime() <= cutoff.getTime()),
+    cutoff,
+    checkpoint
+  );
+
+  // Nothing before the cutoff means the bike's whole history is inside the
+  // week, which is a rise from nothing rather than an absence of one.
+  if (!before) return now.value > 1 ? "up" : "flat";
+
+  const delta = now.value - before.value;
+  if (delta > 1) return "up";
+  if (delta < -1) return "down";
+  return "flat";
+}
+
 /**
  * One Ride Intensity value per local day, ending at `asOf`, for the trend
  * chart. Sampled at the end of each day so a day with a ride shows the value

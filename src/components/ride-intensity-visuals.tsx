@@ -1,4 +1,4 @@
-import type { RideIntensityBand } from "@/lib/ride-stress";
+import type { RideIntensityBand, RideIntensityTrendDirection } from "@/lib/ride-stress";
 import { cn } from "@/lib/utils";
 
 /** One class per band, written out rather than built by template string —
@@ -84,10 +84,6 @@ export function RideIntensityBar({ value, band }: { value: number; band: RideInt
     </div>
   );
 }
-
-/** Named "Direction" and not "Trend" so it does not collide with the
- * RideIntensityTrend chart, which is a different thing with the same name. */
-export type RideIntensityTrendDirection = "up" | "down" | "flat";
 
 /**
  * Which way the intensity has moved this week.

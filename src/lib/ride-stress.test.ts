@@ -11,6 +11,7 @@ import {
   rideIntensity,
   rideIntensityBand,
   rideIntensityDaily,
+  rideIntensityTrend,
   scoreRides,
   type RideStressActivity,
 } from "./ride-stress";
@@ -286,6 +287,44 @@ describe("rideIntensityBand", () => {
     expect(rideIntensityBand(75)).toBe("high");
     expect(rideIntensityBand(75.001)).toBe("extreme");
     expect(rideIntensityBand(100)).toBe("extreme");
+  });
+});
+
+describe("rideIntensityTrend", () => {
+  const asOf = new Date("2026-08-14T12:00:00Z");
+
+  it("rises when a ride landed inside the last week", () => {
+    const rides = scoreRides(
+      [
+        ride({ id: 1, date: "2026-06-01T08:00:00Z", distanceKm: 10, movingHours: 0.8, elevationM: 200 }),
+        ride({ id: 2, date: "2026-08-11T08:00:00Z" }),
+      ],
+      "E-MTB"
+    );
+    expect(rideIntensityTrend(rides, asOf)).toBe("up");
+  });
+
+  it("falls when the last week was only decay", () => {
+    const rides = scoreRides([ride({ date: "2026-08-05T08:00:00Z" })], "E-MTB");
+    expect(rideIntensityTrend(rides, asOf)).toBe("down");
+  });
+
+  it("reads flat when the week moved it by less than a point", () => {
+    // Decay alone over a week from a low value is under 1 point.
+    const rides = scoreRides(
+      [ride({ date: "2026-05-01T08:00:00Z", distanceKm: 5, movingHours: 0.4, elevationM: 100 })],
+      "E-MTB"
+    );
+    expect(rideIntensityTrend(rides, asOf)).toBe("flat");
+  });
+
+  it("reads flat for a bike with no rides at all", () => {
+    expect(rideIntensityTrend([], asOf)).toBe("flat");
+  });
+
+  it("rises for a bike whose whole history is inside the week", () => {
+    const rides = scoreRides([ride({ date: "2026-08-12T08:00:00Z" })], "E-MTB");
+    expect(rideIntensityTrend(rides, asOf)).toBe("up");
   });
 });
 

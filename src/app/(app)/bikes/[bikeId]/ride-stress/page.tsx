@@ -10,29 +10,15 @@ import {
   lifetimeRideStress,
   rideIntensity,
   rideIntensityDaily,
+  rideIntensityTrend,
   type ScoredRide,
 } from "@/lib/ride-stress";
-import {
-  RideIntensityBar,
-  RideIntensityChip,
-  type RideIntensityTrendDirection,
-} from "@/components/ride-intensity-visuals";
+import { RideIntensityBar, RideIntensityChip } from "@/components/ride-intensity-visuals";
 import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
 import { PoweredByStrava } from "@/components/strava-brand";
 
 const WINDOW_DAYS = 30;
-
-/** Rising or falling against a week ago. Under a point either way is not a
- * trend, it is the decay doing its job, and an arrow that always points
- * somewhere stops meaning anything. */
-function trendOf(series: { value: number }[]): RideIntensityTrendDirection {
-  if (series.length < 8) return "flat";
-  const delta = series[series.length - 1].value - series[series.length - 8].value;
-  if (delta > 1) return "up";
-  if (delta < -1) return "down";
-  return "flat";
-}
 
 /** Section heading. One size for all of them, because the page is one card
  * with rules between its parts rather than a stack of cards — without a
@@ -71,7 +57,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   // evidence the app has of what timezone they ride in.
   const utcOffsetSeconds = rides.length ? rides[rides.length - 1].utcOffsetSeconds : null;
   const series = rideIntensityDaily(rides, now, WINDOW_DAYS, { utcOffsetSeconds });
-  const trend = trendOf(series);
+  const trend = rideIntensityTrend(rides, now);
 
   const windowStart = new Date(now.getTime() - WINDOW_DAYS * 86_400_000);
   // Newest first: the list is read as a log, and the ride you remember is the
