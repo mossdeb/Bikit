@@ -157,10 +157,11 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
         {intensity ? (
           <>
             <section className="px-5 py-6 sm:px-6">
-              <SectionTitle>{dict.rideStress.intensity}</SectionTitle>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                {dict.rideStress.scoreLead(dict.rideStress.band[intensity.band])}
-              </p>
+              <SectionTitle>{dict.rideStress.scoreTitle}</SectionTitle>
+              {/* Foreground and not muted: this is the sentence the reader
+                  came for — what the score means for the bike — and the two
+                  paragraphs around it are the ones that can recede. */}
+              <p className="mt-1.5 text-sm text-foreground">{dict.rideStress.scoreLead[intensity.band]}</p>
 
               <p className="mt-5">
                 <RideIntensityChip

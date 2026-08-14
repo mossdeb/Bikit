@@ -833,14 +833,19 @@ const en = {
     heading: "Maintenance",
   },
   rideStress: {
-    title: "Ride Stress",
+    title: "Live Ride Stress",
     beta: "Beta",
     intensity: "Ride Intensity",
+    scoreTitle: "LRS Score",
     lifetime: "Lifetime Ride Stress",
     subtitle:
       "Measures how demanding your recent rides have been, and helps you see the wear the bike is taking.",
-    scoreLead: (band: string) => `Based on your recent rides, this bike is riding at ${band} intensity.`,
-    band: { light: "light", moderate: "moderate", high: "high", extreme: "extreme" },
+    scoreLead: {
+      light: "Low riding stress. Normal wear.",
+      moderate: "Moderate riding stress. Faster wear expected.",
+      high: "High riding stress. Inspect key components more often.",
+      extreme: "Extreme riding stress. Maintenance may be required earlier.",
+    },
     bandShort: { light: "Light", moderate: "Moderate", high: "High", extreme: "Extreme" },
     scaleLow: "Low",
     scaleHigh: "High",

@@ -825,14 +825,26 @@ const pt: Dictionary = {
   // línguas: são o nome das métricas, não a descrição delas, tal como o
   // "Bike Log" aqui ao lado. As bandas já são adjetivos e traduzem-se.
   rideStress: {
-    title: "Ride Stress",
+    // Nome da página, em inglês nas duas línguas como as métricas: é o nome da
+    // coisa, não a descrição dela. Serve o <h1> e a migalha de pão.
+    title: "Live Ride Stress",
     beta: "Beta",
     intensity: "Ride Intensity",
+    // Título da secção do índice. Chave própria e não o `intensity` acima
+    // porque essa serve também o eixo do gráfico e o campo na página da
+    // bicicleta, que continuam a chamar-lhe Ride Intensity.
+    scoreTitle: "LRS Score",
     lifetime: "Lifetime Ride Stress",
     subtitle:
       "Mede o quão exigentes têm sido as tuas voltas recentes e ajuda a perceber o desgaste que a bicicleta está a sofrer.",
-    scoreLead: (band: string) => `Pelas voltas recentes, esta bicicleta está com intensidade ${band}.`,
-    band: { light: "leve", moderate: "moderada", high: "alta", extreme: "extrema" },
+    // Uma frase por banda, e não uma só com o nome da banda lá dentro: o que
+    // muda entre elas não é o adjetivo, é o que a pessoa deve fazer a seguir.
+    scoreLead: {
+      light: "Esforço baixo. Desgaste normal.",
+      moderate: "Esforço moderado. É de esperar um desgaste mais rápido.",
+      high: "Esforço elevado. Verifica os componentes principais com mais frequência.",
+      extreme: "Esforço extremo. A manutenção pode ser precisa mais cedo.",
+    },
     bandShort: { light: "Leve", moderate: "Moderada", high: "Alta", extreme: "Extrema" },
     scaleLow: "Baixa",
     scaleHigh: "Alta",
