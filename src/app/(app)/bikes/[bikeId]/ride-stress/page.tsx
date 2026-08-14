@@ -140,7 +140,11 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
           thing — the same rides counted four ways — and separate cards read
           as four unrelated widgets that happen to share a screen. */}
       <div className="divide-y divide-border rounded-lg bg-card">
-        <section className="px-5 pt-6 pb-6 sm:px-6">
+        {/* No rule under the header: the title and its one-line explanation
+            are the card announcing itself, not the first of the sections that
+            follow, and a line there made them look like one more reading. The
+            padding stays, so nothing moves. */}
+        <section className="border-b-0 px-5 pt-6 pb-6 sm:px-6">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <h1 className="font-display text-[22px] leading-none font-bold sm:text-xl">{dict.rideStress.title}</h1>
             <span aria-hidden className="text-muted-foreground">
