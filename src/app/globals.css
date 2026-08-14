@@ -45,6 +45,15 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  /* Ride Intensity bands: fixed brand colors, same in light/dark (see ride-stress.ts) */
+  --color-intensity-light: var(--intensity-light);
+  --color-intensity-light-foreground: var(--intensity-light-foreground);
+  --color-intensity-moderate: var(--intensity-moderate);
+  --color-intensity-moderate-foreground: var(--intensity-moderate-foreground);
+  --color-intensity-high: var(--intensity-high);
+  --color-intensity-high-foreground: var(--intensity-high-foreground);
+  --color-intensity-extreme: var(--intensity-extreme);
+  --color-intensity-extreme-foreground: var(--intensity-extreme-foreground);
   /* Bike Health system: fixed brand colors, same in light/dark (see health.ts) */
   --color-health-positive: var(--health-positive);
   --color-health-positive-foreground: var(--health-positive-foreground);
@@ -124,6 +133,23 @@
   --slate-foreground: #ffffff;
   --terracotta: #b5622f;
   --terracotta-foreground: #ffffff;
+
+  /* Ride Intensity bands — fixed, identical in light/dark, like the health
+     colors below. Cool to warm across 0..100.
+
+     All four are light enough that only a dark foreground reads on them, so
+     the band is always drawn as a filled chip with its own foreground and
+     never as coloured text: #C9E5FF or #FFDEA4 as type on a white card is
+     invisible. The foregrounds are dark tints of each band rather than one
+     shared near-black, so a chip reads as one colour and not as a sticker. */
+  --intensity-light: #c9e5ff;
+  --intensity-light-foreground: #0d2b45;
+  --intensity-moderate: #43f3af;
+  --intensity-moderate-foreground: #062a20;
+  --intensity-high: #ffdea4;
+  --intensity-high-foreground: #402d00;
+  --intensity-extreme: #ff5a39;
+  --intensity-extreme-foreground: #3d0f05;
 
   /* Bike Health classification — fixed brand colors, identical in light/dark */
   --health-positive: #43f3af;

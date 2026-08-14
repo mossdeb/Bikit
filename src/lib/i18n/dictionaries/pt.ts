@@ -821,6 +821,53 @@ const pt: Dictionary = {
   stravaNote: {
     heading: "Manutenção",
   },
+  // "Ride Intensity" e "Lifetime Ride Stress" ficam em inglês nas duas
+  // línguas: são o nome das métricas, não a descrição delas, tal como o
+  // "Bike Log" aqui ao lado. As bandas já são adjetivos e traduzem-se.
+  rideStress: {
+    title: "Ride Stress",
+    beta: "Beta",
+    intensity: "Ride Intensity",
+    lifetime: "Lifetime Ride Stress",
+    subtitle:
+      "Mede o quão exigentes têm sido as tuas voltas recentes e ajuda a perceber o desgaste que a bicicleta está a sofrer.",
+    scoreLead: (band: string) => `Pelas voltas recentes, esta bicicleta está com intensidade ${band}.`,
+    band: { light: "leve", moderate: "moderada", high: "alta", extreme: "extrema" },
+    bandShort: { light: "Leve", moderate: "Moderada", high: "Alta", extreme: "Extrema" },
+    scaleLow: "Baixa",
+    scaleHigh: "Alta",
+    basedOn: "Com base nas voltas dos últimos 30 dias.",
+    trendTitle: "Evolução da intensidade",
+    axisDay: "Dia",
+    scrubLabel: "Arrasta para ver cada dia",
+    trendUp: "A subir",
+    trendDown: "A descer",
+    trendFlat: "Estável",
+    last30Title: "Últimos 30 dias",
+    last30Lead:
+      "Cada volta pesa de forma diferente consoante a distância, a duração, o desnível e o tipo de bicicleta.",
+    ride: (n: number) => `Volta ${n}`,
+    noRides: "Ainda não há voltas sincronizadas nesta bicicleta.",
+    noRidesIn30: "Nenhuma volta nos últimos 30 dias.",
+    lifetimeTitle: "Desde o início",
+    lifetimeLead: "Como esta bicicleta foi usada desde que entrou na Bikit.",
+    ridesCounted: (n: number) => (n === 1 ? "1 volta contada" : `${n} voltas contadas`),
+    rideDetails: "Detalhes da volta",
+    estimatedNote: "Sem desnível registado — pontuada só com distância e tempo.",
+    belowFloorNote: "Curta demais para mexer na Ride Intensity. Continua a contar para o total acumulado.",
+    metric: {
+      stress: "Ride Stress",
+      distance: "Distância",
+      movingTime: "Tempo em movimento",
+      elapsedTime: "Tempo total",
+      elevation: "Desnível",
+      movingSpeed: "Velocidade em movimento",
+      overallSpeed: "Velocidade total",
+      elevationPerKm: "Desnível por km",
+      elevationPerHour: "Desnível por hora",
+      movingRatio: "Rácio em movimento",
+    },
+  },
   notificationsPrompt: {
     title: "Nunca percas uma manutenção",
     subtitle: "A Bikit avisa-te quando um componente precisar de manutenção.",
