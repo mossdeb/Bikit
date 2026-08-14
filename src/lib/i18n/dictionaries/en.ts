@@ -871,18 +871,13 @@ const en = {
     howItWorks: "How it works",
     intro: {
       tagline: "Not all rides are equal.",
-      lead: "The same distance can place very different demands on your bike. Bikit works out a Ride Load for every ride from distance, time, elevation and the kind of bike.",
+      vs: "vs",
+      compareLead: "Same distance.",
+      compareEmphasis: "Different Ride Load.",
       recentTitle: "Ride Load",
-      recentPoints: [
-        "Shows how demanding your recent riding has been.",
-        "It rises after harder rides and eases off over time.",
-      ],
+      recentPoints: ["How demanding your recent riding has been."],
       lifetimeTitle: "Lifetime Load",
-      lifetimePoints: [
-        "The total Ride Load your bike has accumulated.",
-        "Unlike Ride Load, it only grows.",
-      ],
-      closing: "Distance doesn't tell the whole story. Ride Load does.",
+      lifetimePoints: ["The total Ride Load accumulated by your bike."],
       gotIt: "Got it",
     },
     estimatedNote: "No elevation recorded — scored on distance and time alone.",

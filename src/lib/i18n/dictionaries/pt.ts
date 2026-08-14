@@ -867,18 +867,13 @@ const pt: Dictionary = {
     howItWorks: "Como funciona",
     intro: {
       tagline: "Nem todas as voltas são iguais.",
-      lead: "A mesma distância pode exigir coisas muito diferentes da bicicleta. A Bikit calcula um Ride Load para cada volta a partir da distância, do tempo, do desnível e do tipo de bicicleta.",
+      vs: "vs",
+      compareLead: "Mesma distância.",
+      compareEmphasis: "Ride Load diferente.",
       recentTitle: "Ride Load",
-      recentPoints: [
-        "Mostra o quão exigentes têm sido as tuas voltas recentes.",
-        "Sobe depois de voltas duras e desce aos poucos com o tempo.",
-      ],
+      recentPoints: ["Mostra o quão exigentes têm sido as tuas voltas recentes."],
       lifetimeTitle: "Lifetime Load",
-      lifetimePoints: [
-        "O total de Ride Load acumulado pela bicicleta.",
-        "Ao contrário do Ride Load, só cresce.",
-      ],
-      closing: "A distância não conta a história toda. O Ride Load conta.",
+      lifetimePoints: ["O total de Ride Load acumulado pela bicicleta."],
       gotIt: "Percebi",
     },
     estimatedNote: "Sem desnível registado — pontuada só com distância e tempo.",

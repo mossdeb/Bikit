@@ -6,7 +6,9 @@ import { formatDistance, formatHours } from "@/lib/format";
 import { hasRideStressAccess } from "@/lib/ride-stress-access";
 import { loadScoredRides } from "@/lib/ride-stress-data";
 import {
+  activityRideStress,
   derivedRideMetrics,
+  modalityFor,
   lifetimeRideStress,
   rideIntensity,
   rideIntensityBand,
@@ -23,6 +25,22 @@ import { RideLoadHowItWorksButton, RideLoadIntroDialog } from "@/components/ride
 import { dismissRideStressIntro } from "@/lib/actions/ride-stress";
 
 const WINDOW_DAYS = 30;
+
+/**
+ * The two rides the explainer compares. Same distance, three times apart in
+ * Ride Load — which is the whole claim the card makes, so the card scores them
+ * with the real function rather than quoting numbers written down here. Change
+ * a modality's reference values and the example follows.
+ *
+ * The durations are part of the illustration and are shown: 20 km at 25 km/h
+ * on the road, and the same 20 km taking an hour and a half on an enduro bike
+ * with 900 m of climbing. Without them the score cannot be checked, and an
+ * example nobody can check is a claim rather than a demonstration.
+ */
+const RIDE_LOAD_EXAMPLES = [
+  { bikeType: "Road", distanceKm: 20, movingHours: 0.8, elevationM: 120 },
+  { bikeType: "Enduro", distanceKm: 20, movingHours: 1.5, elevationM: 900 },
+] as const;
 
 /** Section heading. One size for all of them, because the page is one card
  * with rules between its parts rather than a stack of cards — without a
@@ -58,19 +76,6 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   const showIntro = !(userData?.claims?.user_metadata as { ride_stress_intro_seen?: boolean } | undefined)
     ?.ride_stress_intro_seen;
 
-  const introLabels = {
-    title: dict.rideStress.title,
-    tagline: dict.rideStress.intro.tagline,
-    lead: dict.rideStress.intro.lead,
-    recentTitle: dict.rideStress.intro.recentTitle,
-    recentPoints: dict.rideStress.intro.recentPoints,
-    lifetimeTitle: dict.rideStress.intro.lifetimeTitle,
-    lifetimePoints: dict.rideStress.intro.lifetimePoints,
-    closing: dict.rideStress.intro.closing,
-    gotIt: dict.rideStress.intro.gotIt,
-    bands: dict.rideStress.bandShort,
-  };
-
   const rides = await loadScoredRides(supabase, bikeId, bike.type);
   const now = new Date();
   const intensity = rideIntensity(rides, now);
@@ -96,6 +101,37 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   const dayLabel = (localDate: string) => {
     const [, month, day] = localDate.split("-");
     return locale === "pt" ? `${day}.${month}` : `${month}.${day}`;
+  };
+
+  const introLabels = {
+    title: dict.rideStress.title,
+    tagline: dict.rideStress.intro.tagline,
+    vs: dict.rideStress.intro.vs,
+    rideLoadLabel: dict.rideStress.rideLoad,
+    compareLead: dict.rideStress.intro.compareLead,
+    compareEmphasis: dict.rideStress.intro.compareEmphasis,
+    recentTitle: dict.rideStress.intro.recentTitle,
+    recentPoints: dict.rideStress.intro.recentPoints,
+    lifetimeTitle: dict.rideStress.intro.lifetimeTitle,
+    lifetimePoints: dict.rideStress.intro.lifetimePoints,
+    gotIt: dict.rideStress.intro.gotIt,
+    examples: RIDE_LOAD_EXAMPLES.map((example) => {
+      const { stress } = activityRideStress(
+        { ...example, id: 0, name: null, date: "", utcOffsetSeconds: null, elapsedHours: null },
+        modalityFor(example.bikeType)
+      );
+      const band = rideIntensityBand(stress);
+      return {
+        bikeType: example.bikeType,
+        bikeLabel: example.bikeType,
+        distance: formatDistance(example.distanceKm, distanceUnit, locale),
+        elevation: `${number(example.elevationM)} m`,
+        duration: formatHours(example.movingHours, locale),
+        score: number(stress),
+        band,
+        bandLabel: dict.rideStress.bandShort[band],
+      };
+    }),
   };
 
   const detailItems = (ride: ScoredRide) => {

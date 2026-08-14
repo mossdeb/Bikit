@@ -3,36 +3,84 @@
 import { useCallback, useState, useTransition } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
-import { RideIntensityChip } from "@/components/ride-intensity-visuals";
+import { BikeIcon } from "@/components/bike-icon";
+import { INTENSITY_FILL_CLASS } from "@/components/ride-intensity-visuals";
+import { cn } from "@/lib/utils";
 import type { RideIntensityBand } from "@/lib/ride-stress";
 
 /**
  * What Ride Load is, before the reader is asked to believe a number.
  *
- * The report opens on a score with no units and a band with no definition,
- * and nothing else on the page explains why two rides of the same distance
- * score differently. This is that explanation, once on arrival and then on
- * demand from the foot of the page.
+ * The report opens on a score with no units and a band with no definition, and
+ * nothing else on the page explains why two rides of the same distance score
+ * differently. So the card answers that with the case itself: two 20 km rides,
+ * side by side, scoring three times apart.
  *
- * Deliberately dumb: every string arrives translated from the server, so no
- * dictionary crosses into the client bundle — the same contract the install
- * prompt and the interval popover keep.
+ * The two examples are scored by the real function on the server, not written
+ * down here — a worked example that the app would contradict teaches the wrong
+ * thing, and the reader can check it against their own rides. Re-tune the
+ * reference values and this card re-tunes with them.
+ *
+ * Deliberately dumb otherwise: every string arrives translated, so no
+ * dictionary crosses into the client bundle.
  */
+export interface RideLoadExample {
+  /** A BIKE_TYPES entry — picks the drawing and named the modality that
+   * scored it. */
+  bikeType: string;
+  bikeLabel: string;
+  distance: string;
+  elevation: string;
+  duration: string;
+  score: string;
+  band: RideIntensityBand;
+  bandLabel: string;
+}
+
 export interface RideLoadIntroLabels {
   title: string;
   tagline: string;
-  lead: string;
+  vs: string;
+  rideLoadLabel: string;
+  compareLead: string;
+  compareEmphasis: string;
   recentTitle: string;
   recentPoints: string[];
   lifetimeTitle: string;
   lifetimePoints: string[];
-  closing: string;
   gotIt: string;
-  /** The four band names, in order, for the sample chips. */
-  bands: Record<RideIntensityBand, string>;
+  examples: RideLoadExample[];
 }
 
-const BAND_ORDER: RideIntensityBand[] = ["light", "moderate", "high", "extreme"];
+function ExampleCard({ example, rideLoadLabel }: { example: RideLoadExample; rideLoadLabel: string }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="overflow-hidden rounded-[12px] border border-border">
+        <p className="border-b border-border bg-muted px-3 py-2 text-center text-sm font-bold">{example.distance}</p>
+        <div className="flex items-center justify-center gap-2 px-3 py-3">
+          <BikeIcon type={example.bikeType} plain className="size-9" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold">{example.bikeLabel}</span>
+            {/* The climb and the clock, because the score cannot be checked
+                from the distance alone and an example nobody can check is a
+                claim rather than a demonstration. */}
+            <span className="block text-xs text-muted-foreground">
+              {example.elevation} · {example.duration}
+            </span>
+          </span>
+        </div>
+      </div>
+      <p
+        className={cn(
+          "-mt-2 mx-auto w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold",
+          INTENSITY_FILL_CLASS[example.band]
+        )}
+      >
+        {rideLoadLabel} {example.score} · {example.bandLabel}
+      </p>
+    </div>
+  );
+}
 
 function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismiss: () => void }) {
   return (
@@ -40,20 +88,17 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
       <DialogPrimitive.Title className="text-center font-display text-[28px] leading-tight font-bold">
         {labels.title}
       </DialogPrimitive.Title>
-      <DialogPrimitive.Description className="mt-2 text-center text-base font-semibold">
-        {labels.tagline}
-      </DialogPrimitive.Description>
+      <DialogPrimitive.Description className="mt-2 text-center text-base">{labels.tagline}</DialogPrimitive.Description>
 
-      {/* The four bands, as they appear on the page itself. Showing them here
-          is the whole reason the chips are a shared component: a legend drawn
-          separately would be a second thing to keep in step. */}
-      <div className="mt-6 flex flex-wrap justify-center gap-2">
-        {BAND_ORDER.map((band) => (
-          <RideIntensityChip key={band} band={band} label={labels.bands[band]} className="px-2 py-1 text-[11px]" />
-        ))}
+      <div className="mt-6 flex items-center gap-2">
+        <ExampleCard example={labels.examples[0]} rideLoadLabel={labels.rideLoadLabel} />
+        <span className="shrink-0 self-center text-xs font-semibold text-muted-foreground">{labels.vs}</span>
+        <ExampleCard example={labels.examples[1]} rideLoadLabel={labels.rideLoadLabel} />
       </div>
 
-      <p className="mt-6 text-center text-sm leading-relaxed">{labels.lead}</p>
+      <p className="mt-5 rounded-[12px] bg-muted px-4 py-3 text-center text-sm">
+        {labels.compareLead} <strong className="font-bold">{labels.compareEmphasis}</strong>
+      </p>
 
       <section className="mt-6">
         <h3 className="flex items-center gap-2 text-base font-bold">
@@ -85,9 +130,7 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
         </ul>
       </section>
 
-      <p className="mt-6 rounded-[12px] bg-muted px-4 py-3 text-center text-sm">{labels.closing}</p>
-
-      <Button type="button" variant="inverted" size="lg" className="mt-6 w-full" onClick={onDismiss}>
+      <Button type="button" variant="inverted" size="lg" className="mt-7 w-full" onClick={onDismiss}>
         {labels.gotIt}
       </Button>
     </>
@@ -100,7 +143,7 @@ const POPUP_CLASS =
 const BACKDROP_CLASS =
   "fixed inset-0 isolate z-50 bg-black/40 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0";
 
-/** The one-shot, on the first visit to a bike's report. */
+/** The one-shot, on the first report anyone opens. */
 export function RideLoadIntroDialog({
   labels,
   action,

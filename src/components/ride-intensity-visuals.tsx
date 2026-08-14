@@ -10,6 +10,16 @@ export const INTENSITY_BAR_CLASS: Record<RideIntensityBand, string> = {
   extreme: "bg-intensity-extreme",
 };
 
+/** The band as a filled chip: its colour behind its own dark tint. Used where
+ * the chip sits on the card itself rather than in a row of readings — the
+ * explainer's worked example — and never as bare type on a light surface. */
+export const INTENSITY_FILL_CLASS: Record<RideIntensityBand, string> = {
+  light: "bg-intensity-light text-intensity-light-foreground",
+  moderate: "bg-intensity-moderate text-intensity-moderate-foreground",
+  high: "bg-intensity-high text-intensity-high-foreground",
+  extreme: "bg-intensity-extreme text-intensity-extreme-foreground",
+};
+
 /** The band as type. Only ever used on the dark chip below — two of the four
  * band colours vanish as text on a white card. */
 export const INTENSITY_TEXT_CLASS: Record<RideIntensityBand, string> = {
