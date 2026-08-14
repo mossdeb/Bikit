@@ -93,27 +93,38 @@ export function RideIntensityTrend({
 
   return (
     <div>
-      <h2 className="flex items-center gap-2.5 font-display text-[17px] leading-tight font-bold">
+      {/* 14px where the other section headings are 16: this one is a caption
+          over a number, not a heading standing on its own, and at the same
+          size it competed with the reading underneath it. */}
+      <h2 className="flex items-center gap-2.5 font-display text-sm leading-tight font-medium">
         <span aria-hidden className={cn("h-9 w-1 shrink-0 rounded-full", INTENSITY_BAR_CLASS[band])} />
         <span>
           {title}
-          <span className="block font-mono text-lg">{Math.round(points[index].value)}</span>
+          {/* The reading keeps its weight while the heading gives some up —
+              the number is what the section is for. */}
+          <span className="block font-mono text-lg font-bold">{Math.round(points[index].value)}</span>
         </span>
       </h2>
 
-      <div className="mt-4 flex gap-2">
-        <div className="flex shrink-0 items-center">
+      {/* No gaps anywhere in this row: the axis furniture sits against the
+          plot it belongs to. What cost width before was the spacing, not the
+          sideways text, which is only as wide as a 10px glyph is tall. */}
+      <div className="mt-4 flex">
+        <div className="flex shrink-0">
           <span
             aria-hidden
-            className="text-[10px] text-muted-foreground"
+            className="self-center text-[10px] text-muted-foreground"
             style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
           >
             {axisTitle}
           </span>
-        </div>
-        <div className="flex w-6 shrink-0 flex-col justify-between pt-4 pb-5 text-right text-[10px] text-muted-foreground">
-          <span>100</span>
-          <span>0</span>
+          {/* Sized by "100" rather than pinned to a round number of pixels:
+              the fixed 24px column left a strip of nothing down the left of
+              the plot, because "0" is right-aligned and one glyph wide. */}
+          <div className="flex flex-col justify-between pt-4 pb-5 pr-1 text-right text-[10px] text-muted-foreground">
+            <span>100</span>
+            <span>0</span>
+          </div>
         </div>
 
         <div className="min-w-0 flex-1">

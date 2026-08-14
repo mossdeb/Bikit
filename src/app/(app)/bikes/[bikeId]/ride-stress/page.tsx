@@ -40,7 +40,7 @@ function trendOf(series: { value: number }[]): RideIntensityTrendDirection {
  * started. The trend section carries its own copy of this, inside the client
  * component, since its number changes as the chart is scrubbed. */
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-display text-[17px] leading-tight font-bold">{children}</h2>;
+  return <h2 className="font-display text-base leading-tight font-medium">{children}</h2>;
 }
 
 export default async function RideStressPage({ params }: { params: Promise<{ bikeId: string }> }) {
@@ -206,15 +206,15 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                 <p className="mt-5 text-sm text-muted-foreground">{dict.rideStress.noRidesIn30}</p>
               ) : (
                 <div className="mt-5">
-                  {/* 58px = the 46px label column plus the 12px gap, so the
+                  {/* 50px = the 46px label column plus the 4px gap, so the
                       zero sits over the left edge of every track. It is the
                       only axis mark the list needs: the tracks already line
                       up, and a rule drawn down them was a second edge saying
                       the same thing. */}
-                  <p className="pl-[58px] text-[10px] text-muted-foreground">0</p>
+                  <p className="pl-[50px] text-[10px] text-muted-foreground">0</p>
                   <ul className="space-y-2.5 pt-1">
                     {recent.map((ride, index) => (
-                      <li key={ride.id} className="flex items-center gap-3">
+                      <li key={ride.id} className="flex items-center gap-1">
                         <span className="w-[46px] shrink-0 truncate text-xs text-muted-foreground">
                           {dict.rideStress.ride(index + 1)}
                         </span>
@@ -224,9 +224,16 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                             style={{ width: `${Math.max(1.5, (ride.stress / maxStress) * 100)}%` }}
                           />
                         </span>
+                        {/* The score belongs to the bar it measures, so it
+                            stays at the row's 8px. */}
                         <span className="w-7 shrink-0 text-right font-mono text-sm font-semibold">
                           {number(ride.stress)}
                         </span>
+                        {/* 56px plus the row's 4px gap = 60 clear of the
+                            score. When and which-ride are a different question
+                            from how-hard, and side by side the date read as a
+                            second figure about the bar. */}
+                        <div className="ml-[56px] flex shrink-0 items-center gap-1">
                         <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
                           {dayLabel(ride.localDate)}
                         </span>
@@ -250,6 +257,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                               .join(" ") || null
                           }
                         />
+                        </div>
                       </li>
                     ))}
                   </ul>

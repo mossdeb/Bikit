@@ -49,7 +49,10 @@ export function RideIntensityChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-emphasis px-2.5 py-1 text-xs font-semibold",
+        // Explicit 8px and not rounded-md: this project's radius scale is
+        // replaced, and md is 15px there — on a chip this tall that is still
+        // a pill.
+        "inline-flex items-center gap-1.5 rounded-[8px] bg-emphasis px-2.5 py-1 text-sm font-semibold",
         INTENSITY_TEXT_CLASS[band],
         className
       )}
