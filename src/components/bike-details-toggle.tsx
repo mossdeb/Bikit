@@ -44,20 +44,23 @@ export function BikeDetailsToggle({
   return (
     <div className="sm:hidden">
       <Collapsible show={!open}>
-        {/* With a mark to show, the trigger takes a line of its own so the
-            figures' row is free to end with it. Without one — a bike that is
-            not linked to Strava — that line would be the trigger alone above
-            an empty right half, so it goes back onto the row itself. */}
-        {mark && <div className="flex justify-end">{trigger}</div>}
-        <div className={cn("flex flex-wrap items-center justify-between gap-4", mark && "mt-5")}>
-          {compact}
-          {mark ?? trigger}
+        {/* The figures get the whole width to spread across, and everything
+            that is not a figure drops to the line under them: the mark on the
+            left, crediting the totals above it, and the trigger on the right.
+            The trigger used to sit above the row, which put a control between
+            the bike's name and its numbers. */}
+        {compact}
+        <div className={cn("mt-6 flex items-center gap-4", mark ? "justify-between" : "justify-end")}>
+          {mark}
+          {trigger}
         </div>
       </Collapsible>
 
       <Collapsible show={open}>
         {expanded}
-        {mark && <div className="mt-6 flex justify-end">{mark}</div>}
+        {/* Left, like the collapsed half puts it. The mark sat on the right
+            here and jumped across the card every time the details opened. */}
+        {mark && <div className="mt-6 flex">{mark}</div>}
         <div className="mt-8 flex justify-center">
           <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)} className="bg-transparent">
             <X className="size-3.5" />

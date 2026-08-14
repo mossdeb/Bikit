@@ -37,7 +37,7 @@ import { InstallAppDialog } from "@/components/install-app-dialog";
 import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
 import { hasRideStressAccess } from "@/lib/ride-stress-access";
 import { loadScoredRides } from "@/lib/ride-stress-data";
-import { rideIntensity } from "@/lib/ride-stress";
+import { rideIntensity, rideIntensityTrend } from "@/lib/ride-stress";
 import { RideIntensityChip } from "@/components/ride-intensity-visuals";
 
 function DetailField({
@@ -151,7 +151,9 @@ export default async function BikeDetailPage({
       showRideStress ? loadScoredRides(supabase, bikeId, bike.type) : Promise.resolve([]),
     ]);
 
-  const intensity = showRideStress ? rideIntensity(rides, new Date()) : null;
+  const rideStressNow = new Date();
+  const intensity = showRideStress ? rideIntensity(rides, rideStressNow) : null;
+  const intensityTrend = intensity ? rideIntensityTrend(rides, rideStressNow) : "flat";
 
   // Cards are grouped by category rather than left in the order the parts were
   // added, which said nothing to a reader and scattered the two tyres and the
@@ -334,17 +336,17 @@ export default async function BikeDetailPage({
         className
       )}
     >
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {dict.rideStress.intensity}
-        <span className="rounded-full bg-primary px-1.5 py-px text-[10px] font-semibold text-primary-foreground">
-          {dict.rideStress.beta}
-        </span>
-      </p>
+      {/* No Beta pill here. The label sits in a row of three field labels and
+          a green badge beside one of them read as a status of the bike, not a
+          caveat about the feature. The report behind it still says Beta at
+          the top, which is where someone reading the number would look. */}
+      <p className="text-xs text-muted-foreground">{dict.rideStress.intensity}</p>
       <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
         <span className="font-mono transition-opacity group-hover:opacity-70">{Math.round(intensity.value)}</span>
         <RideIntensityChip
           band={intensity.band}
           label={dict.rideStress.bandShort[intensity.band]}
+          trend={intensityTrend}
           className="px-2 py-0.5 text-[11px]"
         />
       </p>
@@ -454,7 +456,11 @@ export default async function BikeDetailPage({
             closeLabel={dict.bikes.detail.closeDetails}
             mark={bike.strava_gear_id ? <PoweredByStrava /> : null}
             compact={
-              <div className="flex flex-wrap gap-6">
+              // justify-between and not a gap: three figures spread over the
+              // card's width, the last one ending where the card ends. With a
+              // fixed gap they clustered on the left and left a third of the
+              // row empty.
+              <div className="flex items-start justify-between gap-4">
                 <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono />
                 <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono />
                 {rideIntensityField()}
