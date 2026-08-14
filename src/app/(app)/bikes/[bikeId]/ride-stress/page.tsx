@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
 import { PoweredByStrava } from "@/components/strava-brand";
+import { RideLoadHowItWorksButton, RideLoadIntroDialog } from "@/components/ride-load-intro-dialog";
+import { dismissRideStressIntro } from "@/lib/actions/ride-stress";
 
 const WINDOW_DAYS = 30;
 
@@ -49,6 +51,25 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   // this" tells them there is something to see.
   if (!bike) notFound();
   if (!hasRideStressAccess(userData?.claims?.email as string | undefined)) notFound();
+
+  // Shown once, on the first report anyone opens. The flag is per account and
+  // not per bike: the explanation is about what Ride Load is, and that does
+  // not change from one bike to the next.
+  const showIntro = !(userData?.claims?.user_metadata as { ride_stress_intro_seen?: boolean } | undefined)
+    ?.ride_stress_intro_seen;
+
+  const introLabels = {
+    title: dict.rideStress.title,
+    tagline: dict.rideStress.intro.tagline,
+    lead: dict.rideStress.intro.lead,
+    recentTitle: dict.rideStress.intro.recentTitle,
+    recentPoints: dict.rideStress.intro.recentPoints,
+    lifetimeTitle: dict.rideStress.intro.lifetimeTitle,
+    lifetimePoints: dict.rideStress.intro.lifetimePoints,
+    closing: dict.rideStress.intro.closing,
+    gotIt: dict.rideStress.intro.gotIt,
+    bands: dict.rideStress.bandShort,
+  };
 
   const rides = await loadScoredRides(supabase, bikeId, bike.type);
   const now = new Date();
@@ -110,6 +131,8 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
 
   return (
     <div className="sm:pt-8">
+      {showIntro && <RideLoadIntroDialog labels={introLabels} action={dismissRideStressIntro} />}
+
       <div className="hidden text-sm text-muted-foreground sm:mb-2 sm:block">
         <Link href="/bikes" className="hover:text-foreground">
           {dict.bikes.breadcrumb}
@@ -321,6 +344,16 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
               is only ever the rides Bikit has, so it says how many it counted
               rather than leaving the three to be read as one history. */}
           <p className="mt-4 text-xs text-muted-foreground">{dict.rideStress.ridesCounted(rides.length)}</p>
+
+          {/* The way back into the explainer, at the foot of the last section
+              rather than the top of the page: someone who has read the whole
+              report is exactly who wants it, and someone who has not is still
+              reading. Inside the card because it belongs to the report, not
+              to the page — outside it floated next to the Strava mark, which
+              is a credit and not a control. */}
+          <div className="mt-6">
+            <RideLoadHowItWorksButton labels={introLabels} buttonLabel={dict.rideStress.howItWorks} />
+          </div>
         </section>
       </div>
 
