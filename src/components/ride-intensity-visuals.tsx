@@ -116,7 +116,11 @@ export function TrendArrow({ trend, className }: { trend: RideIntensityTrendDire
       viewBox="0 0 36 41"
       fill="none"
       stroke="currentColor"
-      strokeWidth={4}
+      // 5 and not the source's 4. The stroke scales with the box, so the
+      // smallest instance — the 12px one in the bike card's totals — was
+      // drawing at 1.17 real pixels and reading as a hairline beside the
+      // 2px lucide chevron next to it.
+      strokeWidth={5}
       strokeLinecap="round"
       strokeMiterlimit={10}
       aria-hidden

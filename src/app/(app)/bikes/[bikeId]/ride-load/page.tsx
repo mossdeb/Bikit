@@ -273,11 +273,17 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                     the arrow and the bar carrying the band's colour. On the
                     dark chip the name could be coloured; as bare type on a
                     white card two of the four bands vanish. */}
-                <div className="flex items-start gap-2">
+                {/* gap-1 and not 2: the glyph carries about a pixel of its own
+                    margin inside the viewBox, so 8px of flex gap read as 9 and
+                    the arrow floated away from the word it qualifies. */}
+                <div className="flex items-start gap-1">
                   <h2 className="font-display text-[22px] leading-none font-bold">
                     {dict.rideStress.bandShort[intensity.band]}
                   </h2>
-                  <TrendArrow trend={trend} className={cn("h-5", INTENSITY_TEXT_CLASS[intensity.band])} />
+                  {/* 16px, which is about the cap height of the 22px heading
+                      beside it. At 20 the arrow stood taller than the letters
+                      and read as the louder of the two. */}
+                  <TrendArrow trend={trend} className={cn("h-4", INTENSITY_TEXT_CLASS[intensity.band])} />
                 </div>
 
                 {/* Value beside the bar, not above it: the bar is the sentence
