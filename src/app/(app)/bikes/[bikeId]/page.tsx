@@ -72,7 +72,7 @@ function StatValue({ text }: { text: string }) {
   return (
     <>
       {text.slice(0, at)}
-      <span className="ml-1 text-xs font-medium text-muted-foreground">{text.slice(at + 1)}</span>
+      <span className="ml-1 text-sm font-medium text-muted-foreground">{text.slice(at + 1)}</span>
     </>
   );
 }
@@ -82,12 +82,16 @@ function StatValue({ text }: { text: string }) {
  * comes first and the label is the caption under it. */
 function StatCell({ value, label, className }: { value: React.ReactNode; label: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-2.5 py-2.5 text-center", className)}>
-      <p className="font-mono text-sm font-semibold">{value}</p>
+    // Fixed 70px with the pair centred in it, rather than padding around
+    // whatever the content happens to be: "Distância total" wraps to two lines
+    // on a narrow phone and "Ride Load" does not, so height-by-content left
+    // the three cells of a ruled box disagreeing about where their middle was.
+    <div className={cn("flex h-[70px] min-w-0 flex-col justify-center px-2.5 text-center", className)}>
+      <p className="font-mono text-base font-semibold">{value}</p>
       {/* Not truncated: "Distância total" does not fit a third of a phone on
           one line, and a label cut to "Distância to…" is worse than a label
           on two. leading-tight keeps the two lines from pushing the box. */}
-      <p className="mt-0.5 text-xs leading-tight text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm leading-tight text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -544,7 +548,7 @@ export default async function BikeDetailPage({
           sit against. Desktop gets its margins back, and the radius with them.
           The bottom margin is 32px on a phone, to match the 32px the tab row
           leaves under itself (its mb-6 plus the 8px gap on the Tabs root). */}
-      <div className="-mx-5 mb-8 bg-card px-[30px] pt-[37px] pb-6 sm:mx-0 sm:mb-6 sm:rounded-lg sm:px-6 sm:pt-6">
+      <div className="-mx-5 mb-8 bg-card px-[15px] pt-[37px] pb-6 sm:mx-0 sm:mb-6 sm:rounded-lg sm:px-6 sm:pt-6">
         {/* 12px between the name and the health badge on mobile, not 24: with
             30px of card padding the longest status ("Serviço Necessário")
             needs every pixel to stay on the name's line. Desktop, where the
