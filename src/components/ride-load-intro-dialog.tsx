@@ -60,7 +60,14 @@ function ExampleCard({ example }: { example: RideLoadExample }) {
       </p>
       <div className="bg-muted px-2 py-2.5">
         <div className="flex items-center justify-center gap-1.5">
-          <BikeIcon type={example.bikeType} plain className="size-8" />
+          {/* Width only, height from the viewBox. The bike glyphs are wide
+              (101 across, 55 to 104 tall) and pinned to the bottom of their
+              box by `xMidYMax`, which is what puts them all on one ground
+              line in a column. In a square box beside two lines of text that
+              left a third of the box empty above the drawing, and the bike
+              sat 7px below the label it belongs to. A box the height of the
+              drawing centres what the eye actually sees. */}
+          <BikeIcon type={example.bikeType} plain className="h-auto w-9" />
           <span className="min-w-0">
             <span className="block truncate text-sm leading-tight font-bold">{example.bikeLabel}</span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
