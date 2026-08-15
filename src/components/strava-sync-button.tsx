@@ -29,7 +29,9 @@ export function StravaSyncButton({ label, pendingMessage }: { label: string; pen
       variant="outline"
       size="sm"
       disabled={pending}
-      className="h-7 gap-1 rounded-full bg-transparent px-2.5 text-sm [&_svg:not([class*='size-'])]:size-3"
+      // Smaller on a phone so it fits a third of the details grid, which is
+      // what every other field there gets. Desktop keeps the size it had.
+      className="h-7 gap-1 rounded-full bg-transparent px-2 text-xs sm:px-2.5 sm:text-sm [&_svg:not([class*='size-'])]:size-3"
     >
       <RefreshCw className={pending ? "size-3 motion-safe:animate-spin" : "size-3"} />
       {label}
