@@ -256,7 +256,14 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                   above, already says Ride Load, and repeating it put the same
                   two words twice on one screen. What separates this reading
                   from the header is the outline below, not a title. */}
-              <div className="rounded-lg border border-border p-5">
+              {/* 10px at the sides and 16 top and bottom. The sides are tight
+                  on purpose — the box already sits inside the section's 20px,
+                  and stacking the two put 40px between the reading and the
+                  edge of the card. Vertically there is nothing outside to
+                  borrow from, so the same 10 left the band sitting on the
+                  outline. The section keeps its own padding, so this block
+                  still lines up with the headings above and below it. */}
+              <div className="rounded-lg border border-border px-2.5 py-4">
                 {/* The band as plain type in the foreground colour, with only
                     the arrow and the bar carrying the band's colour. On the
                     dark chip the name could be coloured; as bare type on a
@@ -270,7 +277,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
 
                 {/* Value beside the bar, not above it: the bar is the sentence
                     and the number is where it ends. */}
-                <div className="mt-2.5 flex items-center gap-3">
+                <div className="mt-2.5 flex items-center">
                   <div className="min-w-0 flex-1">
                     <RideIntensityBar value={intensity.value} band={intensity.band} />
                   </div>
@@ -278,7 +285,10 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                     {Math.round(intensity.value)}
                   </span>
                 </div>
-                <div className="mt-1.5 flex justify-between pr-12 text-xs text-muted-foreground">
+                {/* pr matches the number's column exactly, so "Extrema" ends
+                    where the bar does. It was pr-12 while a 12px gap sat
+                    between the two. */}
+                <div className="mt-1.5 flex justify-between pr-9 text-xs text-muted-foreground">
                   <span>{dict.rideStress.scaleLow}</span>
                   <span>{dict.rideStress.scaleHigh}</span>
                 </div>
@@ -288,7 +298,11 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                     the same weight that marks Ride Load everywhere else. */}
                 <div className="mt-5 flex items-start gap-2.5">
                   <RideLoadGlyph className="mt-0.5 size-[18px]" />
-                  <p className="text-sm text-foreground">
+                  {/* 17.5px against the 20 that `text-sm` carries by default.
+                      `leading-snug` would have been the obvious pick and is
+                      what the explainer card uses, but on `text-sm` it is
+                      19.25 — a change of 0.75px per line that nobody sees. */}
+                  <p className="text-sm leading-tight text-foreground">
                     {dict.rideStress.scoreSentence[intensity.band].lead}{" "}
                     <strong className="font-semibold">
                       {dict.rideStress.scoreSentence[intensity.band].emphasis}
