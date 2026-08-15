@@ -147,7 +147,9 @@ export interface StravaActivity {
   distance: number; // meters
   moving_time: number; // seconds — what wear is counted from
   elapsed_time: number; // seconds — includes stops, so never the wear figure
-  total_elevation_gain: number; // meters
+  total_elevation_gain: number; // meters CLIMBED — a shuttled descent has none
+  elev_high?: number; // meters; only on the detailed activity
+  elev_low?: number;
   start_date: string; // ISO 8601, UTC (start_date_local is the wall clock)
   utc_offset?: number; // seconds east of UTC — how far the rider's clock was from start_date
   gear_id: string | null;
@@ -169,6 +171,8 @@ function activityRow(activity: StravaActivity, bikeId: string) {
     elapsed_time_hours: activity.elapsed_time == null ? null : activity.elapsed_time / 3600,
     sport_type: activity.sport_type ?? activity.type ?? null,
     utc_offset: activity.utc_offset ?? null,
+    elev_high_m: activity.elev_high ?? null,
+    elev_low_m: activity.elev_low ?? null,
   };
 }
 

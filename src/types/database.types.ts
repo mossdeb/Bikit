@@ -573,6 +573,8 @@ export type Database = {
           bike_id: string
           distance_km: number
           elapsed_time_hours: number | null
+          elev_high_m: number | null
+          elev_low_m: number | null
           elevation_gain_m: number | null
           moving_time_hours: number
           processed_at: string
@@ -586,6 +588,8 @@ export type Database = {
           bike_id: string
           distance_km: number
           elapsed_time_hours?: number | null
+          elev_high_m?: number | null
+          elev_low_m?: number | null
           elevation_gain_m?: number | null
           moving_time_hours: number
           processed_at?: string
@@ -599,6 +603,8 @@ export type Database = {
           bike_id?: string
           distance_km?: number
           elapsed_time_hours?: number | null
+          elev_high_m?: number | null
+          elev_low_m?: number | null
           elevation_gain_m?: number | null
           moving_time_hours?: number
           processed_at?: string
