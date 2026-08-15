@@ -131,8 +131,16 @@ export interface StravaGear {
 /** The athlete's bikes as registered on Strava — used to populate the gear
  * picker on a Bikit bike's edit page. */
 export async function fetchStravaBikes(accessToken: string): Promise<StravaGear[]> {
+  // Explicitly uncached, because a whole control depends on it: the "I've
+  // added it — refresh list" button in `StravaGearHelp` is a `router.refresh()`
+  // that only pays off if this call actually goes back to Strava. It is the
+  // framework default today, but a default is a bad thing for a feature to
+  // rest on. NOTE: in `next dev` the HMR cache still wraps `no-store`, so a
+  // refresh can serve the previous answer until a full reload — a dev-only
+  // trap that reads exactly like the button being broken.
   const res = await fetch(`${STRAVA_API}/athlete`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
   });
   if (!res.ok) return [];
   const athlete = (await res.json()) as { bikes?: { id: string; name: string }[] };

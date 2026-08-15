@@ -7,6 +7,7 @@ import { getValidStravaAccessToken, fetchStravaBikes } from "@/lib/strava";
 import { BIKE_TYPES } from "@/lib/constants";
 import { BrandField } from "@/components/brand-field";
 import { StravaConnectRow } from "@/components/strava-connect-row";
+import { StravaGearHelp } from "@/components/strava-gear-help";
 import { FormError } from "@/components/form-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -199,7 +200,20 @@ export default async function NewBikePage({
         <StravaConnectRow label={dict.settings.strava.strava} connectLabel={dict.settings.strava.connect} />
       )}
       {stravaAccessToken ? (
-        <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
+        // Unconditional here, unlike the edit form: a bike being created has
+        // nothing linked yet by definition, so there is no state to read.
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
+          <StravaGearHelp
+            trigger={dict.bikes.form.stravaGearHelp.trigger}
+            title={dict.bikes.form.stravaGearHelp.title}
+            lead={dict.bikes.form.stravaGearHelp.lead}
+            appStep={dict.bikes.form.stravaGearHelp.appStep}
+            webStep={dict.bikes.form.stravaGearHelp.webStep}
+            openLabel={dict.bikes.form.stravaGearHelp.open}
+            refreshLabel={dict.bikes.form.stravaGearHelp.refresh}
+          />
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">

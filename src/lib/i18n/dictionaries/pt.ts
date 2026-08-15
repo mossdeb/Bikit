@@ -461,6 +461,22 @@ const pt: Dictionary = {
       stravaAlreadyLinked: (gearName: string, bikeName: string): string => `${gearName} (associada a ${bikeName})`,
       stravaHint: "Depois de associada, o Total de kms/horas passa a ser atualizado automaticamente a partir do Strava — a edição manual fica desativada.",
       stravaGearConflict: "Essa bicicleta Strava já está associada a uma bicicleta de outra conta Bikit.",
+      // O caminho para fora do beco: a bicicleta não está na lista porque não
+      // existe no Strava, e a API deles não tem forma de a criar — só
+      // `GET /gears/{id}`. O texto diz onde se faz, e diz que é preciso voltar,
+      // que é a metade que as pessoas não adivinham.
+      stravaGearHelp: {
+        // Diz o sujeito inteiro. "Não está na lista?" era curto mas ficava a
+        // apontar para o nada quando lido sozinho — e é sozinho que é lido,
+        // por quem está a olhar para uma dropdown sem a bicicleta lá.
+        trigger: "A tua bicicleta Strava não está na lista?",
+        title: "Criar a bicicleta no Strava",
+        lead: "A lista mostra o material que já existe no Strava. A Bikit lê essa lista mas não pode criar nada lá.",
+        appStep: "Na app do Strava: You › Profile › Gear › + e escolhe Bike.",
+        webStep: "No site: Definições › My Gear › Add Bike.",
+        open: "Abrir o Strava",
+        refresh: "Já criei — atualizar lista",
+      },
       stravaBenefitMileage: "Distância total",
       stravaBenefitHours: "Total de horas",
       stravaBenefitSync: "Sincronização automática",

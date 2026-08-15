@@ -8,6 +8,7 @@ import { getValidStravaAccessToken, fetchStravaBikes } from "@/lib/strava";
 import { BIKE_TYPES } from "@/lib/constants";
 import { BrandField } from "@/components/brand-field";
 import { StravaConnectRow } from "@/components/strava-connect-row";
+import { StravaGearHelp } from "@/components/strava-gear-help";
 import { FormError } from "@/components/form-error";
 import { DeleteConfirmButton } from "@/components/delete-confirm-button";
 import { Button } from "@/components/ui/button";
@@ -184,7 +185,26 @@ export default async function EditBikePage({
               <StravaConnectRow label={dict.settings.strava.strava} connectLabel={dict.settings.strava.connect} />
             )}
             {stravaAccessToken ? (
-              <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
+              // The hint line carries the way out, rather than a control on the
+              // select's row. Only while this bike has nothing linked: once it
+              // does, the question the trigger asks has been answered and the
+              // link would be clutter on a finished field. Reading it from the
+              // row and not from the select's current value is what keeps the
+              // select uncontrolled.
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
+                {!isStravaLinked && (
+                  <StravaGearHelp
+                    trigger={dict.bikes.form.stravaGearHelp.trigger}
+                    title={dict.bikes.form.stravaGearHelp.title}
+                    lead={dict.bikes.form.stravaGearHelp.lead}
+                    appStep={dict.bikes.form.stravaGearHelp.appStep}
+                    webStep={dict.bikes.form.stravaGearHelp.webStep}
+                    openLabel={dict.bikes.form.stravaGearHelp.open}
+                    refreshLabel={dict.bikes.form.stravaGearHelp.refresh}
+                  />
+                )}
+              </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">

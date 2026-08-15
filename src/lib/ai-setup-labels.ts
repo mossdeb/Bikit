@@ -59,6 +59,7 @@ export function aiSetupLabels(dict: Dictionary, distanceUnit: "km" | "mi"): AiSe
     stravaSkipHint: t.stravaSkipHint,
     stravaGearLabel: dict.bikes.form.stravaTitle,
     stravaNone: dict.bikes.form.stravaNone,
+    stravaGearHelp: dict.bikes.form.stravaGearHelp,
     stravaConnectLabel: dict.settings.strava.connect,
     cancel: dict.common.cancel,
     back: dict.bikes.form.wizardBack,

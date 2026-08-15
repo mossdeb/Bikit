@@ -29,6 +29,7 @@ import { COMPONENT_CATEGORY_ICON } from "@/components/component-category-icon";
 import { ComponentIcon } from "@/components/component-icon";
 import { ConnectWithStravaButton } from "@/components/strava-brand";
 import { IntervalIncludesButton } from "@/components/interval-includes-button";
+import { StravaGearHelp } from "@/components/strava-gear-help";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +88,15 @@ export interface AiSetupLabels {
   stravaSkipHint: string;
   stravaGearLabel: string;
   stravaNone: string;
+  stravaGearHelp: {
+    trigger: string;
+    title: string;
+    lead: string;
+    appStep: string;
+    webStep: string;
+    open: string;
+    refresh: string;
+  };
   stravaConnectLabel: string;
   cancel: string;
   back: string;
@@ -517,7 +527,25 @@ function AiSetupPreview({
                 ))}
               </NativeSelect>
             </div>
-            <p className="pt-1 text-sm text-muted-foreground">{labels.stravaSkipHint}</p>
+            {/* Same escape hatch as both bike forms. Safe to refresh from
+                inside the wizard: `router.refresh()` re-renders the server
+                tree without remounting, so the preview held in React state
+                here survives — unlike leaving for Strava's OAuth, which is a
+                real navigation and does drop it. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
+              <p className="text-sm text-muted-foreground">{labels.stravaSkipHint}</p>
+              {!gearId && (
+                <StravaGearHelp
+                  trigger={labels.stravaGearHelp.trigger}
+                  title={labels.stravaGearHelp.title}
+                  lead={labels.stravaGearHelp.lead}
+                  appStep={labels.stravaGearHelp.appStep}
+                  webStep={labels.stravaGearHelp.webStep}
+                  openLabel={labels.stravaGearHelp.open}
+                  refreshLabel={labels.stravaGearHelp.refresh}
+                />
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-5">

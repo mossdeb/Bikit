@@ -464,6 +464,22 @@ const en = {
       stravaAlreadyLinked: (gearName: string, bikeName: string): string => `${gearName} (linked to ${bikeName})`,
       stravaHint: "Once linked, Total kms/hours update automatically from Strava — manual editing is disabled.",
       stravaGearConflict: "That Strava bike is already linked to a bike on another Bikit account.",
+      // The way out of the dead end: the bike is missing from the list because
+      // it does not exist on Strava, and their API has no way to create it —
+      // `GET /gears/{id}` is the whole of it. The copy says where to do it, and
+      // says you have to come back, which is the half nobody guesses.
+      stravaGearHelp: {
+        // Names its subject. "Not in the list?" was shorter but pointed at
+        // nothing when read on its own — and on its own is how it is read, by
+        // someone staring at a picker their bike is missing from.
+        trigger: "Your Strava bike isn't in the list?",
+        title: "Add the bike on Strava",
+        lead: "This list shows gear that already exists on Strava. Bikit reads that list but cannot create anything there.",
+        appStep: "In the Strava app: You › Profile › Gear › + and pick Bike.",
+        webStep: "On the website: Settings › My Gear › Add Bike.",
+        open: "Open Strava",
+        refresh: "I've added it — refresh list",
+      },
       stravaBenefitMileage: "Total mileage",
       stravaBenefitHours: "Total hours",
       stravaBenefitSync: "Automatically sync",
