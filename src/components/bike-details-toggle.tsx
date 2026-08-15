@@ -65,7 +65,11 @@ export function BikeDetailsToggle({
 
       {mark && (
         <Collapsible show={!open}>
-          <div className="mt-6 flex items-center justify-between gap-4">
+          {/* 32 and not 24, to match the air above the box and the gap the
+              expanded half already puts under it. The box is a ruled object
+              sitting between the name and this row, and at 24 on both sides it
+              read as crowded against them. */}
+          <div className="mt-8 flex items-center justify-between gap-4">
             {mark}
             {trigger}
           </div>

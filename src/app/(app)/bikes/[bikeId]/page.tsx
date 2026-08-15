@@ -87,11 +87,17 @@ function StatCell({ value, label, className }: { value: React.ReactNode; label: 
     // on a narrow phone and "Ride Load" does not, so height-by-content left
     // the three cells of a ruled box disagreeing about where their middle was.
     <div className={cn("flex h-[70px] min-w-0 flex-col justify-center px-2.5 text-center", className)}>
-      <p className="font-mono text-base font-semibold">{value}</p>
+      {/* leading-tight on the figure too, and no margin under it: the gap the
+          eye sees between the two lines is mostly half-leading, not margin —
+          at the default 24px line box a 16px figure carries 4px of air below
+          it, which dwarfed the 2px that was actually being set. Tightening
+          the box is what halves the gap; deleting the margin alone would have
+          moved it by 2px. */}
+      <p className="font-mono text-base leading-tight font-semibold">{value}</p>
       {/* Not truncated: "Distância total" does not fit a third of a phone on
           one line, and a label cut to "Distância to…" is worse than a label
           on two. leading-tight keeps the two lines from pushing the box. */}
-      <p className="mt-0.5 text-sm leading-tight text-muted-foreground">{label}</p>
+      <p className="text-sm leading-tight text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -560,7 +566,7 @@ export default async function BikeDetailPage({
           <div className="hidden sm:block">{editButton}</div>
         </div>
 
-        <div className="mt-6 sm:hidden">
+        <div className="mt-8 sm:hidden">
           <BikeDetailsToggle
             viewLabel={dict.bikes.detail.viewDetails}
             closeLabel={dict.bikes.detail.closeDetails}
