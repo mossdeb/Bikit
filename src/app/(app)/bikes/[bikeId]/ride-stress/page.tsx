@@ -372,16 +372,24 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                             month's average of them. Fixed width so the column
                             holds still down the list; "Moderada" is the
                             longest it gets. */}
-                        <span className="flex w-[92px] shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                          [
-                          <span
-                            aria-hidden
-                            className={cn(
-                              "size-1.5 shrink-0 rounded-full",
-                              INTENSITY_BAR_CLASS[rideIntensityBand(ride.stress)]
-                            )}
-                          />
-                          {dict.rideStress.bandShort[rideIntensityBand(ride.stress)]}]
+                        <span className="w-[92px] shrink-0">
+                          {/* A chip and not bracketed text: the brackets were
+                              doing the work of a container, and a shape does
+                              it without spending two characters of a narrow
+                              column. Muted ground with the name in the
+                              foreground — the dot carries the band, because
+                              three of the four band colours are unreadable as
+                              type on a light card. */}
+                          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted py-0.5 pr-2 pl-1.5 text-xs">
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "size-2 shrink-0 rounded-full",
+                                INTENSITY_BAR_CLASS[rideIntensityBand(ride.stress)]
+                              )}
+                            />
+                            <span className="truncate">{dict.rideStress.bandShort[rideIntensityBand(ride.stress)]}</span>
+                          </span>
                         </span>
                         <RideDetailsButton
                           // The ride's own name lives in here rather than in
