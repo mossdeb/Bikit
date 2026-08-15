@@ -4,11 +4,41 @@ import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { splitFigureUnit } from "@/lib/format";
 
-/** Blank first, so a number that gained a digit (99 → 100) can roll its new
- * leading column up from nothing instead of up from a zero it never showed. */
-const SLOTS = [" ", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+const DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-const slotOf = (ch: string) => (ch === " " ? 0 : ch.charCodeAt(0) - 47);
+/**
+ * A blank, then the ten digits three times over.
+ *
+ * The blank comes first so a number that gained a digit (99 → 100) can roll
+ * its new leading column up from nothing instead of up from a zero it never
+ * showed.
+ *
+ * The three cycles are what let every column turn a full revolution before it
+ * lands. With a single cycle a column travelled the shortest way to its
+ * answer, so 7 → 8 was one notch and the eye missed it entirely — the roll
+ * only read as a roll when the number happened to change a lot. The column
+ * rests in the LAST cycle and starts in one of the earlier ones, which leaves
+ * room below it for a full turn plus the difference, every time.
+ */
+const SLOTS = [" ", ...DIGITS, ...DIGITS, ...DIGITS];
+
+/** Where a digit comes to rest: the last of the three cycles. */
+const restOf = (ch: string) => (ch === " " ? 0 : ch.charCodeAt(0) - 48 + 1 + DIGITS.length * 2);
+
+/**
+ * Where a column starts so that it turns at least once and lands on `to`.
+ *
+ * Travel is a full cycle plus however far the digit moved forward, counted the
+ * long way round — a digit that did not change still turns the full ten. That
+ * is the point: the request was that the numbers spin, not that the ones with
+ * news spin.
+ */
+function startOf(from: string, to: string): number {
+  if (from === " ") return 0;
+  const a = from.charCodeAt(0) - 48;
+  const b = to.charCodeAt(0) - 48;
+  return restOf(to) - DIGITS.length - ((b - a + DIGITS.length) % DIGITS.length);
+}
 
 /** Percentages of the strip's own height, so the column never needs to know
  * what a line box measures in pixels. */
@@ -113,20 +143,21 @@ export function AnimatedNumber({
       from.push(old.slice(-run.length).padStart(run.length, " "));
     });
     const fromDigits = from.join("");
+    const toDigits = after.join("");
     if (fromDigits.length !== columns.length) return;
 
     columns.forEach((column, i) => {
       const strip = column.firstElementChild as HTMLElement | null;
       if (!strip) return;
       strip.style.transition = "none";
-      strip.style.transform = offsetFor(slotOf(fromDigits[i]));
+      strip.style.transform = offsetFor(startOf(fromDigits[i], toDigits[i]));
     });
 
     // One forced reflow for the whole row, so the browser paints the old
     // number before the transition it is about to animate away from.
     void el.offsetHeight;
 
-    columns.forEach((column) => {
+    columns.forEach((column, i) => {
       const strip = column.firstElementChild as HTMLElement | null;
       if (!strip) return;
       // Written out, never cleared. React put the resting transform in the
@@ -135,6 +166,11 @@ export function AnimatedNumber({
       // which is empty. That is how the whole number vanished the first time.
       // The transition can be cleared, because that one comes from a class.
       strip.style.transition = "";
+      // After clearing, never before: `transition` is the shorthand and it
+      // carries the delay with it, so a delay set earlier in this effect was
+      // being wiped one line later. Staggered left to right, so the row
+      // settles as a wave instead of stopping dead all at once.
+      strip.style.transitionDelay = `${i * 60}ms`;
       strip.style.transform = offsetFor(Number(column.dataset.slot));
     });
   }, [value, storageKey]);
@@ -155,15 +191,18 @@ export function AnimatedNumber({
               // and `em` is the font size, which is a different number.
               key={`${i}-${j}`}
               data-digit
-              data-slot={slotOf(digit)}
+              data-slot={restOf(digit)}
               className="inline-block h-[1lh] overflow-hidden align-top"
             >
               <span
-                className="flex flex-col transition-transform duration-700 ease-out"
-                style={{ transform: offsetFor(slotOf(digit)) }}
+                // Long enough for a full turn to read as a turn: at 700ms ten
+                // digits went by as a blur with no sense of travel. Eased out
+                // at both ends, so it leaves and arrives rather than snapping.
+                className="flex flex-col transition-transform duration-[1100ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
+                style={{ transform: offsetFor(restOf(digit)) }}
               >
-                {SLOTS.map((slot) => (
-                  <span key={slot} className="h-[1lh]">
+                {SLOTS.map((slot, k) => (
+                  <span key={k} className="h-[1lh]">
                     {slot}
                   </span>
                 ))}
