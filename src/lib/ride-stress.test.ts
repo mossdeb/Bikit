@@ -12,6 +12,7 @@ import {
   rideIntensityBand,
   rideIntensityDaily,
   rideIntensityTrend,
+  rideVerticalM,
   scoreRides,
   type RideStressActivity,
 } from "./ride-stress";
@@ -27,6 +28,7 @@ function ride(overrides: Partial<RideStressActivity> & { date: string }): RideSt
     movingHours: 3,
     elapsedHours: 3.5,
     elevationM: 1400,
+    elevationRangeM: null,
     ...overrides,
   };
 }
@@ -87,6 +89,55 @@ describe("activityRideStress", () => {
     const asIfFlat = activityRideStress({ ...known, elevationM: 0 }, modality);
     expect(asIfFlat.stress).toBeCloseTo(55, 10);
     expect(asIfFlat.estimated).toBe(false);
+  });
+
+  it("is only estimated when neither the climb nor the range is known", () => {
+    const modality = RIDE_STRESS_MODALITIES.Downhill;
+    const base = ride({ date: "2026-08-01T08:00:00Z", elevationM: null, elevationRangeM: null });
+    expect(activityRideStress(base, modality).estimated).toBe(true);
+    expect(activityRideStress({ ...base, elevationRangeM: 400 }, modality).estimated).toBe(false);
+    expect(activityRideStress({ ...base, elevationM: 400 }, modality).estimated).toBe(false);
+  });
+});
+
+describe("the vertical of a ride", () => {
+  const dh = RIDE_STRESS_MODALITIES.Downhill;
+
+  it("scores a shuttled run on its descent instead of the climbing the van did", () => {
+    // A DH day: 20 km, 2.5 h, 900 m of descending and nothing climbed.
+    const shuttled = ride({
+      date: "2026-08-01T08:00:00Z",
+      distanceKm: 20,
+      movingHours: 2.5,
+      elevationM: 0,
+      elevationRangeM: 900,
+    });
+    const asBefore = activityRideStress({ ...shuttled, elevationRangeM: null }, dh);
+    const now = activityRideStress(shuttled, dh);
+
+    // Before: the elevation factor was zero and 30% of the score with it.
+    expect(asBefore.stress).toBeCloseTo(70, 10);
+    expect(now.stress).toBeGreaterThan(asBefore.stress);
+    expect(rideVerticalM(shuttled)).toBe(900);
+  });
+
+  it("keeps the climb when a lapped day climbed more than its range", () => {
+    // Three climbs of 600 m: 1800 m earned, 600 m of range.
+    const lapped = ride({ date: "2026-08-01T08:00:00Z", elevationM: 1800, elevationRangeM: 600 });
+    expect(rideVerticalM(lapped)).toBe(1800);
+  });
+
+  it("never scores a ride lower than the climb alone would have", () => {
+    for (const range of [null, 0, 300, 5000]) {
+      const climbed = ride({ date: "2026-08-01T08:00:00Z", elevationM: 900, elevationRangeM: range });
+      expect(rideVerticalM(climbed)!, `range ${range}`).toBeGreaterThanOrEqual(900);
+    }
+  });
+
+  it("is null only when both are missing", () => {
+    expect(rideVerticalM({ elevationM: null, elevationRangeM: null })).toBeNull();
+    expect(rideVerticalM({ elevationM: null, elevationRangeM: 0 })).toBe(0);
+    expect(rideVerticalM({ elevationM: 0, elevationRangeM: null })).toBe(0);
   });
 });
 

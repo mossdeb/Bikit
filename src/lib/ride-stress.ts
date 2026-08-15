@@ -65,12 +65,10 @@ export const RIDE_STRESS_MODALITIES: Record<BikeType, RideStressModality> = {
     weights: { distance: 0.4, time: 0.3, elevation: 0.3 },
     reference: { distanceKm: 35, hours: 2, elevationM: 800 },
   },
-  // Downhill carries a caveat worth knowing about before trusting the number:
-  // Strava's total_elevation_gain counts climbing, and a shuttled or lifted DH
-  // day climbs almost nothing while doing all its damage on the way down. The
-  // reference is set low so those days are not crushed by the 30% elevation
-  // weight, but a truly uplifted day still forfeits that share. Fixing it
-  // properly needs descent, which the summary payload does not carry.
+  // The reference stays low because a DH day's vertical is a few hundred
+  // metres of it, over and over, not a thousand-metre climb. Since 00036 the
+  // elevation factor is fed by rideVerticalM, so a shuttled run is scored on
+  // the descent it actually did rather than on the climbing the van did.
   Downhill: {
     weights: { distance: 0.1, time: 0.6, elevation: 0.3 },
     reference: { distanceKm: 20, hours: 2.5, elevationM: 300 },
@@ -115,7 +113,32 @@ export interface RideStressActivity {
   distanceKm: number;
   movingHours: number;
   elapsedHours: number | null;
+  /** Metres CLIMBED. A shuttled or lifted descent has none of this. */
   elevationM: number | null;
+  /** Highest minus lowest point of the ride. Null on rows written before
+   * 00036, and on any ride Strava reported without the two figures. */
+  elevationRangeM: number | null;
+}
+
+/**
+ * The vertical a ride moved through: the larger of what it climbed and the
+ * range it spanned.
+ *
+ * The climb alone was the input until 00036, and it scored a shuttled Downhill
+ * run at zero on the factor worth 30% of its Ride Load — the van did the
+ * climbing. The range fixes that case: top to bottom, the range IS the descent.
+ *
+ * The larger of the two, and not the range instead of the climb, because the
+ * range is only a lower bound on how much a ride descended. A lap with three
+ * climbs of 600 m has 1800 m of climbing and a range of 600, and it earned the
+ * 1800. Taking the max means no ride ever scores lower than it did before,
+ * and the ones that were scoring zero stop doing so.
+ *
+ * Null only when neither figure exists, which is what makes a ride "estimated".
+ */
+export function rideVerticalM(activity: Pick<RideStressActivity, "elevationM" | "elevationRangeM">): number | null {
+  if (activity.elevationM == null && activity.elevationRangeM == null) return null;
+  return Math.max(activity.elevationM ?? 0, activity.elevationRangeM ?? 0);
 }
 
 /**
@@ -171,8 +194,9 @@ export function activityRideStress(activity: RideStressActivity, modality: RideS
   const { weights, reference } = modality;
   const distanceFactor = activity.distanceKm / reference.distanceKm;
   const timeFactor = activity.movingHours / reference.hours;
+  const verticalM = rideVerticalM(activity);
 
-  if (activity.elevationM == null) {
+  if (verticalM == null) {
     // Renormalise over what is known rather than scoring the unknown as zero.
     const known = weights.distance + weights.time;
     return {
@@ -181,7 +205,7 @@ export function activityRideStress(activity: RideStressActivity, modality: RideS
     };
   }
 
-  const elevationFactor = activity.elevationM / reference.elevationM;
+  const elevationFactor = verticalM / reference.elevationM;
   return {
     stress:
       100 *

@@ -23,7 +23,7 @@ export async function loadScoredRides(
 ): Promise<ScoredRide[]> {
   const { data } = await supabase
     .from("strava_activities")
-    .select("strava_activity_id, activity_name, activity_date, utc_offset, distance_km, moving_time_hours, elapsed_time_hours, elevation_gain_m")
+    .select("strava_activity_id, activity_name, activity_date, utc_offset, distance_km, moving_time_hours, elapsed_time_hours, elevation_gain_m, elev_high_m, elev_low_m")
     .eq("bike_id", bikeId)
     .not("activity_date", "is", null)
     .order("activity_date", { ascending: true });
@@ -37,6 +37,10 @@ export async function loadScoredRides(
     movingHours: row.moving_time_hours,
     elapsedHours: row.elapsed_time_hours,
     elevationM: row.elevation_gain_m,
+    // Null unless Strava gave both ends of the ride; rideVerticalM falls back
+    // to the climb when it did not.
+    elevationRangeM:
+      row.elev_high_m != null && row.elev_low_m != null ? row.elev_high_m - row.elev_low_m : null,
   }));
 
   return scoreRides(activities, bikeType);

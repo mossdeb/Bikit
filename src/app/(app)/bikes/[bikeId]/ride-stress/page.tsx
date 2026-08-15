@@ -117,7 +117,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
     gotIt: dict.rideStress.intro.gotIt,
     examples: RIDE_LOAD_EXAMPLES.map((example) => {
       const { stress } = activityRideStress(
-        { ...example, id: 0, name: null, date: "", utcOffsetSeconds: null, elapsedHours: null },
+        { ...example, id: 0, name: null, date: "", utcOffsetSeconds: null, elapsedHours: null, elevationRangeM: null },
         modalityFor(example.bikeType)
       );
       const band = rideIntensityBand(stress);
