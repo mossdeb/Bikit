@@ -349,7 +349,11 @@ const en = {
     upgradePriceUnitYearly: "/yr",
     upgradeCta: "Subscribe to Personal Plan",
     noDetailsYet: "No details yet",
-    viewBike: "View Bike",
+    // No noun, matching pt: the button sits inside a bike's own card with the
+    // name above it, so "View bike" named the thing twice. "more" stays
+    // because the card already shows something — the totals and the Ride Load
+    // — and what the button offers is the rest.
+    viewBike: "View more",
     detail: {
       components: "Components",
       serial: "Serial",

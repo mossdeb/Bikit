@@ -346,7 +346,11 @@ const pt: Dictionary = {
     upgradePriceUnitYearly: "/ano",
     upgradeCta: "Subscreve o Plano Pessoal",
     noDetailsYet: "Ainda sem detalhes",
-    viewBike: "Ver bicicleta",
+    // Sem o substantivo: o botão vive dentro do cartão de uma bicicleta, com o
+    // nome dela escrito por cima, portanto "Ver bicicleta" dizia duas vezes de
+    // que se trata. "mais" fica porque o cartão já mostra alguma coisa — os
+    // totais e o Ride Load — e o que o botão promete é o resto.
+    viewBike: "Ver mais",
     detail: {
       components: "Componentes",
       serial: "Nº de série",
