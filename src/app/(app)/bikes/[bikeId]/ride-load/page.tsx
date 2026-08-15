@@ -268,7 +268,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                   borrow from, so the same 10 left the band sitting on the
                   outline. The section keeps its own padding, so this block
                   still lines up with the headings above and below it. */}
-              <div className="rounded-lg border border-border px-2.5 py-4">
+              <div className="rounded-[12px] border border-border px-2.5 py-4">
                 {/* The band as plain type in the foreground colour, with only
                     the arrow and the bar carrying the band's colour. On the
                     dark chip the name could be coloured; as bare type on a
