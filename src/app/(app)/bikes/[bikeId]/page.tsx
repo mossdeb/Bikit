@@ -58,6 +58,7 @@ function DetailField({
       <p className={cn("mt-0.5 truncate text-sm font-semibold", mono && "font-mono")}>{value}</p>
     </div>
   );
+
 }
 /**
  * A total as a bold figure with a quiet unit — "3372 km".
@@ -91,7 +92,6 @@ function StatCell({ value, label, className }: { value: React.ReactNode; label: 
     </div>
   );
 }
-
 
 export default async function BikeDetailPage({
   params,
@@ -484,7 +484,16 @@ export default async function BikeDetailPage({
         />
       )}
       {bike.strava_gear_id && (
-        <div className={cn("min-w-0", fieldBasis)}>
+        // Half the row on a phone, not a third: every other field here is text
+        // that can wrap, and this one is a button that cannot. At a third of
+        // 375px the column is 86px and "Recarregar" needs ~116, so it was
+        // spilling out of the card. From `sm:` up it rejoins the others.
+        <div
+          className={cn(
+            "min-w-0 shrink-0 grow-0 basis-[calc(50%-0.5rem)]",
+            "sm:basis-[calc(25%-1.125rem)] lg:basis-[calc(16.666%-1.25rem)]"
+          )}
+        >
           <p className="text-xs text-muted-foreground">{dict.bikes.detail.stravaSync}</p>
           <form action={manualSyncStrava} className="mt-1.5">
             <input type="hidden" name="bikeId" value={bike.id} />
