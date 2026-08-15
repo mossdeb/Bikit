@@ -392,7 +392,7 @@ export default async function BikeDetailPage({
   // field is the link — a number with a chevron beside it reads as two
   // controls, and on a phone the number is the part a thumb aims at.
   const rideIntensityField = (className?: string) =>
-    intensity ? (
+    showRideLoad ? (
     <Link
       href={`/bikes/${bike.id}/ride-load`}
       className={cn(
@@ -406,13 +406,19 @@ export default async function BikeDetailPage({
           the top, which is where someone reading the number would look. */}
       <p className="text-xs text-muted-foreground">{dict.rideStress.rideLoad}</p>
       <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
-        <span className="font-mono transition-opacity group-hover:opacity-70">{Math.round(intensity.value)}</span>
-        <RideIntensityChip
-          band={intensity.band}
-          label={dict.rideStress.bandShort[intensity.band]}
-          trend={intensityTrend}
-          className="px-2 py-0.5 text-[11px]"
-        />
+        {/* Dash and no band chip until the first ride: a band is a verdict on
+            how the bike has been ridden, and there is nothing yet to judge. */}
+        <span className="font-mono transition-opacity group-hover:opacity-70">
+          {intensity ? Math.round(intensity.value) : "—"}
+        </span>
+        {intensity && (
+          <RideIntensityChip
+            band={intensity.band}
+            label={dict.rideStress.bandShort[intensity.band]}
+            trend={intensityTrend}
+            className="px-2 py-0.5 text-[11px]"
+          />
+        )}
       </p>
     </Link>
     ) : null;
@@ -423,9 +429,16 @@ export default async function BikeDetailPage({
   // moves under the figure because inside a box the number is the thing and
   // the label is its caption.
   const statsBox = (
-    // Full width with three cells and hugging with two: the third figure only
+    // Full width with three cells and hugging with two: the third cell only
     // exists on a Strava bike, and a two-cell box stretched across the card
     // left a gap the eye reads as a missing reading.
+    //
+    // Keyed on `showRideLoad` and not on there being a figure: a bike linked
+    // to Strava has the cell from the moment it is linked, reading "—" until
+    // the first ride lands. Hidden until a number existed, the feature was
+    // invisible to exactly the person who had just done the thing that unlocks
+    // it, and the cell is the only route to the report — which handles an
+    // empty bike on its own and says so in words.
     // A grid and not a flex row: with three cells at 375px there is no slack
     // left to distribute, so `flex-1` fell back to each cell's min-content and
     // the rules landed at 105/105/84 instead of on the thirds. Equal columns
@@ -433,7 +446,7 @@ export default async function BikeDetailPage({
     <div
       className={cn(
         "grid divide-x divide-border rounded-[14px] border border-border",
-        intensity ? "w-full grid-cols-3" : "w-fit max-w-full grid-cols-2"
+        showRideLoad ? "w-full grid-cols-3" : "w-fit max-w-full grid-cols-2"
       )}
     >
       {distanceDetail && (
@@ -450,7 +463,7 @@ export default async function BikeDetailPage({
           className="flex-1 basis-0"
         />
       )}
-      {intensity && (
+      {showRideLoad && (
         <Link
           href={`/bikes/${bike.id}/ride-load`}
           className="group min-w-0 flex-1 basis-0 rounded-r-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -469,8 +482,14 @@ export default async function BikeDetailPage({
             }
             value={
               <span className="inline-flex items-center gap-1 transition-opacity group-hover:opacity-70">
-                {Math.round(intensity.value)}
-                <TrendArrow trend={intensityTrend} className={cn("h-3", INTENSITY_TEXT_CLASS[intensity.band])} />
+                {/* An em dash while the bike has no rides yet, and no trend
+                    arrow beside it: there is no direction in a reading that
+                    does not exist. A zero would have been a lie — zero is what
+                    a bike with rides that are all too short reads. */}
+                {intensity ? Math.round(intensity.value) : "—"}
+                {intensity && (
+                  <TrendArrow trend={intensityTrend} className={cn("h-3", INTENSITY_TEXT_CLASS[intensity.band])} />
+                )}
               </span>
             }
           />
