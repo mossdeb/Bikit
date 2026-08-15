@@ -885,6 +885,17 @@ const pt: Dictionary = {
     ridesCounted: (n: number) => (n === 1 ? "1 volta contada" : `${n} voltas contadas`),
     rideDetails: "Detalhes da volta",
     howItWorks: "Como funciona",
+    // O segundo cartão do rodapé: o primeiro diz o que o Ride Load é, este diz
+    // como sai a conta. Os nomes das modalidades não se traduzem — são os
+    // valores de BIKE_TYPES, iguais em toda a app.
+    formula: {
+      button: "Como é calculado",
+      title: "Como é calculado",
+      tagline: "Cada tipo de bicicleta pesa os três fatores à sua maneira.",
+      factorNames: { distance: "Distância", time: "Tempo", elevation: "Desnível" },
+      referenceNote: "A percentagem é quanto cada fator conta no Ride Load de uma volta feita nessa bicicleta.",
+      thisBike: "esta bicicleta",
+    },
     intro: {
       tagline: "Nem todas as voltas são iguais.",
       vs: "vs",

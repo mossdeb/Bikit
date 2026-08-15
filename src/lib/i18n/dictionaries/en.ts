@@ -887,6 +887,17 @@ const en = {
     ridesCounted: (n: number) => (n === 1 ? "1 ride counted" : `${n} rides counted`),
     rideDetails: "Ride details",
     howItWorks: "How it works",
+    // The footer's second card: the first says what Ride Load is, this one
+    // says how the figure comes out. Modality names are the BIKE_TYPES values
+    // and are not translated, here or anywhere else in the app.
+    formula: {
+      button: "How it is calculated",
+      title: "How it is calculated",
+      tagline: "Each kind of bike weighs the three factors its own way.",
+      factorNames: { distance: "Distance", time: "Time", elevation: "Elevation" },
+      referenceNote: "The percentage is how much each factor counts toward the Ride Load of a ride on that bike.",
+      thisBike: "this bike",
+    },
     intro: {
       tagline: "Not all rides are equal.",
       vs: "vs",

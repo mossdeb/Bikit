@@ -136,10 +136,13 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
   );
 }
 
-const POPUP_CLASS =
+/** Shared with the "how it is calculated" dialog next door: the two are the
+ * same surface opened from the same footer, and a second copy of these would
+ * drift apart the first time one of them is tuned. */
+export const POPUP_CLASS =
   "fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-40px)] w-[calc(100%-40px)] max-w-[400px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-card p-6 outline-none duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95";
 
-const BACKDROP_CLASS =
+export const BACKDROP_CLASS =
   "fixed inset-0 isolate z-50 bg-black/40 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0";
 
 /** The one-shot, on the first report anyone opens. */
@@ -188,9 +191,13 @@ export function RideLoadIntroDialog({
 export function RideLoadHowItWorksButton({
   labels,
   buttonLabel,
+  className,
 }: {
   labels: RideLoadIntroLabels;
   buttonLabel: string;
+  /** The footer sizes its two buttons as a pair, so the width lives with the
+   * row and not in here. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -198,7 +205,7 @@ export function RideLoadHowItWorksButton({
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger
         render={
-          <Button type="button" variant="outline" size="sm" className="bg-transparent">
+          <Button type="button" variant="outline" size="sm" className={cn("bg-transparent", className)}>
             {buttonLabel}
           </Button>
         }

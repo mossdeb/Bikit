@@ -5,6 +5,7 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { formatDistance, formatHours } from "@/lib/format";
 import { hasRideStressAccess } from "@/lib/ride-stress-access";
 import { loadScoredRides } from "@/lib/ride-stress-data";
+import { BIKE_TYPES } from "@/lib/constants";
 import {
   activityRideStress,
   derivedRideMetrics,
@@ -14,6 +15,7 @@ import {
   rideIntensityBand,
   rideIntensityDaily,
   rideIntensityTrend,
+  RIDE_STRESS_MODALITIES,
   type ScoredRide,
 } from "@/lib/ride-stress";
 import {
@@ -28,6 +30,7 @@ import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
 import { PoweredByStrava } from "@/components/strava-brand";
 import { RideLoadHowItWorksButton, RideLoadIntroDialog } from "@/components/ride-load-intro-dialog";
+import { RideLoadFormulaButton } from "@/components/ride-load-formula-dialog";
 import { dismissRideStressIntro } from "@/lib/actions/ride-stress";
 
 const WINDOW_DAYS = 30;
@@ -138,6 +141,42 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
         bandLabel: dict.rideStress.bandShort[band],
       };
     }),
+  };
+
+  // Every modality, and the bike's own first: the weights only say something
+  // next to each other — Downhill giving distance 10% is a statement about
+  // downhill only when a road row beside it gives distance 55%. The order is
+  // otherwise BIKE_TYPES', so it matches the picker the bike's type came from.
+  const formulaRows = [...BIKE_TYPES]
+    .sort((a, b) => Number(b === bike.type) - Number(a === bike.type))
+    .map((type) => {
+      // Only the weights are shown. The reference values that go with them
+      // (the ride that scores 100) live in the same table and are deliberately
+      // left out: they answer "how much is a lot", which is a different
+      // question from "what counts", and putting both on one line made four
+      // numbers per row.
+      const { weights } = RIDE_STRESS_MODALITIES[type];
+      const percent = (weight: number) => Math.round(weight * 100);
+      return {
+        bikeType: type,
+        label: type,
+        current: type === bike.type,
+        factors: [
+          { key: "distance" as const, weightPercent: percent(weights.distance) },
+          { key: "time" as const, weightPercent: percent(weights.time) },
+          { key: "elevation" as const, weightPercent: percent(weights.elevation) },
+        ].map((factor) => ({ ...factor, weightLabel: `${factor.weightPercent}%` })),
+      };
+    });
+
+  const formulaLabels = {
+    title: dict.rideStress.formula.title,
+    tagline: dict.rideStress.formula.tagline,
+    factorNames: dict.rideStress.formula.factorNames,
+    referenceNote: dict.rideStress.formula.referenceNote,
+    thisBike: dict.rideStress.formula.thisBike,
+    gotIt: dict.rideStress.intro.gotIt,
+    rows: formulaRows,
   };
 
   const detailItems = (ride: ScoredRide) => {
@@ -409,8 +448,23 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
               reading. Inside the card because it belongs to the report, not
               to the page — outside it floated next to the Strava mark, which
               is a credit and not a control. */}
-          <div className="mt-6">
-            <RideLoadHowItWorksButton labels={introLabels} buttonLabel={dict.rideStress.howItWorks} />
+          {/* Half each, capped at 150px: the two are the same kind of thing and
+              a row where one is wider than the other says one of them matters
+              more. `shrink` is passed on purpose — the Button base sets
+              `shrink-0`, and tailwind-merge does not treat that as conflicting
+              with `flex-1`, so the pair would keep a floor width and overflow
+              the card on a narrow phone. */}
+          <div className="mt-6 flex gap-2">
+            <RideLoadHowItWorksButton
+              labels={introLabels}
+              buttonLabel={dict.rideStress.howItWorks}
+              className="max-w-[150px] flex-1 shrink px-2"
+            />
+            <RideLoadFormulaButton
+              labels={formulaLabels}
+              buttonLabel={dict.rideStress.formula.button}
+              className="max-w-[150px] flex-1 shrink px-2"
+            />
           </div>
         </section>
       </div>
