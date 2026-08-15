@@ -110,7 +110,7 @@ export function NotificationsPromptDialog({
           <DialogPrimitive.Title className="text-center font-display text-[28px] leading-tight font-bold">
             {labels.title}
           </DialogPrimitive.Title>
-          <DialogPrimitive.Description className="mx-auto mt-3 max-w-[320px] text-center text-base">
+          <DialogPrimitive.Description className="mx-auto mt-1.5 max-w-[320px] text-center text-base">
             {labels.subtitle}
           </DialogPrimitive.Description>
 

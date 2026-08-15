@@ -90,9 +90,13 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
       <DialogPrimitive.Title className="text-center font-display text-[28px] leading-tight font-bold">
         {labels.title}
       </DialogPrimitive.Title>
-      <DialogPrimitive.Description className="mt-2 text-center text-base">{labels.tagline}</DialogPrimitive.Description>
+      <DialogPrimitive.Description className="mt-0 text-center text-base">{labels.tagline}</DialogPrimitive.Description>
 
-      <div className="mt-6 flex items-stretch gap-2">
+      {/* 38px between the card's three groups — the header, the worked
+          example, the definitions — against 0 to 16 inside them. The
+          separation is what says "this is a different thing", and with the
+          two distances close the three groups read as one long column. */}
+      <div className="mt-[38px] flex items-stretch gap-2">
         <ExampleCard example={labels.examples[0]} />
         <span className="shrink-0 self-center text-xs font-semibold text-muted-foreground">{labels.vs}</span>
         <ExampleCard example={labels.examples[1]} />
@@ -102,7 +106,7 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
         {labels.compareLead} · <strong className="font-bold">{labels.compareEmphasis}</strong>
       </p>
 
-      <section className="mt-6">
+      <section className="mt-[38px]">
         <h3 className="flex items-center gap-2 text-base font-bold">
           <RideLoadGlyph className="size-[18px]" />
           {labels.recentTitle}

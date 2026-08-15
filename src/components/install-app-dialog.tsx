@@ -100,7 +100,7 @@ function InstallCard({
       <DialogPrimitive.Title className="text-center font-display text-[28px] leading-tight font-bold">
         {labels.title}
       </DialogPrimitive.Title>
-      <DialogPrimitive.Description className="mx-auto mt-2 max-w-[300px] text-center text-base font-semibold">
+      <DialogPrimitive.Description className="mx-auto mt-1 max-w-[300px] text-center text-base font-semibold">
         {labels.subtitle}
       </DialogPrimitive.Description>
 
