@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Ban, Pencil, Plus } from "lucide-react";
+import { Ban, ChevronRight, Pencil, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { manualSyncStrava } from "@/lib/actions/strava";
 import { selectActiveInterval, calculateComponentUsage, type NamedIntervalStatusInput, type ActiveIntervalResult } from "@/lib/maintenance/calculation";
@@ -80,7 +80,7 @@ function StatValue({ text }: { text: string }) {
 /** One cell of the totals box: the figure over its name, rather than the name
  * over the figure the rest of the card uses. Inside a ruled box the reading
  * comes first and the label is the caption under it. */
-function StatCell({ value, label, className }: { value: React.ReactNode; label: string; className?: string }) {
+function StatCell({ value, label, className }: { value: React.ReactNode; label: React.ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0 px-2.5 py-2.5 text-center", className)}>
       <p className="font-mono text-sm font-semibold">{value}</p>
@@ -432,7 +432,17 @@ export default async function BikeDetailPage({
           className="group min-w-0 flex-1 basis-0 rounded-r-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <StatCell
-            label={dict.rideStress.rideLoad}
+            // The chevron rides with the label, not with the figure: the
+            // figure already carries the trend arrow, and two arrows on one
+            // line would be one reading and one direction saying different
+            // things in the same shape. It is also the only thing on the card
+            // that says this cell is a link — there is no hover on a phone.
+            label={
+              <span className="inline-flex items-center gap-0.5">
+                {dict.rideStress.rideLoad}
+                <ChevronRight aria-hidden className="size-3 shrink-0" />
+              </span>
+            }
             value={
               <span className="inline-flex items-center gap-1 transition-opacity group-hover:opacity-70">
                 {Math.round(intensity.value)}
