@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { formatDistance, formatHours } from "@/lib/format";
-import { hasRideStressAccess } from "@/lib/ride-stress-access";
+import { getUserSubscription } from "@/lib/subscription";
+import { PLAN_FEATURES } from "@/lib/plans";
 import { loadScoredRides } from "@/lib/ride-stress-data";
 import { BIKE_TYPES } from "@/lib/constants";
 import {
@@ -74,10 +75,14 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   const distanceUnit = ((userData?.claims?.user_metadata?.distance_unit as string) ?? "km") as "km" | "mi";
 
   // notFound rather than a redirect or an "unavailable" page: to an account
-  // outside the beta this route does not exist, and saying "you may not see
-  // this" tells them there is something to see.
+  // whose plan does not carry this, the route does not exist, and saying "you
+  // may not see this" tells them there is something to see. The gate was an
+  // email allowlist until the beta opened on 2026-08-15; it is PLAN_FEATURES
+  // now, which today says yes on all three plans.
   if (!bike) notFound();
-  if (!hasRideStressAccess(userData?.claims?.email as string | undefined)) notFound();
+  const userId = userData?.claims?.sub as string | undefined;
+  const plan = userId ? (await getUserSubscription(userId)).plan : "free";
+  if (!PLAN_FEATURES[plan].rideLoad) notFound();
 
   // Shown once, on the first report anyone opens. The flag is per account and
   // not per bike: the explanation is about what Ride Load is, and that does

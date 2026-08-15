@@ -35,7 +35,6 @@ import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { previewTimelineEvents } from "@/lib/timeline-preview";
 import { InstallAppDialog } from "@/components/install-app-dialog";
 import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
-import { hasRideStressAccess } from "@/lib/ride-stress-access";
 import { loadScoredRides } from "@/lib/ride-stress-data";
 import { rideIntensity, rideIntensityTrend } from "@/lib/ride-stress";
 import { INTENSITY_TEXT_CLASS, RideIntensityChip, TrendArrow } from "@/components/ride-intensity-visuals";
@@ -58,8 +57,8 @@ function DetailField({
       <p className={cn("mt-0.5 truncate text-sm font-semibold", mono && "font-mono")}>{value}</p>
     </div>
   );
-
 }
+
 /**
  * A total as a bold figure with a quiet unit — "3372 km".
  *
@@ -137,12 +136,15 @@ export default async function BikeDetailPage({
 
   const userId = userData?.claims?.sub as string | undefined;
 
-  // Ride Stress is a closed beta and reads Strava rides, so a bike with its
-  // totals typed by hand has nothing to show: the figure would be an empty
-  // promise on a page that already carries two honest ones. The query is only
-  // fired when both are true, which for everyone but the owner is never.
-  const showRideStress =
-    hasRideStressAccess(userData?.claims?.email as string | undefined) && Boolean(bike.strava_gear_id);
+  // Ride Load reads Strava rides, so a bike with its totals typed by hand has
+  // nothing to show: the figure would be an empty promise on a page that
+  // already carries two honest ones.
+  //
+  // Only the Strava half can be decided here — the plan arrives in the
+  // Promise.all below, and waiting for it would turn one round trip into two.
+  // On a plan with rideLoad off the rides would be fetched and thrown away;
+  // that is a wasted query on a Strava bike, not a wrong screen.
+  const bikeHasRides = Boolean(bike.strava_gear_id);
 
   // Subscription, this bike's component/interval rows, and the user's total
   // component count (for the plan-limit check) are all independent of each
@@ -181,11 +183,16 @@ export default async function BikeDetailPage({
         )
         .eq("bike_id", bikeId)
         .is("retired_at", null),
-      showRideStress ? loadScoredRides(supabase, bikeId, bike.type) : Promise.resolve([]),
+      bikeHasRides ? loadScoredRides(supabase, bikeId, bike.type) : Promise.resolve([]),
     ]);
 
+  // Both halves have to agree: the bike has Strava rides, and the plan can see
+  // the reading. The email allowlist that used to stand here went away when the
+  // beta opened on 2026-08-15.
+  const showRideLoad = bikeHasRides && PLAN_FEATURES[subscription.plan].rideLoad;
+
   const rideStressNow = new Date();
-  const intensity = showRideStress ? rideIntensity(rides, rideStressNow) : null;
+  const intensity = showRideLoad ? rideIntensity(rides, rideStressNow) : null;
   const intensityTrend = intensity ? rideIntensityTrend(rides, rideStressNow) : "flat";
 
   // Cards are grouped by category rather than left in the order the parts were
@@ -363,7 +370,7 @@ export default async function BikeDetailPage({
   const rideIntensityField = (className?: string) =>
     intensity ? (
     <Link
-      href={`/bikes/${bike.id}/ride-stress`}
+      href={`/bikes/${bike.id}/ride-load`}
       className={cn(
         "group min-w-0 rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         className

@@ -12,14 +12,19 @@ export const PLAN_LIMITS: Record<Plan, { maxBikes: number | null; maxComponents:
  * PLAN_LIMITS because a limit is a number the UI counts against and a feature
  * is a door that is either open or shut.
  */
-export const PLAN_FEATURES: Record<Plan, { timeline: boolean; aiSetup: boolean }> = {
+export const PLAN_FEATURES: Record<Plan, { timeline: boolean; aiSetup: boolean; rideLoad: boolean }> = {
   // aiSetup on Free is real but tight: 1 search a month, and the component
   // picker respects the 2-component plan limit. Since the closed beta ended
   // (2026-08-11) this table is the whole answer — there is no allowlist over
   // it any more, so a false here is what takes the feature away.
-  free: { timeline: false, aiSetup: true },
-  personal: { timeline: true, aiSetup: true },
-  pro: { timeline: true, aiSetup: true },
+  //
+  // rideLoad went the same way on 2026-08-15: the owner-only email list is
+  // gone and this is the only gate. True everywhere for now — it costs nothing
+  // to compute and reads Strava rides the account already has — but it lives
+  // here rather than nowhere so that making it paid later is one word.
+  free: { timeline: false, aiSetup: true, rideLoad: true },
+  personal: { timeline: true, aiSetup: true, rideLoad: true },
+  pro: { timeline: true, aiSetup: true, rideLoad: true },
 };
 
 /** How often a paid plan bills. Both intervals are prices on the same Stripe
