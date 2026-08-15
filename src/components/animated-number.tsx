@@ -169,8 +169,10 @@ export function AnimatedNumber({
       // After clearing, never before: `transition` is the shorthand and it
       // carries the delay with it, so a delay set earlier in this effect was
       // being wiped one line later. Staggered left to right, so the row
-      // settles as a wave instead of stopping dead all at once.
-      strip.style.transitionDelay = `${i * 60}ms`;
+      // settles as a wave instead of stopping dead all at once — and the step
+      // grows with the duration, or the cascade disappears inside a longer
+      // turn and the columns look simultaneous again.
+      strip.style.transitionDelay = `${i * 110}ms`;
       strip.style.transform = offsetFor(Number(column.dataset.slot));
     });
   }, [value, storageKey]);
@@ -196,9 +198,18 @@ export function AnimatedNumber({
             >
               <span
                 // Long enough for a full turn to read as a turn: at 700ms ten
-                // digits went by as a blur with no sense of travel. Eased out
-                // at both ends, so it leaves and arrives rather than snapping.
-                className="flex flex-col transition-transform duration-[1100ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
+                // digits went by as a blur with no sense of travel.
+                //
+                // Eased in AND out, which is what makes the slower duration
+                // work. The previous curve was an ease-out only — measured, it
+                // covered 49% of the distance in the first 10% of the time and
+                // its fastest frame was the very first one. A column went from
+                // dead still to top speed with no ramp, and with the columns
+                // staggered that burst happened once per column: it read as
+                // the row suddenly accelerating. Stretching that curve made it
+                // worse, not better, because it lengthens the opening blur and
+                // the closing crawl and leaves nothing in the middle.
+                className="flex flex-col transition-transform duration-[1800ms] ease-[cubic-bezier(0.65,0,0.35,1)]"
                 style={{ transform: offsetFor(restOf(digit)) }}
               >
                 {SLOTS.map((slot, k) => (
