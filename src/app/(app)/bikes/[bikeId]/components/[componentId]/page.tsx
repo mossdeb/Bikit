@@ -433,15 +433,27 @@ export default async function ComponentDetailPage({
         </div>
       ) : (
         <div className="relative pl-6">
-          <div className="absolute top-2 bottom-2 left-[5.5px] border-l border-dashed border-foreground/30" />
+          {/* 9px, not the 5.5 the 11px dot needed: the thread has to run
+              through the middle of the node, and the node is 18px wide now. */}
+          <div className="absolute top-2 bottom-2 left-[9px] border-l border-dashed border-foreground/30" />
           {interventions.map((iv) => (
             <div key={iv.id} className="relative mb-4 last:mb-0">
+              {/* Halo outside, core inside — the Bike Log's node, in this
+                  entry's own colour. `-left-6` puts the halo's left edge on
+                  the gutter's origin, so its centre lands on the 9px thread. */}
               <span
                 className={cn(
-                  "absolute top-1/2 -left-6 size-[11px] -translate-y-1/2 rounded-full border-2",
-                  INTERVENTION_TYPE_DOT_STYLES[iv.type as "service" | "repair" | "replacement"]
+                  "absolute top-1/2 -left-6 flex size-[18px] -translate-y-1/2 items-center justify-center rounded-full",
+                  INTERVENTION_TYPE_DOT_STYLES[iv.type as "service" | "repair" | "replacement"].halo
                 )}
-              />
+              >
+                <span
+                  className={cn(
+                    "size-2.5 rounded-full",
+                    INTERVENTION_TYPE_DOT_STYLES[iv.type as "service" | "repair" | "replacement"].core
+                  )}
+                />
+              </span>
               <Link
                 href={`/bikes/${bike.id}/components/${component.id}/interventions/${iv.id}/edit`}
                 className={cn("flex flex-wrap items-center gap-4 rounded-lg bg-card p-5 sm:flex-nowrap", CLICKABLE_CARD_HOVER)}

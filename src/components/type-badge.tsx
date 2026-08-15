@@ -9,12 +9,19 @@ export const INTERVENTION_TYPE_STYLES: Record<InterventionType, string> = {
   replacement: "bg-emphasis text-emphasis-foreground",
 };
 
-/** Solid border + fill for markers (e.g. the history timeline dots) that
- * should match a given intervention type's badge color. */
-export const INTERVENTION_TYPE_DOT_STYLES: Record<InterventionType, string> = {
-  service: "border-primary bg-primary",
-  repair: "border-indigo bg-indigo",
-  replacement: "border-emphasis bg-emphasis",
+/** Halo + core for the history timeline dots, the shape the Bike Log's
+ * `TimelineDot` already uses: a soft outer circle with a solid one inside it.
+ * The halo is a second circle rather than a ring utility so it stays a glow at
+ * any zoom — see the note on `TimelineDot`.
+ *
+ * Two classes and not one because the colour has to reach both circles, and it
+ * carries meaning here that it does not in the Bike Log: that thread is always
+ * mint, while this one says replacement from service from repair by colour
+ * alone. Copying `TimelineDot` outright would have thrown that away. */
+export const INTERVENTION_TYPE_DOT_STYLES: Record<InterventionType, { halo: string; core: string }> = {
+  service: { halo: "bg-primary/25", core: "bg-primary" },
+  repair: { halo: "bg-indigo/25", core: "bg-indigo" },
+  replacement: { halo: "bg-emphasis/25", core: "bg-emphasis" },
 };
 
 export function TypeBadge({ type, dict = getDictionary("en") }: { type: InterventionType; dict?: Dictionary }) {
