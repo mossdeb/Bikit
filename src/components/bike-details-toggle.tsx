@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { ChevronDown, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Collapsible } from "@/components/collapsible";
 
@@ -43,21 +42,38 @@ export function BikeDetailsToggle({
 
   return (
     <div className="sm:hidden">
-      <Collapsible show={!open}>
-        {/* The figures get the whole width to spread across, and everything
-            that is not a figure drops to the line under them: the mark on the
-            left, crediting the totals above it, and the trigger on the right.
-            The trigger used to sit above the row, which put a control between
-            the bike's name and its numbers. */}
-        {compact}
-        <div className={cn("mt-6 flex items-center gap-4", mark ? "justify-between" : "justify-end")}>
-          {mark}
-          {trigger}
+      {/* Outside both halves: the totals are the bike's readings and they are
+          true in either state, so they stay put while the rest opens under
+          them. Inside the collapsing half they vanished the moment the
+          details appeared, and the card lost its numbers to show its
+          paperwork. Rendering them in both halves instead would show two
+          boxes to anyone watching the cross-fade. */}
+      {mark ? (
+        compact
+      ) : (
+        // With no mark there is nothing to hold the left of the row below, and
+        // a lone button there spent 44px of a phone screen to say nothing — on
+        // the bikes with the fewest figures to show. It sits beside them
+        // instead, and wraps under only if they grow enough to need the room.
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-5">
+          {compact}
+          <Collapsible show={!open} className="w-auto shrink-0">
+            {trigger}
+          </Collapsible>
         </div>
-      </Collapsible>
+      )}
+
+      {mark && (
+        <Collapsible show={!open}>
+          <div className="mt-6 flex items-center justify-between gap-4">
+            {mark}
+            {trigger}
+          </div>
+        </Collapsible>
+      )}
 
       <Collapsible show={open}>
-        {expanded}
+        <div className="mt-8">{expanded}</div>
         {/* Left, like the collapsed half puts it. The mark sat on the right
             here and jumped across the card every time the details opened. */}
         {mark && <div className="mt-6 flex">{mark}</div>}

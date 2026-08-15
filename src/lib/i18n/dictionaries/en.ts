@@ -357,7 +357,7 @@ const en = {
       totalHours: "Total hours",
       status: "Status",
       edit: "Edit",
-      viewDetails: "View details",
+      viewDetails: "Details",
       closeDetails: "Close Details",
       stravaGear: "Strava Gear",
       stravaSync: "Strava Sync",

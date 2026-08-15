@@ -38,7 +38,7 @@ import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
 import { hasRideStressAccess } from "@/lib/ride-stress-access";
 import { loadScoredRides } from "@/lib/ride-stress-data";
 import { rideIntensity, rideIntensityTrend } from "@/lib/ride-stress";
-import { RideIntensityChip } from "@/components/ride-intensity-visuals";
+import { INTENSITY_TEXT_CLASS, RideIntensityChip, TrendArrow } from "@/components/ride-intensity-visuals";
 
 function DetailField({
   label,
@@ -59,6 +59,39 @@ function DetailField({
     </div>
   );
 }
+/**
+ * A total as a bold figure with a quiet unit — "3372 km".
+ *
+ * The formatters hand back one string, so the split is on the LAST space:
+ * every unit that reaches here is a single trailing token, while the figure
+ * itself may carry a thousands separator that is a space in some locales.
+ */
+function StatValue({ text }: { text: string }) {
+  const at = text.lastIndexOf(" ");
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="ml-1 text-xs font-medium text-muted-foreground">{text.slice(at + 1)}</span>
+    </>
+  );
+}
+
+/** One cell of the totals box: the figure over its name, rather than the name
+ * over the figure the rest of the card uses. Inside a ruled box the reading
+ * comes first and the label is the caption under it. */
+function StatCell({ value, label, className }: { value: React.ReactNode; label: string; className?: string }) {
+  return (
+    <div className={cn("min-w-0 px-2.5 py-2.5 text-center", className)}>
+      <p className="font-mono text-sm font-semibold">{value}</p>
+      {/* Not truncated: "Distância total" does not fit a third of a phone on
+          one line, and a label cut to "Distância to…" is worse than a label
+          on two. leading-tight keeps the two lines from pushing the box. */}
+      <p className="mt-0.5 text-xs leading-tight text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
 
 export default async function BikeDetailPage({
   params,
@@ -353,14 +386,70 @@ export default async function BikeDetailPage({
     </Link>
     ) : null;
 
-  const detailsGrid = (
+  // The totals box, mobile only. The three figures were three loose fields on
+  // a row, spread by justify-between with nothing to say they were one
+  // reading; ruled into a box they read as the bike's dashboard, and the name
+  // moves under the figure because inside a box the number is the thing and
+  // the label is its caption.
+  const statsBox = (
+    // Full width with three cells and hugging with two: the third figure only
+    // exists on a Strava bike, and a two-cell box stretched across the card
+    // left a gap the eye reads as a missing reading.
+    // A grid and not a flex row: with three cells at 375px there is no slack
+    // left to distribute, so `flex-1` fell back to each cell's min-content and
+    // the rules landed at 105/105/84 instead of on the thirds. Equal columns
+    // are the point of a ruled box.
+    <div
+      className={cn(
+        "grid divide-x divide-border rounded-[14px] border border-border",
+        intensity ? "w-full grid-cols-3" : "w-fit max-w-full grid-cols-2"
+      )}
+    >
+      {distanceDetail && (
+        <StatCell
+          value={<StatValue text={distanceDetail} />}
+          label={dict.bikes.detail.totalDistance}
+          className="flex-1 basis-0"
+        />
+      )}
+      {hoursDetail && (
+        <StatCell
+          value={<StatValue text={hoursDetail} />}
+          label={dict.bikes.detail.totalHours}
+          className="flex-1 basis-0"
+        />
+      )}
+      {intensity && (
+        <Link
+          href={`/bikes/${bike.id}/ride-load`}
+          className="group min-w-0 flex-1 basis-0 rounded-r-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <StatCell
+            label={dict.rideStress.rideLoad}
+            value={
+              <span className="inline-flex items-center gap-1 transition-opacity group-hover:opacity-70">
+                {Math.round(intensity.value)}
+                <TrendArrow trend={intensityTrend} className={cn("h-3", INTENSITY_TEXT_CLASS[intensity.band])} />
+              </span>
+            }
+          />
+        </Link>
+      )}
+    </div>
+  );
+
+  // `totals` is off on mobile: the box above the toggle already carries them,
+  // and open they appeared a second time three lines below themselves.
+  const detailsGrid = ({ totals }: { totals: boolean }) => (
     <div className="flex flex-wrap gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-5">
       <DetailField label={dict.brandField.brand} value={bike.brand ?? "—"} className={fieldBasis} />
       <DetailField label={dict.bikes.form.model} value={bike.model ?? "—"} className={fieldBasis} />
       <DetailField label={dict.bikes.form.type} value={bike.type ?? "—"} className={fieldBasis} />
-      <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono className={fieldBasis} />
-      <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono className={fieldBasis} />
-      {rideIntensityField(fieldBasis)}
+      {totals && (
+        <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono className={fieldBasis} />
+      )}
+      {totals && <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono className={fieldBasis} />}
+      {totals && rideIntensityField(fieldBasis)}
       {bike.serial_number && (
         <DetailField label={dict.bikes.form.serialNumber} value={bike.serial_number} mono className={fieldBasis} />
       )}
@@ -445,28 +534,23 @@ export default async function BikeDetailPage({
 
           <HealthBadge level={bikeHealth} dict={dict} className="sm:hidden" />
 
-          <div className="hidden flex-1 sm:block">{detailsGrid}</div>
+          <div className="hidden flex-1 sm:block">{detailsGrid({ totals: true })}</div>
 
           <div className="hidden sm:block">{editButton}</div>
         </div>
 
-        <div className="mt-[51px] sm:hidden">
+        <div className="mt-6 sm:hidden">
           <BikeDetailsToggle
             viewLabel={dict.bikes.detail.viewDetails}
             closeLabel={dict.bikes.detail.closeDetails}
-            mark={bike.strava_gear_id ? <PoweredByStrava /> : null}
-            compact={
-              // justify-between and not a gap: three figures spread over the
-              // card's width, the last one ending where the card ends. With a
-              // fixed gap they clustered on the left and left a third of the
-              // row empty.
-              <div className="flex items-start justify-between gap-4">
-                <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono />
-                <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono />
-                {rideIntensityField()}
-              </div>
-            }
-            expanded={detailsGrid}
+            // 12px against the component's 14px default: the totals box made
+            // this row lighter and the mark was heavy in it, but 9px put
+            // "POWERED BY" — the small half of the lockup, 44% of its height —
+            // below reading size. See the note in strava-brand.tsx. Desktop
+            // keeps 14, where there is room for it.
+            mark={bike.strava_gear_id ? <PoweredByStrava className="h-[12px]" /> : null}
+            compact={statsBox}
+            expanded={detailsGrid({ totals: false })}
           />
         </div>
 

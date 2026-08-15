@@ -354,7 +354,7 @@ const pt: Dictionary = {
       totalHours: "Horas totais",
       status: "Estado",
       edit: "Editar",
-      viewDetails: "Ver detalhes",
+      viewDetails: "Detalhes",
       closeDetails: "Fechar detalhes",
       stravaGear: "Bicicleta Strava",
       stravaSync: "Sincronização Strava",
