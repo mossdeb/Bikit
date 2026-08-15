@@ -837,7 +837,7 @@ const pt: Dictionary = {
     // Unidade, não descrição: fica igual nas duas línguas como o resto dos
     // nomes desta secção. É Ride Load por hora de pedalada.
     loadPerHour: "Load/h",
-    subtitle: "Measures how demanding your recent rides have been and the wear on your bike.",
+    subtitle: "Mede o quanto as tuas voltas recentes têm exigido da bicicleta e o desgaste que lhe causam.",
     // Duas orações por banda: o `lead` diz o que as voltas têm pedido à
     // bicicleta, o `emphasis` — o que fica a negrito — diz o que fazer a
     // seguir. O nome da banda não entra na frase: está escrito em grande logo
