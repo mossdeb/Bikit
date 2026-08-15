@@ -54,15 +54,35 @@ function tokenize(text: string): { digits: boolean; text: string }[] {
   return text.split(/(\d+)/).filter(Boolean).map((part) => ({ digits: /^\d+$/.test(part), text: part }));
 }
 
-/** True when two values can be animated one into the other: same tokens in the
- * same order, with only the digit runs differing. "3372 km" → "3400 km" can;
- * "3372 km" → "2110 mi" cannot, and neither can anything whose shape moved. */
-function comparable(a: string, b: string): boolean {
-  const ta = tokenize(a);
-  const tb = tokenize(b);
-  if (ta.length !== tb.length) return false;
-  return ta.every((tok, i) => tok.digits === tb[i].digits && (tok.digits || tok.text === tb[i].text));
+/** The trailing non-digit run — "3372 km" gives " km", "53" gives "". */
+function unitToken(text: string): string {
+  const tokens = tokenize(text);
+  const last = tokens[tokens.length - 1];
+  return last && !last.digits ? last.text : "";
 }
+
+/**
+ * True when two values can be animated one into the other.
+ *
+ * The test is the unit and nothing else. It used to be that the whole token
+ * shape had to match, which quietly refused the most interesting change a
+ * bike can have: crossing a thousand. A number grows a grouping separator as
+ * it grows — "999 km" becomes "1,000 km" and "100 km" becomes "1 234 567 km" —
+ * and that turns two tokens into four or six, so the roll was skipped exactly
+ * when the number had moved the most.
+ *
+ * Grouping is punctuation the formatter chose; the digits are the reading.
+ * What must not animate is a change of unit, because kilometres becoming
+ * miles is a display preference and not something anybody rode — and that is
+ * the one thing this still refuses.
+ */
+function comparable(a: string, b: string): boolean {
+  return unitToken(a) === unitToken(b) && /\d/.test(a) && /\d/.test(b);
+}
+
+/** Every digit in the string, grouping stripped out. What the columns show,
+ * in the order they show it. */
+const digitsOf = (text: string) => text.replace(/\D/g, "");
 
 /**
  * A number that rolls from the value this device last saw to the value the
@@ -128,22 +148,15 @@ export function AnimatedNumber({
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const columns = el.querySelectorAll<HTMLElement>("[data-digit]");
-    const before = tokenize(previous)
-      .filter((t) => t.digits)
-      .map((t) => t.text);
-    const after = tokenize(value)
-      .filter((t) => t.digits)
-      .map((t) => t.text);
 
-    // Right-aligned against the incoming width, so the units column stays the
-    // units column when a number grows a digit.
-    const from: string[] = [];
-    after.forEach((run, i) => {
-      const old = before[i] ?? "";
-      from.push(old.slice(-run.length).padStart(run.length, " "));
-    });
-    const fromDigits = from.join("");
-    const toDigits = after.join("");
+    // Aligned as one sequence of digits, right to left, rather than run by
+    // run: the runs are an artefact of where the formatter put its separators,
+    // and they do not line up across a thousands boundary — "999" is one run
+    // and "1,000" is two. Read as a single sequence, the units column stays
+    // the units column no matter how the grouping moved, and a number that
+    // grew a digit starts that new column from the blank.
+    const toDigits = digitsOf(value);
+    const fromDigits = digitsOf(previous).slice(-toDigits.length).padStart(toDigits.length, " ");
     if (fromDigits.length !== columns.length) return;
 
     columns.forEach((column, i) => {
