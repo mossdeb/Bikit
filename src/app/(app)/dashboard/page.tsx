@@ -25,6 +25,7 @@ import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { loadScoredRidesForBikes } from "@/lib/ride-stress-data";
 import { rideIntensity } from "@/lib/ride-stress";
 import { RideLoadGlyph } from "@/components/ride-load-icons";
+import { AnimatedNumber } from "@/components/animated-number";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { InstallAppDialog } from "@/components/install-app-dialog";
 
@@ -301,13 +302,19 @@ export default async function DashboardPage({
                   {/* Mono and full-contrast, like the totals in the bike header
                       they mirror — the muted grey was the odd one out. */}
                   <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
-                    <span>
-                      {[
-                        bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
-                        bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    {/* Two nodes rather than one joined string — see the note
+                        on the bike list, which does exactly this. */}
+                    <span className="inline-flex items-baseline whitespace-pre">
+                      {bike.total_km != null && (
+                        <AnimatedNumber
+                          value={formatDistance(bike.total_km, distanceUnit, locale)}
+                          storageKey={`${bike.id}:km`}
+                        />
+                      )}
+                      {bike.total_km != null && bike.total_hours != null && <span>{" · "}</span>}
+                      {bike.total_hours != null && (
+                        <AnimatedNumber value={formatHours(bike.total_hours, locale)} storageKey={`${bike.id}:hours`} />
+                      )}
                     </span>
                     {/* Same third reading as the bike list — see the note there
                         for why the glyph carries the name and why it stays

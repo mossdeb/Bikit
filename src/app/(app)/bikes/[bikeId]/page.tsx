@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { manualSyncStrava } from "@/lib/actions/strava";
 import { selectActiveInterval, calculateComponentUsage, type NamedIntervalStatusInput, type ActiveIntervalResult } from "@/lib/maintenance/calculation";
 import { bikeHealthLevel, healthPercent } from "@/lib/maintenance/health";
-import { formatDate, formatDistance, formatHours, kmToUnit } from "@/lib/format";
+import { formatDate, formatDistance, formatHours, kmToUnit, splitFigureUnit } from "@/lib/format";
+import { AnimatedNumber } from "@/components/animated-number";
 import { formatWarranty } from "@/lib/warranty";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
@@ -66,13 +67,26 @@ function DetailField({
  * every unit that reaches here is a single trailing token, while the figure
  * itself may carry a thousands separator that is a space in some locales.
  */
-function StatValue({ text }: { text: string }) {
-  const at = text.lastIndexOf(" ");
-  if (at < 0) return <>{text}</>;
+function StatValue({ text, storageKey }: { text: string; storageKey?: string }) {
+  const { figure, unit } = splitFigureUnit(text);
+  if (unit === null) return <>{text}</>;
+  // With a key the whole string goes to AnimatedNumber, which does this same
+  // split itself — the point being that what it stores is the formatted total,
+  // identical to what the bike cards store, so one ride animates once and not
+  // once per screen. Without a key (the Ride Load cell) it stays plain text.
+  if (storageKey) {
+    return (
+      <AnimatedNumber
+        value={text}
+        storageKey={storageKey}
+        unitClassName="ml-1 text-sm font-medium text-muted-foreground"
+      />
+    );
+  }
   return (
     <>
-      {text.slice(0, at)}
-      <span className="ml-1 text-sm font-medium text-muted-foreground">{text.slice(at + 1)}</span>
+      {figure}
+      <span className="ml-1 text-sm font-medium text-muted-foreground">{unit}</span>
     </>
   );
 }
@@ -424,14 +438,14 @@ export default async function BikeDetailPage({
     >
       {distanceDetail && (
         <StatCell
-          value={<StatValue text={distanceDetail} />}
+          value={<StatValue text={distanceDetail} storageKey={`${bike.id}:km`} />}
           label={dict.bikes.detail.totalDistance}
           className="flex-1 basis-0"
         />
       )}
       {hoursDetail && (
         <StatCell
-          value={<StatValue text={hoursDetail} />}
+          value={<StatValue text={hoursDetail} storageKey={`${bike.id}:hours`} />}
           label={dict.bikes.detail.totalHours}
           className="flex-1 basis-0"
         />

@@ -17,6 +17,7 @@ import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { loadScoredRidesForBikes } from "@/lib/ride-stress-data";
 import { rideIntensity } from "@/lib/ride-stress";
 import { RideLoadGlyph } from "@/components/ride-load-icons";
+import { AnimatedNumber } from "@/components/animated-number";
 
 export default async function BikesPage() {
   const supabase = await createClient();
@@ -154,13 +155,23 @@ export default async function BikesPage() {
                 {/* Mono and full-contrast, like the totals in the bike header
                     they mirror — the muted grey was the odd one out. */}
                 <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
-                  <span>
-                    {[
-                      bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
-                      bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                  {/* The two totals were one joined string; they are two nodes
+                      now because each one rolls against its own baseline and
+                      has to store the very same figure the bike's own header
+                      stores. The separator moved out of the join for the same
+                      reason and keeps the text colour it had — the muted one
+                      below belongs to the Ride Load, which arrived later. */}
+                  <span className="inline-flex items-baseline whitespace-pre">
+                    {bike.total_km != null && (
+                      <AnimatedNumber
+                        value={formatDistance(bike.total_km, distanceUnit, locale)}
+                        storageKey={`${bike.id}:km`}
+                      />
+                    )}
+                    {bike.total_km != null && bike.total_hours != null && <span>{" · "}</span>}
+                    {bike.total_hours != null && (
+                      <AnimatedNumber value={formatHours(bike.total_hours, locale)} storageKey={`${bike.id}:hours`} />
+                    )}
                   </span>
                   {/* Third reading on the line, behind the same separator the
                       other two use. The glyph carries the name instead of the

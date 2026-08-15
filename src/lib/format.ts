@@ -34,6 +34,24 @@ export function formatDistance(km: number, unit: "km" | "mi", locale: Locale = "
   return `${formatNumber(Math.round(kmToUnit(km, unit)), locale)} ${unit}`;
 }
 
+/**
+ * Splits a formatted total into its figure and its unit — "3372 km" into
+ * "3372" and "km".
+ *
+ * The split is on the LAST space and not the first, because the figure can
+ * carry a space as its own thousands separator in some locales while every
+ * unit that reaches here is a single trailing token. This is the rule the bike
+ * header's `StatValue` was already applying by hand; it lives here now because
+ * `AnimatedNumber` stores the figure alone, and the three screens that show a
+ * bike's distance have to store the very same string or each one replays the
+ * same ride.
+ */
+export function splitFigureUnit(text: string): { figure: string; unit: string | null } {
+  const at = text.lastIndexOf(" ");
+  if (at < 0) return { figure: text, unit: null };
+  return { figure: text.slice(0, at), unit: text.slice(at + 1) };
+}
+
 /** Converts a stored km value to the given display unit (unformatted, for form inputs). */
 export function kmToUnit(km: number, unit: "km" | "mi"): number {
   return unit === "mi" ? km * KM_TO_MI : km;
