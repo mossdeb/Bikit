@@ -271,7 +271,12 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
 
         {intensity ? (
           <>
-            <section className="px-5 py-6 sm:px-6">
+            {/* 18px at the sides against the 20 the other sections carry. The
+                box has its own outline and 10px inside it, so it can sit
+                slightly wider than a block of text without crowding the card.
+                The 2px means this section's edge no longer lines up exactly
+                with the headings above and below. */}
+            <section className="px-[18px] py-6 sm:px-6">
               {/* No section heading here: the card's own header, two rules
                   above, already says Ride Load, and repeating it put the same
                   two words twice on one screen. What separates this reading
