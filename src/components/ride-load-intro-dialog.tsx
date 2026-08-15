@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import { BikeIcon } from "@/components/bike-icon";
 import { INTENSITY_FILL_CLASS } from "@/components/ride-intensity-visuals";
+import { ElevationGlyph, LifetimeLoadGlyph, RideLoadGlyph } from "@/components/ride-load-icons";
 import { cn } from "@/lib/utils";
 import type { RideIntensityBand } from "@/lib/ride-stress";
 
@@ -31,7 +32,6 @@ export interface RideLoadExample {
   bikeLabel: string;
   distance: string;
   elevation: string;
-  duration: string;
   score: string;
   band: RideIntensityBand;
   bandLabel: string;
@@ -41,43 +41,45 @@ export interface RideLoadIntroLabels {
   title: string;
   tagline: string;
   vs: string;
-  rideLoadLabel: string;
   compareLead: string;
   compareEmphasis: string;
   recentTitle: string;
-  recentPoints: string[];
+  recentPoint: string;
   lifetimeTitle: string;
-  lifetimePoints: string[];
+  lifetimePoint: string;
   gotIt: string;
   examples: RideLoadExample[];
 }
 
-function ExampleCard({ example, rideLoadLabel }: { example: RideLoadExample; rideLoadLabel: string }) {
+function ExampleCard({ example }: { example: RideLoadExample }) {
   return (
-    <div className="min-w-0 flex-1">
-      <div className="overflow-hidden rounded-[12px] border border-border">
-        <p className="border-b border-border bg-muted px-3 py-2 text-center text-sm font-bold">{example.distance}</p>
-        <div className="flex items-center justify-center gap-2 px-3 py-3">
-          <BikeIcon type={example.bikeType} plain className="size-9" />
+    <div className="min-w-0 flex-1 overflow-hidden rounded-[14px] border border-border">
+      <p className="px-2 py-2 text-center text-base font-bold">
+        {example.distance.replace(/\s?(km|mi)$/, "")}{" "}
+        <span className="text-sm font-medium text-muted-foreground">{example.distance.match(/km|mi/)?.[0]}</span>
+      </p>
+      <div className="bg-muted px-2 py-2.5">
+        <div className="flex items-center justify-center gap-1.5">
+          <BikeIcon type={example.bikeType} plain className="size-8" />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-bold">{example.bikeLabel}</span>
-            {/* The climb and the clock, because the score cannot be checked
-                from the distance alone and an example nobody can check is a
-                claim rather than a demonstration. */}
-            <span className="block text-xs text-muted-foreground">
-              {example.elevation} · {example.duration}
+            <span className="block truncate text-sm leading-tight font-bold">{example.bikeLabel}</span>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              {example.elevation}
+              <ElevationGlyph />
             </span>
           </span>
         </div>
+        <p
+          className={cn(
+            "mt-2 flex items-center justify-center gap-1 rounded-[8px] px-2 py-1 text-sm font-bold",
+            INTENSITY_FILL_CLASS[example.band]
+          )}
+        >
+          <RideLoadGlyph className="size-3.5" />
+          {example.score}
+          <span className="text-xs font-medium">[{example.bandLabel}]</span>
+        </p>
       </div>
-      <p
-        className={cn(
-          "-mt-2 mx-auto w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold",
-          INTENSITY_FILL_CLASS[example.band]
-        )}
-      >
-        {rideLoadLabel} {example.score} · {example.bandLabel}
-      </p>
     </div>
   );
 }
@@ -90,44 +92,30 @@ function IntroCard({ labels, onDismiss }: { labels: RideLoadIntroLabels; onDismi
       </DialogPrimitive.Title>
       <DialogPrimitive.Description className="mt-2 text-center text-base">{labels.tagline}</DialogPrimitive.Description>
 
-      <div className="mt-6 flex items-center gap-2">
-        <ExampleCard example={labels.examples[0]} rideLoadLabel={labels.rideLoadLabel} />
+      <div className="mt-6 flex items-stretch gap-2">
+        <ExampleCard example={labels.examples[0]} />
         <span className="shrink-0 self-center text-xs font-semibold text-muted-foreground">{labels.vs}</span>
-        <ExampleCard example={labels.examples[1]} rideLoadLabel={labels.rideLoadLabel} />
+        <ExampleCard example={labels.examples[1]} />
       </div>
 
-      <p className="mt-5 rounded-[12px] bg-muted px-4 py-3 text-center text-sm">
-        {labels.compareLead} <strong className="font-bold">{labels.compareEmphasis}</strong>
+      <p className="mt-4 rounded-[12px] bg-muted px-4 py-3 text-center text-sm">
+        {labels.compareLead} · <strong className="font-bold">{labels.compareEmphasis}</strong>
       </p>
 
       <section className="mt-6">
         <h3 className="flex items-center gap-2 text-base font-bold">
-          <span aria-hidden>⚡</span>
+          <RideLoadGlyph className="size-[18px]" />
           {labels.recentTitle}
         </h3>
-        <ul className="mt-2 space-y-1.5">
-          {labels.recentPoints.map((point) => (
-            <li key={point} className="flex gap-2 text-sm leading-snug">
-              <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground" />
-              <span className="min-w-0">{point}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-1.5 text-sm leading-snug">{labels.recentPoint}</p>
       </section>
 
       <section className="mt-5">
         <h3 className="flex items-center gap-2 text-base font-bold">
-          <span aria-hidden>📈</span>
+          <LifetimeLoadGlyph className="size-[18px]" />
           {labels.lifetimeTitle}
         </h3>
-        <ul className="mt-2 space-y-1.5">
-          {labels.lifetimePoints.map((point) => (
-            <li key={point} className="flex gap-2 text-sm leading-snug">
-              <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground" />
-              <span className="min-w-0">{point}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-1.5 text-sm leading-snug">{labels.lifetimePoint}</p>
       </section>
 
       <Button type="button" variant="inverted" size="lg" className="mt-7 w-full" onClick={onDismiss}>

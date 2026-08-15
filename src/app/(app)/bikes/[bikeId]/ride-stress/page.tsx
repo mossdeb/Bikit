@@ -104,16 +104,17 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   };
 
   const introLabels = {
-    title: dict.rideStress.title,
+    // The card teaches the metric, so it is headed by the metric — the page
+    // above it is what carries the feature's name.
+    title: dict.rideStress.rideLoad,
     tagline: dict.rideStress.intro.tagline,
     vs: dict.rideStress.intro.vs,
-    rideLoadLabel: dict.rideStress.rideLoad,
     compareLead: dict.rideStress.intro.compareLead,
     compareEmphasis: dict.rideStress.intro.compareEmphasis,
     recentTitle: dict.rideStress.intro.recentTitle,
-    recentPoints: dict.rideStress.intro.recentPoints,
+    recentPoint: dict.rideStress.intro.recentPoint,
     lifetimeTitle: dict.rideStress.intro.lifetimeTitle,
-    lifetimePoints: dict.rideStress.intro.lifetimePoints,
+    lifetimePoint: dict.rideStress.intro.lifetimePoint,
     gotIt: dict.rideStress.intro.gotIt,
     examples: RIDE_LOAD_EXAMPLES.map((example) => {
       const { stress } = activityRideStress(
@@ -126,7 +127,6 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
         bikeLabel: example.bikeType,
         distance: formatDistance(example.distanceKm, distanceUnit, locale),
         elevation: `${number(example.elevationM)} m`,
-        duration: formatHours(example.movingHours, locale),
         score: number(stress),
         band,
         bandLabel: dict.rideStress.bandShort[band],
