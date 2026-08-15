@@ -21,7 +21,10 @@ import { StravaBadgeIcon } from "@/components/strava-icon";
 import { NewToBikitCard } from "@/components/new-to-bikit-card";
 import { UpgradeToPersonalCard } from "@/components/upgrade-to-personal-card";
 import { getUserSubscription } from "@/lib/subscription";
-import { PLAN_LIMITS } from "@/lib/plans";
+import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
+import { loadScoredRidesForBikes } from "@/lib/ride-stress-data";
+import { rideIntensity } from "@/lib/ride-stress";
+import { RideLoadGlyph } from "@/components/ride-load-icons";
 import { OnboardingDialog } from "@/components/onboarding-dialog";
 import { InstallAppDialog } from "@/components/install-app-dialog";
 
@@ -101,6 +104,19 @@ export default async function DashboardPage({
         .order("created_at", { ascending: false })
         .limit(5),
     ]);
+
+  // Same gate and same one-query-for-every-card shape as the bike list. Second
+  // round trip for the same reason: it needs the ids the batch above returns.
+  const rideLoadBikes =
+    PLAN_FEATURES[subscription.plan].rideLoad
+      ? (bikes ?? []).filter((bike) => bike.strava_gear_id).map((bike) => ({ id: bike.id, type: bike.type }))
+      : [];
+  const ridesByBike = await loadScoredRidesForBikes(supabase, rideLoadBikes);
+
+  const rideStressNow = new Date();
+  const rideLoadById = new Map(
+    [...ridesByBike].map(([bikeId, rides]) => [bikeId, rideIntensity(rides, rideStressNow)])
+  );
 
   const components = componentRows ?? [];
   const componentInfo = new Map(components.map((c) => [c.id, c]));
@@ -284,13 +300,25 @@ export default async function DashboardPage({
                 <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                   {/* Mono and full-contrast, like the totals in the bike header
                       they mirror — the muted grey was the odd one out. */}
-                  <p className="font-mono text-sm font-semibold text-foreground">
-                    {[
-                      bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
-                      bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                  <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
+                    <span>
+                      {[
+                        bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
+                        bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                    {/* Same third reading as the bike list — see the note there
+                        for why the glyph carries the name and why it stays
+                        uncoloured next to a health badge. */}
+                    {rideLoadById.get(bike.id) && (
+                      <>
+                        <span aria-hidden className="text-muted-foreground">·</span>
+                        <RideLoadGlyph className="size-3 -translate-y-px" />
+                        <span>{Math.round(rideLoadById.get(bike.id)!.value)}</span>
+                      </>
+                    )}
                   </p>
                   <span className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold">
                     {dict.bikes.viewBike}

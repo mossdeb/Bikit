@@ -13,7 +13,10 @@ import { StravaBadgeIcon } from "@/components/strava-icon";
 import { NewToBikitCard } from "@/components/new-to-bikit-card";
 import { UpgradeToPersonalCard } from "@/components/upgrade-to-personal-card";
 import { getUserSubscription } from "@/lib/subscription";
-import { PLAN_LIMITS } from "@/lib/plans";
+import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
+import { loadScoredRidesForBikes } from "@/lib/ride-stress-data";
+import { rideIntensity } from "@/lib/ride-stress";
+import { RideLoadGlyph } from "@/components/ride-load-icons";
 
 export default async function BikesPage() {
   const supabase = await createClient();
@@ -48,6 +51,23 @@ export default async function BikesPage() {
         "id, component_id, bike_id, name, interval_type, interval_value, install_date, component_created_at, last_intervention_date, bike_km_at_install, bike_hours_at_install, last_service_km, last_service_hours"
       ),
   ]);
+
+  // Both halves of the same gate the bike page uses: the bike has to be linked
+  // to Strava for rides to exist at all, and the plan has to be allowed to see
+  // the reading. Unlike the bike page this cannot start until `bikes` has
+  // landed — it needs their ids — so it is a second round trip rather than one
+  // more promise in the batch above. One query for every card, though, not one
+  // per card: the same shape the health rows above already use.
+  const rideLoadBikes =
+    PLAN_FEATURES[subscription.plan].rideLoad
+      ? (bikes ?? []).filter((bike) => bike.strava_gear_id).map((bike) => ({ id: bike.id, type: bike.type }))
+      : [];
+  const ridesByBike = await loadScoredRidesForBikes(supabase, rideLoadBikes);
+
+  const rideStressNow = new Date();
+  const rideLoadById = new Map(
+    [...ridesByBike].map(([bikeId, rides]) => [bikeId, rideIntensity(rides, rideStressNow)])
+  );
 
   const bikeHealthById = new Map(
     (bikes ?? []).map((bike) => {
@@ -133,13 +153,37 @@ export default async function BikesPage() {
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 {/* Mono and full-contrast, like the totals in the bike header
                     they mirror — the muted grey was the odd one out. */}
-                <p className="font-mono text-sm font-semibold text-foreground">
-                  {[
-                    bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
-                    bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+                <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
+                  <span>
+                    {[
+                      bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : null,
+                      bike.total_hours != null ? formatHours(bike.total_hours, locale) : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                  {/* Third reading on the line, behind the same separator the
+                      other two use. The glyph carries the name instead of the
+                      words "Ride Load": at this size the label would be longer
+                      than the two totals it follows, and the same weight glyph
+                      names the figure on the bike page and in the report. No
+                      band colour — a card that already carries a health badge
+                      would be showing two coloured verdicts on one bike, and
+                      they are not the same scale. */}
+                  {rideLoadById.get(bike.id) && (
+                    <>
+                      <span aria-hidden className="text-muted-foreground">·</span>
+                      {/* Nudged up 1px, and the reason is not that it was off
+                          centre — measured, the box centre and the digits'
+                          optical centre are 0.35px apart. It is that the glyph
+                          is 12px of solid ink while the digits are 10.6px and
+                          never go below the baseline, so a centred icon dips
+                          under the line the numbers sit on and reads as
+                          hanging. Raising it puts its foot on their baseline. */}
+                      <RideLoadGlyph className="size-3 -translate-y-px" />
+                      <span>{Math.round(rideLoadById.get(bike.id)!.value)}</span>
+                    </>
+                  )}
                 </p>
                 <span className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold">
                   {dict.bikes.viewBike}
