@@ -11,7 +11,7 @@ import {
   activityRideStress,
   derivedRideMetrics,
   modalityFor,
-  lifetimeRideStress,
+  lifetimeRideTotals,
   rideIntensity,
   rideIntensityBand,
   rideIntensityDaily,
@@ -35,6 +35,9 @@ import { RideLoadFormulaButton } from "@/components/ride-load-formula-dialog";
 import { dismissRideStressIntro } from "@/lib/actions/ride-stress";
 
 const WINDOW_DAYS = 30;
+
+/** Riding hours a bike needs before its load-per-hour is worth printing. */
+const LOAD_RATE_MIN_HOURS = 1;
 
 /**
  * The two rides the explainer compares. Same distance, three times apart in
@@ -93,7 +96,19 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
   const rides = await loadScoredRides(supabase, bikeId, bike.type);
   const now = new Date();
   const intensity = rideIntensity(rides, now);
-  const lifetime = lifetimeRideStress(rides);
+  const lifetimeTotals = lifetimeRideTotals(rides);
+
+  // The rate the load was accumulated at, per hour of riding — not per
+  // kilometre. Dividing by distance rewards standing still: a ride that barely
+  // moves still earns time and elevation load, and a tiny denominator turns
+  // that into a flattering figure. Measured on the owner's two bikes, the
+  // parking-lot laps read 1.10x the enduro archetype per kilometre and 0.49x
+  // per hour, and only the second one is true.
+  //
+  // Hidden under an hour of riding: three laps and 34 minutes produce a number
+  // with all the confidence of a fact and none of the evidence.
+  const lifetimeLoadPerHour =
+    lifetimeTotals.movingHours >= LOAD_RATE_MIN_HOURS ? lifetimeTotals.stress / lifetimeTotals.movingHours : null;
 
   // The rider's own clock, taken from their most recent ride — the only
   // evidence the app has of what timezone they ride in.
@@ -467,7 +482,17 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
             </div>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{dict.rideStress.lifetimeLoad}</p>
-              <p className="mt-0.5 font-mono text-sm font-semibold">{number(lifetime)}</p>
+              <p className="mt-0.5 flex items-center gap-2 font-mono text-sm font-semibold">
+                {number(lifetimeTotals.stress)}
+                {/* Neutral chip, not a band one: this is a reading and not a
+                    state, and the coloured pills three sections up are a
+                    different scale entirely. */}
+                {lifetimeLoadPerHour != null && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    {number(lifetimeLoadPerHour)} {dict.rideStress.loadPerHour}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           {/* The two totals above can carry kilometres typed by hand; this one

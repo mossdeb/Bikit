@@ -6,6 +6,7 @@ import {
   derivedRideMetrics,
   foldRideIntensity,
   lifetimeRideStress,
+  lifetimeRideTotals,
   localDateOf,
   modalityFor,
   rideIntensity,
@@ -196,6 +197,41 @@ describe("lifetimeRideStress", () => {
 
   it("is zero for a bike with no rides", () => {
     expect(lifetimeRideStress([])).toBe(0);
+  });
+});
+
+describe("lifetimeRideTotals", () => {
+  it("counts the distance and time of the same rides that summed the load", () => {
+    const rides = scoreRides(
+      [
+        ride({ id: 1, date: "2026-08-01T08:00:00Z" }),
+        ride({ id: 2, date: "2026-08-02T08:00:00Z", distanceKm: 90, movingHours: 6, elevationM: 2800 }),
+      ],
+      "E-MTB"
+    );
+    const totals = lifetimeRideTotals(rides);
+    expect(totals.stress).toBeCloseTo(lifetimeRideStress(rides), 8);
+    expect(totals.distanceKm).toBeCloseTo(135, 8);
+    expect(totals.movingHours).toBeCloseTo(9, 8);
+    expect(totals.rides).toBe(2);
+  });
+
+  it("keeps rides under the floor in the denominator, since they are in the load", () => {
+    const rides = scoreRides(
+      [
+        ride({ id: 1, date: "2026-08-01T08:00:00Z" }),
+        // 400 m in 5 minutes: below the floor, so it leaves the index alone.
+        ride({ id: 2, date: "2026-08-01T18:00:00Z", distanceKm: 0.4, movingHours: 0.08, elevationM: 3 }),
+      ],
+      "E-MTB"
+    );
+    expect(rides[1].countsTowardIntensity).toBe(false);
+    expect(lifetimeRideTotals(rides).rides).toBe(2);
+    expect(lifetimeRideTotals(rides).distanceKm).toBeCloseTo(45.4, 8);
+  });
+
+  it("has nothing to divide by for a bike with no rides", () => {
+    expect(lifetimeRideTotals([])).toEqual({ stress: 0, distanceKm: 0, movingHours: 0, rides: 0 });
   });
 });
 

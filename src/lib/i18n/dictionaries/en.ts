@@ -840,6 +840,9 @@ const en = {
     // the accumulated total. "Intensity" and "stress" are out of the UI.
     rideLoad: "Ride Load",
     lifetimeLoad: "Lifetime Load",
+    // A unit, not a description — it stays as it is in both languages, like
+    // the rest of the names in this section. Ride Load per hour ridden.
+    loadPerHour: "Load/h",
     subtitle: "Measures how demanding your recent rides have been and the wear on your bike.",
     // Two clauses per band: `lead` says what the rides have asked of the bike,
     // `emphasis` — the bold half — says what to do next. The band's name stays

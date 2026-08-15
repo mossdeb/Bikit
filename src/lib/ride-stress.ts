@@ -275,6 +275,48 @@ export function lifetimeRideStress(rides: ScoredRide[], checkpoint?: RideStressC
   return rides.reduce((total, ride) => total + ride.stress, checkpoint?.stressTotal ?? 0);
 }
 
+/** What the rides that summed the load also covered. */
+export interface LifetimeRideTotals {
+  stress: number;
+  distanceKm: number;
+  movingHours: number;
+  rides: number;
+}
+
+/**
+ * The lifetime load with the distance and time of the SAME rides beside it.
+ *
+ * It exists because those are the only denominators the load may be divided
+ * by. `bikes.total_km` and `bikes.total_hours` are the bike's whole life —
+ * kilometres typed by hand and history from before Bikit included — while the
+ * load counts only the rides Bikit has synced. Dividing one by the other mixes
+ * two populations: on a bike with 3372 km of totals and 17 synced rides it
+ * reports a twentieth of the effort the rides actually carried, which is a
+ * fact about the denominator and not about the bike.
+ *
+ * Every ride counts, including the ones under the floor. They are in the load
+ * and they were really pedalled, so leaving their kilometres out would inflate
+ * whatever rate is computed from this.
+ */
+export function lifetimeRideTotals(
+  rides: ScoredRide[],
+  checkpoint?: RideStressCheckpoint | null
+): LifetimeRideTotals {
+  return rides.reduce<LifetimeRideTotals>(
+    (total, ride) => ({
+      stress: total.stress + ride.stress,
+      distanceKm: total.distanceKm + ride.distanceKm,
+      movingHours: total.movingHours + ride.movingHours,
+      rides: total.rides + 1,
+    }),
+    // A checkpoint carries a folded stress total but no folded distance, so a
+    // compacted history would leave this rate measuring only what is left
+    // unfolded. Nothing is compacted today; the day something is, the
+    // checkpoint has to grow these two fields or this has to refuse to answer.
+    { stress: checkpoint?.stressTotal ?? 0, distanceKm: 0, movingHours: 0, rides: 0 }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Ride Intensity
 // ---------------------------------------------------------------------------
