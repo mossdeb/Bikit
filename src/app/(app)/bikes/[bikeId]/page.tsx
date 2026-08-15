@@ -545,7 +545,7 @@ export default async function BikeDetailPage({
           sit against. Desktop gets its margins back, and the radius with them.
           The bottom margin is 32px on a phone, to match the 32px the tab row
           leaves under itself (its mb-6 plus the 8px gap on the Tabs root). */}
-      <div className="-mx-5 mb-8 bg-card px-[15px] pt-[37px] pb-6 sm:mx-0 sm:mb-6 sm:rounded-lg sm:px-6 sm:pt-6">
+      <div className="-mx-5 mb-8 bg-card px-5 pt-[37px] pb-6 sm:mx-0 sm:mb-6 sm:rounded-lg sm:px-6 sm:pt-6">
         {/* 12px between the name and the health badge on mobile, not 24: with
             30px of card padding the longest status ("Serviço Necessário")
             needs every pixel to stay on the name's line. Desktop, where the
