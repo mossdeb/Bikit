@@ -30,11 +30,12 @@ const tabsListVariants = cva(
       variant: {
         default: "bg-muted",
         line: "gap-1 bg-transparent",
-        // Segmented control: a dark track with the selected tab as a white
-        // pill. `sidebar` is the project's fixed dark surface — the same one
-        // the bottom nav uses — so the track stays dark in both themes and the
-        // pill can stay white against it.
-        pill: "relative gap-1 rounded-full bg-sidebar group-data-horizontal/tabs:h-auto",
+        // Segmented control. The track was `sidebar` — the fixed near-black the
+        // bottom nav uses — which made a black bar sit between a bike's header
+        // and its components and read as a second navigation. It is a filter
+        // over the list below it, not a place to go, so it steps back to the
+        // card surface with the selected tab a shade darker inside it.
+        pill: "relative gap-1 rounded-full bg-card group-data-horizontal/tabs:h-auto",
       },
     },
     defaultVariants: {
@@ -74,12 +75,12 @@ function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
       // server-rendered page reads as an unselected control.
       renderBeforeHydration
       className={cn(
-        // The page's light background colour, written out rather than taken
-        // from `--background`: it rides on `sidebar`, which is the same dark in
-        // both themes, so the pill has to be too. `bg-background` would follow
-        // the theme down to #17181b and vanish into the track, taking the
-        // near-black label with it.
-        "absolute top-[var(--active-tab-top)] left-0 h-[var(--active-tab-height)] w-[var(--active-tab-width)] translate-x-[var(--active-tab-left)] rounded-full bg-[#EFEFEF]",
+        // `muted` against the track's `card`: one step of surface, no more.
+        // Both follow the theme, so the selected tab is a shade darker than
+        // the track in light and a shade lighter in dark, which is the same
+        // reading either way. It was a hardcoded #EFEFEF back when the track
+        // was a fixed near-black and the pill had to ignore the theme.
+        "absolute top-[var(--active-tab-top)] left-0 h-[var(--active-tab-height)] w-[var(--active-tab-width)] translate-x-[var(--active-tab-left)] rounded-full bg-muted",
         // Tailwind v4 animates the `translate` property, not `transform` — a
         // transition on `transform` here would fade nothing and move instantly.
         "transition-[translate,width] duration-250 ease-out motion-reduce:transition-none",
@@ -100,13 +101,14 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         // The fill belongs to TabsIndicator, so the tab itself stays see-through
         // and only sits above it — `relative` is already in the base classes.
         "group-data-[variant=pill]/tabs-list:h-auto group-data-[variant=pill]/tabs-list:rounded-full group-data-[variant=pill]/tabs-list:bg-transparent group-data-[variant=pill]/tabs-list:data-active:bg-transparent dark:group-data-[variant=pill]/tabs-list:data-active:border-transparent dark:group-data-[variant=pill]/tabs-list:data-active:bg-transparent",
-        // Text colours belong to the variant, not the caller: the track is a
-        // fixed dark surface, so light-on-dark at rest and dark-on-white when
-        // selected hold in both themes. The base classes underneath aim the
-        // other way — `hover:text-foreground` alone would paint near-black on
-        // near-black the moment the pointer arrived — and a plain colour at the
-        // call site cannot displace a variant-scoped one.
-        "group-data-[variant=pill]/tabs-list:text-white/70 group-data-[variant=pill]/tabs-list:hover:text-white group-data-[variant=pill]/tabs-list:data-active:text-[#101014] dark:group-data-[variant=pill]/tabs-list:text-white/70 dark:group-data-[variant=pill]/tabs-list:hover:text-white dark:group-data-[variant=pill]/tabs-list:data-active:text-[#101014]",
+        // Text colours belong to the variant, not the caller — a plain colour
+        // at the call site cannot displace a variant-scoped one. Both states
+        // are now readable type on a light surface, so the pair is the
+        // ordinary muted/foreground one instead of the white-on-black the dark
+        // track needed. The `dark:` copies are kept because the base classes
+        // underneath carry their own, and a variant rule only wins where it is
+        // written at the same specificity.
+        "group-data-[variant=pill]/tabs-list:text-muted-foreground group-data-[variant=pill]/tabs-list:hover:text-foreground group-data-[variant=pill]/tabs-list:data-active:text-foreground dark:group-data-[variant=pill]/tabs-list:text-muted-foreground dark:group-data-[variant=pill]/tabs-list:hover:text-foreground dark:group-data-[variant=pill]/tabs-list:data-active:text-foreground",
         "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className
