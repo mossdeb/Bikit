@@ -833,24 +833,42 @@ const en = {
     heading: "Maintenance",
   },
   rideStress: {
-    title: "Lifetime Ride Load",
+    title: "Ride Load",
     beta: "Beta",
     // Three names and no more: the feature (title), the 0..100 index over the
     // last 30 days — which is also the unit a single ride is scored in — and
     // the accumulated total. "Intensity" and "stress" are out of the UI.
     rideLoad: "Ride Load",
     lifetimeLoad: "Lifetime Load",
-    subtitle:
-      "Measures how demanding your recent rides have been, and helps you see the wear the bike is taking.",
-    scoreLead: {
-      light: "Low riding stress. Normal wear.",
-      moderate: "Moderate riding stress. Faster wear expected.",
-      high: "High riding stress. Inspect key components more often.",
-      extreme: "Extreme riding stress. Maintenance may be required earlier.",
+    subtitle: "Measures how demanding your recent rides have been and the wear on your bike.",
+    // Two clauses per band: `lead` says what the rides have asked of the bike,
+    // `emphasis` — the bold half — says what to do next. The band's name stays
+    // out of the sentence; it is set large directly above, and repeating it
+    // spent the bold on something already read.
+    scoreSentence: {
+      light: {
+        lead: "Your recent rides have asked little of your bike.",
+        emphasis: "Nothing needs bringing forward.",
+      },
+      moderate: {
+        lead: "Your recent rides have given your bike real work.",
+        emphasis: "Expect wear to arrive a little sooner.",
+      },
+      high: {
+        lead: "Your recent rides have demanded a lot from your bike.",
+        emphasis: "Check the main components more often.",
+      },
+      extreme: {
+        lead: "Your recent rides have pushed your bike to its limit.",
+        emphasis: "Service the hardest-worked parts sooner.",
+      },
     },
     bandShort: { light: "Light", moderate: "Moderate", high: "High", extreme: "Extreme" },
+    // The ends of the 0..100 axis, not band names: the top is the axis's
+    // extreme. It read "High", which is also one of the four band names and
+    // said two different things with one word inside the same box.
     scaleLow: "Low",
-    scaleHigh: "High",
+    scaleHigh: "Extreme",
     basedOn: "Based on your last 30 days of rides.",
     trendTitle: "Ride Load trend",
     axisDay: "Day",
@@ -864,7 +882,7 @@ const en = {
     ride: (n: number) => `Ride ${n}`,
     noRides: "No rides have synced to this bike yet.",
     noRidesIn30: "No rides in the last 30 days.",
-    lifetimeTitle: "Lifetime",
+    lifetimeTitle: "Lifetime Ride Load",
     lifetimeLead: "How this bike has been used since it was added to Bikit.",
     ridesCounted: (n: number) => (n === 1 ? "1 ride counted" : `${n} rides counted`),
     rideDetails: "Ride details",

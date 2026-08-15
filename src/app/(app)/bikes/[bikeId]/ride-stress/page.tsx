@@ -16,7 +16,13 @@ import {
   rideIntensityTrend,
   type ScoredRide,
 } from "@/lib/ride-stress";
-import { INTENSITY_BAR_CLASS, RideIntensityBar, RideIntensityChip } from "@/components/ride-intensity-visuals";
+import {
+  INTENSITY_BAR_CLASS,
+  INTENSITY_TEXT_CLASS,
+  RideIntensityBar,
+  TrendArrow,
+} from "@/components/ride-intensity-visuals";
+import { RideLoadGlyph } from "@/components/ride-load-icons";
 import { cn } from "@/lib/utils";
 import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
@@ -207,36 +213,52 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
         {intensity ? (
           <>
             <section className="px-5 py-6 sm:px-6">
-              <SectionTitle>{dict.rideStress.rideLoad}</SectionTitle>
-              {/* Foreground and not muted: this is the sentence the reader
-                  came for — what the score means for the bike — and the two
-                  paragraphs around it are the ones that can recede. */}
-              <p className="mt-1.5 text-sm text-foreground">{dict.rideStress.scoreLead[intensity.band]}</p>
-
-              <p className="mt-5">
-                <RideIntensityChip
-                  band={intensity.band}
-                  label={dict.rideStress.bandShort[intensity.band]}
-                  trend={trend}
-                />
-              </p>
-
-              {/* Value beside the bar, not above it: the bar is the sentence
-                  and the number is where it ends. */}
-              <div className="mt-2 flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <RideIntensityBar value={intensity.value} band={intensity.band} />
+              {/* No section heading here: the card's own header, two rules
+                  above, already says Ride Load, and repeating it put the same
+                  two words twice on one screen. What separates this reading
+                  from the header is the outline below, not a title. */}
+              <div className="rounded-lg border border-border p-5">
+                {/* The band as plain type in the foreground colour, with only
+                    the arrow and the bar carrying the band's colour. On the
+                    dark chip the name could be coloured; as bare type on a
+                    white card two of the four bands vanish. */}
+                <div className="flex items-start gap-2">
+                  <h2 className="font-display text-[22px] leading-none font-bold">
+                    {dict.rideStress.bandShort[intensity.band]}
+                  </h2>
+                  <TrendArrow trend={trend} className={cn("h-5", INTENSITY_TEXT_CLASS[intensity.band])} />
                 </div>
-                <span className="w-8 shrink-0 text-right font-mono text-lg leading-none font-bold">
-                  {Math.round(intensity.value)}
-                </span>
-              </div>
-              <div className="mt-1.5 flex justify-between pr-11 text-xs text-muted-foreground">
-                <span>{dict.rideStress.scaleLow}</span>
-                <span>{dict.rideStress.scaleHigh}</span>
+
+                {/* Value beside the bar, not above it: the bar is the sentence
+                    and the number is where it ends. */}
+                <div className="mt-2.5 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <RideIntensityBar value={intensity.value} band={intensity.band} />
+                  </div>
+                  <span className="w-9 shrink-0 text-right font-display text-2xl leading-none font-bold">
+                    {Math.round(intensity.value)}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex justify-between pr-12 text-xs text-muted-foreground">
+                  <span>{dict.rideStress.scaleLow}</span>
+                  <span>{dict.rideStress.scaleHigh}</span>
+                </div>
+
+                {/* Foreground and not muted: this is the sentence the reader
+                    came for — what the score means for the bike. The glyph is
+                    the same weight that marks Ride Load everywhere else. */}
+                <div className="mt-5 flex items-start gap-2.5">
+                  <RideLoadGlyph className="mt-0.5 size-[18px]" />
+                  <p className="text-sm text-foreground">
+                    {dict.rideStress.scoreSentence[intensity.band].lead}{" "}
+                    <strong className="font-semibold">
+                      {dict.rideStress.scoreSentence[intensity.band].emphasis}
+                    </strong>
+                  </p>
+                </div>
               </div>
 
-              <p className="mt-3 text-xs text-muted-foreground">{dict.rideStress.basedOn}</p>
+              <p className="mt-3 text-center text-xs text-muted-foreground">{dict.rideStress.basedOn}</p>
             </section>
 
             {/* One point is not a trend, and the chart declines to draw it —

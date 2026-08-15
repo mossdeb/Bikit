@@ -827,26 +827,46 @@ const pt: Dictionary = {
   rideStress: {
     // Nome da página, em inglês nas duas línguas como as métricas: é o nome da
     // coisa, não a descrição dela. Serve o <h1> e a migalha de pão.
-    title: "Lifetime Ride Load",
+    title: "Ride Load",
     beta: "Beta",
     // Três nomes e não mais: a funcionalidade (title), o índice de 0 a 100 dos
     // últimos 30 dias, que é também a unidade de cada volta, e o acumulado.
     // A palavra "intensity" e a palavra "stress" saíram da interface inteira.
     rideLoad: "Ride Load",
     lifetimeLoad: "Lifetime Load",
-    subtitle:
-      "Mede o quão exigentes têm sido as tuas voltas recentes e ajuda a perceber o desgaste que a bicicleta está a sofrer.",
-    // Uma frase por banda, e não uma só com o nome da banda lá dentro: o que
-    // muda entre elas não é o adjetivo, é o que a pessoa deve fazer a seguir.
-    scoreLead: {
-      light: "Esforço baixo. Desgaste normal.",
-      moderate: "Esforço moderado. É de esperar um desgaste mais rápido.",
-      high: "Esforço elevado. Verifica os componentes principais com mais frequência.",
-      extreme: "Esforço extremo. A manutenção pode ser precisa mais cedo.",
+    subtitle: "Measures how demanding your recent rides have been and the wear on your bike.",
+    // Duas orações por banda: o `lead` diz o que as voltas têm pedido à
+    // bicicleta, o `emphasis` — o que fica a negrito — diz o que fazer a
+    // seguir. O nome da banda não entra na frase: está escrito em grande logo
+    // acima, e repeti-lo gastava o negrito a dizer o que já se leu.
+    //
+    // A moldura do arranque é a mesma nas quatro e o que muda é o verbo, para
+    // que se leiam como quatro pontos da mesma escala e não como quatro
+    // mensagens sem relação.
+    scoreSentence: {
+      light: {
+        lead: "As tuas voltas recentes têm pedido pouco à bicicleta.",
+        emphasis: "Não há nada a antecipar.",
+      },
+      moderate: {
+        lead: "As tuas voltas recentes têm dado trabalho à bicicleta.",
+        emphasis: "Conta com um desgaste mais rápido.",
+      },
+      high: {
+        lead: "As tuas voltas recentes têm exigido muito da bicicleta.",
+        emphasis: "Verifica os componentes principais mais vezes.",
+      },
+      extreme: {
+        lead: "As tuas voltas recentes têm levado a bicicleta ao limite.",
+        emphasis: "Antecipa a revisão do que sofre mais.",
+      },
     },
     bandShort: { light: "Leve", moderate: "Moderada", high: "Alta", extreme: "Extrema" },
+    // As pontas da escala 0–100, e não nomes de banda: o topo é o extremo do
+    // eixo. Dizia "Alta", que é o nome de uma das quatro bandas e ficava a
+    // dizer duas coisas com a mesma palavra na mesma caixa.
     scaleLow: "Baixa",
-    scaleHigh: "Alta",
+    scaleHigh: "Extrema",
     basedOn: "Com base nas voltas dos últimos 30 dias.",
     trendTitle: "Evolução do Ride Load",
     axisDay: "Dia",
@@ -860,7 +880,7 @@ const pt: Dictionary = {
     ride: (n: number) => `Volta ${n}`,
     noRides: "Ainda não há voltas sincronizadas nesta bicicleta.",
     noRidesIn30: "Nenhuma volta nos últimos 30 dias.",
-    lifetimeTitle: "Desde o início",
+    lifetimeTitle: "Lifetime Ride Load",
     lifetimeLead: "Como esta bicicleta foi usada desde que entrou na Bikit.",
     ridesCounted: (n: number) => (n === 1 ? "1 volta contada" : `${n} voltas contadas`),
     rideDetails: "Detalhes da volta",
