@@ -438,7 +438,7 @@ export default async function BikeDetailPage({
     // left a gap the eye reads as a missing reading.
     //
     // Keyed on `showRideLoad` and not on there being a figure: a bike linked
-    // to Strava has the cell from the moment it is linked, reading "—" until
+    // to Strava has the cell from the moment it is linked, reading zero until
     // the first ride lands. Hidden until a number existed, the feature was
     // invisible to exactly the person who had just done the thing that unlocks
     // it, and the cell is the only route to the report — which handles an
@@ -486,13 +486,15 @@ export default async function BikeDetailPage({
             }
             value={
               <span className="inline-flex items-center gap-1 transition-opacity group-hover:opacity-70">
-                {/* An em dash while the bike has no rides yet, and no trend
-                    arrow beside it: there is no direction in a reading that
-                    does not exist. A zero would have been a lie — zero is what
-                    a bike with rides that are all too short reads.
-                    The dash is not wrapped, so no baseline is stored for it and
-                    the first real number arrives without rolling out of a
-                    reading that never was one.
+                {/* Zero while the bike has no rides yet, and no trend arrow
+                    beside it: there is no direction in a reading nobody has
+                    taken. An em dash was the honest character — zero is also
+                    what a bike whose rides are all too short reads, so the two
+                    states now look alike — but it drew as a thin stroke that
+                    read as nothing at all rather than as a starting point.
+                    Not wrapped in AnimatedNumber, so no baseline is stored for
+                    it and the first real number arrives without rolling out of
+                    a reading that never was one.
                     Unlike the totals, this index decays on its own — it will
                     differ, and therefore roll, on most visits rather than only
                     after a ride. That is the trade accepted when it was asked
@@ -500,7 +502,7 @@ export default async function BikeDetailPage({
                 {intensity ? (
                   <AnimatedNumber value={String(Math.round(intensity.value))} storageKey={`${bike.id}:load`} />
                 ) : (
-                  "—"
+                  "0"
                 )}
                 {intensity && (
                   <TrendArrow trend={intensityTrend} className={cn("h-3", INTENSITY_TEXT_CLASS[intensity.band])} />
