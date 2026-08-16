@@ -297,3 +297,79 @@
     display: none;
   }
 }
+
+/* The Ride Load bar filling on arrival.
+ *
+ * Only a `from` keyframe: with no `to`, the animation ends on the element's
+ * own declared width, which is an inline style computed on the server. That
+ * is what lets a static, server-rendered bar animate without becoming a
+ * client component or carrying its target width twice.
+ *
+ * Unlike the rolling numbers, this plays on every visit rather than only when
+ * something changed — the bar has no memory of what it read last time, and the
+ * point here is to give the section presence, not to report news. Same
+ * duration and curve as the odometer so the page has one vocabulary of
+ * movement: it starts from rest, travels, and eases into its stop.
+ */
+@keyframes ride-load-fill {
+  from {
+    width: 0;
+  }
+}
+
+.animate-ride-load-fill {
+  animation: ride-load-fill 1800ms cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+/* Someone who asked the system for less motion gets the bar already full,
+   not a faster version of the same sweep. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ride-load-fill {
+    animation: none;
+  }
+}
+
+/* The Ride Load figure counting up beside the bar.
+ *
+ * A registered custom property, because only a registered one can be
+ * interpolated: `@property` gives it a type, and CSS will then animate the
+ * integer the way it animates a length. The number on screen is that integer
+ * read back through `counter()`.
+ *
+ * Same shape as the bar — one `0%` keyframe and no `to`, so the animation ends
+ * on the value the server put in the inline style. Same duration and curve
+ * too, which is what makes the two arrive together rather than merely start
+ * together.
+ *
+ * Where a browser has no `@property`, nothing animates and the counter renders
+ * the target from the first frame. The reading is never wrong, only still.
+ */
+@property --ride-load-count {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes ride-load-count {
+  from {
+    --ride-load-count: 0;
+  }
+}
+
+.animate-ride-load-count {
+  animation: ride-load-count 1800ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  counter-reset: ride-load-counter var(--ride-load-count);
+}
+
+/* Generated content, so it is deliberately hidden from assistive tech at the
+   call site and the real figure is rendered as text beside it. A number that
+   only exists in a pseudo-element is a number a screen reader may never say. */
+.animate-ride-load-count::after {
+  content: counter(ride-load-counter);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ride-load-count {
+    animation: none;
+  }
+}

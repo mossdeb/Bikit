@@ -88,7 +88,7 @@ export function RideIntensityBar({ value, band }: { value: number; band: RideInt
     // at 8px the two palest bands were a tint nobody would notice.
     <div className="h-5 w-full overflow-hidden rounded-[6px] bg-muted">
       <div
-        className={cn("h-full rounded-[6px]", INTENSITY_BAR_CLASS[band])}
+        className={cn("h-full rounded-[6px] animate-ride-load-fill", INTENSITY_BAR_CLASS[band])}
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
       />
     </div>
