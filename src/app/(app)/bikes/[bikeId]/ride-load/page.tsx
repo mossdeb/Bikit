@@ -328,7 +328,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                     came for — what the score means for the bike. The glyph is
                     the same weight that marks Ride Load everywhere else. */}
                 <div className="mt-5 flex items-start gap-2.5">
-                  <RideLoadGlyph className="mt-0.5 size-[18px]" />
+                  <RideLoadGlyph className="mt-0.5 size-[22px]" />
                   {/* 17.5px against the 20 that `text-sm` carries by default.
                       `leading-snug` would have been the obvious pick and is
                       what the explainer card uses, but on `text-sm` it is
