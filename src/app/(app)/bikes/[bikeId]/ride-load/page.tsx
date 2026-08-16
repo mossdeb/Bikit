@@ -26,6 +26,7 @@ import {
   TrendArrow,
 } from "@/components/ride-intensity-visuals";
 import { RideLoadGlyph } from "@/components/ride-load-icons";
+import { RideLoadCountUp } from "@/components/ride-load-count-up";
 import { cn } from "@/lib/utils";
 import { RideIntensityTrend } from "@/components/ride-intensity-trend";
 import { RideDetailsButton } from "@/components/ride-details-button";
@@ -312,23 +313,15 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                   <div className="min-w-0 flex-1">
                     <RideIntensityBar value={intensity.value} band={intensity.band} />
                   </div>
-                  {/* Counts up in step with the bar. The figure is written
-                      twice on purpose: once as real text for assistive tech,
-                      and once as a CSS counter for the eye — generated content
-                      is not reliably announced, and a reading a screen reader
-                      cannot say is not a reading. */}
-                  <span className="w-9 shrink-0 text-right font-display text-2xl leading-none font-bold">
-                    <span className="sr-only">{Math.round(intensity.value)}</span>
-                    {/* The target sits on the element that animates, not on its
-                        parent: the property is registered `inherits: false`, so
-                        a value set above it is never seen and the count ends
-                        where it started. */}
-                    <span
-                      aria-hidden
-                      className="animate-ride-load-count"
-                      style={{ "--ride-load-count": Math.round(intensity.value) } as React.CSSProperties}
-                    />
-                  </span>
+                  {/* Counts up in step with the bar — same duration and
+                      curve, so the two arrive together. Driven frame by frame
+                      rather than by an animated CSS counter: that only worked
+                      where `@property` does, and everywhere else it sat on
+                      zero and jumped at the end. */}
+                  <RideLoadCountUp
+                    value={Math.round(intensity.value)}
+                    className="w-9 shrink-0 text-right font-display text-2xl leading-none font-bold"
+                  />
                 </div>
                 {/* pr matches the number's column exactly, so "Extrema" ends
                     where the bar does. It was pr-12 while a 12px gap sat
