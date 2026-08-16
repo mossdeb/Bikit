@@ -576,6 +576,8 @@ export type Database = {
           elev_high_m: number | null
           elev_low_m: number | null
           elevation_gain_m: number | null
+          hard_ride_email_at: string | null
+          hard_ride_push_at: string | null
           moving_time_hours: number
           processed_at: string
           sport_type: string | null
@@ -591,6 +593,8 @@ export type Database = {
           elev_high_m?: number | null
           elev_low_m?: number | null
           elevation_gain_m?: number | null
+          hard_ride_email_at?: string | null
+          hard_ride_push_at?: string | null
           moving_time_hours: number
           processed_at?: string
           sport_type?: string | null
@@ -606,6 +610,8 @@ export type Database = {
           elev_high_m?: number | null
           elev_low_m?: number | null
           elevation_gain_m?: number | null
+          hard_ride_email_at?: string | null
+          hard_ride_push_at?: string | null
           moving_time_hours?: number
           processed_at?: string
           sport_type?: string | null

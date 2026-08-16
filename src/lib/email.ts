@@ -169,3 +169,42 @@ export async function sendWeeklySummaryEmail(params: {
   });
   return !error;
 }
+
+/**
+ * The hard-ride alert.
+ *
+ * Sent by the daily cron and never by the webhook, which is where this project
+ * keeps email on purpose: a ride finished at 23:30 would otherwise buzz an
+ * inbox at 23:31. The push carries the same news within seconds; this is the
+ * copy for people who asked to also have it in writing.
+ */
+export async function sendHardRideEmail(params: {
+  to: string;
+  locale: Locale;
+  bikeName: string;
+  score: number;
+  distance: string;
+  rideLoadUrl: string;
+}): Promise<boolean> {
+  const client = getResendClient();
+  if (!client) return false;
+
+  const dict = getDictionary(params.locale).email;
+  const html = wrapEmail(
+    dict.hardRide.heading,
+    `<p style="margin:0;font-size:15px;line-height:1.5;">${dict.hardRide.body(params.bikeName, params.score, params.distance)}</p>`,
+    dict.hardRide.cta,
+    `${SITE_URL}${params.rideLoadUrl}`,
+    // Its own footer, not the shared maintenance one: this email is not a
+    // maintenance alert and telling the reader they signed up for maintenance
+    // alerts would send them to the wrong switch to turn it off.
+    dict.hardRide.footer
+  );
+  const { error } = await client.emails.send({
+    from: FROM,
+    to: params.to,
+    subject: dict.hardRide.subject(params.bikeName),
+    html,
+  });
+  return !error;
+}

@@ -136,6 +136,13 @@ const en = {
       dueSoonSub: 'Get an email when a component enters its "due soon" window.',
       overdue: "Service due",
       overdueSub: "Get an email as soon as a component's health drops to Service Due.",
+      // Not maintenance: it remarks on the effort of a ride rather than
+      // asking for anything. The copy avoids "alert" on purpose — there is
+      // nothing here to put right.
+      hardRide: "Hard rides (Ride Load)",
+      // The feature name moved up into the title, so the subtitle stops
+      // repeating it — it said "Ride Load" twice on one line.
+      hardRideSub: "Get an email when a ride scores in the top band of the scale.",
       weeklySummary: "Weekly summary",
       weeklySummarySub: "A weekly digest of your fleet's maintenance status.",
     },
@@ -148,6 +155,8 @@ const en = {
       dueSoonSub: "When a component's health drops to Need Attention.",
       overdue: "Service due",
       overdueSub: "When a component's health drops to Service Due.",
+      hardRide: "Hard rides (Ride Load)",
+      hardRideSub: "When a ride scores in the top band of the scale.",
       stravaSync: "Strava sync",
       stravaSyncSub: "When a ride updates a bike's distance or hours.",
       unsupported: "This browser doesn't support push notifications.",
@@ -822,6 +831,19 @@ const en = {
         isPastDue
           ? `${componentName} on ${bikeName} is ${amount} overdue for service.`
           : `${componentName} on ${bikeName} needs service very soon — ${amount} left.`,
+    },
+    // The hard-ride alert. Not maintenance: it does not say anything is worn
+    // or ask for anything to be done, it remarks on the effort of the ride
+    // that just landed. Hence its own footer — the maintenance one would tell
+    // the reader they turned on maintenance alerts, which is not what they
+    // turned on.
+    hardRide: {
+      subject: (bikeName: string): string => `That was a ride on the ${bikeName}`,
+      heading: "Hard ride",
+      body: (bikeName: string, score: number, distance: string): string =>
+        `Your latest ride on the ${bikeName} scored ${score} on Ride Load — the top band of the scale — over ${distance}.`,
+      cta: "See Ride Load",
+      footer: "You're receiving this because you turned on hard-ride alerts in your Bikit settings.",
     },
     weeklySummary: {
       subject: "Your weekly Bikit summary",

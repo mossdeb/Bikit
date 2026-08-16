@@ -71,6 +71,7 @@ export async function updateNotificationPreferences(formData: FormData) {
       notify_due_soon: formData.get("notify_due_soon") === "on",
       notify_overdue: formData.get("notify_overdue") === "on",
       notify_weekly_summary: formData.get("notify_weekly_summary") === "on",
+      notify_hard_ride: formData.get("notify_hard_ride") === "on",
     },
   });
 

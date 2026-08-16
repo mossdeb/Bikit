@@ -31,7 +31,7 @@ export function PushNotificationsForm({
   vapidPublicKey,
   dict,
 }: {
-  prefs: { dueSoon: boolean; overdue: boolean; stravaSync: boolean };
+  prefs: { dueSoon: boolean; overdue: boolean; stravaSync: boolean; hardRide: boolean };
   vapidPublicKey: string;
   dict: Dictionary["settings"]["pushNotifications"];
 }) {
@@ -132,7 +132,10 @@ export function PushNotificationsForm({
     // though it isn't one of them — a nameless checkbox is never submitted,
     // and keeping every row a sibling is what makes ToggleRow's "no divider
     // on the first row" land on the first row of the section.
-    <form key={`${prefs.dueSoon}-${prefs.overdue}-${prefs.stravaSync}`} action={updatePushPreferences}>
+    <form
+      key={`${prefs.dueSoon}-${prefs.overdue}-${prefs.stravaSync}-${prefs.hardRide}`}
+      action={updatePushPreferences}
+    >
       {subscribed ? (
         <ToggleRow
           label={dict.enable}
@@ -184,6 +187,17 @@ export function PushNotificationsForm({
         sub={dict.overdueSub}
         name="push_overdue"
         defaultChecked={prefs.overdue}
+        disabled={!subscribed}
+        onToggle={(e) => e.currentTarget.form?.requestSubmit()}
+      />
+      {/* Not maintenance: this one remarks on the ride that just landed. It
+          sits beside the Strava sync toggle because both are things a ride
+          causes, rather than things a component asks for. */}
+      <ToggleRow
+        label={dict.hardRide}
+        sub={dict.hardRideSub}
+        name="push_hard_ride"
+        defaultChecked={prefs.hardRide}
         disabled={!subscribed}
         onToggle={(e) => e.currentTarget.form?.requestSubmit()}
       />

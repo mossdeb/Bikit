@@ -184,6 +184,26 @@ function activityRow(activity: StravaActivity, bikeId: string) {
   };
 }
 
+/** The scoring view of a ride, built from the same fields `activityRow`
+ * writes — so what the webhook scores in memory is what the report will read
+ * back from the table. Divergence here would show as a push that disagrees
+ * with the number on screen. */
+export function rideStressActivityOf(activity: StravaActivity) {
+  const row = activityRow(activity, "");
+  return {
+    id: row.strava_activity_id,
+    name: row.activity_name,
+    date: row.activity_date ?? "",
+    utcOffsetSeconds: row.utc_offset,
+    distanceKm: row.distance_km,
+    movingHours: row.moving_time_hours,
+    elapsedHours: row.elapsed_time_hours,
+    elevationM: row.elevation_gain_m,
+    elevationRangeM:
+      row.elev_high_m != null && row.elev_low_m != null ? row.elev_high_m - row.elev_low_m : null,
+  };
+}
+
 export async function fetchStravaActivity(accessToken: string, activityId: number): Promise<StravaActivity | null> {
   const res = await fetch(`${STRAVA_API}/activities/${activityId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -244,7 +264,17 @@ export function isCyclingActivity(activity: StravaActivity): boolean {
  * the caller can notify without re-reading the bike. */
 export type SyncActivityResult =
   | { status: "skipped" | "duplicate" | "error" }
-  | { status: "synced"; bikeId: string; bikeName: string; distanceKm: number; movingHours: number };
+  | {
+      status: "synced";
+      bikeId: string;
+      bikeName: string;
+      /** The bike's own type, which is what picks the Ride Load modality —
+       * the ride cannot be scored without it, and the webhook has no other
+       * reason to read the bikes table again. */
+      bikeType: string | null;
+      distanceKm: number;
+      movingHours: number;
+    };
 
 /** Records one Strava activity against the Bikit bike its gear maps to.
  * Idempotent via the unique key on strava_activity_id — safe to call for an
@@ -260,7 +290,7 @@ export async function syncActivityToBike(
 
   const { data: bike } = await admin
     .from("bikes")
-    .select("id, name, total_km, total_hours")
+    .select("id, name, type, total_km, total_hours")
     .eq("strava_gear_id", activity.gear_id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -284,7 +314,7 @@ export async function syncActivityToBike(
     })
     .eq("id", bike.id);
 
-  return { status: "synced", bikeId: bike.id, bikeName: bike.name, distanceKm, movingHours };
+  return { status: "synced", bikeId: bike.id, bikeName: bike.name, bikeType: bike.type, distanceKm, movingHours };
 }
 
 /** Batch equivalent of syncActivityToBike for a whole list of activities, used

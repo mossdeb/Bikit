@@ -133,6 +133,12 @@ const pt: Dictionary = {
       dueSoonSub: 'Receba um email quando um componente entra na janela "brevemente".',
       overdue: "Serviço Necessário",
       overdueSub: "Receba um email assim que a saúde de um componente atingir o estado \"Serviço Necessário\".",
+      // Não é manutenção: comenta o esforço da volta em vez de pedir alguma
+      // coisa. O texto evita "alerta" de propósito — não há nada a corrigir.
+      hardRide: "Voltas duras (Ride Load)",
+      // O nome da funcionalidade subiu para o título, portanto o subtítulo
+      // deixa de o repetir — dizia "Ride Load" duas vezes na mesma linha.
+      hardRideSub: "Receba um email quando uma volta pontuar na banda mais alta da escala.",
       weeklySummary: "Resumo semanal",
       weeklySummarySub: "Um resumo semanal do estado de manutenção da sua frota.",
     },
@@ -145,6 +151,8 @@ const pt: Dictionary = {
       dueSoonSub: 'Quando a saúde de um componente desce para "Precisa de Atenção".',
       overdue: "Serviço Necessário",
       overdueSub: 'Quando a saúde de um componente desce para "Serviço Necessário".',
+      hardRide: "Voltas duras (Ride Load)",
+      hardRideSub: "Quando uma volta pontuar na banda mais alta da escala.",
       stravaSync: "Sincronização Strava",
       stravaSyncSub: "Quando uma atividade atualiza os quilómetros ou as horas de uma bicicleta.",
       unsupported: "Este navegador não suporta notificações push.",
@@ -820,6 +828,19 @@ const pt: Dictionary = {
         isPastDue
           ? `${componentName} da ${bikeName} está com a manutenção em atraso há ${amount}.`
           : `${componentName} da ${bikeName} vai precisar de manutenção muito em breve — faltam ${amount}.`,
+    },
+    // O aviso de volta dura. Não é manutenção: não diz que algo está gasto nem
+    // pede ação nenhuma, comenta o esforço da volta que acabou de entrar. Daí
+    // o rodapé próprio — o de manutenção diria que a pessoa ativou alertas de
+    // manutenção, e não foi isso que ela ativou.
+    hardRide: {
+      subject: (bikeName: string): string => `Que volta na ${bikeName}`,
+      heading: "Volta dura",
+      body: (bikeName: string, score: number, distance: string): string =>
+        `A tua última volta na ${bikeName} pontuou ${score} em Ride Load — a banda mais alta da escala — ao longo de ${distance}.`,
+      cta: "Ver o Ride Load",
+      footer:
+        "Estás a receber este email porque ativaste os avisos de volta dura nas definições da Bikit.",
     },
     weeklySummary: {
       subject: "O seu resumo semanal da Bikit",

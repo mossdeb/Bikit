@@ -9,10 +9,17 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { formatDate, formatDistance, formatHours } from "@/lib/format";
 import { sendDueSoonEmail, sendOverdueEmail, sendWeeklySummaryEmail, type WeeklySummaryItem } from "@/lib/email";
 import { sendPushToUser } from "@/lib/push";
+import { notifyHardRideEmail } from "@/lib/maintenance/notify-hard-ride";
 
 export const dynamic = "force-dynamic";
 
 const WEEKLY_SUMMARY_MIN_GAP_DAYS = 6;
+
+/** How far back the hard-ride email sweep looks. Two days and not one, so a
+ * cron run that fails or is skipped does not silently drop yesterday's rides;
+ * and not thirty, because the claim column stays null while the switch is off
+ * and a wide window would turn "enable this" into a mailshot of old rides. */
+const HARD_RIDE_EMAIL_LOOKBACK_DAYS = 2;
 
 type NotifyLevel = "attention" | "critical";
 /** Only a move to a *worse* band is news. */
@@ -42,20 +49,76 @@ export async function GET(request: Request) {
       const notifyDueSoon = (meta.notify_due_soon as boolean) ?? true;
       const notifyOverdue = (meta.notify_overdue as boolean) ?? true;
       const notifyWeeklySummary = (meta.notify_weekly_summary as boolean) ?? false;
+      // Opt-in and off by default: the push already carries this news within
+      // seconds of the ride, so the email is a copy somebody asked for.
+      const notifyHardRide = (meta.notify_hard_ride as boolean) ?? false;
       const pushDueSoon = (meta.push_due_soon as boolean) ?? true;
       const pushOverdue = (meta.push_overdue as boolean) ?? true;
       // Email needs an address; push doesn't, so an account with every email
       // toggle off still has to be processed for its push notifications.
       const wantsEmail = !!user.email && (notifyDueSoon || notifyOverdue || notifyWeeklySummary);
-      if (!wantsEmail && !pushDueSoon && !pushOverdue) continue;
+      // The hard-ride email is its own reason to process an account: it is not
+      // a maintenance alert, so somebody who turned every maintenance switch
+      // off and this one on must not be skipped here.
+      const wantsHardRideEmail = !!user.email && notifyHardRide;
+      if (!wantsEmail && !wantsHardRideEmail && !pushDueSoon && !pushOverdue) continue;
 
       const locale = localeFromMetadata(meta);
       const dict = getDictionary(locale);
       const distanceUnit = ((meta.distance_unit as string) ?? "km") as "km" | "mi";
 
-      const { data: bikes } = await admin.from("bikes").select("id, name, total_km, total_hours").eq("user_id", user.id);
+      // `type` for the Ride Load modality, which is what scores a hard ride.
+      const { data: bikes } = await admin
+        .from("bikes")
+        .select("id, name, type, total_km, total_hours")
+        .eq("user_id", user.id);
       const bikeById = new Map((bikes ?? []).map((b) => [b.id, b]));
       if (bikeById.size === 0) continue;
+
+      // The hard-ride emails, before the maintenance pass and independent of
+      // it. Only rides from the last couple of days: the claim column stays
+      // null while the switch is off, so without a window turning the switch
+      // on would email every hard ride the account ever had.
+      if (wantsHardRideEmail && user.email) {
+        const since = new Date(Date.now() - HARD_RIDE_EMAIL_LOOKBACK_DAYS * 86_400_000).toISOString();
+        const { data: pendingRides } = await admin
+          .from("strava_activities")
+          .select(
+            "strava_activity_id, bike_id, activity_name, activity_date, utc_offset, distance_km, moving_time_hours, elapsed_time_hours, elevation_gain_m, elev_high_m, elev_low_m"
+          )
+          .in("bike_id", [...bikeById.keys()])
+          .is("hard_ride_email_at", null)
+          .not("activity_date", "is", null)
+          .gte("activity_date", since);
+
+        const candidates = (pendingRides ?? []).flatMap((row) => {
+          const bike = bikeById.get(row.bike_id);
+          if (!bike) return [];
+          return [
+            {
+              stravaActivityId: row.strava_activity_id,
+              bikeId: row.bike_id,
+              bikeName: bike.name,
+              bikeType: bike.type,
+              activity: {
+                id: row.strava_activity_id,
+                name: row.activity_name,
+                date: row.activity_date as string,
+                utcOffsetSeconds: row.utc_offset,
+                distanceKm: row.distance_km,
+                movingHours: row.moving_time_hours,
+                elapsedHours: row.elapsed_time_hours,
+                elevationM: row.elevation_gain_m,
+                elevationRangeM:
+                  row.elev_high_m != null && row.elev_low_m != null ? row.elev_high_m - row.elev_low_m : null,
+              },
+            },
+          ];
+        });
+
+        const hardRideEmails = await notifyHardRideEmail(admin, user.id, user.email, meta, candidates);
+        for (let i = 0; i < hardRideEmails; i += 1) sent.push(`hard_ride:${user.id}`);
+      }
 
       const { data: components } = await admin
         .from("components")

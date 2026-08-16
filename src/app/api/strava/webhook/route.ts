@@ -1,8 +1,14 @@
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchStravaActivity, getValidStravaAccessToken, syncActivityToBike } from "@/lib/strava";
+import {
+  fetchStravaActivity,
+  getValidStravaAccessToken,
+  rideStressActivityOf,
+  syncActivityToBike,
+} from "@/lib/strava";
 import { sendStravaSyncPush } from "@/lib/push";
 import { notifyUsageServicesForBike } from "@/lib/maintenance/notify-usage";
+import { notifyHardRidePush } from "@/lib/maintenance/notify-hard-ride";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
     console.error("[strava webhook] failed to sync activity", activity.id);
   }
   if (result.status === "synced") {
-    const { bikeId, bikeName, distanceKm, movingHours } = result;
+    const { bikeId, bikeName, bikeType, distanceKm, movingHours } = result;
     const userId = connection.user_id;
     // Everything that notifies runs after the response. Strava expects a
     // prompt 200 and retries when it doesn't get one — a retry would re-run
@@ -71,6 +77,18 @@ export async function POST(request: Request) {
       // The activity id travels with it because this is the one moment the
       // alert can be written into the ride that caused it.
       await notifyUsageServicesForBike(admin, userId, bikeId, activity.id);
+      // Last, and on purpose: a maintenance alert is the one that asks for
+      // something to be done, and it should not queue behind a remark about
+      // how hard the ride was. This one is not maintenance at all — it never
+      // touches an interval, and it fires on the ride rather than on the
+      // index, which decays and would otherwise announce a fall nobody caused.
+      await notifyHardRidePush(admin, userId, {
+        stravaActivityId: activity.id,
+        bikeId,
+        bikeName,
+        bikeType,
+        activity: rideStressActivityOf(activity),
+      });
     });
   }
 

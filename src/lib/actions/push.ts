@@ -58,6 +58,7 @@ export async function updatePushPreferences(formData: FormData) {
       push_due_soon: formData.get("push_due_soon") === "on",
       push_overdue: formData.get("push_overdue") === "on",
       push_strava_sync: formData.get("push_strava_sync") === "on",
+      push_hard_ride: formData.get("push_hard_ride") === "on",
     },
   });
 

@@ -90,6 +90,9 @@ export default async function SettingsPage({
     dueSoon: (user?.user_metadata?.notify_due_soon as boolean) ?? true,
     overdue: (user?.user_metadata?.notify_overdue as boolean) ?? true,
     weeklySummary: (user?.user_metadata?.notify_weekly_summary as boolean) ?? false,
+    // Opt-in: the push already carries this within seconds of the ride, so an
+    // email is a copy somebody has to ask for.
+    hardRide: (user?.user_metadata?.notify_hard_ride as boolean) ?? false,
   };
   const pushPrefs = {
     dueSoon: (user?.user_metadata?.push_due_soon as boolean) ?? true,
@@ -97,6 +100,9 @@ export default async function SettingsPage({
     // Opt-in, unlike the two maintenance alerts: this one fires on every ride
     // that syncs rather than on a state the rider needs to act on.
     stravaSync: (user?.user_metadata?.push_strava_sync as boolean) ?? false,
+    // Opt-out, unlike the sync push: this one fires on a rare ride rather than
+    // on every ride, and it is about something the rider just did.
+    hardRide: (user?.user_metadata?.push_hard_ride as boolean) ?? true,
   };
   // Opt-in and off by default, like the sync push — but this one leaves the
   // app and lands in the rider's public ride, so it never defaults to true.

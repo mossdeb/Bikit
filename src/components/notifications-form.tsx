@@ -8,12 +8,12 @@ export function NotificationsForm({
   prefs,
   dict,
 }: {
-  prefs: { dueSoon: boolean; overdue: boolean; weeklySummary: boolean };
+  prefs: { dueSoon: boolean; overdue: boolean; weeklySummary: boolean; hardRide: boolean };
   dict: Dictionary["settings"]["notifications"];
 }) {
   return (
     <form
-      key={`${prefs.dueSoon}-${prefs.overdue}-${prefs.weeklySummary}`}
+      key={`${prefs.dueSoon}-${prefs.overdue}-${prefs.weeklySummary}-${prefs.hardRide}`}
       action={updateNotificationPreferences}
     >
       <ToggleRow
@@ -28,6 +28,15 @@ export function NotificationsForm({
         sub={dict.overdueSub}
         name="notify_overdue"
         defaultChecked={prefs.overdue}
+        onToggle={(e) => e.currentTarget.form?.requestSubmit()}
+      />
+      {/* Last in the list, and the only one here that is not maintenance: it
+          reports on a ride rather than asking for anything to be done. */}
+      <ToggleRow
+        label={dict.hardRide}
+        sub={dict.hardRideSub}
+        name="notify_hard_ride"
+        defaultChecked={prefs.hardRide}
         onToggle={(e) => e.currentTarget.form?.requestSubmit()}
       />
       <ToggleRow

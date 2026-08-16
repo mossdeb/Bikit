@@ -344,6 +344,30 @@ export function rideIntensityBand(value: number): RideIntensityBand {
   return "extreme";
 }
 
+/**
+ * Whether a single ride is hard enough to be worth telling its owner about.
+ *
+ * The test is the ride's own score landing in the top band, and it is one
+ * ride against the modality's reference ride — never against this bike's
+ * history. That is what makes it comparable across a fleet: an Urban bike and
+ * a Downhill bike are each measured against their own archetype before the
+ * band is read, so "top band" means the same thing on both.
+ *
+ * A ride under the floor cannot qualify however it scores. Those rides do not
+ * move the index — a lap of the car park has no business interrupting anyone —
+ * and a notification louder than the reading it is about would be lying about
+ * its own importance.
+ *
+ * Deliberately not "harder than your last N rides": that fires on a quiet
+ * week, when the bar has dropped rather than the effort risen, and the first
+ * ride back from a holiday is not news.
+ */
+export function isHardRide(activity: RideStressActivity, modality: RideStressModality): boolean {
+  if (!countsTowardIntensity(activity)) return false;
+  const { stress } = activityRideStress(activity, modality);
+  return rideIntensityBand(stress) === "extreme";
+}
+
 export interface RideIntensityState {
   value: number;
   at: string;

@@ -3,6 +3,7 @@ import {
   RIDE_STRESS_MODALITIES,
   activityRideStress,
   countsTowardIntensity,
+  isHardRide,
   derivedRideMetrics,
   foldRideIntensity,
   lifetimeRideStress,
@@ -537,5 +538,46 @@ describe("derivedRideMetrics", () => {
     expect(m.elevationPerKm).toBeNull();
     expect(m.elevationPerHour).toBeNull();
     expect(m.movingRatio).toBeNull();
+  });
+});
+
+describe("isHardRide", () => {
+  const enduro = modalityFor("Enduro");
+
+  it("says yes only in the top band", () => {
+    // The band is read off the ride's own score, so the boundary is the same
+    // 75/76 the rest of the app uses. Both sides checked, because a threshold
+    // tested on one side is a threshold nobody tested.
+    const hard = ride({ date: "2026-08-01T09:00:00Z", distanceKm: 60, movingHours: 5, elevationM: 2400 });
+    const { stress } = activityRideStress(hard, enduro);
+    expect(stress).toBeGreaterThan(75);
+    expect(isHardRide(hard, enduro)).toBe(true);
+
+    const ordinary = ride({ date: "2026-08-01T09:00:00Z", distanceKm: 20, movingHours: 1.5, elevationM: 400 });
+    expect(activityRideStress(ordinary, enduro).stress).toBeLessThanOrEqual(75);
+    expect(isHardRide(ordinary, enduro)).toBe(false);
+  });
+
+  it("refuses a ride under the floor however hard it scores", () => {
+    // Under a kilometre AND under fifteen minutes: a ride that cannot move the
+    // index has no business interrupting anyone, however steep it was.
+    const tiny = ride({
+      date: "2026-08-01T09:00:00Z",
+      distanceKm: 0.4,
+      movingHours: 0.1,
+      elevationM: 5000,
+    });
+    expect(countsTowardIntensity(tiny)).toBe(false);
+    expect(activityRideStress(tiny, enduro).stress).toBeGreaterThan(75);
+    expect(isHardRide(tiny, enduro)).toBe(false);
+  });
+
+  it("is measured against each modality's own archetype", () => {
+    // The same ride is hard for one bike and unremarkable for another, which
+    // is the whole point of normalising before the band is read: "top band"
+    // has to mean the same thing on an urban bike and a downhill bike.
+    const same = ride({ date: "2026-08-01T09:00:00Z", distanceKm: 30, movingHours: 2, elevationM: 900 });
+    expect(isHardRide(same, modalityFor("Urban / Commuter"))).toBe(true);
+    expect(isHardRide(same, modalityFor("Endurance road"))).toBe(false);
   });
 });
