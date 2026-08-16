@@ -192,7 +192,10 @@ export default async function BikesPage() {
                           under the line the numbers sit on and reads as
                           hanging. Raising it puts its foot on their baseline. */}
                       <RideLoadGlyph className="size-3 -translate-y-px" />
-                      <span>{Math.round(rideLoadById.get(bike.id)!.value)}</span>
+                      <AnimatedNumber
+                        value={String(Math.round(rideLoadById.get(bike.id)!.value))}
+                        storageKey={`${bike.id}:load`}
+                      />
                     </>
                   )}
                 </p>

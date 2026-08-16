@@ -323,7 +323,10 @@ export default async function DashboardPage({
                       <>
                         <span aria-hidden className="text-muted-foreground">·</span>
                         <RideLoadGlyph className="size-3 -translate-y-px" />
-                        <span>{Math.round(rideLoadById.get(bike.id)!.value)}</span>
+                        <AnimatedNumber
+                        value={String(Math.round(rideLoadById.get(bike.id)!.value))}
+                        storageKey={`${bike.id}:load`}
+                      />
                       </>
                     )}
                   </p>

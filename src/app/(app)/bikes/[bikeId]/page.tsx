@@ -409,7 +409,11 @@ export default async function BikeDetailPage({
         {/* Dash and no band chip until the first ride: a band is a verdict on
             how the bike has been ridden, and there is nothing yet to judge. */}
         <span className="font-mono transition-opacity group-hover:opacity-70">
-          {intensity ? Math.round(intensity.value) : "—"}
+          {intensity ? (
+            <AnimatedNumber value={String(Math.round(intensity.value))} storageKey={`${bike.id}:load`} />
+          ) : (
+            "—"
+          )}
         </span>
         {intensity && (
           <RideIntensityChip
@@ -485,8 +489,19 @@ export default async function BikeDetailPage({
                 {/* An em dash while the bike has no rides yet, and no trend
                     arrow beside it: there is no direction in a reading that
                     does not exist. A zero would have been a lie — zero is what
-                    a bike with rides that are all too short reads. */}
-                {intensity ? Math.round(intensity.value) : "—"}
+                    a bike with rides that are all too short reads.
+                    The dash is not wrapped, so no baseline is stored for it and
+                    the first real number arrives without rolling out of a
+                    reading that never was one.
+                    Unlike the totals, this index decays on its own — it will
+                    differ, and therefore roll, on most visits rather than only
+                    after a ride. That is the trade accepted when it was asked
+                    for here. */}
+                {intensity ? (
+                  <AnimatedNumber value={String(Math.round(intensity.value))} storageKey={`${bike.id}:load`} />
+                ) : (
+                  "—"
+                )}
                 {intensity && (
                   <TrendArrow trend={intensityTrend} className={cn("h-3", INTENSITY_TEXT_CLASS[intensity.band])} />
                 )}
