@@ -892,19 +892,19 @@ const en = {
     // spent the bold on something already read.
     scoreSentence: {
       light: {
-        lead: "Your recent rides have asked little of your bike.",
-        emphasis: "Nothing needs bringing forward.",
+        lead: "These rides ask little of your bike.",
+        emphasis: "Nothing to bring forward.",
       },
       moderate: {
-        lead: "Your recent rides have given your bike real work.",
-        emphasis: "Expect wear to arrive a little sooner.",
+        lead: "These rides give your bike real work.",
+        emphasis: "Expect wear a little sooner.",
       },
       high: {
-        lead: "Your recent rides have demanded a lot from your bike.",
+        lead: "These rides demand a lot from your bike.",
         emphasis: "Check the main components more often.",
       },
       extreme: {
-        lead: "Your recent rides have pushed your bike to its limit.",
+        lead: "These rides push your bike to its limit.",
         emphasis: "Service the hardest-worked parts sooner.",
       },
     },

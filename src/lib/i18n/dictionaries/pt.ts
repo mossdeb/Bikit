@@ -887,21 +887,26 @@ const pt: Dictionary = {
     // A moldura do arranque é a mesma nas quatro e o que muda é o verbo, para
     // que se leiam como quatro pontos da mesma escala e não como quatro
     // mensagens sem relação.
+    //
+    // Presente e não pretérito composto: "As tuas voltas recentes têm" gastava
+    // 27 caracteres de moldura antes de chegar significado nenhum, e
+    // "recentes" repetia a legenda três linhas abaixo, que já diz de que
+    // voltas se trata. Encurtou a frase em 20% sem tirar nada.
     scoreSentence: {
       light: {
-        lead: "As tuas voltas recentes têm pedido pouco à bicicleta.",
-        emphasis: "Não há nada a antecipar.",
+        lead: "Estas voltas pedem pouco à bicicleta.",
+        emphasis: "Nada a antecipar.",
       },
       moderate: {
-        lead: "As tuas voltas recentes têm dado trabalho à bicicleta.",
-        emphasis: "Conta com um desgaste mais rápido.",
+        lead: "Estas voltas dão trabalho à bicicleta.",
+        emphasis: "Conta com desgaste mais rápido.",
       },
       high: {
-        lead: "As tuas voltas recentes têm exigido muito da bicicleta.",
+        lead: "Estas voltas exigem muito da bicicleta.",
         emphasis: "Verifica os componentes principais mais vezes.",
       },
       extreme: {
-        lead: "As tuas voltas recentes têm levado a bicicleta ao limite.",
+        lead: "Estas voltas levam a bicicleta ao limite.",
         emphasis: "Antecipa a revisão do que sofre mais.",
       },
     },
