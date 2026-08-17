@@ -148,7 +148,9 @@ export async function createBike(formData: FormData) {
   }
 
   revalidatePath("/bikes");
-  redirect(`/bikes/${bike.id}`);
+  // `created` is what turns the bike's page into the moment it was created —
+  // the same flag Smart Setup's redirect carries, so one screen serves both.
+  redirect(`/bikes/${bike.id}?created=1`);
 }
 
 export async function updateBike(bikeId: string, formData: FormData) {

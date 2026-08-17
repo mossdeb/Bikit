@@ -35,6 +35,7 @@ import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS, PLAN_FEATURES } from "@/lib/plans";
 import { previewTimelineEvents } from "@/lib/timeline-preview";
 import { InstallAppDialog } from "@/components/install-app-dialog";
+import { BikeCreatedCelebration } from "@/components/bike-created-celebration";
 import { dismissInstallPrompt } from "@/lib/actions/install-prompt";
 import { loadScoredRides } from "@/lib/ride-stress-data";
 import { rideIntensity, rideIntensityTrend } from "@/lib/ride-stress";
@@ -116,15 +117,34 @@ function StatCell({ value, label, className }: { value: React.ReactNode; label: 
   );
 }
 
+/**
+ * The second line of the celebration — "Nomad 6 S" — which is the model plus
+ * the version the buyer would say out loud.
+ *
+ * `bikes` has no version column: both create paths fold it into the name, so
+ * the name minus its brand is the only place the full thing survives. A name
+ * the owner wrote themselves does not start with the brand, and then it stands
+ * on its own and the model column answers instead.
+ */
+function bikeModelLine(brand: string | null, model: string | null, name: string) {
+  if (brand && name.startsWith(`${brand} `)) return name.slice(brand.length + 1);
+  return model;
+}
+
 export default async function BikeDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ bikeId: string }>;
-  searchParams: Promise<{ syncStatus?: string; syncCount?: string; syncMinutes?: string }>;
+  searchParams: Promise<{
+    syncStatus?: string;
+    syncCount?: string;
+    syncMinutes?: string;
+    created?: string;
+  }>;
 }) {
   const { bikeId } = await params;
-  const { syncStatus, syncCount, syncMinutes } = await searchParams;
+  const { syncStatus, syncCount, syncMinutes, created } = await searchParams;
   const supabase = await createClient();
 
   // Auth and the bike row don't depend on each other.
@@ -577,11 +597,29 @@ export default async function BikeDetailPage({
 
   return (
     <div className="sm:pt-8">
-      {/* Here and not only on the dashboard: both ways of creating a bike
-          land on this page, so this is where someone stands the moment they
-          have something in the app worth coming back to. The flag makes it
-          one-shot, so whichever page they reach first is the one that asks. */}
-      {showInstallPrompt && <InstallAppDialog labels={dict.installPrompt} action={dismissInstallPrompt} />}
+      {/* Both ways of creating a bike land on this page, which is why the
+          celebration lives here and why the install invite does too — this is
+          where someone stands the moment they have something in the app worth
+          coming back to. Its flag makes it one-shot, so whichever page they
+          reach first is the one that asks.
+
+          The invite is handed to the celebration rather than rendered beside
+          it: the two are triggered by the same thing, and the invite has to
+          wait its turn instead of landing on top of the moment. With no
+          celebration to play it renders exactly as it did before. */}
+      <BikeCreatedCelebration
+        show={created === "1"}
+        heading={dict.bikes.created}
+        brand={bike.brand ?? bike.name}
+        model={bikeModelLine(bike.brand, bike.model, bike.name)}
+        year={bike.year}
+        type={bike.type}
+        after={
+          showInstallPrompt ? (
+            <InstallAppDialog labels={dict.installPrompt} action={dismissInstallPrompt} />
+          ) : null
+        }
+      />
       {syncMessage && <StravaSyncToast message={syncMessage} isError={syncIsError} />}
       <div className="hidden text-sm text-muted-foreground sm:mb-2 sm:block">
         <Link href="/bikes" className="hover:text-foreground">

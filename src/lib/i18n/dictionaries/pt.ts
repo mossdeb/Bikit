@@ -340,6 +340,9 @@ const pt: Dictionary = {
       stravaBenefits: ["Quilómetros totais", "Sincronização automática", "Horas de utilização", "Histórico de uso"],
       stravaSkipHint: "Se preferires, salta este passo — podes ligar o Strava a qualquer momento.",
     },
+    // O rótulo do ecrã de boas-vindas à bicicleta acabada de criar. Sem o
+    // artigo: é uma etiqueta por cima do desenho, não uma frase.
+    created: "Nova bicicleta",
     breadcrumb: "Bicicletas",
     fleetCount: (n: number) => (n === 1 ? "1 bicicleta na sua frota" : `${n} bicicletas na sua frota`),
     addBike: "Adicionar bicicleta",

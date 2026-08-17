@@ -344,6 +344,9 @@ const en = {
       stravaBenefits: ["Total mileage", "Automatic sync", "Riding hours", "Usage history"],
       stravaSkipHint: "Skip this step if you prefer — you can connect Strava at any time.",
     },
+    // The label on the welcome screen for a bike that was just created. No
+    // article: it is a tag above the drawing, not a sentence.
+    created: "New bike",
     breadcrumb: "Bikes",
     fleetCount: (n: number) => (n === 1 ? "1 bike in your fleet" : `${n} bikes in your fleet`),
     addBike: "Add bike",

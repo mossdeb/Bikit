@@ -324,7 +324,7 @@ export async function createBikeFromAiSetup(payload: unknown): Promise<AiSetupCr
   }
 
   revalidatePath("/bikes");
-  redirect(`/bikes/${createdBike.id}`);
+  redirect(`/bikes/${createdBike.id}?created=1`);
 }
 
 async function withIntervals(
