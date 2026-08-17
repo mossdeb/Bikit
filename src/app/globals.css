@@ -387,7 +387,7 @@
 .bike-celebration-auto {
   animation:
     bike-celebration-enter 220ms ease-out both,
-    bike-celebration-leave 300ms ease-in 2350ms forwards;
+    bike-celebration-leave 360ms ease-in 2350ms forwards;
 }
 
 /* Tapping to skip swaps the class rather than rewriting the delay: changing
