@@ -27,6 +27,9 @@ const CSC_SERVICE = 0x1816;
 const CSC_MEASUREMENT = 0x2a5b;
 
 interface Sample {
+  /** Monotonic, because the sensor repeats a reading many times a second and
+   * `timestamp + bytes` collides — which showed up as rows out of order. */
+  id: number;
   at: number;
   wheelRevs: number | null;
   wheelEventTime: number | null;
@@ -39,7 +42,7 @@ interface Sample {
  * follows, bit 1 says crank data follows. The fields are only present when
  * their bit is set, so the offsets move — reading at fixed positions is how
  * this gets silently wrong on a sensor in the other mode. */
-function parseCsc(view: DataView): Omit<Sample, "at" | "raw"> {
+function parseCsc(view: DataView): Omit<Sample, "id" | "at" | "raw"> {
   const flags = view.getUint8(0);
   let offset = 1;
   let wheelRevs: number | null = null;
@@ -68,7 +71,17 @@ export function CscProbe() {
   const [status, setStatus] = useState("Pronto.");
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
+  // The reading this session opened with, pinned so it can never be evicted.
+  // The list is capped, and the sensor re-sends an unchanged measurement about
+  // once a second — so within a minute the cap had pushed the real starting
+  // point out and "first reading" quietly became "a minute ago", which is
+  // exactly the comparison this probe exists to make.
+  const [baseline, setBaseline] = useState<Sample | null>(null);
+  // Everything that arrived, including the repeats the list drops.
+  const [received, setReceived] = useState(0);
   const deviceRef = useRef<{ gatt?: { disconnect: () => void } } | null>(null);
+  const seqRef = useRef(0);
+  const lastRef = useRef<string | null>(null);
 
   // Read through useSyncExternalStore, not during render: the server has no
   // navigator, so `"bluetooth" in navigator` is false there and true here, and
@@ -106,6 +119,11 @@ export function CscProbe() {
         };
       };
 
+      setSamples([]);
+      setBaseline(null);
+      setReceived(0);
+      lastRef.current = null;
+
       const device = await nav.bluetooth.requestDevice({ filters: [{ services: [CSC_SERVICE] }] });
       deviceRef.current = device;
       setDeviceName(device.name ?? "(sem nome)");
@@ -121,9 +139,20 @@ export function CscProbe() {
       characteristic.addEventListener("characteristicvaluechanged", (event: Event) => {
         const view = (event.target as unknown as { value: DataView }).value;
         const parsed = parseCsc(view);
-        // Newest first, and capped: this runs for minutes at a time and the
-        // question it answers lives in the first and last readings.
-        setSamples((prev) => [{ at: Date.now(), raw: hex(view), ...parsed }, ...prev].slice(0, 60));
+        const raw = hex(view);
+        setReceived((n) => n + 1);
+
+        const sample: Sample = { id: (seqRef.current += 1), at: Date.now(), raw, ...parsed };
+        setBaseline((b) => b ?? sample);
+
+        // Only distinct readings reach the list. A stationary sensor repeats
+        // the same bytes about once a second, and sixty of those told nothing
+        // while filling the whole window. The repeats are still counted above,
+        // because "it is still talking but the number has not moved" is itself
+        // the evidence that it went quiet rather than reset.
+        if (raw === lastRef.current) return;
+        lastRef.current = raw;
+        setSamples((prev) => [sample, ...prev].slice(0, 60));
       });
 
       setStatus("Ligado. GIRA A RODA (ou a pedaleira) — o sensor só transmite em movimento.");
@@ -137,7 +166,7 @@ export function CscProbe() {
     setStatus("Desligado.");
   }
 
-  const first = samples[samples.length - 1];
+  const first = baseline;
   const last = samples[0];
 
   return (
@@ -187,7 +216,10 @@ export function CscProbe() {
           was, the odometer model works. */}
       {first && last && (
         <div className="rounded-sm border border-border p-4 text-sm">
-          <p className="font-semibold">Primeira leitura → última</p>
+          <p className="font-semibold">Desde que ligou → agora</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {Math.round((last.at - first.at) / 1000)} s decorridos · {received} notificações · {samples.length} distintas
+          </p>
           <p className="mt-2 font-mono">
             roda: {first.wheelRevs ?? "—"} → {last.wheelRevs ?? "—"}
             {first.wheelRevs != null && last.wheelRevs != null && (
@@ -205,7 +237,7 @@ export function CscProbe() {
 
       <div className="space-y-1">
         {samples.map((s) => (
-          <p key={`${s.at}-${s.raw}`} className="font-mono text-xs">
+          <p key={s.id} className="font-mono text-xs">
             {new Date(s.at).toLocaleTimeString("pt-PT")} · roda {s.wheelRevs ?? "—"}@{s.wheelEventTime ?? "—"} ·
             pedaleira {s.crankRevs ?? "—"}@{s.crankEventTime ?? "—"} · <span className="opacity-60">{s.raw}</span>
           </p>
