@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { Ban, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
-import { formatDate, formatDistance, formatHours } from "@/lib/format";
+import { formatDate, formatDistance, formatHours, splitFigureUnit } from "@/lib/format";
 import type { TimelineEvent } from "@/lib/timeline";
 import { INTERVENTION_TYPE_ICON } from "@/lib/intervention-type";
 import { INTERVENTION_TYPE_STYLES } from "@/components/type-badge";
@@ -151,8 +151,26 @@ function ComponentMilestoneCard({
         <p className="text-[16px] leading-tight font-semibold">
           {componentName} · {label}
         </p>
+        {/* Same reading as `Measure` and as the bike header's totals — the
+            figure carries the weight and the colour, the unit stays quiet.
+            Inline rather than the `Measure` component because this card keeps
+            its measures on one line, where that one stacks them; the split
+            itself is the shared `splitFigureUnit`. The paragraph stays muted
+            so the separators and units inherit it and only the figure is
+            overridden. */}
         {measures.length > 0 && (
-          <p className="text-[14px] leading-tight text-muted-foreground">{measures.join(" · ")}</p>
+          <p className="text-[14px] leading-tight text-muted-foreground">
+            {measures.map((m, i) => {
+              const { figure, unit } = splitFigureUnit(m);
+              return (
+                <Fragment key={m}>
+                  {i > 0 && " · "}
+                  <span className="font-semibold text-foreground">{figure}</span>
+                  {unit && ` ${unit}`}
+                </Fragment>
+              );
+            })}
+          </p>
         )}
       </div>
     </Link>
