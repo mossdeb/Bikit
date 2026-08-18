@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { CSC_MEASUREMENT, CSC_SERVICE, parseCsc } from "@/lib/csc";
 
 /**
  * A probe for a BLE Cycling Speed and Cadence sensor. Not a feature.
@@ -26,9 +27,6 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
  * an error nobody can report.
  */
 
-const CSC_SERVICE = 0x1816;
-const CSC_MEASUREMENT = 0x2a5b;
-
 interface Sample {
   /** Monotonic. `timestamp + bytes` collided, because the sensor repeats a
    * reading many times a second, and that showed up as rows out of order. */
@@ -41,43 +39,9 @@ interface Sample {
   raw: string;
 }
 
-/**
- * CSC Measurement, little-endian. Byte 0 is flags: bit 0 says wheel data
- * follows, bit 1 says crank data follows. The fields only exist when their bit
- * is set, so the offsets move — reading at fixed positions is how this gets
- * silently wrong on a sensor mounted in the other mode.
- *
- * Every read is bounds-checked. A truncated packet would otherwise throw a
- * RangeError inside a Bluetooth event handler, which is about the worst place
- * in the app for an exception to surface.
- */
-function parseCsc(view: DataView): Omit<Sample, "id" | "at" | "raw"> {
-  const out: Omit<Sample, "id" | "at" | "raw"> = {
-    wheelRevs: null,
-    wheelEventTime: null,
-    crankRevs: null,
-    crankEventTime: null,
-  };
-  if (view.byteLength < 1) return out;
-
-  const flags = view.getUint8(0);
-  let offset = 1;
-
-  if (flags & 0x01) {
-    if (view.byteLength < offset + 6) return out;
-    out.wheelRevs = view.getUint32(offset, true);
-    offset += 4;
-    out.wheelEventTime = view.getUint16(offset, true);
-    offset += 2;
-  }
-  if (flags & 0x02) {
-    if (view.byteLength < offset + 4) return out;
-    out.crankRevs = view.getUint16(offset, true);
-    offset += 2;
-    out.crankEventTime = view.getUint16(offset, true);
-  }
-  return out;
-}
+// parseCsc moved to src/lib/csc.ts when the sensor sync grew out of this
+// probe — the flag-driven offsets and their bounds checks live there now,
+// shared by the pairing field and the sync button.
 
 const hex = (view: DataView) =>
   Array.from({ length: view.byteLength }, (_, i) => view.getUint8(i).toString(16).padStart(2, "0")).join(" ");

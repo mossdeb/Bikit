@@ -102,6 +102,10 @@ export type Database = {
           name: string
           notes: string | null
           purchase_date: string | null
+          sensor_baseline_count: number | null
+          sensor_name: string | null
+          sensor_synced_at: string | null
+          sensor_wheel_mm: number | null
           serial_number: string | null
           strava_gear_id: string | null
           total_hours: number | null
@@ -126,6 +130,10 @@ export type Database = {
           name: string
           notes?: string | null
           purchase_date?: string | null
+          sensor_baseline_count?: number | null
+          sensor_name?: string | null
+          sensor_synced_at?: string | null
+          sensor_wheel_mm?: number | null
           serial_number?: string | null
           strava_gear_id?: string | null
           total_hours?: number | null
@@ -150,6 +158,10 @@ export type Database = {
           name?: string
           notes?: string | null
           purchase_date?: string | null
+          sensor_baseline_count?: number | null
+          sensor_name?: string | null
+          sensor_synced_at?: string | null
+          sensor_wheel_mm?: number | null
           serial_number?: string | null
           strava_gear_id?: string | null
           total_hours?: number | null

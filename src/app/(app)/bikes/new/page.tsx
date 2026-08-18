@@ -19,6 +19,9 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { getUserSubscription } from "@/lib/subscription";
 import { hasAiSetupAccess } from "@/lib/ai-setup-access";
 import { SmartSetupLink } from "@/components/smart-setup-link";
+import { hasLabAccess } from "@/lib/lab-access";
+import { SyncMethodChooser } from "@/components/sync-method-chooser";
+import { SensorPairField } from "@/components/sensor-pair-field";
 
 export default async function NewBikePage({
   searchParams,
@@ -171,8 +174,10 @@ export default async function NewBikePage({
     </Fragment>
   );
 
-  const step3 = (
-    <div key="step-3" className="space-y-1.5 sm:col-span-2">
+  const labAccess = hasLabAccess(userData?.claims?.email as string | undefined);
+
+  const stravaSection = (
+    <div className="space-y-1.5 sm:col-span-2">
       <Label>{dict.bikes.form.stravaTitle}</Label>
       {/* Same row as the edit form, and it stays the same: the select fills the
           box now that the glyph beside it is gone. */}
@@ -235,6 +240,23 @@ export default async function NewBikePage({
         </>
       )}
     </div>
+  );
+
+  // The lab account chooses its sync method here; everyone else gets the
+  // Strava section directly, exactly as before. Key on the fragment because
+  // the wizard's steps array asks for one.
+  const step3 = (
+    <Fragment key="step-3">
+      {labAccess ? (
+        <SyncMethodChooser
+          initial="strava"
+          strava={stravaSection}
+          sensor={<SensorPairField defaultName={null} defaultWheelMm={null} defaultBaseline={null} />}
+        />
+      ) : (
+        stravaSection
+      )}
+    </Fragment>
   );
 
   return (

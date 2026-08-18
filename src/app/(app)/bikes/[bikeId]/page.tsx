@@ -19,6 +19,7 @@ import { StravaBadgeIcon } from "@/components/strava-icon";
 import { PoweredByStrava } from "@/components/strava-brand";
 import { StravaSyncToast } from "@/components/strava-sync-toast";
 import { StravaSyncButton } from "@/components/strava-sync-button";
+import { SensorSyncButton } from "@/components/sensor-sync-button";
 import { ComponentIcon } from "@/components/component-icon";
 import { COMPONENT_CATEGORY_ICON } from "@/components/component-category-icon";
 import { BadgedCategoryIcon, Measure } from "@/components/component-event-visuals";
@@ -587,6 +588,19 @@ export default async function BikeDetailPage({
             <input type="hidden" name="bikeId" value={bike.id} />
             <StravaSyncButton label={dict.bikes.detail.reload} pendingMessage={dict.bikes.detail.syncPending} />
           </form>
+        </div>
+      )}
+      {/* The sensor bike's counterpart to the Strava sync, in the same slot.
+          Gated by the column, not by email: only the lab account's forms can
+          set sensor_name, so its presence is the authorisation. Label stays
+          hardcoded by the lab precedent — "Sensor" reads the same in both
+          languages anyway. */}
+      {bike.sensor_name && (
+        <div className={cn("min-w-0", fieldBasis)}>
+          <p className="text-xs text-muted-foreground">Sensor {bike.sensor_name}</p>
+          <div className="mt-1.5">
+            <SensorSyncButton bikeId={bike.id} sensorName={bike.sensor_name} />
+          </div>
         </div>
       )}
       {bike.notes && (

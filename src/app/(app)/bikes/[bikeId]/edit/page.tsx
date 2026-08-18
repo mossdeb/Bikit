@@ -19,6 +19,9 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { BikeOptionalFields } from "@/components/bike-optional-fields";
 import { bikeOptionalFieldLabels } from "@/lib/bike-optional-field-labels";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
+import { hasLabAccess } from "@/lib/lab-access";
+import { SyncMethodChooser } from "@/components/sync-method-chooser";
+import { SensorPairField } from "@/components/sensor-pair-field";
 
 export default async function EditBikePage({
   params,
@@ -68,6 +71,83 @@ export default async function EditBikePage({
 
   if (!bike) notFound();
   const isStravaLinked = !!bike.strava_gear_id;
+  const labAccess = hasLabAccess(userData?.claims?.email as string | undefined);
+
+  // Pulled into a variable so the lab chooser can take it as its Strava
+  // side; everyone else renders it directly, exactly as before.
+  const stravaSection = (
+    <div className="space-y-1.5 sm:col-span-2">
+      <Label>{dict.bikes.form.stravaTitle}</Label>
+      {/* The select fills the box now that the glyph beside it is gone.
+          Kept at w-56 and pushed right, it would have left the row half
+          empty for no reason — the label above already names the field,
+          which is what the icon was doing. */}
+      {stravaAccessToken ? (
+        <div className="flex items-center gap-3 rounded-sm bg-muted px-3.5 py-3">
+          <NativeSelect
+            id="strava_gear_id"
+            name="strava_gear_id"
+            defaultValue={bike.strava_gear_id ?? ""}
+            wrapperClassName="w-full"
+            className="bg-background"
+          >
+            <option value="">{dict.bikes.form.stravaNone}</option>
+            {stravaBikes.map((gear) => {
+              const linkedTo = gearOwnerByGearId.get(gear.id);
+              return (
+                <option key={gear.id} value={gear.id} disabled={!!linkedTo}>
+                  {linkedTo ? dict.bikes.form.stravaAlreadyLinked(gear.name, linkedTo) : gear.name}
+                </option>
+              );
+            })}
+          </NativeSelect>
+        </div>
+      ) : (
+        <StravaConnectRow label={dict.settings.strava.strava} connectLabel={dict.settings.strava.connect} />
+      )}
+      {stravaAccessToken ? (
+        // The hint line carries the way out, rather than a control on the
+        // select's row. Only while this bike has nothing linked: once it
+        // does, the question the trigger asks has been answered and the
+        // link would be clutter on a finished field. Reading it from the
+        // row and not from the select's current value is what keeps the
+        // select uncontrolled.
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
+          {!isStravaLinked && (
+            <StravaGearHelp
+              trigger={dict.bikes.form.stravaGearHelp.trigger}
+              title={dict.bikes.form.stravaGearHelp.title}
+              lead={dict.bikes.form.stravaGearHelp.lead}
+              appStep={dict.bikes.form.stravaGearHelp.appStep}
+              webStep={dict.bikes.form.stravaGearHelp.webStep}
+              openLabel={dict.bikes.form.stravaGearHelp.open}
+              refreshLabel={dict.bikes.form.stravaGearHelp.refresh}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+            {[
+              dict.bikes.form.stravaBenefitMileage,
+              dict.bikes.form.stravaBenefitHours,
+              dict.bikes.form.stravaBenefitSync,
+              dict.bikes.form.stravaBenefitHistory,
+            ].map((benefit) => (
+              <div key={benefit} className="flex items-center gap-2 text-sm font-semibold">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="size-3" />
+                </span>
+                {benefit}
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-muted-foreground">{dict.bikes.form.stravaSkipHint}</p>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-1 flex-col max-w-2xl pt-4 sm:block sm:pt-8">
@@ -155,77 +235,21 @@ export default async function EditBikePage({
             <p className="text-xs text-muted-foreground sm:col-span-2">{dict.bikes.form.stravaHint}</p>
           )}
 
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>{dict.bikes.form.stravaTitle}</Label>
-            {/* The select fills the box now that the glyph beside it is gone.
-                Kept at w-56 and pushed right, it would have left the row half
-                empty for no reason — the label above already names the field,
-                which is what the icon was doing. */}
-            {stravaAccessToken ? (
-              <div className="flex items-center gap-3 rounded-sm bg-muted px-3.5 py-3">
-                <NativeSelect
-                  id="strava_gear_id"
-                  name="strava_gear_id"
-                  defaultValue={bike.strava_gear_id ?? ""}
-                  wrapperClassName="w-full"
-                  className="bg-background"
-                >
-                  <option value="">{dict.bikes.form.stravaNone}</option>
-                  {stravaBikes.map((gear) => {
-                    const linkedTo = gearOwnerByGearId.get(gear.id);
-                    return (
-                      <option key={gear.id} value={gear.id} disabled={!!linkedTo}>
-                        {linkedTo ? dict.bikes.form.stravaAlreadyLinked(gear.name, linkedTo) : gear.name}
-                      </option>
-                    );
-                  })}
-                </NativeSelect>
-              </div>
-            ) : (
-              <StravaConnectRow label={dict.settings.strava.strava} connectLabel={dict.settings.strava.connect} />
-            )}
-            {stravaAccessToken ? (
-              // The hint line carries the way out, rather than a control on the
-              // select's row. Only while this bike has nothing linked: once it
-              // does, the question the trigger asks has been answered and the
-              // link would be clutter on a finished field. Reading it from the
-              // row and not from the select's current value is what keeps the
-              // select uncontrolled.
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <p className="text-xs text-muted-foreground">{dict.bikes.form.stravaDescription}</p>
-                {!isStravaLinked && (
-                  <StravaGearHelp
-                    trigger={dict.bikes.form.stravaGearHelp.trigger}
-                    title={dict.bikes.form.stravaGearHelp.title}
-                    lead={dict.bikes.form.stravaGearHelp.lead}
-                    appStep={dict.bikes.form.stravaGearHelp.appStep}
-                    webStep={dict.bikes.form.stravaGearHelp.webStep}
-                    openLabel={dict.bikes.form.stravaGearHelp.open}
-                    refreshLabel={dict.bikes.form.stravaGearHelp.refresh}
-                  />
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
-                  {[
-                    dict.bikes.form.stravaBenefitMileage,
-                    dict.bikes.form.stravaBenefitHours,
-                    dict.bikes.form.stravaBenefitSync,
-                    dict.bikes.form.stravaBenefitHistory,
-                  ].map((benefit) => (
-                    <div key={benefit} className="flex items-center gap-2 text-sm font-semibold">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Check className="size-3" />
-                      </span>
-                      {benefit}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-center text-sm text-muted-foreground">{dict.bikes.form.stravaSkipHint}</p>
-              </>
-            )}
-          </div>
+          {labAccess ? (
+            <SyncMethodChooser
+              initial={bike.sensor_name ? "sensor" : "strava"}
+              strava={stravaSection}
+              sensor={
+                <SensorPairField
+                  defaultName={bike.sensor_name}
+                  defaultWheelMm={bike.sensor_wheel_mm}
+                  defaultBaseline={bike.sensor_baseline_count}
+                />
+              }
+            />
+          ) : (
+            stravaSection
+          )}
 
           <BikeOptionalFields
             labels={bikeOptionalFieldLabels(dict)}
