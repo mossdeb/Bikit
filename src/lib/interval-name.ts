@@ -18,6 +18,40 @@ export function intervalName(dict: Dictionary, name: string): string {
 }
 
 /**
+ * Splits a trailing parenthetical off an interval name when it is a note
+ * about the work rather than part of what the reminder is called.
+ *
+ * Some catalog names carry prose in brackets — "Lower Leg Service (clean/
+ * inspect lowers, change oil bath if necessary)" — which belongs behind the
+ * (i) and not in a heading that also wraps to three lines. Others carry a
+ * qualifier that IS the identity: one component genuinely holds both "Full
+ * Service (trail / off-road use)" and "Full Service", and stripping blindly
+ * would print the same name twice on the same card.
+ *
+ * The two are told apart by shape, because nothing in the data marks them:
+ * prose lists actions, so it carries a comma or a semicolon, or it simply
+ * runs long. Measured against all nine bracketed names in production on
+ * 2026-08-18 this separates them exactly; it is a heuristic on real data, not
+ * a rule the data guarantees, so a name that defeats it shows its bracket
+ * inline — which is today's behaviour and therefore no worse.
+ *
+ * Only a trailing parenthetical counts: a bracket in the middle is part of
+ * the phrase around it.
+ */
+const NOTE_MIN_LENGTH = 30;
+
+export function splitIntervalNote(name: string): { name: string; note: string | null } {
+  const match = name.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  if (!match) return { name, note: null };
+
+  const [, head, inner] = match;
+  if (!head.trim()) return { name, note: null };
+
+  const readsAsProse = /[,;]/.test(inner) || inner.length >= NOTE_MIN_LENGTH;
+  return readsAsProse ? { name: head.trim(), note: inner.trim() } : { name, note: null };
+}
+
+/**
  * The way back: a reader-facing label to the canonical English it stands
  * for, so what is SHOWN can be Portuguese while what is STORED stays the
  * shared key. Without this, prefilling a form with a translated name would

@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 export function IntervalIncludesButton({
   title,
   items,
+  note,
   label,
   size = "default",
   className,
@@ -31,6 +32,12 @@ export function IntervalIncludesButton({
   title: string;
   /** Translated service names. Rendering is skipped entirely when empty. */
   items: string[];
+  /** Prose about the work, split off the interval's own name by
+   * `splitIntervalNote`. Opens the popover on its own when there is no list —
+   * it is the same question ("what does this cover?") answered in sentences
+   * instead of names. Untranslated, because it arrives as catalog prose
+   * rather than as a canonical key. */
+  note?: string | null;
   /** Accessible name of the trigger, since the icon carries no text. */
   label: string;
   /** "compact" is the inline one that follows a line of text (the Smart Setup
@@ -43,7 +50,7 @@ export function IntervalIncludesButton({
 }) {
   // Nothing to open — but the caller's text still has to reach the page, so
   // it comes back bare rather than taking the whole line down with it.
-  if (items.length === 0) return <>{children}</>;
+  if (items.length === 0 && !note) return <>{children}</>;
 
   const compact = size === "compact";
 
@@ -69,15 +76,24 @@ export function IntervalIncludesButton({
         <Info className={cn("shrink-0", compact ? "size-3.5" : "size-4")} />
       </PopoverTrigger>
       <PopoverContent align="end" className="p-4">
-        <p className="text-sm font-semibold">{title}</p>
-        <ul className="mt-2 space-y-1.5">
-          {items.map((item) => (
-            <li key={item} className="flex gap-2 text-sm">
-              <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground" />
-              <span className="min-w-0">{item}</span>
-            </li>
-          ))}
-        </ul>
+        {/* The note leads and carries no heading of its own: it is a sentence
+            about the work, and a label above one sentence is furniture. The
+            list keeps its heading, which is what tells the two apart when
+            both are here. */}
+        {note && <p className="text-sm text-muted-foreground">{note}</p>}
+        {items.length > 0 && (
+          <>
+            <p className={cn("text-sm font-semibold", note && "mt-3")}>{title}</p>
+            <ul className="mt-2 space-y-1.5">
+              {items.map((item) => (
+                <li key={item} className="flex gap-2 text-sm">
+                  <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground" />
+                  <span className="min-w-0">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );

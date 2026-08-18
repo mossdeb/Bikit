@@ -23,7 +23,7 @@ import { HealthBadge, HealthPercentBadge } from "@/components/health-badge";
 import { ServiceIntervalBar } from "@/components/service-interval-bar";
 import { MaintenanceIcon } from "@/components/interval-icons";
 import { IntervalIncludesButton } from "@/components/interval-includes-button";
-import { intervalName } from "@/lib/interval-name";
+import { intervalName, splitIntervalNote } from "@/lib/interval-name";
 import { asIncludes } from "@/lib/interval-includes";
 import { TypeBadge, INTERVENTION_TYPE_DOT_STYLES } from "@/components/type-badge";
 import { ComponentIcon } from "@/components/component-icon";
@@ -333,6 +333,10 @@ export default async function ComponentDetailPage({
             {intervals.map(({ interval, status, includes }) => {
               const rowPercent = healthPercent(status.fractionUsed);
               const isActive = activeResult?.interval.id === interval.id;
+              // Catalog prose in brackets goes behind the (i); a short
+              // qualifier stays, because on one component it is the only thing
+              // separating two reminders both called "Full Service".
+              const { name: intervalLabel, note } = splitIntervalNote(interval.name);
               const cadence =
                 interval.intervalType && interval.intervalValue != null
                   ? dict.components.detail.every(
@@ -365,16 +369,23 @@ export default async function ComponentDetailPage({
               const [before, after] = label?.split(amount!) ?? [];
 
               return (
+                // The card is a white plate with a grey panel let into it,
+                // rather than a grey pill with a white disc on top. `overflow-
+                // hidden` is what makes the panel take the plate's corners;
+                // `items-stretch` is what makes it run the full height instead
+                // of floating in the middle.
                 <div
                   key={interval.id}
-                  className="flex items-center gap-4 rounded-[22px] bg-[#F4F4F4] p-3 dark:bg-muted"
+                  className="flex items-stretch overflow-hidden rounded-[18px] border border-border bg-card"
                 >
-                  <span className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-card">
-                    <MaintenanceIcon className="size-5 text-foreground" />
+                  <span className="flex shrink-0 items-center justify-center px-3">
+                    <span className="flex size-[42px] items-center justify-center rounded-full bg-[#F4F4F4] dark:bg-muted">
+                      <MaintenanceIcon className="size-5 text-foreground" />
+                    </span>
                   </span>
-                  <div className="min-w-0 flex-1 pr-3">
+                  <div className="min-w-0 flex-1 bg-[#F4F4F4] p-3 dark:bg-muted">
                     <p className="text-sm text-muted-foreground">
-                      {interval.name}
+                      {intervalLabel}
                       {cadence ? ` · ${cadence}` : ""}
                       {/* Which of the up-to-3 reminders drives the percentage
                           and colour the component shows everywhere else. The
@@ -402,6 +413,7 @@ export default async function ComponentDetailPage({
                         title={dict.components.detail.includesTitle}
                         label={dict.components.detail.includesLabel}
                         items={(includes ?? []).map((name) => intervalName(dict, name))}
+                        note={note}
                       >
                         {label && (
                           <span className="min-w-0 truncate text-base">
