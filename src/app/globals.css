@@ -383,11 +383,16 @@
 /* The overlay carries its own exit on a delay, so the screen clears itself
    even if the script that choreographs the rest never runs. A full-screen
    panel that outlives its animation is the one failure worth spending six
-   lines on. */
+   lines on.
+
+   The 2850ms delay is a held frame, not a gap: the year — the last thing to
+   arrive — lands at 1820ms, so the finished screen stands still for just over
+   a second before it starts to go. That pause is what lets the composition be
+   read as a whole rather than as the tail of its own assembly. */
 .bike-celebration-auto {
   animation:
     bike-celebration-enter 220ms ease-out both,
-    bike-celebration-leave 360ms ease-in 2350ms forwards;
+    bike-celebration-leave 360ms ease-in 2850ms forwards;
 }
 
 /* Tapping to skip swaps the class rather than rewriting the delay: changing

@@ -21,10 +21,10 @@ const AT = {
   year: 1440,
 } as const;
 
-/** Matches the delayed `bike-celebration-leave` in globals.css: 2350 + 360,
+/** Matches the delayed `bike-celebration-leave` in globals.css: 2850 + 360,
  * plus a frame of slack so the node is removed after the fade rather than
  * during it. */
-const TOTAL_MS = 2740;
+const TOTAL_MS = 3240;
 /** Matches `.bike-celebration-now`. */
 const SKIP_MS = 300;
 
