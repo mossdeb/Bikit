@@ -415,7 +415,7 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
                             right-aligned mono already lines the numbers up,
                             but a lone "1" beside a "73" read as a different
                             kind of value rather than a smaller one. */}
-                        <span className="w-7 shrink-0 text-right font-mono text-sm font-semibold">
+                        <span className="w-7 shrink-0 text-right tabular-nums text-sm font-semibold">
                           {number(ride.stress).padStart(2, "0")}
                         </span>
                         {/* The ride's own band, read off its score with the
@@ -482,19 +482,19 @@ export default async function RideStressPage({ params }: { params: Promise<{ bik
           <div className="mt-5 flex flex-wrap gap-x-6 gap-y-5">
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{dict.bikes.detail.totalDistance}</p>
-              <p className="mt-0.5 font-mono text-sm font-semibold">
+              <p className="mt-0.5 tabular-nums text-sm font-semibold">
                 {bike.total_km != null ? formatDistance(bike.total_km, distanceUnit, locale) : "—"}
               </p>
             </div>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{dict.bikes.detail.totalHours}</p>
-              <p className="mt-0.5 font-mono text-sm font-semibold">
+              <p className="mt-0.5 tabular-nums text-sm font-semibold">
                 {bike.total_hours != null ? formatHours(bike.total_hours, locale) : "—"}
               </p>
             </div>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{dict.rideStress.lifetimeLoad}</p>
-              <p className="mt-0.5 flex items-center gap-2 font-mono text-sm font-semibold">
+              <p className="mt-0.5 flex items-center gap-2 tabular-nums text-sm font-semibold">
                 {number(lifetimeTotals.stress)}
                 {/* Neutral chip, not a band one: this is a reading and not a
                     state, and the coloured pills three sections up are a

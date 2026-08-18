@@ -33,14 +33,20 @@ import type { ComponentCategory } from "@/lib/constants";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { categoryLabel } from "@/lib/component-category";
 
+/** Two props and not one, for the reason spelled out on the bike page's own
+ * DetailField: a quantity wants equal digit widths, which Anek Latin gives on
+ * its own; a serial number wants a face that separates 0 from O, which only
+ * real monospace gives. */
 function DetailField({
   label,
   value,
+  figures,
   mono,
   className,
 }: {
   label: string;
   value: React.ReactNode;
+  figures?: boolean;
   mono?: boolean;
   className?: string;
 }) {
@@ -48,7 +54,9 @@ function DetailField({
   return (
     <div className={cn("min-w-0", className)}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 truncate text-sm font-semibold", mono && "font-mono")}>{value}</p>
+      <p className={cn("mt-0.5 truncate text-sm font-semibold", figures && "tabular-nums", mono && "font-mono")}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -258,8 +266,8 @@ export default async function ComponentDetailPage({
             <DetailField label={dict.brandField.brand} value={component.brand ?? "—"} className={fieldBasis} />
             <DetailField label={dict.components.form.model} value={component.model ?? "—"} className={fieldBasis} />
             <DetailField label={dict.components.form.category} value={categoryLabel(dict, component.category) ?? "—"} className={fieldBasis} />
-            <DetailField label={dict.components.detail.totalDistance} value={distanceDetail} mono className={fieldBasis} />
-            <DetailField label={dict.components.detail.totalHours} value={hoursDetail} mono className={fieldBasis} />
+            <DetailField label={dict.components.detail.totalDistance} value={distanceDetail} figures className={fieldBasis} />
+            <DetailField label={dict.components.detail.totalHours} value={hoursDetail} figures className={fieldBasis} />
             {component.serial_number && (
               <DetailField label={dict.components.form.serialNumber} value={component.serial_number} mono className={fieldBasis} />
             )}
@@ -308,8 +316,8 @@ export default async function ComponentDetailPage({
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-6">
-            <DetailField label={dict.components.detail.totalDistance} value={distanceDetail} mono />
-            <DetailField label={dict.components.detail.totalHours} value={hoursDetail} mono />
+            <DetailField label={dict.components.detail.totalDistance} value={distanceDetail} figures />
+            <DetailField label={dict.components.detail.totalHours} value={hoursDetail} figures />
             {archivedPill && <div className="ml-auto">{archivedPill}</div>}
           </div>
         </div>

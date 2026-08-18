@@ -301,7 +301,7 @@ export default async function DashboardPage({
                 <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                   {/* Mono and full-contrast, like the totals in the bike header
                       they mirror — the muted grey was the odd one out. */}
-                  <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
+                  <p className="flex items-center gap-1.5 tabular-nums text-sm font-semibold text-foreground">
                     {/* Two nodes rather than one joined string — see the note
                         on the bike list, which does exactly this. */}
                     <span className="inline-flex items-baseline whitespace-pre">
@@ -422,7 +422,7 @@ export default async function DashboardPage({
                         {bike?.name ?? "—"} · {formatDate(iv.date)}
                       </p>
                     </div>
-                    <div className="shrink-0 font-mono text-xs text-muted-foreground">
+                    <div className="shrink-0 tabular-nums text-xs text-muted-foreground">
                       {iv.kms != null ? formatDistance(iv.kms, distanceUnit, locale) : iv.hours_used != null ? formatHours(iv.hours_used, locale) : ""}
                     </div>
                   </Link>

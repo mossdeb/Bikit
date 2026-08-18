@@ -154,7 +154,7 @@ export default async function BikesPage() {
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 {/* Mono and full-contrast, like the totals in the bike header
                     they mirror — the muted grey was the odd one out. */}
-                <p className="flex items-center gap-1.5 font-mono text-sm font-semibold text-foreground">
+                <p className="flex items-center gap-1.5 tabular-nums text-sm font-semibold text-foreground">
                   {/* The two totals were one joined string; they are two nodes
                       now because each one rolls against its own baseline and
                       has to store the very same figure the bike's own header

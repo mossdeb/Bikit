@@ -109,7 +109,7 @@ function ModalityRow({ row, thisBike }: { row: RideLoadModalityRow; thisBike: st
                 style={{ width: `${factor.weightPercent}%` }}
               />
             </span>
-            <span className="w-7 shrink-0 text-right font-mono text-[11px] leading-none font-semibold">
+            <span className="w-7 shrink-0 text-right tabular-nums text-[11px] leading-none font-semibold">
               {factor.weightLabel}
             </span>
           </div>

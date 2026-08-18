@@ -102,7 +102,7 @@ export function RideIntensityTrend({
           {title}
           {/* The reading keeps its weight while the heading gives some up —
               the number is what the section is for. */}
-          <span className="block font-mono text-lg font-bold">{Math.round(points[index].value)}</span>
+          <span className="block tabular-nums text-lg font-bold">{Math.round(points[index].value)}</span>
         </span>
       </h2>
 

@@ -47,7 +47,7 @@ export function RideDetailsButton({
           {items.map((item) => (
             <div key={item.label} className="flex items-baseline justify-between gap-3">
               <dt className="min-w-0 text-sm text-muted-foreground">{item.label}</dt>
-              <dd className="shrink-0 font-mono text-sm font-semibold">{item.value}</dd>
+              <dd className="shrink-0 tabular-nums text-sm font-semibold">{item.value}</dd>
             </div>
           ))}
         </dl>

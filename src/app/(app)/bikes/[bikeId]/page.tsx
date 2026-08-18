@@ -42,14 +42,29 @@ import { loadScoredRides } from "@/lib/ride-stress-data";
 import { rideIntensity, rideIntensityTrend } from "@/lib/ride-stress";
 import { INTENSITY_TEXT_CLASS, RideIntensityChip, TrendArrow } from "@/components/ride-intensity-visuals";
 
+/**
+ * `figures` and `mono` are not the same request, which is why they are two
+ * props rather than one.
+ *
+ * A quantity wants its digits equal in width so columns line up, and Anek
+ * Latin does that itself — measured, its tabular figures are all 21.75px at
+ * 40px against a 9.2px spread proportional. So a total stays in the app's own
+ * typeface and only changes how its digits are spaced.
+ *
+ * A serial number wants something else entirely: a face that separates 0 from
+ * O and 1 from l, because it is transcribed rather than read. That is real
+ * monospace, and it is worth the family change.
+ */
 function DetailField({
   label,
   value,
+  figures,
   mono,
   className,
 }: {
   label: string;
   value: React.ReactNode;
+  figures?: boolean;
   mono?: boolean;
   className?: string;
 }) {
@@ -57,7 +72,9 @@ function DetailField({
   return (
     <div className={cn("min-w-0", className)}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 truncate text-sm font-semibold", mono && "font-mono")}>{value}</p>
+      <p className={cn("mt-0.5 truncate text-sm font-semibold", figures && "tabular-nums", mono && "font-mono")}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -109,7 +126,7 @@ function StatCell({ value, label, className }: { value: React.ReactNode; label: 
           it, which dwarfed the 2px that was actually being set. Tightening
           the box is what halves the gap; deleting the margin alone would have
           moved it by 2px. */}
-      <p className="font-mono text-base leading-tight font-semibold">{value}</p>
+      <p className="text-base leading-tight font-semibold tabular-nums">{value}</p>
       {/* Not truncated: "Distância total" does not fit a third of a phone on
           one line, and a label cut to "Distância to…" is worse than a label
           on two. leading-tight keeps the two lines from pushing the box. */}
@@ -429,7 +446,7 @@ export default async function BikeDetailPage({
       <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold">
         {/* Dash and no band chip until the first ride: a band is a verdict on
             how the bike has been ridden, and there is nothing yet to judge. */}
-        <span className="font-mono transition-opacity group-hover:opacity-70">
+        <span className="tabular-nums transition-opacity group-hover:opacity-70">
           {intensity ? (
             <AnimatedNumber value={String(Math.round(intensity.value))} storageKey={`${bike.id}:load`} />
           ) : (
@@ -544,9 +561,11 @@ export default async function BikeDetailPage({
       <DetailField label={dict.bikes.form.model} value={bike.model ?? "—"} className={fieldBasis} />
       <DetailField label={dict.bikes.form.type} value={bike.type ?? "—"} className={fieldBasis} />
       {totals && (
-        <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} mono className={fieldBasis} />
+        <DetailField label={dict.bikes.detail.totalDistance} value={distanceDetail} figures className={fieldBasis} />
       )}
-      {totals && <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} mono className={fieldBasis} />}
+      {totals && (
+        <DetailField label={dict.bikes.detail.totalHours} value={hoursDetail} figures className={fieldBasis} />
+      )}
       {totals && rideIntensityField(fieldBasis)}
       {bike.serial_number && (
         <DetailField label={dict.bikes.form.serialNumber} value={bike.serial_number} mono className={fieldBasis} />
