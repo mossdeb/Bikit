@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Bluetooth } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToastManager } from "@/components/ui/toast";
-import { CSC_SERVICE, readCscWheelCount } from "@/lib/csc";
+import { readCscWheelCountForSensor } from "@/lib/csc";
 import { syncBikeSensor } from "@/lib/actions/sensor";
 
 const TOAST_ID = "sensor-sync";
@@ -14,14 +14,13 @@ const TOAST_ID = "sensor-sync";
  * slot of the details grid. Reads the paired sensor over Web Bluetooth and
  * hands the count to the server, which owns the arithmetic.
  *
- * The picker asks by SERVICE, the same request pairing makes, because that
- * is the one shape every engine this runs on has actually answered — the
- * first field test (iPhone, Bluefy, 2026-08-18) never showed a picker for a
- * name filter with `optionalServices`; Bluefy's partial Web Bluetooth
- * rejected it outright. The wrong-device guard — a neighbouring sensor's
- * reading nearly rewrote a day's conclusions that same morning — moved from
- * the filter to a name check after the choice, here and again on the
- * server.
+ * The picker request adapts to the engine — name filter where it works
+ * (Chrome shows just the paired sensor), service filter where the name form
+ * is rejected before any picker opens (Bluefy) — readCscWheelCountForSensor
+ * carries that story. The wrong-device guard therefore cannot live in the
+ * filter: a neighbouring sensor's reading nearly rewrote a day's
+ * conclusions on 2026-08-18, so the chosen device's name is checked after
+ * the choice, here and again on the server.
  *
  * Lab test — PT strings by the probe's precedent.
  */
@@ -39,7 +38,7 @@ export function SensorSyncButton({ bikeId, sensorName }: { bikeId: string; senso
     setLastError(null);
     toastManager.add({ id: TOAST_ID, description: "A ler o sensor…", type: "loading", timeout: 0 });
     try {
-      const reading = await readCscWheelCount([{ services: [CSC_SERVICE] }]);
+      const reading = await readCscWheelCountForSensor(sensorName);
       // Checked before the count goes anywhere; the server refuses again on
       // its side, but the person in the garage deserves the answer here.
       if (reading.deviceName !== sensorName) {

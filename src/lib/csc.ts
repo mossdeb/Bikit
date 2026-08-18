@@ -84,6 +84,39 @@ type BluetoothNavigator = {
  * hub; silence means it is asleep and the wheel needs a spin. Must be called
  * from a user gesture — `requestDevice` refuses otherwise.
  */
+/** Closing the picker is a decision, not a failure — the one rejection that
+ * must never trigger a retry, or cancelling would reopen the picker. */
+const isUserCancel = (e: unknown) => e instanceof Error && /cancel/i.test(e.message);
+
+/**
+ * Reads the wheel count from one specific sensor, asking the way each engine
+ * can answer. A name filter gives Chrome a picker listing just the paired
+ * sensor; Bluefy's partial Web Bluetooth rejects that request outright
+ * before any picker appears (field-tested 2026-08-18, a terse "erro 2").
+ * So: try the name filter, and on any rejection that was not the person
+ * closing the picker, ask again by service — the shape pairing already
+ * proved everywhere. Capability is tested by behaviour, not by user-agent
+ * sniffing, which would break silently on the next Bluefy update.
+ *
+ * The caller still checks the returned name against the paired one: the
+ * service-filter path lists every CSC sensor in range, and even the name
+ * path is only as trustworthy as the filter that produced it.
+ */
+export async function readCscWheelCountForSensor(
+  name: string,
+  options?: { timeoutMs?: number }
+): Promise<{ deviceName: string; wheelRevs: number }> {
+  try {
+    return await readCscWheelCount([{ name }], {
+      optionalServices: [CSC_SERVICE],
+      timeoutMs: options?.timeoutMs,
+    });
+  } catch (e) {
+    if (isUserCancel(e)) throw e;
+    return await readCscWheelCount([{ services: [CSC_SERVICE] }], { timeoutMs: options?.timeoutMs });
+  }
+}
+
 export async function readCscWheelCount(
   filters: unknown[],
   options?: { optionalServices?: number[]; timeoutMs?: number }
