@@ -1,6 +1,44 @@
 import { cn } from "@/lib/utils";
 
 /**
+ * The IMU chart glyph (supplied art) — the analysis header's mark. Strokes
+ * ride currentColor so the dark theme keeps it visible; the source SVG's
+ * hardcoded black stays behind in the asset file.
+ */
+export function ImuChartGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 107 105" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M15.3572 85.0401L31.0277 20.7764C32.308 15.5261 37.3654 15.806 38.3795 21.1833L49.2937 86.6139C50.3447 92.1868 55.6534 92.2106 56.727 86.6472L67.4314 23.6184C68.508 18.0396 73.8365 18.0847 74.8702 23.6814L86.1012 84.4867C87.03 89.5155 91.6231 90.2493 93.2495 85.6287L101.088 53.8985"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <path d="M2 102.422H104.036" stroke="currentColor" strokeWidth="4" strokeMiterlimit="10" strokeLinecap="round" />
+      <path d="M2 102.422V2" stroke="currentColor" strokeWidth="4" strokeMiterlimit="10" strokeLinecap="round" />
+      <path d="M12.0619 39.3405H14.0619" stroke="currentColor" strokeWidth="4" strokeMiterlimit="10" strokeLinecap="round" />
+      <path
+        d="M25.3978 39.3405H95.3026"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+        strokeDasharray="3.78 11.34"
+      />
+      <path d="M100.971 39.3405H102.971" stroke="currentColor" strokeWidth="4" strokeMiterlimit="10" strokeLinecap="round" />
+      <path
+        d="M95.2654 43.9022C97.7848 43.9022 99.8272 41.8598 99.8272 39.3404C99.8272 36.821 97.7848 34.7786 95.2654 34.7786C92.746 34.7786 90.7037 36.821 90.7037 39.3404C90.7037 41.8598 92.746 43.9022 95.2654 43.9022Z"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
  * The "Bikit PRO" lockup the IMU lab wears — supplied art (logo_pro3). The
  * tile and the PRO chip keep their fixed colors in both themes; the wordmark
  * rides currentColor, because a fixed near-black vanishes on the dark theme's
