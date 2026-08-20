@@ -59,7 +59,8 @@ export function sessionSummary(session: ImuSessionData): ImuSessionSummary {
       airtimeMs += event.airtimeMs;
     } else if (event.kind === "impact") impactCount++;
     else if (event.kind === "braking") brakingCount++;
-    else if (event.kind === "rough_section") roughMs += event.endMs - event.startMs;
+    else if (event.kind === "rough_section")
+      roughMs += event.endMs - event.startMs;
   }
 
   return {
@@ -81,7 +82,10 @@ export function sessionSummary(session: ImuSessionData): ImuSessionSummary {
  * Index of the sample nearest to a target time — the cursor's question.
  * Binary search over the (monotonic) timestamps; O(log n) per pointer move.
  */
-export function nearestSampleIndex(tMs: Float64Array, targetMs: number): number {
+export function nearestSampleIndex(
+  tMs: Float64Array,
+  targetMs: number,
+): number {
   const n = tMs.length;
   if (n === 0) return -1;
   if (targetMs <= tMs[0]) return 0;
@@ -98,7 +102,11 @@ export function nearestSampleIndex(tMs: Float64Array, targetMs: number): number 
 
 /** The events covering an instant: ranged events that span it, point events
  * (impact, jump) within a small window around it. */
-export function eventsAt(events: ImuEvent[], timeMs: number, pointWindowMs = 150): ImuEvent[] {
+export function eventsAt(
+  events: ImuEvent[],
+  timeMs: number,
+  pointWindowMs = 150,
+): ImuEvent[] {
   return events.filter((event) => {
     switch (event.kind) {
       case "curve":
@@ -122,9 +130,10 @@ export function windowPeak(
   tMs: Float64Array,
   values: ArrayLike<number>,
   fromMs: number,
-  toMs: number
+  toMs: number,
 ): number | null {
-  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1]) return null;
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
   const i0 = lowerBoundIndex(tMs, fromMs);
   const i1 = upperBoundIndex(tMs, toMs);
   if (i0 > i1 || i0 >= tMs.length) return null;
@@ -146,9 +155,10 @@ export function windowRms(
   values: ArrayLike<number>,
   fromMs: number,
   toMs: number,
-  center = 0
+  center = 0,
 ): number | null {
-  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1]) return null;
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
   const i0 = lowerBoundIndex(tMs, fromMs);
   const i1 = upperBoundIndex(tMs, toMs);
   if (i0 > i1 || i0 >= tMs.length) return null;
@@ -158,6 +168,151 @@ export function windowRms(
     sum += d * d;
   }
   return Math.sqrt(sum / (i1 - i0 + 1));
+}
+
+/**
+ * ∫ dynamicG² dt over a window (trapezoidal), in G²·s, where dynamicG is the
+ * G-force's deviation from 1 G. The energy behind the impact-severity index:
+ * it combines peak, duration and shape in one figure, so a long shallow jolt
+ * and a short sharp one stop reading the same.
+ */
+export function impactEnergy(
+  tMs: Float64Array,
+  g: ArrayLike<number>,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = upperBoundIndex(tMs, toMs);
+  if (i0 >= i1) return null;
+  let energy = 0;
+  let prev = Math.abs(g[i0] - 1);
+  for (let i = i0 + 1; i <= i1; i++) {
+    const d = Math.abs(g[i] - 1);
+    energy += ((prev * prev + d * d) / 2) * ((tMs[i] - tMs[i - 1]) / 1000);
+    prev = d;
+  }
+  return energy;
+}
+
+/**
+ * Provisional reference: the energy that reads as severity 100. Chosen so the
+ * demo file's spread lands sensibly — its medium impact reads ~47, its hard
+ * ones 62–86. A RELATIVE Bikit index to recalibrate against real recordings;
+ * never an absolute mechanical force on the components.
+ */
+export const IMPACT_SEVERITY_REF_ENERGY = 1.4;
+
+/** 0–100 severity index from an impact's energy: 100·√(E/ref), clamped. The
+ * square root keeps the spread readable — energy grows with the square of G,
+ * and a linear map crushed every medium impact into the bottom decile. */
+export function impactSeverityIndex(energy: number): number {
+  if (!Number.isFinite(energy) || energy <= 0) return 0;
+  return Math.min(
+    100,
+    Math.round(100 * Math.sqrt(energy / IMPACT_SEVERITY_REF_ENERGY)),
+  );
+}
+
+/**
+ * Roughness: rolling RMS of dynamicG over a ~windowMs window, one value per
+ * sample. Gravity and slow components drop out through the deviation-from-1G
+ * baseline; spectral separation of fast vibration from single hits is future
+ * work. Two-pointer sliding window, O(n).
+ */
+export function roughnessSeries(
+  tMs: Float64Array,
+  g: ArrayLike<number>,
+  windowMs = 500,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  const half = windowMs / 2;
+  let lo = 0;
+  let hi = 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    while (hi < n && tMs[hi] <= tMs[i] + half) {
+      const d = g[hi] - 1;
+      sum += d * d;
+      hi++;
+    }
+    while (tMs[lo] < tMs[i] - half) {
+      const d = g[lo] - 1;
+      sum -= d * d;
+      lo++;
+    }
+    out[i] = Math.sqrt(Math.max(0, sum) / (hi - lo));
+  }
+  return out;
+}
+
+/**
+ * Jerk: rate of change of the G force, in G/s. The signal is smoothed with a
+ * short moving average before differencing, because differentiation
+ * amplifies noise — raw sample-to-sample deltas at 100 Hz read as fuzz.
+ * Central difference; the ends copy their neighbour.
+ */
+export function jerkSeries(
+  tMs: Float64Array,
+  g: ArrayLike<number>,
+  smoothRadius = 2,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  if (n < 3) return out;
+  const smooth = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const from = Math.max(0, i - smoothRadius);
+    const to = Math.min(n - 1, i + smoothRadius);
+    let sum = 0;
+    for (let j = from; j <= to; j++) sum += g[j];
+    smooth[i] = sum / (to - from + 1);
+  }
+  for (let i = 1; i < n - 1; i++) {
+    const dt = (tMs[i + 1] - tMs[i - 1]) / 1000;
+    out[i] = dt > 0 ? (smooth[i + 1] - smooth[i - 1]) / dt : 0;
+  }
+  out[0] = out[1];
+  out[n - 1] = out[n - 2];
+  return out;
+}
+
+/**
+ * Estimated lean (roll) angle in degrees, via a complementary filter: the
+ * gyro's roll rate integrated for the fast component, pulled toward the
+ * accelerometer's atan2(ay, az) for the slow one, with time constant tauMs.
+ * This is sensor fusion's cheapest honest form — NOT integration alone,
+ * which drifts without bound.
+ *
+ * An ESTIMATE, uncalibrated: strong lateral acceleration mid-curve bends the
+ * accelerometer's idea of "down" toward the bike's own vertical, and impacts
+ * kick it around. Labeled (est.) everywhere it appears; validation against
+ * real recordings is the price of removing that suffix.
+ */
+export function leanSeries(
+  tMs: Float64Array,
+  ay: ArrayLike<number>,
+  az: ArrayLike<number>,
+  gx: ArrayLike<number>,
+  tauMs = 500,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  if (n === 0) return out;
+  const toDeg = 180 / Math.PI;
+  let roll = Math.atan2(ay[0], az[0]) * toDeg;
+  out[0] = roll;
+  for (let i = 1; i < n; i++) {
+    const dtMs = tMs[i] - tMs[i - 1];
+    const accRoll = Math.atan2(ay[i], az[i]) * toDeg;
+    const alpha = tauMs / (tauMs + dtMs);
+    roll = alpha * (roll + gx[i] * (dtMs / 1000)) + (1 - alpha) * accRoll;
+    out[i] = roll;
+  }
+  return out;
 }
 
 /** mm:ss.mmm for the details panel, mm:ss for axes. */

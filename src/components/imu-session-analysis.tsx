@@ -13,7 +13,12 @@ import {
   eventsAt,
   formatSessionTime,
   gForceOf,
+  impactEnergy,
+  impactSeverityIndex,
+  jerkSeries,
+  leanSeries,
   nearestSampleIndex,
+  roughnessSeries,
   sessionSummary,
   windowPeak,
   windowRms,
@@ -76,9 +81,35 @@ const SERIES_DEFS = [
     color: "#EA580C",
     description: "rotação sobre o eixo vertical — mudar de direção",
   },
+  {
+    id: "roughness",
+    label: "Roughness",
+    unit: "G RMS",
+    color: "#D97706",
+    description: "trepidação do terreno — RMS do G dinâmico em janela de 0,5 s",
+  },
+  {
+    id: "jerk",
+    label: "Jerk",
+    unit: "G/s",
+    color: "#DB2777",
+    description: "variação da aceleração — transições e movimentos abruptos",
+  },
+  {
+    id: "lean",
+    label: "Lean (est.)",
+    unit: "°",
+    color: "#475569",
+    description:
+      "inclinação estimada — filtro complementar acel+giro, não calibrado",
+  },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
+
+/** The series computed from the raw channels rather than recorded by the
+ * sensor — listed apart in the details panel, never under "Dados brutos". */
+const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas" },
@@ -108,21 +139,26 @@ const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
  * Headline + one-line summary for an event, every figure computed from the
  * raw channels over the event's own window — peak lateral G through a curve,
  * landing G in the 300 ms after touchdown, RMS vibration across a rough
- * section. Lean angle is absent on purpose: without sensor fusion it cannot
- * be told honestly (the spec's own rule about absolute angles).
+ * section, impact severity from integrated dynamicG² energy. The curve's
+ * lean angle comes from the complementary-filter estimate and always wears
+ * the (est.) suffix — it stays an estimate until validated against real
+ * recordings.
  */
 function describeEvent(
   event: ImuEvent,
   tMs: Float64Array,
-  ax: Float32Array,
-  ay: Float32Array,
-  g: Float32Array,
+  ax: ArrayLike<number>,
+  ay: ArrayLike<number>,
+  g: ArrayLike<number>,
+  lean: ArrayLike<number>,
 ): { title: string; summary: string } {
   const parts: string[] = [];
   switch (event.kind) {
     case "curve": {
       const lat = windowPeak(tMs, ay, event.startMs, event.endMs);
       if (lat != null) parts.push(`${lat.toFixed(2)} G lateral máx`);
+      const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
+      if (maxLean != null) parts.push(`~${Math.round(maxLean)}° lean (est.)`);
       parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
       return {
         title:
@@ -139,11 +175,27 @@ function describeEvent(
         event.landingMs + 300,
       );
       if (landing != null) parts.push(`aterragem ${landing.toFixed(1)} G`);
+      const energy = impactEnergy(
+        tMs,
+        g,
+        event.landingMs,
+        event.landingMs + 300,
+      );
+      if (energy != null)
+        parts.push(`severidade ${impactSeverityIndex(energy)}/100`);
       return { title: "Salto", summary: parts.join(" · ") };
     }
     case "impact": {
       const peak = windowPeak(tMs, g, event.timeMs - 150, event.timeMs + 150);
       if (peak != null) parts.push(`${peak.toFixed(2)} G de pico`);
+      const energy = impactEnergy(
+        tMs,
+        g,
+        event.timeMs - 150,
+        event.timeMs + 150,
+      );
+      if (energy != null)
+        parts.push(`severidade ${impactSeverityIndex(energy)}/100`);
       const severity = event.severity
         ? (SEVERITY_LABEL[event.severity] ?? event.severity)
         : null;
@@ -227,11 +279,21 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
 
   const seriesValues = useMemo(() => {
     if (!data || !gForce) return null;
-    const { ax, ay, az, gx, gy, gz } = data.channels;
-    return { gforce: gForce, ax, ay, az, gx, gy, gz } as Record<
-      SeriesId,
-      ArrayLike<number>
-    >;
+    const { tMs, ax, ay, az, gx, gy, gz } = data.channels;
+    // Derived series computed once per file, on read — the raw channels are
+    // inputs, never rewritten.
+    return {
+      gforce: gForce,
+      ax,
+      ay,
+      az,
+      gx,
+      gy,
+      gz,
+      roughness: roughnessSeries(tMs, gForce),
+      jerk: jerkSeries(tMs, gForce),
+      lean: leanSeries(tMs, ay, az, gx),
+    } as Record<SeriesId, ArrayLike<number>>;
   }, [data, gForce]);
 
   if (loadError) {
@@ -273,6 +335,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
         data.channels.ax,
         data.channels.ay,
         gForce,
+        seriesValues.lean,
       )
     : null;
 
@@ -487,6 +550,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                     data.channels.ax,
                     data.channels.ay,
                     gForce,
+                    seriesValues.lean,
                   );
                   return (
                     <div
@@ -503,16 +567,35 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
               </div>
             )}
 
-            {/* Only the channels the chart is drawing — toggling a pill
-                toggles its raw reading here too. */}
-            {activeSeries.size > 0 && (
-              <div className="mt-4 border-t border-border pt-3">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Dados brutos
-                </p>
-                <div className="mt-2.5 space-y-3">
-                  {SERIES_DEFS.filter((def) => activeSeries.has(def.id)).map(
-                    (def) => (
+            {/* Only what the chart is drawing — toggling a pill toggles its
+                reading here too. Recorded channels and computed series sit in
+                separate groups: "Dados brutos" is a promise about provenance,
+                and roughness/jerk/lean would break it. */}
+            {[
+              {
+                heading: "Dados brutos",
+                defs: SERIES_DEFS.filter(
+                  (def) => activeSeries.has(def.id) && !DERIVED_IDS.has(def.id),
+                ),
+              },
+              {
+                heading: "Derivadas (calculadas)",
+                defs: SERIES_DEFS.filter(
+                  (def) => activeSeries.has(def.id) && DERIVED_IDS.has(def.id),
+                ),
+              },
+            ]
+              .filter((group) => group.defs.length > 0)
+              .map((group) => (
+                <div
+                  key={group.heading}
+                  className="mt-4 border-t border-border pt-3"
+                >
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {group.heading}
+                  </p>
+                  <div className="mt-2.5 space-y-3">
+                    {group.defs.map((def) => (
                       <div key={def.id}>
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -534,11 +617,10 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                           {def.description}
                         </p>
                       </div>
-                    ),
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
           </div>
         )}
       </div>
