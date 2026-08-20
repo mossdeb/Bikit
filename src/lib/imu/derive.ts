@@ -7,6 +7,7 @@
  */
 
 import type { ImuEvent, ImuSessionData } from "./format";
+import { lowerBoundIndex, upperBoundIndex } from "./downsample";
 
 /**
  * The G-force series: the file's own when it recorded one, otherwise
@@ -110,6 +111,53 @@ export function eventsAt(events: ImuEvent[], timeMs: number, pointWindowMs = 150
         return Math.abs(event.timeMs - timeMs) <= pointWindowMs;
     }
   });
+}
+
+/**
+ * Largest |value| across [fromMs, toMs] — the "how hard" figure for an
+ * event's window: lateral G through a curve, landing G after a jump.
+ * Null when the window holds no samples.
+ */
+export function windowPeak(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  fromMs: number,
+  toMs: number
+): number | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1]) return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = upperBoundIndex(tMs, toMs);
+  if (i0 > i1 || i0 >= tMs.length) return null;
+  let peak = 0;
+  for (let i = i0; i <= i1; i++) {
+    const a = Math.abs(values[i]);
+    if (a > peak) peak = a;
+  }
+  return peak;
+}
+
+/**
+ * RMS deviation from `center` across the window — the vibration figure for
+ * rough sections. Center 1 for G force, where gravity reads 1 G at rest, so
+ * smooth ground scores near zero.
+ */
+export function windowRms(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  fromMs: number,
+  toMs: number,
+  center = 0
+): number | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1]) return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = upperBoundIndex(tMs, toMs);
+  if (i0 > i1 || i0 >= tMs.length) return null;
+  let sum = 0;
+  for (let i = i0; i <= i1; i++) {
+    const d = values[i] - center;
+    sum += d * d;
+  }
+  return Math.sqrt(sum / (i1 - i0 + 1));
 }
 
 /** mm:ss.mmm for the details panel, mm:ss for axes. */

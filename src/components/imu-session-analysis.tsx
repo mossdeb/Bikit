@@ -15,6 +15,8 @@ import {
   gForceOf,
   nearestSampleIndex,
   sessionSummary,
+  windowPeak,
+  windowRms,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 
@@ -25,13 +27,55 @@ import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
  * the health nor the Ride Load vocabularies.
  */
 const SERIES_DEFS = [
-  { id: "gforce", label: "Força G", unit: "G", color: "#2563EB" },
-  { id: "ax", label: "Acel X", unit: "g", color: "#0D9488" },
-  { id: "ay", label: "Acel Y", unit: "g", color: "#16A34A" },
-  { id: "az", label: "Acel Z", unit: "g", color: "#0891B2" },
-  { id: "gx", label: "Roll (X)", unit: "°/s", color: "#9333EA" },
-  { id: "gy", label: "Pitch (Y)", unit: "°/s", color: "#C026D3" },
-  { id: "gz", label: "Yaw (Z)", unit: "°/s", color: "#EA580C" },
+  {
+    id: "gforce",
+    label: "Força G",
+    unit: "G",
+    color: "#2563EB",
+    description: "magnitude total da aceleração — √(x²+y²+z²)",
+  },
+  {
+    id: "ax",
+    label: "Acel X",
+    unit: "g",
+    color: "#0D9488",
+    description: "aceleração longitudinal — acelerar e travar",
+  },
+  {
+    id: "ay",
+    label: "Acel Y",
+    unit: "g",
+    color: "#16A34A",
+    description: "aceleração lateral — sobretudo curvas e movimentos laterais",
+  },
+  {
+    id: "az",
+    label: "Acel Z",
+    unit: "g",
+    color: "#0891B2",
+    description: "aceleração vertical — impactos, terreno, saltos e aterragens",
+  },
+  {
+    id: "gx",
+    label: "Roll (X)",
+    unit: "°/s",
+    color: "#9333EA",
+    description: "rotação sobre o eixo longitudinal — inclinar a bicicleta",
+  },
+  {
+    id: "gy",
+    label: "Pitch (Y)",
+    unit: "°/s",
+    color: "#C026D3",
+    description: "rotação sobre o eixo lateral — empinar e mergulhar",
+  },
+  {
+    id: "gz",
+    label: "Yaw (Z)",
+    unit: "°/s",
+    color: "#EA580C",
+    description: "rotação sobre o eixo vertical — mudar de direção",
+  },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
@@ -49,6 +93,79 @@ const SEVERITY_LABEL: Record<string, string> = {
   medium: "médio",
   hard: "forte",
 };
+
+/** Which event owns the headline when several cover the same instant — the
+ * pointiest wins (an impact inside a rough section reads as the impact). */
+const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
+  jump: 0,
+  impact: 1,
+  curve: 2,
+  braking: 3,
+  rough_section: 4,
+};
+
+/**
+ * Headline + one-line summary for an event, every figure computed from the
+ * raw channels over the event's own window — peak lateral G through a curve,
+ * landing G in the 300 ms after touchdown, RMS vibration across a rough
+ * section. Lean angle is absent on purpose: without sensor fusion it cannot
+ * be told honestly (the spec's own rule about absolute angles).
+ */
+function describeEvent(
+  event: ImuEvent,
+  tMs: Float64Array,
+  ax: Float32Array,
+  ay: Float32Array,
+  g: Float32Array,
+): { title: string; summary: string } {
+  const parts: string[] = [];
+  switch (event.kind) {
+    case "curve": {
+      const lat = windowPeak(tMs, ay, event.startMs, event.endMs);
+      if (lat != null) parts.push(`${lat.toFixed(2)} G lateral máx`);
+      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
+      return {
+        title:
+          event.direction === "left" ? "Curva à esquerda" : "Curva à direita",
+        summary: parts.join(" · "),
+      };
+    }
+    case "jump": {
+      parts.push(`${(event.airtimeMs / 1000).toFixed(2)} s no ar`);
+      const landing = windowPeak(
+        tMs,
+        g,
+        event.landingMs,
+        event.landingMs + 300,
+      );
+      if (landing != null) parts.push(`aterragem ${landing.toFixed(1)} G`);
+      return { title: "Salto", summary: parts.join(" · ") };
+    }
+    case "impact": {
+      const peak = windowPeak(tMs, g, event.timeMs - 150, event.timeMs + 150);
+      if (peak != null) parts.push(`${peak.toFixed(2)} G de pico`);
+      const severity = event.severity
+        ? (SEVERITY_LABEL[event.severity] ?? event.severity)
+        : null;
+      return {
+        title: severity ? `Impacto ${severity}` : "Impacto",
+        summary: parts.join(" · "),
+      };
+    }
+    case "braking": {
+      const decel = windowPeak(tMs, ax, event.startMs, event.endMs);
+      if (decel != null) parts.push(`${decel.toFixed(2)} G de travagem máx`);
+      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
+      return { title: "Travagem", summary: parts.join(" · ") };
+    }
+    case "rough_section": {
+      const rms = windowRms(tMs, g, event.startMs, event.endMs, 1);
+      if (rms != null) parts.push(`vibração ${rms.toFixed(2)} G RMS`);
+      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
+      return { title: "Zona muito acidentada", summary: parts.join(" · ") };
+    }
+  }
+}
 
 /**
  * The analysis screen. Downloads the raw file from Storage (authenticated,
@@ -121,7 +238,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
     // Written on screen with the whole message — the garage rule.
     return <p className="pt-5 text-sm text-destructive">{loadError}</p>;
   }
-  if (!data || !summary || !seriesValues) {
+  if (!data || !summary || !seriesValues || !gForce) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         A carregar a sessão…
@@ -145,8 +262,19 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   }));
 
   const cursorIndex = cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : -1;
-  const cursorEvents =
-    cursorIndex >= 0 ? eventsAt(data.events, tMs[cursorIndex]) : [];
+  const cursorEvents = (
+    cursorIndex >= 0 ? eventsAt(data.events, tMs[cursorIndex]) : []
+  ).sort((a, b) => EVENT_PRIORITY[a.kind] - EVENT_PRIORITY[b.kind]);
+  const primaryEvent = cursorEvents[0] ?? null;
+  const primaryDesc = primaryEvent
+    ? describeEvent(
+        primaryEvent,
+        tMs,
+        data.channels.ax,
+        data.channels.ay,
+        gForce,
+      )
+    : null;
 
   function toggleSeries(id: SeriesId) {
     setActiveSeries((prev) => {
@@ -210,6 +338,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                   key={def.id}
                   type="button"
                   aria-pressed={active}
+                  title={def.description}
                   onClick={() => toggleSeries(def.id)}
                   className={cn(
                     "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
@@ -310,14 +439,16 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
               </button>
             )}
             <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
-              Arrasta com o rato para ampliar uma zona · toca para ler
+              Arrasta ou faz pinch no trackpad para ampliar · toca para ler
             </span>
           </div>
         </div>
       </div>
 
-      {/* Details of the instant under the cursor — always read off the raw
-          samples, whatever resolution the plot is drawn at. */}
+      {/* Details of the instant under the cursor — the headline is the main
+          event (or "Andamento normal"), its figures computed from the raw
+          channels over the event's window, and the raw sample itself sits
+          underneath, all channels, whatever the chart is drawing. */}
       <div className="pt-5">
         <h2 className="font-display text-xl leading-tight font-bold">
           Detalhes
@@ -327,57 +458,85 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             Toca ou arrasta sobre o gráfico para ler um instante.
           </p>
         ) : (
-          <div className="mt-3 space-y-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-muted-foreground">Hora</span>
-              <span className="font-medium tabular-nums">
-                {formatSessionTime(tMs[cursorIndex], true)}
-              </span>
-            </div>
-            {SERIES_DEFS.filter((def) => activeSeries.has(def.id)).map(
-              (def) => (
-                <div
-                  key={def.id}
-                  className="flex items-baseline justify-between"
-                >
-                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span
-                      aria-hidden
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: def.color }}
-                    />
-                    {def.label}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
-                    <span className="text-sm text-muted-foreground">
-                      {def.unit}
-                    </span>
-                  </span>
-                </div>
-              ),
-            )}
-            {cursorEvents.length === 0 ? (
-              <p className="border-t border-border pt-3 text-sm text-muted-foreground">
-                Sem eventos neste instante.
+          <div className="mt-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-lg leading-tight font-semibold">
+                {primaryDesc ? primaryDesc.title : "Andamento normal"}
               </p>
-            ) : (
-              <div className="space-y-2 border-t border-border pt-3">
-                {cursorEvents.map((event, i) => (
-                  <div
-                    key={i}
-                    className="flex items-baseline justify-between text-sm"
-                  >
-                    <span className="font-medium">
-                      {eventDetailLabel(event)}
-                    </span>
-                    {event.confidence != null && (
+              {primaryEvent?.confidence != null && (
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  {Math.round(primaryEvent.confidence * 100)}%
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
+              {formatSessionTime(tMs[cursorIndex], true)}
+            </p>
+            <p className="mt-1.5 font-medium tabular-nums">
+              {primaryDesc
+                ? primaryDesc.summary
+                : `${gForce[cursorIndex].toFixed(2)} G`}
+            </p>
+
+            {cursorEvents.length > 1 && (
+              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                {cursorEvents.slice(1).map((event, i) => {
+                  const desc = describeEvent(
+                    event,
+                    tMs,
+                    data.channels.ax,
+                    data.channels.ay,
+                    gForce,
+                  );
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-baseline justify-between gap-3 text-sm"
+                    >
+                      <span className="font-medium">{desc.title}</span>
                       <span className="text-muted-foreground tabular-nums">
-                        {Math.round(event.confidence * 100)}%
+                        {desc.summary}
                       </span>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Only the channels the chart is drawing — toggling a pill
+                toggles its raw reading here too. */}
+            {activeSeries.size > 0 && (
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Dados brutos
+                </p>
+                <div className="mt-2.5 space-y-3">
+                  {SERIES_DEFS.filter((def) => activeSeries.has(def.id)).map(
+                    (def) => (
+                      <div key={def.id}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <span
+                              aria-hidden
+                              className="size-2 rounded-full"
+                              style={{ backgroundColor: def.color }}
+                            />
+                            {def.label}
+                          </span>
+                          <span className="font-medium tabular-nums">
+                            {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
+                            <span className="text-sm text-muted-foreground">
+                              {def.unit}
+                            </span>
+                          </span>
+                        </div>
+                        <p className="mt-0.5 pl-3.5 text-xs text-muted-foreground">
+                          {def.description}
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -418,23 +577,4 @@ function ZoomButton({
       {children}
     </button>
   );
-}
-
-function eventDetailLabel(event: ImuEvent): string {
-  switch (event.kind) {
-    case "curve":
-      return event.direction === "left"
-        ? "Curva à esquerda"
-        : "Curva à direita";
-    case "jump":
-      return `Salto · ${(event.airtimeMs / 1000).toFixed(2)} s no ar`;
-    case "impact":
-      return event.severity
-        ? `Impacto ${SEVERITY_LABEL[event.severity] ?? event.severity}`
-        : "Impacto";
-    case "rough_section":
-      return "Zona muito acidentada";
-    case "braking":
-      return "Travagem";
-  }
 }

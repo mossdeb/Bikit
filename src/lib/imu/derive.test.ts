@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ImuSessionData } from "./format";
-import { eventsAt, formatSessionTime, gForceOf, nearestSampleIndex, sessionSummary } from "./derive";
+import {
+  eventsAt,
+  formatSessionTime,
+  gForceOf,
+  nearestSampleIndex,
+  sessionSummary,
+  windowPeak,
+  windowRms,
+} from "./derive";
 
 function session(overrides: Partial<ImuSessionData> = {}): ImuSessionData {
   return {
@@ -97,6 +105,41 @@ describe("eventsAt", () => {
 
   it("treats a jump as spanning takeoff to landing", () => {
     expect(eventsAt(events, 8300)).toHaveLength(1);
+  });
+});
+
+describe("windowPeak", () => {
+  const t = new Float64Array([0, 10, 20, 30, 40]);
+  const v = new Float32Array([0.1, -2.5, 0.3, 1.8, -0.2]);
+
+  it("finds the largest magnitude inside the window, sign ignored", () => {
+    expect(windowPeak(t, v, 0, 40)).toBeCloseTo(2.5, 5);
+    expect(windowPeak(t, v, 20, 40)).toBeCloseTo(1.8, 5);
+  });
+
+  it("returns null for a window with no samples", () => {
+    expect(windowPeak(t, v, 41, 99)).toBeNull();
+    expect(windowPeak(t, v, -20, -1)).toBeNull();
+    expect(windowPeak(t, v, 11, 19)).toBeCloseTo(0, 5); // no sample between
+  });
+});
+
+describe("windowRms", () => {
+  const t = new Float64Array([0, 10, 20, 30]);
+
+  it("reads near zero on smooth ground with center 1", () => {
+    const v = new Float32Array([1, 1, 1, 1]);
+    expect(windowRms(t, v, 0, 30, 1)).toBeCloseTo(0, 5);
+  });
+
+  it("measures the deviation from the center", () => {
+    const v = new Float32Array([1.5, 0.5, 1.5, 0.5]);
+    expect(windowRms(t, v, 0, 30, 1)).toBeCloseTo(0.5, 5);
+  });
+
+  it("returns null outside the recording", () => {
+    const v = new Float32Array([1, 1, 1, 1]);
+    expect(windowRms(t, v, 31, 99, 1)).toBeNull();
   });
 });
 
