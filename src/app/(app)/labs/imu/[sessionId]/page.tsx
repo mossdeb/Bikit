@@ -36,10 +36,11 @@ export default async function ImuSessionPage({ params }: { params: Promise<{ ses
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 
-      {/* One card with rules between its parts, the Ride Load report's shape —
-          the whole analysis is a single surface, not a stack of cards. */}
-      <div className="rounded-xl bg-card px-5 pt-5 pb-6 shadow-xs">
-        <div className="border-b border-border pb-5">
+      {/* One card with rules between its parts, the Ride Load report's exact
+          shape: the card itself carries no padding, each section brings its
+          own px — that is what lets divide-y run edge to edge. */}
+      <div className="divide-y divide-border rounded-lg bg-card">
+        <div className="px-5 py-5 sm:px-6">
           <h1 className="font-display text-2xl font-bold">{session.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {formatDate(session.created_at)}

@@ -298,7 +298,9 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
 
   if (loadError) {
     // Written on screen with the whole message — the garage rule.
-    return <p className="pt-5 text-sm text-destructive">{loadError}</p>;
+    return (
+      <p className="px-5 py-5 text-sm text-destructive sm:px-6">{loadError}</p>
+    );
   }
   if (!data || !summary || !seriesValues || !gForce) {
     return (
@@ -375,7 +377,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
     // their own. divide-y draws the line between consecutive sections.
     <div className="divide-y divide-border">
       {/* Session résumé: the numbers the whole recording boils down to. */}
-      <div className="grid grid-cols-3 gap-x-3 gap-y-4 py-5 sm:grid-cols-7">
+      <div className="grid grid-cols-3 gap-x-3 gap-y-4 px-5 py-5 sm:grid-cols-7 sm:px-6">
         <Stat label="Duração" value={formatSessionTime(summary.durationMs)} />
         <Stat label="G máx" value={summary.maxG.toFixed(2)} />
         <Stat label="Impactos" value={String(summary.impactCount)} />
@@ -391,7 +393,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
       {/* Filters and the plot: one section — the pills configure the chart
           directly below them. "Velocidade" is listed but disabled: this file
           records no speed, and a line invented from acceleration would lie. */}
-      <div className="space-y-4 py-5">
+      <div className="space-y-4 px-5 py-5 sm:px-6">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
             {SERIES_DEFS.map((def) => {
@@ -512,7 +514,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           event (or "Andamento normal"), its figures computed from the raw
           channels over the event's window, and the raw sample itself sits
           underneath, all channels, whatever the chart is drawing. */}
-      <div className="pt-5">
+      <div className="px-5 pt-5 pb-6 sm:px-6">
         <h2 className="font-display text-xl leading-tight font-bold">
           Detalhes
         </h2>

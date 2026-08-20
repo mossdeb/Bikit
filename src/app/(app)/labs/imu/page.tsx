@@ -63,9 +63,9 @@ export default async function ImuLabPage() {
           return (
             <div
               key={session.id}
-              className={cn("relative rounded-xl bg-card p-5 shadow-xs", CLICKABLE_CARD_HOVER)}
+              className={cn("relative rounded-lg bg-card p-5", CLICKABLE_CARD_HOVER)}
             >
-              <Link href={`/labs/imu/${session.id}`} className="absolute inset-0 rounded-xl" aria-label={session.name} />
+              <Link href={`/labs/imu/${session.id}`} className="absolute inset-0 rounded-lg outline-none" aria-label={session.name} />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {BikeGlyph && <BikeGlyph className="h-5 w-7 shrink-0 text-foreground" aria-hidden />}
                 <span>{bike?.name ?? "Sem bicicleta"}</span>
