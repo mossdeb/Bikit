@@ -114,6 +114,7 @@ export function eventsAt(
       case "braking":
         return timeMs >= event.startMs && timeMs <= event.endMs;
       case "jump":
+      case "drop":
         return timeMs >= event.takeoffMs && timeMs <= event.landingMs;
       case "impact":
         return Math.abs(event.timeMs - timeMs) <= pointWindowMs;

@@ -88,6 +88,20 @@ describe("parseImuFile", () => {
     expect(result.session.events[0].confidence).toBeNull();
   });
 
+  it("parses a drop as its own kind, shaped like a jump", () => {
+    const file = demoFile({
+      events: [{ type: "drop", takeoff_ms: 100, landing_ms: 900, confidence: 0.9 }],
+    });
+    const result = parseImuFile(file);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const drop = result.session.events[0];
+    expect(drop.kind).toBe("drop");
+    if (drop.kind !== "drop") return;
+    expect(drop.airtimeMs).toBe(800);
+    expect(drop.landingMs).toBe(900);
+  });
+
   it("derives a jump's airtime from takeoff and landing when absent", () => {
     const file = demoFile({ events: [{ type: "jump", takeoff_ms: 5, landing_ms: 25 }] });
     const result = parseImuFile(file);

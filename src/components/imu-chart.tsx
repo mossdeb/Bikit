@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ImuEvent } from "@/lib/imu/format";
 import { formatSessionTime, nearestSampleIndex } from "@/lib/imu/derive";
-import { lowerBoundIndex, minMaxEnvelope, upperBoundIndex } from "@/lib/imu/downsample";
+import {
+  lowerBoundIndex,
+  minMaxEnvelope,
+  upperBoundIndex,
+} from "@/lib/imu/downsample";
 
 /** The plot's drawing box. Stretched to the container (preserveAspectRatio
  * "none"), so every position is a ratio of these — the trend chart's idiom. */
@@ -68,17 +72,29 @@ export function ImuChart({
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<[number, number] | null>(null);
-  const dragRef = useRef<{ pointerId: number; startMs: number; isMouse: boolean; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startMs: number;
+    isMouse: boolean;
+    moved: boolean;
+  } | null>(null);
   /** Every pointer currently down on the plot, by id — the pinch is read
    * from the first two. */
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const pinchRef = useRef<{ startDist: number; startSpan: number; anchorMs: number } | null>(null);
+  const pinchRef = useRef<{
+    startDist: number;
+    startSpan: number;
+    anchorMs: number;
+  } | null>(null);
 
   const [w0, w1] = windowMs;
   const span = Math.max(1, w1 - w0);
   const fullSpan = Math.max(1, fullMs[1] - fullMs[0]);
   // Never narrower than ~20 samples' worth of time, whatever the rate.
-  const minSpan = Math.max(50, ((tMs[tMs.length - 1] - tMs[0]) / Math.max(1, tMs.length - 1)) * 20);
+  const minSpan = Math.max(
+    50,
+    ((tMs[tMs.length - 1] - tMs[0]) / Math.max(1, tMs.length - 1)) * 20,
+  );
 
   /**
    * Trackpad support. A macOS trackpad pinch arrives as a wheel event with
@@ -97,18 +113,30 @@ export function ImuChart({
       if (rect.width === 0) return;
       if (event.ctrlKey) {
         event.preventDefault();
-        const frac = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        const frac = Math.min(
+          1,
+          Math.max(0, (event.clientX - rect.left) / rect.width),
+        );
         const anchorMs = w0 + frac * span;
         // deltaY < 0 (fingers apart) shrinks the window. exp keeps the zoom
         // rate proportional, so slow and fast pinches both feel right.
-        const newSpan = Math.min(fullSpan, Math.max(minSpan, span * Math.exp(event.deltaY * 0.01)));
+        const newSpan = Math.min(
+          fullSpan,
+          Math.max(minSpan, span * Math.exp(event.deltaY * 0.01)),
+        );
         let from = anchorMs - frac * newSpan;
         from = Math.min(Math.max(from, fullMs[0]), fullMs[1] - newSpan);
         onWindowChange([from, from + newSpan]);
-      } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && span < fullSpan) {
+      } else if (
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) &&
+        span < fullSpan
+      ) {
         event.preventDefault();
         const shift = (event.deltaX / rect.width) * span;
-        const from = Math.min(Math.max(w0 + shift, fullMs[0]), fullMs[1] - span);
+        const from = Math.min(
+          Math.max(w0 + shift, fullMs[0]),
+          fullMs[1] - span,
+        );
         onWindowChange([from, from + span]);
       }
     };
@@ -121,7 +149,8 @@ export function ImuChart({
     const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, w1) + 1);
     return series.map((s) => {
       const points = minMaxEnvelope(tMs, s.values, i0, i1, BUCKETS);
-      if (points.length === 0) return { id: s.id, color: s.color, d: "", raw: false, min: 0, max: 0 };
+      if (points.length === 0)
+        return { id: s.id, color: s.color, d: "", raw: false, min: 0, max: 0 };
       let min = Infinity;
       let max = -Infinity;
       for (const p of points) {
@@ -132,13 +161,21 @@ export function ImuChart({
       let d = "";
       for (let i = 0; i < points.length; i++) {
         const x = ((points[i].tMs - w0) / span) * W;
-        const y = H - PAD_Y - ((points[i].value - min) / range) * (H - PAD_Y * 2);
+        const y =
+          H - PAD_Y - ((points[i].value - min) / range) * (H - PAD_Y * 2);
         d += `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
       }
       // Raw when the window has fewer samples than two per bucket — the
       // envelope returns them untouched and the label below says so.
       const rawCount = i1 - i0 + 1;
-      return { id: s.id, color: s.color, d, raw: rawCount <= BUCKETS * 2, min, max };
+      return {
+        id: s.id,
+        color: s.color,
+        d,
+        raw: rawCount <= BUCKETS * 2,
+        min,
+        max,
+      };
     });
   }, [tMs, series, w0, w1, span]);
 
@@ -149,7 +186,7 @@ export function ImuChart({
         const [from, to] = eventSpan(event);
         return to >= w0 && from <= w1;
       }),
-    [events, eventKinds, w0, w1]
+    [events, eventKinds, w0, w1],
   );
 
   function msFromClientX(clientX: number): number | null {
@@ -183,7 +220,8 @@ export function ImuChart({
   // The rule and its time pill snap to the nearest sample — the pointer's
   // continuous position read 24251.x ms while the details panel read the
   // sample at 24250, and two clocks for one cursor is a bug report waiting.
-  const snappedCursorMs = cursorMs != null ? tMs[nearestSampleIndex(tMs, cursorMs)] : null;
+  const snappedCursorMs =
+    cursorMs != null ? tMs[nearestSampleIndex(tMs, cursorMs)] : null;
   const cursorPercent =
     snappedCursorMs != null && snappedCursorMs >= w0 && snappedCursorMs <= w1
       ? ((snappedCursorMs - w0) / span) * 100
@@ -200,11 +238,16 @@ export function ImuChart({
         aria-valuemin={w0}
         aria-valuemax={w1}
         aria-valuenow={cursorMs ?? w0}
-        aria-valuetext={cursorMs != null ? formatSessionTime(cursorMs, true) : undefined}
+        aria-valuetext={
+          cursorMs != null ? formatSessionTime(cursorMs, true) : undefined
+        }
         tabIndex={0}
         className="relative h-[280px] w-full cursor-crosshair touch-pan-y overflow-hidden rounded-[12px] border border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
         onPointerDown={(event) => {
-          pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          pointersRef.current.set(event.pointerId, {
+            x: event.clientX,
+            y: event.clientY,
+          });
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
@@ -217,14 +260,23 @@ export function ImuChart({
             const [a, b] = [...pointersRef.current.values()];
             const anchorMs = msFromClientX((a.x + b.x) / 2);
             if (anchorMs == null) return;
-            pinchRef.current = { startDist: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), startSpan: span, anchorMs };
+            pinchRef.current = {
+              startDist: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)),
+              startSpan: span,
+              anchorMs,
+            };
             dragRef.current = null;
             setSelection(null);
             return;
           }
           const ms = msFromClientX(event.clientX);
           if (ms == null) return;
-          dragRef.current = { pointerId: event.pointerId, startMs: ms, isMouse: event.pointerType === "mouse", moved: false };
+          dragRef.current = {
+            pointerId: event.pointerId,
+            startMs: ms,
+            isMouse: event.pointerType === "mouse",
+            moved: false,
+          };
           onCursorChange(ms);
         }}
         onPointerMove={(event) => {
@@ -243,8 +295,14 @@ export function ImuChart({
             const dist = Math.max(10, Math.hypot(a.x - b.x, a.y - b.y));
             // Fingers apart → smaller window. Clamped between ~20 samples
             // and the whole recording.
-            const newSpan = Math.min(fullSpan, Math.max(minSpan, pinch.startSpan * (pinch.startDist / dist)));
-            const midFrac = Math.min(1, Math.max(0, ((a.x + b.x) / 2 - rect.left) / rect.width));
+            const newSpan = Math.min(
+              fullSpan,
+              Math.max(minSpan, pinch.startSpan * (pinch.startDist / dist)),
+            );
+            const midFrac = Math.min(
+              1,
+              Math.max(0, ((a.x + b.x) / 2 - rect.left) / rect.width),
+            );
             let from = pinch.anchorMs - midFrac * newSpan;
             from = Math.min(Math.max(from, fullMs[0]), fullMs[1] - newSpan);
             onWindowChange([from, from + newSpan]);
@@ -256,7 +314,10 @@ export function ImuChart({
             if (ms == null) return;
             drag.moved = true;
             if (drag.isMouse) {
-              setSelection([Math.min(drag.startMs, ms), Math.max(drag.startMs, ms)]);
+              setSelection([
+                Math.min(drag.startMs, ms),
+                Math.max(drag.startMs, ms),
+              ]);
             } else {
               onCursorChange(ms);
             }
@@ -293,9 +354,14 @@ export function ImuChart({
         }}
         onKeyDown={(event) => {
           if (cursorMs == null) return;
-          const idx = Math.min(tMs.length - 1, Math.max(0, lowerBoundIndex(tMs, cursorMs)));
-          if (event.key === "ArrowLeft" && idx > 0) onCursorChange(tMs[idx - 1]);
-          else if (event.key === "ArrowRight" && idx < tMs.length - 1) onCursorChange(tMs[idx + 1]);
+          const idx = Math.min(
+            tMs.length - 1,
+            Math.max(0, lowerBoundIndex(tMs, cursorMs)),
+          );
+          if (event.key === "ArrowLeft" && idx > 0)
+            onCursorChange(tMs[idx - 1]);
+          else if (event.key === "ArrowRight" && idx < tMs.length - 1)
+            onCursorChange(tMs[idx + 1]);
           else return;
           event.preventDefault();
         }}
@@ -320,9 +386,16 @@ export function ImuChart({
           if (event.kind === "impact") {
             const left = ((event.timeMs - w0) / span) * 100;
             return (
-              <div key={i} aria-hidden className="absolute inset-y-0" style={{ left: `${left}%` }}>
+              <div
+                key={i}
+                aria-hidden
+                className="absolute inset-y-0"
+                style={{ left: `${left}%` }}
+              >
                 <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/60" />
-                <span className="absolute top-0.5 -translate-x-1/2 text-[9px] font-semibold text-[#F5533D]">▼</span>
+                <span className="absolute top-0.5 -translate-x-1/2 text-[9px] font-semibold text-[#F5533D]">
+                  ▼
+                </span>
               </div>
             );
           }
@@ -334,7 +407,9 @@ export function ImuChart({
               aria-hidden
               className={cn(
                 "absolute inset-y-0 overflow-hidden",
-                event.kind === "jump" ? "bg-primary/20" : "bg-muted-foreground/8"
+                event.kind === "jump"
+                  ? "bg-primary/20"
+                  : "bg-muted-foreground/8",
               )}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
@@ -345,7 +420,12 @@ export function ImuChart({
           );
         })}
 
-        <svg viewBox={`0 0 ${W} ${H}`} className="relative h-full w-full" preserveAspectRatio="none" aria-hidden>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="relative h-full w-full"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
           {paths.map((p) => (
             <path
               key={p.id}
@@ -385,30 +465,22 @@ export function ImuChart({
         )}
 
         {cursorPercent != null && (
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 w-px bg-foreground/70" style={{ left: `${cursorPercent}%` }} />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 w-px bg-foreground/70"
+            style={{ left: `${cursorPercent}%` }}
+          />
         )}
       </div>
 
-      <div className="relative mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
+      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>{formatSessionTime(w0)}</span>
-        <span>{rawResolution ? "dados brutos" : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}</span>
+        <span>
+          {rawResolution
+            ? "dados brutos"
+            : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}
+        </span>
         <span>{formatSessionTime(w1)}</span>
-        {/* The cursor's exact time, pinned to the base of the rule. Near the
-            edges it stops centring and tucks against the side it is nearest,
-            the trend chart's label trick. */}
-        {cursorPercent != null && snappedCursorMs != null && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -top-0.5 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-background tabular-nums"
-            style={{
-              left: `${cursorPercent}%`,
-              transform:
-                cursorPercent > 85 ? "translateX(-100%)" : cursorPercent < 15 ? "none" : "translateX(-50%)",
-            }}
-          >
-            {formatSessionTime(snappedCursorMs, true)}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -419,6 +491,7 @@ function eventSpan(event: ImuEvent): [number, number] {
     case "impact":
       return [event.timeMs, event.timeMs];
     case "jump":
+    case "drop":
       return [event.takeoffMs, event.landingMs];
     default:
       return [event.startMs, event.endMs];
@@ -431,6 +504,8 @@ function eventShortLabel(event: ImuEvent): string {
       return event.direction === "left" ? "Curva ←" : "Curva →";
     case "jump":
       return "Salto";
+    case "drop":
+      return "Drop";
     case "rough_section":
       return "Acidentado";
     case "braking":

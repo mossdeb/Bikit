@@ -10,11 +10,49 @@
  */
 
 export type ImuEvent =
-  | { kind: "curve"; direction: "left" | "right"; startMs: number; endMs: number; confidence: number | null }
-  | { kind: "jump"; takeoffMs: number; landingMs: number; airtimeMs: number; confidence: number | null }
-  | { kind: "impact"; timeMs: number; severity: string | null; confidence: number | null }
-  | { kind: "rough_section"; startMs: number; endMs: number; confidence: number | null }
-  | { kind: "braking"; startMs: number; endMs: number; confidence: number | null };
+  | {
+      kind: "curve";
+      direction: "left" | "right";
+      startMs: number;
+      endMs: number;
+      confidence: number | null;
+    }
+  | {
+      kind: "jump";
+      takeoffMs: number;
+      landingMs: number;
+      airtimeMs: number;
+      confidence: number | null;
+    }
+  /** A drop: airborne off a ledge rather than off a lip. Same shape as a
+   * jump — an IMU sees the same thing — but kept apart because the trail
+   * feature is different, and the two wear different marks. No file produces
+   * one yet; the parser is ready for when one does. */
+  | {
+      kind: "drop";
+      takeoffMs: number;
+      landingMs: number;
+      airtimeMs: number;
+      confidence: number | null;
+    }
+  | {
+      kind: "impact";
+      timeMs: number;
+      severity: string | null;
+      confidence: number | null;
+    }
+  | {
+      kind: "rough_section";
+      startMs: number;
+      endMs: number;
+      confidence: number | null;
+    }
+  | {
+      kind: "braking";
+      startMs: number;
+      endMs: number;
+      confidence: number | null;
+    };
 
 export interface ImuChannels {
   /** Sample timestamps in ms from session start. Monotonically increasing. */
@@ -41,7 +79,8 @@ export interface ImuSessionData {
   events: ImuEvent[];
 }
 
-export type ImuParseResult = { ok: true; session: ImuSessionData } | { ok: false; error: string };
+export type ImuParseResult =
+  { ok: true; session: ImuSessionData } | { ok: false; error: string };
 
 interface ImuParser {
   id: string;
@@ -75,13 +114,15 @@ const bikitImuV1: ImuParser = {
   id: "bikit_imu_session",
   matches: (json) => isRecord(json) && json.format === "bikit_imu_session",
   parse: (json) => {
-    if (!isRecord(json)) return { ok: false, error: "O ficheiro não é um objeto JSON." };
+    if (!isRecord(json))
+      return { ok: false, error: "O ficheiro não é um objeto JSON." };
     const meta = isRecord(json.session) ? json.session : null;
-    if (!meta) return { ok: false, error: "Falta o bloco \"session\" com os metadados." };
+    if (!meta)
+      return { ok: false, error: 'Falta o bloco "session" com os metadados.' };
 
     const samples = Array.isArray(json.samples) ? json.samples : null;
     if (!samples || samples.length === 0) {
-      return { ok: false, error: "O ficheiro não tem amostras (\"samples\")." };
+      return { ok: false, error: 'O ficheiro não tem amostras ("samples").' };
     }
 
     const n = samples.length;
@@ -96,7 +137,8 @@ const bikitImuV1: ImuParser = {
 
     for (let i = 0; i < n; i++) {
       const s = samples[i];
-      if (!isRecord(s)) return { ok: false, error: `A amostra ${i} não é um objeto.` };
+      if (!isRecord(s))
+        return { ok: false, error: `A amostra ${i} não é um objeto.` };
       const t = finiteNumber(s.t_ms);
       const vax = finiteNumber(s.ax_g);
       const vay = finiteNumber(s.ay_g);
@@ -104,11 +146,25 @@ const bikitImuV1: ImuParser = {
       const vgx = finiteNumber(s.gx_dps);
       const vgy = finiteNumber(s.gy_dps);
       const vgz = finiteNumber(s.gz_dps);
-      if (t == null || vax == null || vay == null || vaz == null || vgx == null || vgy == null || vgz == null) {
-        return { ok: false, error: `A amostra ${i} tem campos em falta ou não numéricos.` };
+      if (
+        t == null ||
+        vax == null ||
+        vay == null ||
+        vaz == null ||
+        vgx == null ||
+        vgy == null ||
+        vgz == null
+      ) {
+        return {
+          ok: false,
+          error: `A amostra ${i} tem campos em falta ou não numéricos.`,
+        };
       }
       if (i > 0 && t < tMs[i - 1]) {
-        return { ok: false, error: `O tempo anda para trás na amostra ${i} (${t} ms após ${tMs[i - 1]} ms).` };
+        return {
+          ok: false,
+          error: `O tempo anda para trás na amostra ${i} (${t} ms após ${tMs[i - 1]} ms).`,
+        };
       }
       tMs[i] = t;
       ax[i] = vax;
@@ -135,7 +191,9 @@ const bikitImuV1: ImuParser = {
     const durationMs = finiteNumber(meta.duration_ms) ?? lastT;
     // The declared rate when present, otherwise measured off the recording
     // itself — n samples across lastT milliseconds.
-    const sampleRateHz = finiteNumber(meta.sample_rate_hz) ?? (lastT > 0 ? (n - 1) / (lastT / 1000) : 0);
+    const sampleRateHz =
+      finiteNumber(meta.sample_rate_hz) ??
+      (lastT > 0 ? (n - 1) / (lastT / 1000) : 0);
 
     return {
       ok: true,
@@ -158,21 +216,31 @@ function normalizeBikitEvent(raw: Record<string, unknown>): ImuEvent | null {
     case "curve": {
       const startMs = finiteNumber(raw.start_ms);
       const endMs = finiteNumber(raw.end_ms);
-      const direction = raw.direction === "left" || raw.direction === "right" ? raw.direction : null;
+      const direction =
+        raw.direction === "left" || raw.direction === "right"
+          ? raw.direction
+          : null;
       if (startMs == null || endMs == null || !direction) return null;
       return { kind: "curve", direction, startMs, endMs, confidence };
     }
-    case "jump": {
-      const takeoffMs = finiteNumber(raw.takeoff_ms) ?? finiteNumber(raw.start_ms);
+    case "jump":
+    case "drop": {
+      const takeoffMs =
+        finiteNumber(raw.takeoff_ms) ?? finiteNumber(raw.start_ms);
       const landingMs = finiteNumber(raw.landing_ms);
       if (takeoffMs == null || landingMs == null) return null;
       const airtimeMs = finiteNumber(raw.airtime_ms) ?? landingMs - takeoffMs;
-      return { kind: "jump", takeoffMs, landingMs, airtimeMs, confidence };
+      return { kind: raw.type, takeoffMs, landingMs, airtimeMs, confidence };
     }
     case "impact": {
       const timeMs = finiteNumber(raw.time_ms);
       if (timeMs == null) return null;
-      return { kind: "impact", timeMs, severity: typeof raw.severity === "string" ? raw.severity : null, confidence };
+      return {
+        kind: "impact",
+        timeMs,
+        severity: typeof raw.severity === "string" ? raw.severity : null,
+        confidence,
+      };
     }
     case "rough_section": {
       const startMs = finiteNumber(raw.start_ms);
@@ -203,7 +271,8 @@ export function parseImuFile(json: unknown): ImuParseResult {
   if (!parser) {
     return {
       ok: false,
-      error: "Formato não reconhecido. Esperado um ficheiro com \"format\": \"bikit_imu_session\".",
+      error:
+        'Formato não reconhecido. Esperado um ficheiro com "format": "bikit_imu_session".',
     };
   }
   return parser.parse(json);

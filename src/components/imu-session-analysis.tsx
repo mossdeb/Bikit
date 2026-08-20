@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Minus, Plus, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { Bike, Minus, Plus, Undo2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  BrakingIcon,
+  CurveLeftIcon,
+  CurveRightIcon,
+  DropIcon,
+  ImuClockIcon,
+  JumpIcon,
+  RoughSectionIcon,
+} from "@/components/imu-event-icons";
 import { createClient } from "@/lib/supabase/client";
 import {
   parseImuFile,
@@ -114,6 +123,7 @@ const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas" },
   { kind: "jump", label: "Saltos" },
+  { kind: "drop", label: "Drops" },
   { kind: "impact", label: "Impactos" },
   { kind: "rough_section", label: "Zonas acidentadas" },
   { kind: "braking", label: "Travagens" },
@@ -129,20 +139,40 @@ const SEVERITY_LABEL: Record<string, string> = {
  * pointiest wins (an impact inside a rough section reads as the impact). */
 const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
   jump: 0,
+  drop: 0,
   impact: 1,
   curve: 2,
   braking: 3,
   rough_section: 4,
 };
 
+/** One labelled figure in an event's card. */
+interface EventMetric {
+  label: string;
+  value: string;
+  /** Unit set apart from the figure, the way the app's totals read. */
+  unit?: string;
+}
+
+interface EventDescription {
+  title: string;
+  Icon: ComponentType<{ className?: string }>;
+  metrics: EventMetric[];
+}
+
 /**
- * Headline + one-line summary for an event, every figure computed from the
- * raw channels over the event's own window — peak lateral G through a curve,
- * landing G in the 300 ms after touchdown, RMS vibration across a rough
- * section, impact severity from integrated dynamicG² energy. The curve's
- * lean angle comes from the complementary-filter estimate and always wears
- * the (est.) suffix — it stays an estimate until validated against real
- * recordings.
+ * Title, mark and labelled figures for an event, every number computed from
+ * the raw channels over the event's own window — peak lateral G through a
+ * curve, landing G in the 300 ms after touchdown, RMS vibration across a
+ * rough section, impact severity from integrated dynamicG² energy.
+ *
+ * Figures come apart from their labels rather than joined into a sentence:
+ * "0.79 G lateral máx · ~34° lean (est.) · 3.0 s" reads as one long string,
+ * where a labelled column says what each number IS before it says how big.
+ *
+ * The curve's lean is the complementary-filter estimate, and its label — not
+ * its value — carries the (est.), so the number stays readable while the
+ * caveat stays attached.
  */
 function describeEvent(
   event: ImuEvent,
@@ -151,30 +181,57 @@ function describeEvent(
   ay: ArrayLike<number>,
   g: ArrayLike<number>,
   lean: ArrayLike<number>,
-): { title: string; summary: string } {
-  const parts: string[] = [];
+): EventDescription {
+  const seconds = (fromMs: number, toMs: number) => ({
+    label: "Duração",
+    value: ((toMs - fromMs) / 1000).toFixed(1),
+    unit: "s",
+  });
+
   switch (event.kind) {
     case "curve": {
+      const metrics: EventMetric[] = [];
       const lat = windowPeak(tMs, ay, event.startMs, event.endMs);
-      if (lat != null) parts.push(`${lat.toFixed(2)} G lateral máx`);
+      if (lat != null)
+        metrics.push({ label: "G lateral", value: lat.toFixed(2), unit: "G" });
       const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
-      if (maxLean != null) parts.push(`~${Math.round(maxLean)}° lean (est.)`);
-      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
+      if (maxLean != null)
+        metrics.push({
+          label: "Inclinação (est.)",
+          value: `~${Math.round(maxLean)}`,
+          unit: "°",
+        });
+      metrics.push(seconds(event.startMs, event.endMs));
       return {
         title:
           event.direction === "left" ? "Curva à esquerda" : "Curva à direita",
-        summary: parts.join(" · "),
+        Icon: event.direction === "left" ? CurveLeftIcon : CurveRightIcon,
+        metrics,
       };
     }
-    case "jump": {
-      parts.push(`${(event.airtimeMs / 1000).toFixed(2)} s no ar`);
+    // A drop and a jump look identical to an IMU — airborne, then a landing
+    // — so they share every figure and differ only in name and mark.
+    case "jump":
+    case "drop": {
+      const metrics: EventMetric[] = [
+        {
+          label: "No ar",
+          value: (event.airtimeMs / 1000).toFixed(2),
+          unit: "s",
+        },
+      ];
       const landing = windowPeak(
         tMs,
         g,
         event.landingMs,
         event.landingMs + 300,
       );
-      if (landing != null) parts.push(`aterragem ${landing.toFixed(1)} G`);
+      if (landing != null)
+        metrics.push({
+          label: "Aterragem",
+          value: landing.toFixed(1),
+          unit: "G",
+        });
       const energy = impactEnergy(
         tMs,
         g,
@@ -182,12 +239,20 @@ function describeEvent(
         event.landingMs + 300,
       );
       if (energy != null)
-        parts.push(`severidade ${impactSeverityIndex(energy)}/100`);
-      return { title: "Salto", summary: parts.join(" · ") };
+        metrics.push({
+          label: "Severidade",
+          value: String(impactSeverityIndex(energy)),
+          unit: "/100",
+        });
+      return event.kind === "drop"
+        ? { title: "Drop", Icon: DropIcon, metrics }
+        : { title: "Salto", Icon: JumpIcon, metrics };
     }
     case "impact": {
+      const metrics: EventMetric[] = [];
       const peak = windowPeak(tMs, g, event.timeMs - 150, event.timeMs + 150);
-      if (peak != null) parts.push(`${peak.toFixed(2)} G de pico`);
+      if (peak != null)
+        metrics.push({ label: "Pico", value: peak.toFixed(2), unit: "G" });
       const energy = impactEnergy(
         tMs,
         g,
@@ -195,26 +260,47 @@ function describeEvent(
         event.timeMs + 150,
       );
       if (energy != null)
-        parts.push(`severidade ${impactSeverityIndex(energy)}/100`);
+        metrics.push({
+          label: "Severidade",
+          value: String(impactSeverityIndex(energy)),
+          unit: "/100",
+        });
       const severity = event.severity
         ? (SEVERITY_LABEL[event.severity] ?? event.severity)
         : null;
       return {
         title: severity ? `Impacto ${severity}` : "Impacto",
-        summary: parts.join(" · "),
+        Icon: Zap,
+        metrics,
       };
     }
     case "braking": {
+      const metrics: EventMetric[] = [];
       const decel = windowPeak(tMs, ax, event.startMs, event.endMs);
-      if (decel != null) parts.push(`${decel.toFixed(2)} G de travagem máx`);
-      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
-      return { title: "Travagem", summary: parts.join(" · ") };
+      if (decel != null)
+        metrics.push({
+          label: "Travagem máx",
+          value: decel.toFixed(2),
+          unit: "G",
+        });
+      metrics.push(seconds(event.startMs, event.endMs));
+      return { title: "Travagem", Icon: BrakingIcon, metrics };
     }
     case "rough_section": {
+      const metrics: EventMetric[] = [];
       const rms = windowRms(tMs, g, event.startMs, event.endMs, 1);
-      if (rms != null) parts.push(`vibração ${rms.toFixed(2)} G RMS`);
-      parts.push(`${((event.endMs - event.startMs) / 1000).toFixed(1)} s`);
-      return { title: "Zona muito acidentada", summary: parts.join(" · ") };
+      if (rms != null)
+        metrics.push({
+          label: "Vibração",
+          value: rms.toFixed(2),
+          unit: "G RMS",
+        });
+      metrics.push(seconds(event.startMs, event.endMs));
+      return {
+        title: "Zona muito acidentada",
+        Icon: RoughSectionIcon,
+        metrics,
+      };
     }
   }
 }
@@ -393,7 +479,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
       {/* Filters and the plot: one section — the pills configure the chart
           directly below them. "Velocidade" is listed but disabled: this file
           records no speed, and a line invented from acceleration would lie. */}
-      <div className="space-y-4 px-5 py-5 sm:px-6">
+      <div className="relative space-y-4 px-5 py-5 sm:px-6">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
             {SERIES_DEFS.map((def) => {
@@ -505,6 +591,21 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             )}
           </div>
         </div>
+
+        {/* The cursor's exact time, straddling the rule between the chart and
+            the card that describes that instant — it belongs to both, so it
+            sits on the seam. Centred rather than tracking the cursor: down
+            here it is no longer beside the rule anyway, and a pill that slid
+            along a divider would read as a stray control. */}
+        {cursorIndex >= 0 && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full bg-foreground px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-background tabular-nums"
+          >
+            <ImuClockIcon className="size-3 shrink-0" />
+            {formatSessionTime(tMs[cursorIndex], true)}
+          </span>
+        )}
       </div>
 
       {/* Details of the instant under the cursor — the headline is the main
@@ -512,59 +613,54 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           channels over the event's window, and the raw sample itself sits
           underneath, all channels, whatever the chart is drawing. */}
       <div className="px-5 pt-5 pb-6 sm:px-6">
-        <h2 className="font-display text-xl leading-tight font-bold">
-          Detalhes
-        </h2>
         {cursorIndex < 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Toca ou arrasta sobre o gráfico para ler um instante.
           </p>
         ) : (
-          <div className="mt-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="text-lg leading-tight font-semibold">
-                {primaryDesc ? primaryDesc.title : "Andamento normal"}
-              </p>
-              {primaryEvent?.confidence != null && (
-                <span className="text-sm text-muted-foreground tabular-nums">
-                  {Math.round(primaryEvent.confidence * 100)}%
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
-              {formatSessionTime(tMs[cursorIndex], true)}
-            </p>
-            <p className="mt-1.5 font-medium tabular-nums">
-              {primaryDesc
-                ? primaryDesc.summary
-                : `${gForce[cursorIndex].toFixed(2)} G`}
-            </p>
+          <div>
+            {/* The instant's headline event as a card of its own: mark,
+                name, confidence, then its figures as labelled columns. */}
+            <EventCard
+              title={primaryDesc ? primaryDesc.title : "Andamento normal"}
+              Icon={primaryDesc ? primaryDesc.Icon : Bike}
+              timeMs={tMs[cursorIndex]}
+              confidence={primaryEvent?.confidence ?? null}
+              metrics={
+                primaryDesc
+                  ? primaryDesc.metrics
+                  : [
+                      {
+                        label: "Força G",
+                        value: gForce[cursorIndex].toFixed(2),
+                        unit: "G",
+                      },
+                    ]
+              }
+            />
 
-            {cursorEvents.length > 1 && (
-              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                {cursorEvents.slice(1).map((event, i) => {
-                  const desc = describeEvent(
-                    event,
-                    tMs,
-                    data.channels.ax,
-                    data.channels.ay,
-                    gForce,
-                    seriesValues.lean,
-                  );
-                  return (
-                    <div
-                      key={i}
-                      className="flex items-baseline justify-between gap-3 text-sm"
-                    >
-                      <span className="font-medium">{desc.title}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {desc.summary}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Anything else covering the same instant — a rough section under
+                an impact, say — gets the same card, one rung quieter. */}
+            {cursorEvents.slice(1).map((event, i) => {
+              const desc = describeEvent(
+                event,
+                tMs,
+                data.channels.ax,
+                data.channels.ay,
+                gForce,
+                seriesValues.lean,
+              );
+              return (
+                <EventCard
+                  key={i}
+                  className="mt-2"
+                  title={desc.title}
+                  Icon={desc.Icon}
+                  confidence={event.confidence}
+                  metrics={desc.metrics}
+                />
+              );
+            })}
 
             {/* Only what the chart is drawing — toggling a pill toggles its
                 reading here too. Recorded channels and computed series sit in
@@ -623,6 +719,82 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * One event at the cursor: its mark on a fixed dark tile, its name, and its
+ * figures as labelled columns.
+ *
+ * The tile is `bg-sidebar` — the app's fixed dark surface — rather than
+ * `bg-foreground`, because the curve marks carry a fixed mint arrow: on a
+ * tile that inverts with the theme, that mint would land on white in dark
+ * mode and disappear. Fixed dark keeps one contrast in both themes.
+ */
+function EventCard({
+  title,
+  Icon,
+  timeMs,
+  confidence,
+  metrics,
+  className,
+}: {
+  title: string;
+  Icon: ComponentType<{ className?: string }>;
+  timeMs?: number;
+  confidence: number | null;
+  metrics: EventMetric[];
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-[12px] border border-border px-4 py-3.5",
+        className,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sidebar text-white">
+            <Icon className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="leading-tight font-semibold">{title}</p>
+            {timeMs != null && (
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {formatSessionTime(timeMs, true)}
+              </p>
+            )}
+          </div>
+        </div>
+        {confidence != null && (
+          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+            {Math.round(confidence * 100)}%
+          </span>
+        )}
+      </div>
+
+      {metrics.length > 0 && (
+        <div className="mt-3.5 grid grid-cols-3 gap-3">
+          {metrics.map((metric) => (
+            <div key={metric.label}>
+              <p className="text-xs text-muted-foreground">{metric.label}</p>
+              <p className="mt-0.5 font-medium tabular-nums">
+                {metric.value}
+                {metric.unit && (
+                  // Degrees and "/100" ride against the figure; word-like
+                  // units (G, s, G RMS) take the space they are owed.
+                  <span className="text-sm text-muted-foreground">
+                    {/^[°/]/.test(metric.unit) ? "" : " "}
+                    {metric.unit}
+                  </span>
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
