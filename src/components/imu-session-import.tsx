@@ -1,0 +1,192 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { createClient } from "@/lib/supabase/client";
+import { createImuSession } from "@/lib/actions/imu";
+import { parseImuFile, type ImuSessionData } from "@/lib/imu/format";
+import { sessionSummary, formatSessionTime, type ImuSessionSummary } from "@/lib/imu/derive";
+
+interface BikeOption {
+  id: string;
+  name: string;
+}
+
+/**
+ * Import flow: pick a JSON file, validate and summarize it locally, then —
+ * only on confirm — upload the untouched file straight to Storage and
+ * register the summary row through the server action. Validation happens
+ * before a single byte leaves the machine, and every error is written into
+ * the dialog rather than toasted: the file input keeps the failed choice
+ * visible next to what went wrong.
+ */
+export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: BikeOption[] }) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [parsed, setParsed] = useState<{
+    file: File;
+    session: ImuSessionData;
+    summary: ImuSessionSummary;
+  } | null>(null);
+  const [name, setName] = useState("");
+  const [bikeId, setBikeId] = useState("");
+
+  function reset() {
+    setParsed(null);
+    setError(null);
+    setBusy(false);
+    setName("");
+    setBikeId("");
+  }
+
+  async function handleFile(file: File | undefined) {
+    setError(null);
+    setParsed(null);
+    if (!file) return;
+    let json: unknown;
+    try {
+      json = JSON.parse(await file.text());
+    } catch {
+      setError("O ficheiro não é JSON válido.");
+      return;
+    }
+    const result = parseImuFile(json);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setParsed({ file, session: result.session, summary: sessionSummary(result.session) });
+    setName(result.session.sessionId ?? file.name.replace(/\.json$/i, ""));
+  }
+
+  async function handleImport() {
+    if (!parsed || busy) return;
+    setBusy(true);
+    setError(null);
+
+    // The raw file goes up as-is — the storage object IS the raw data, and
+    // nothing recorded by the sensor is rewritten on the way in.
+    const storagePath = `${userId}/${crypto.randomUUID()}.json`;
+    const supabase = createClient();
+    const { error: uploadError } = await supabase.storage
+      .from("imu-sessions")
+      .upload(storagePath, parsed.file, { contentType: "application/json", upsert: false });
+    if (uploadError) {
+      setBusy(false);
+      setError(`O upload falhou: ${uploadError.message}`);
+      return;
+    }
+
+    const { summary, session } = parsed;
+    const result = await createImuSession({
+      name,
+      bikeId: bikeId || null,
+      storagePath,
+      format: session.format,
+      durationMs: summary.durationMs,
+      sampleRateHz: summary.sampleRateHz,
+      sampleCount: summary.sampleCount,
+      maxG: summary.maxG,
+      eventCount: summary.eventCount,
+      curveCount: summary.curveCount,
+      jumpCount: summary.jumpCount,
+      impactCount: summary.impactCount,
+      airtimeMs: summary.airtimeMs,
+    });
+    if (result.status === "error") {
+      setBusy(false);
+      setError(result.message);
+      return;
+    }
+
+    setOpen(false);
+    reset();
+    router.refresh();
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger className={buttonVariants({ variant: "inverted", size: "sm" })}>
+        <Plus data-icon="inline-start" />
+        Importar sessão
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Importar sessão IMU</DialogTitle>
+          <DialogDescription className="mt-1">
+            Um ficheiro JSON gravado pelo sensor. É validado antes de sair daqui.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            className="block w-full text-sm text-muted-foreground file:mr-3 file:h-11 file:cursor-pointer file:rounded-full file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium file:text-secondary-foreground"
+            onChange={(event) => handleFile(event.target.files?.[0])}
+          />
+
+          {parsed && (
+            <>
+              <div className="rounded-[12px] border border-border px-3 py-2.5 text-sm">
+                <p className="font-medium">{parsed.session.format}</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  {formatSessionTime(parsed.summary.durationMs)} · {Math.round(parsed.summary.sampleRateHz)} Hz ·{" "}
+                  <span className="tabular-nums">{parsed.summary.sampleCount.toLocaleString("pt-PT")}</span> amostras ·{" "}
+                  {parsed.summary.eventCount} eventos
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="imu-name">Nome</Label>
+                <Input id="imu-name" value={name} onChange={(event) => setName(event.target.value)} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="imu-bike">Bicicleta (opcional)</Label>
+                <NativeSelect id="imu-bike" value={bikeId} onChange={(event) => setBikeId(event.target.value)}>
+                  <option value="">Sem bicicleta</option>
+                  {bikes.map((bike) => (
+                    <option key={bike.id} value={bike.id}>
+                      {bike.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            </>
+          )}
+
+          {/* Written on screen, never a toast — the garage rule. */}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <Button className="w-full" variant="inverted" disabled={!parsed || !name.trim() || busy} onClick={handleImport}>
+            {busy ? "A importar…" : "Importar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
