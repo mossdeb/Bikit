@@ -14,6 +14,13 @@ export function MobileNav({ nav }: { nav: Dictionary["nav"] }) {
   // their bottom buttons.
   if (isFullscreenFormRoute(pathname)) return null;
 
+  // The IMU session analysis is read by scrubbing a chart with a thumb, with
+  // the readout underneath it: a floating bar across the bottom sits exactly
+  // where the details land. The lab is owner-only and reached by link, so
+  // nobody is stranded without the nav. (Desktop never had it — the bar is
+  // sm:hidden — so this only takes effect on a phone.)
+  if (/^\/labs\/imu\/[^/]+$/.test(pathname)) return null;
+
   return (
     <nav
       className="fixed inset-x-4 z-40 flex items-center justify-between rounded-[22px] bg-sidebar px-5 text-sidebar-foreground shadow-lg sm:hidden"
@@ -29,7 +36,7 @@ export function MobileNav({ nav }: { nav: Dictionary["nav"] }) {
             aria-label={nav[labelKey]}
             className={cn(
               "flex items-center justify-center py-3.5",
-              active ? "text-sidebar-primary" : "text-sidebar-foreground/60"
+              active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
             )}
           >
             <Icon className={iconClassName} />
