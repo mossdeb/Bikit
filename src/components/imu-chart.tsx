@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ImuEvent } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
@@ -79,6 +79,42 @@ export function ImuChart({
   const fullSpan = Math.max(1, fullMs[1] - fullMs[0]);
   // Never narrower than ~20 samples' worth of time, whatever the rate.
   const minSpan = Math.max(50, ((tMs[tMs.length - 1] - tMs[0]) / Math.max(1, tMs.length - 1)) * 20);
+
+  /**
+   * Trackpad support. A macOS trackpad pinch arrives as a wheel event with
+   * ctrlKey set (Chrome/Edge/Firefox; Safari's gesture events are not
+   * handled) — zoom anchored at the pointer. A mostly-horizontal two-finger
+   * swipe pans a zoomed window. A plain vertical wheel is left alone so the
+   * page keeps scrolling. Attached natively with passive: false, because
+   * preventDefault on a pinch-wheel is what stops the browser zooming the
+   * whole page.
+   */
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    const onWheel = (event: WheelEvent) => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0) return;
+      if (event.ctrlKey) {
+        event.preventDefault();
+        const frac = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        const anchorMs = w0 + frac * span;
+        // deltaY < 0 (fingers apart) shrinks the window. exp keeps the zoom
+        // rate proportional, so slow and fast pinches both feel right.
+        const newSpan = Math.min(fullSpan, Math.max(minSpan, span * Math.exp(event.deltaY * 0.01)));
+        let from = anchorMs - frac * newSpan;
+        from = Math.min(Math.max(from, fullMs[0]), fullMs[1] - newSpan);
+        onWindowChange([from, from + newSpan]);
+      } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && span < fullSpan) {
+        event.preventDefault();
+        const shift = (event.deltaX / rect.width) * span;
+        const from = Math.min(Math.max(w0 + shift, fullMs[0]), fullMs[1] - span);
+        onWindowChange([from, from + span]);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [w0, w1, span, fullSpan, minSpan, fullMs, onWindowChange]);
 
   const paths = useMemo(() => {
     const i0 = Math.max(0, lowerBoundIndex(tMs, w0) - 1);
