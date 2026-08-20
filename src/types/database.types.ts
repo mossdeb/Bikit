@@ -358,6 +358,71 @@ export type Database = {
           },
         ]
       }
+      imu_sessions: {
+        Row: {
+          airtime_ms: number
+          bike_id: string | null
+          created_at: string
+          curve_count: number
+          duration_ms: number
+          event_count: number
+          format: string
+          id: string
+          impact_count: number
+          jump_count: number
+          max_g: number | null
+          name: string
+          sample_count: number
+          sample_rate_hz: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          airtime_ms?: number
+          bike_id?: string | null
+          created_at?: string
+          curve_count?: number
+          duration_ms: number
+          event_count?: number
+          format: string
+          id?: string
+          impact_count?: number
+          jump_count?: number
+          max_g?: number | null
+          name: string
+          sample_count: number
+          sample_rate_hz: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          airtime_ms?: number
+          bike_id?: string | null
+          created_at?: string
+          curve_count?: number
+          duration_ms?: number
+          event_count?: number
+          format?: string
+          id?: string
+          impact_count?: number
+          jump_count?: number
+          max_g?: number | null
+          name?: string
+          sample_count?: number
+          sample_rate_hz?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imu_sessions_bike_id_fkey"
+            columns: ["bike_id"]
+            isOneToOne: false
+            referencedRelation: "bikes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interventions: {
         Row: {
           bike_hours_at_intervention: number | null
