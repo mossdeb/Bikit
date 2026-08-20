@@ -152,6 +152,28 @@ interface EventMetric {
   value: string;
   /** Unit set apart from the figure, the way the app's totals read. */
   unit?: string;
+  /**
+   * The same quantity at the cursor's instant, when it has one — printed
+   * beside the event's figure as "agora …", so the two can be compared at a
+   * glance. A card's headline numbers describe the whole event and so do not
+   * move while the cursor travels inside it; without this comparison that
+   * stillness reads as a stuck number rather than as a peak. Signed, unlike
+   * the peak, because the sign is the direction. Carries its own unit.
+   */
+  now?: string;
+}
+
+/** Everything the card's figures are computed from: the raw channels, the
+ * derived series, and where the cursor is. One object rather than seven
+ * positional arguments — the list was growing with each new metric. */
+interface EventContext {
+  tMs: Float64Array;
+  ax: ArrayLike<number>;
+  ay: ArrayLike<number>;
+  g: ArrayLike<number>;
+  lean: ArrayLike<number>;
+  roughness: ArrayLike<number>;
+  cursorIndex: number;
 }
 
 interface EventDescription {
@@ -174,32 +196,38 @@ interface EventDescription {
  * its value — carries the (est.), so the number stays readable while the
  * caveat stays attached.
  */
-function describeEvent(
-  event: ImuEvent,
-  tMs: Float64Array,
-  ax: ArrayLike<number>,
-  ay: ArrayLike<number>,
-  g: ArrayLike<number>,
-  lean: ArrayLike<number>,
-): EventDescription {
+function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
+  const { tMs, ax, ay, g, lean, roughness, cursorIndex } = ctx;
   const seconds = (fromMs: number, toMs: number) => ({
     label: "Duração",
     value: ((toMs - fromMs) / 1000).toFixed(1),
     unit: "s",
   });
+  /** The instant's own reading of a channel, signed and with its unit —
+   * degrees ride against the figure, word-like units keep their space. */
+  const now = (values: ArrayLike<number>, unit: string, digits = 2) =>
+    cursorIndex >= 0
+      ? `${values[cursorIndex].toFixed(digits)}${/^[°/]/.test(unit) ? "" : " "}${unit}`
+      : undefined;
 
   switch (event.kind) {
     case "curve": {
       const metrics: EventMetric[] = [];
       const lat = windowPeak(tMs, ay, event.startMs, event.endMs);
       if (lat != null)
-        metrics.push({ label: "G lateral", value: lat.toFixed(2), unit: "G" });
+        metrics.push({
+          label: "G lateral máx",
+          value: lat.toFixed(2),
+          unit: "G",
+          now: now(ay, "G"),
+        });
       const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
       if (maxLean != null)
         metrics.push({
-          label: "Inclinação (est.)",
+          label: "Inclinação máx (est.)",
           value: `~${Math.round(maxLean)}`,
           unit: "°",
+          now: now(lean, "°", 0),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -252,7 +280,12 @@ function describeEvent(
       const metrics: EventMetric[] = [];
       const peak = windowPeak(tMs, g, event.timeMs - 150, event.timeMs + 150);
       if (peak != null)
-        metrics.push({ label: "Pico", value: peak.toFixed(2), unit: "G" });
+        metrics.push({
+          label: "Pico",
+          value: peak.toFixed(2),
+          unit: "G",
+          now: now(g, "G"),
+        });
       const energy = impactEnergy(
         tMs,
         g,
@@ -282,6 +315,7 @@ function describeEvent(
           label: "Travagem máx",
           value: decel.toFixed(2),
           unit: "G",
+          now: now(ax, "G"),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return { title: "Travagem", Icon: BrakingIcon, metrics };
@@ -294,6 +328,9 @@ function describeEvent(
           label: "Vibração",
           value: rms.toFixed(2),
           unit: "G RMS",
+          // The rolling roughness at this instant — the same quantity over a
+          // 0.5 s window, so it compares with the section's whole-window RMS.
+          now: now(roughness, "G"),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -416,15 +453,17 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
     cursorIndex >= 0 ? eventsAt(data.events, tMs[cursorIndex]) : []
   ).sort((a, b) => EVENT_PRIORITY[a.kind] - EVENT_PRIORITY[b.kind]);
   const primaryEvent = cursorEvents[0] ?? null;
+  const eventContext: EventContext = {
+    tMs,
+    ax: data.channels.ax,
+    ay: data.channels.ay,
+    g: gForce,
+    lean: seriesValues.lean,
+    roughness: seriesValues.roughness,
+    cursorIndex,
+  };
   const primaryDesc = primaryEvent
-    ? describeEvent(
-        primaryEvent,
-        tMs,
-        data.channels.ax,
-        data.channels.ay,
-        gForce,
-        seriesValues.lean,
-      )
+    ? describeEvent(primaryEvent, eventContext)
     : null;
 
   function toggleSeries(id: SeriesId) {
@@ -642,14 +681,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             {/* Anything else covering the same instant — a rough section under
                 an impact, say — gets the same card, one rung quieter. */}
             {cursorEvents.slice(1).map((event, i) => {
-              const desc = describeEvent(
-                event,
-                tMs,
-                data.channels.ax,
-                data.channels.ay,
-                gForce,
-                seriesValues.lean,
-              );
+              const desc = describeEvent(event, eventContext);
               return (
                 <EventCard
                   key={i}
@@ -775,8 +807,11 @@ function EventCard({
         )}
       </div>
 
+      {/* Two columns on a phone, three from sm: a metric carrying its "agora"
+          comparison needs the width, and three of those on 375px wrapped
+          every figure onto its own line. */}
       {metrics.length > 0 && (
-        <div className="mt-3.5 grid grid-cols-3 gap-3">
+        <div className="mt-3.5 grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
           {metrics.map((metric) => (
             <div key={metric.label}>
               <p className="text-xs text-muted-foreground">{metric.label}</p>
@@ -788,6 +823,12 @@ function EventCard({
                   <span className="text-sm text-muted-foreground">
                     {/^[°/]/.test(metric.unit) ? "" : " "}
                     {metric.unit}
+                  </span>
+                )}
+                {metric.now && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {" · agora "}
+                    {metric.now}
                   </span>
                 )}
               </p>

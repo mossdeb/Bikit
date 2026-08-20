@@ -16,6 +16,17 @@ const W = 800;
 const H = 260;
 const PAD_Y = 14;
 
+/** Paint order in the event lane: the longest context first, the sharpest
+ * last, so an impact tick sits on top of the rough section it happened in. */
+const STRIP_PAINT_ORDER: Record<ImuEvent["kind"], number> = {
+  rough_section: 0,
+  braking: 1,
+  curve: 2,
+  jump: 3,
+  drop: 3,
+  impact: 4,
+};
+
 /** Envelope buckets across the visible window. ~2 points per bucket keeps the
  * polyline near 800 points whatever the recording length; below ~2 samples
  * per bucket the raw samples are drawn as they are. */
@@ -230,7 +241,10 @@ export function ImuChart({
   const rawResolution = paths.length > 0 && paths.every((p) => p.raw);
 
   return (
-    <div>
+    // Relative so the cursor's event badge can hang off the plot's top edge:
+    // the plot itself is overflow-hidden (the event bands need clipping) and
+    // would cut the tile in half.
+    <div className="relative">
       <div
         ref={plotRef}
         role="slider"
@@ -377,28 +391,26 @@ export function ImuChart({
           />
         ))}
 
-        {/* Event ranges under the lines: neutral bands with a label on the
-            top edge. Deliberately not the health nor the Ride Load palettes —
-            events are a third vocabulary and stay grey, with only the jump
-            wearing the brand mint and impacts the warning red. */}
+        {/* The event stretches, shaded behind the signal. They say where the
+            signal is happening; the lane below says what and how long. What
+            they no longer carry is their old label — at this width the text
+            was truncated to "Acident" and "S", and naming the event is now
+            the badge's job and the card's. */}
         {visibleEvents.map((event, i) => {
-          const [from, to] = eventSpan(event);
+          // Impacts are instants, so they mark the plot as a red rule rather
+          // than a stretch — several close together read as one red zone,
+          // which is exactly what a run of hits is.
           if (event.kind === "impact") {
-            const left = ((event.timeMs - w0) / span) * 100;
             return (
               <div
                 key={i}
                 aria-hidden
-                className="absolute inset-y-0"
-                style={{ left: `${left}%` }}
-              >
-                <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/60" />
-                <span className="absolute top-0.5 -translate-x-1/2 text-[9px] font-semibold text-[#F5533D]">
-                  ▼
-                </span>
-              </div>
+                className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/60"
+                style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+              />
             );
           }
+          const [from, to] = eventSpan(event);
           const left = (Math.max(0, from - w0) / span) * 100;
           const width = ((Math.min(w1, to) - Math.max(w0, from)) / span) * 100;
           return (
@@ -406,17 +418,13 @@ export function ImuChart({
               key={i}
               aria-hidden
               className={cn(
-                "absolute inset-y-0 overflow-hidden",
-                event.kind === "jump"
+                "absolute inset-y-0",
+                event.kind === "jump" || event.kind === "drop"
                   ? "bg-primary/20"
                   : "bg-muted-foreground/8",
               )}
               style={{ left: `${left}%`, width: `${width}%` }}
-            >
-              <span className="absolute top-0.5 left-1 text-[9px] whitespace-nowrap text-muted-foreground">
-                {eventShortLabel(event)}
-              </span>
-            </div>
+            />
           );
         })}
 
@@ -473,6 +481,76 @@ export function ImuChart({
         )}
       </div>
 
+      {/* The event lane.
+
+          Events used to be painted inside the plot as translucent bands with
+          a label on the top edge; at six minutes and twenty events those
+          bands overlapped into mush and every label was truncated to two
+          letters. Here they get their own strip, sharing the plot's exact x
+          scale, so vertical alignment still tells you which spike belongs to
+          which event while the plot goes back to being about the signal.
+
+          Almost monochrome on purpose. The app already carries three colour
+          vocabularies that must not blend (health, Ride Load bands, the lab's
+          series palette); a fourth — one hue per event kind — would be a
+          legend to memorise. Greys carry intensity instead, and only two
+          kinds earn a colour: what is airborne, and what hit hard. Which
+          event it is comes from the badge on the rule and the card below. */}
+      {visibleEvents.length > 0 && (
+        <div
+          aria-hidden
+          className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-muted"
+        >
+          {[...visibleEvents]
+            // Painted widest-context first so a point event lands on top of
+            // the stretch that contains it.
+            .sort(
+              (a, b) => STRIP_PAINT_ORDER[a.kind] - STRIP_PAINT_ORDER[b.kind],
+            )
+            .map((event, i) => {
+              if (event.kind === "impact") {
+                return (
+                  <span
+                    key={i}
+                    className="absolute inset-y-0 w-[3px] -translate-x-1/2 rounded-full bg-[#F5533D]"
+                    style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+                  />
+                );
+              }
+              const [from, to] = eventSpan(event);
+              const left = (Math.max(0, from - w0) / span) * 100;
+              const width =
+                ((Math.min(w1, to) - Math.max(w0, from)) / span) * 100;
+              return (
+                <span
+                  key={i}
+                  className={cn(
+                    "absolute inset-y-0 rounded-full",
+                    event.kind === "jump" || event.kind === "drop"
+                      ? "bg-primary"
+                      : event.kind === "rough_section"
+                        ? "bg-foreground/45"
+                        : "bg-foreground/25",
+                  )}
+                  style={{
+                    left: `${left}%`,
+                    width: `${Math.max(width, 0.4)}%`,
+                  }}
+                />
+              );
+            })}
+
+          {/* The cursor crosses the lane too — without it the strip and the
+              plot would be two pictures instead of one. */}
+          {cursorPercent != null && (
+            <span
+              className="absolute inset-y-0 w-px bg-background/70"
+              style={{ left: `${cursorPercent}%` }}
+            />
+          )}
+        </div>
+      )}
+
       <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>{formatSessionTime(w0)}</span>
         <span>
@@ -495,22 +573,5 @@ function eventSpan(event: ImuEvent): [number, number] {
       return [event.takeoffMs, event.landingMs];
     default:
       return [event.startMs, event.endMs];
-  }
-}
-
-function eventShortLabel(event: ImuEvent): string {
-  switch (event.kind) {
-    case "curve":
-      return event.direction === "left" ? "Curva ←" : "Curva →";
-    case "jump":
-      return "Salto";
-    case "drop":
-      return "Drop";
-    case "rough_section":
-      return "Acidentado";
-    case "braking":
-      return "Travagem";
-    case "impact":
-      return "Impacto";
   }
 }
