@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ImuEvent } from "@/lib/imu/format";
-import { formatSessionTime } from "@/lib/imu/derive";
+import { formatSessionTime, nearestSampleIndex } from "@/lib/imu/derive";
 import { lowerBoundIndex, minMaxEnvelope, upperBoundIndex } from "@/lib/imu/downsample";
 
 /** The plot's drawing box. Stretched to the container (preserveAspectRatio
@@ -180,7 +180,14 @@ export function ImuChart({
     onCursorChange(ms);
   }
 
-  const cursorPercent = cursorMs != null && cursorMs >= w0 && cursorMs <= w1 ? ((cursorMs - w0) / span) * 100 : null;
+  // The rule and its time pill snap to the nearest sample — the pointer's
+  // continuous position read 24251.x ms while the details panel read the
+  // sample at 24250, and two clocks for one cursor is a bug report waiting.
+  const snappedCursorMs = cursorMs != null ? tMs[nearestSampleIndex(tMs, cursorMs)] : null;
+  const cursorPercent =
+    snappedCursorMs != null && snappedCursorMs >= w0 && snappedCursorMs <= w1
+      ? ((snappedCursorMs - w0) / span) * 100
+      : null;
   const primary = paths[0];
   const rawResolution = paths.length > 0 && paths.every((p) => p.raw);
 
@@ -382,10 +389,26 @@ export function ImuChart({
         )}
       </div>
 
-      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
+      <div className="relative mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>{formatSessionTime(w0)}</span>
         <span>{rawResolution ? "dados brutos" : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}</span>
         <span>{formatSessionTime(w1)}</span>
+        {/* The cursor's exact time, pinned to the base of the rule. Near the
+            edges it stops centring and tucks against the side it is nearest,
+            the trend chart's label trick. */}
+        {cursorPercent != null && snappedCursorMs != null && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-0.5 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-background tabular-nums"
+            style={{
+              left: `${cursorPercent}%`,
+              transform:
+                cursorPercent > 85 ? "translateX(-100%)" : cursorPercent < 15 ? "none" : "translateX(-50%)",
+            }}
+          >
+            {formatSessionTime(snappedCursorMs, true)}
+          </span>
+        )}
       </div>
     </div>
   );
