@@ -503,9 +503,6 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                 Repor zoom
               </button>
             )}
-            <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
-              Arrasta ou faz pinch no trackpad para ampliar · toca para ler
-            </span>
           </div>
         </div>
       </div>
