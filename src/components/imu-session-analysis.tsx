@@ -280,9 +280,13 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             events={eventsOn ? data.events : []}
             eventKinds={activeKinds}
             windowMs={win}
+            fullMs={full}
             cursorMs={cursorMs}
             onCursorChange={setCursorMs}
-            onWindowChange={([from, to]) => setWindowMs([from, to])}
+            // A pinch that grows back to the whole recording IS "reset zoom".
+            onWindowChange={([from, to]) =>
+              setWindowMs(from <= full[0] && to >= full[1] ? null : [from, to])
+            }
           />
           <div className="mt-2 flex items-center gap-1.5">
             <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>

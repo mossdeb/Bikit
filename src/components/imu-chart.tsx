@@ -38,7 +38,11 @@ export interface ImuChartSeries {
  * a thumb can still scroll past the chart — the browser sends pointercancel
  * when it takes the gesture, same as the Ride Load trend). A mouse drag
  * paints a selection and zooms into it on release; a drag under the click
- * threshold is a click, which just places the cursor.
+ * threshold is a click, which just places the cursor. Two fingers pinch:
+ * pan-y permits vertical panning only, so the browser has no claim on a
+ * spreading gesture and both pointers keep streaming — the time under the
+ * fingers' midpoint stays anchored while the window stretches around it,
+ * which also makes moving both fingers together a pan.
  */
 export function ImuChart({
   tMs,
@@ -46,6 +50,7 @@ export function ImuChart({
   events,
   eventKinds,
   windowMs,
+  fullMs,
   cursorMs,
   onCursorChange,
   onWindowChange,
@@ -55,6 +60,8 @@ export function ImuChart({
   events: ImuEvent[];
   eventKinds: ReadonlySet<string>;
   windowMs: [number, number];
+  /** The whole recording — what a pinch out may grow the window back to. */
+  fullMs: [number, number];
   cursorMs: number | null;
   onCursorChange: (ms: number) => void;
   onWindowChange: (windowMs: [number, number]) => void;
@@ -62,9 +69,16 @@ export function ImuChart({
   const plotRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<[number, number] | null>(null);
   const dragRef = useRef<{ pointerId: number; startMs: number; isMouse: boolean; moved: boolean } | null>(null);
+  /** Every pointer currently down on the plot, by id — the pinch is read
+   * from the first two. */
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ startDist: number; startSpan: number; anchorMs: number } | null>(null);
 
   const [w0, w1] = windowMs;
   const span = Math.max(1, w1 - w0);
+  const fullSpan = Math.max(1, fullMs[1] - fullMs[0]);
+  // Never narrower than ~20 samples' worth of time, whatever the rate.
+  const minSpan = Math.max(50, ((tMs[tMs.length - 1] - tMs[0]) / Math.max(1, tMs.length - 1)) * 20);
 
   const paths = useMemo(() => {
     const i0 = Math.max(0, lowerBoundIndex(tMs, w0) - 1);
@@ -147,17 +161,52 @@ export function ImuChart({
         tabIndex={0}
         className="relative h-[280px] w-full cursor-crosshair touch-pan-y overflow-hidden rounded-[12px] border border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
         onPointerDown={(event) => {
-          const ms = msFromClientX(event.clientX);
-          if (ms == null) return;
-          dragRef.current = { pointerId: event.pointerId, startMs: ms, isMouse: event.pointerType === "mouse", moved: false };
-          onCursorChange(ms);
+          pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
             // No capture: moves still arrive while over the plot.
           }
+          // A second finger turns the gesture into a pinch: the scrub (and
+          // any selection) is abandoned, and the time under the fingers'
+          // midpoint becomes the anchor the window stretches around.
+          if (event.pointerType !== "mouse" && pointersRef.current.size === 2) {
+            const [a, b] = [...pointersRef.current.values()];
+            const anchorMs = msFromClientX((a.x + b.x) / 2);
+            if (anchorMs == null) return;
+            pinchRef.current = { startDist: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), startSpan: span, anchorMs };
+            dragRef.current = null;
+            setSelection(null);
+            return;
+          }
+          const ms = msFromClientX(event.clientX);
+          if (ms == null) return;
+          dragRef.current = { pointerId: event.pointerId, startMs: ms, isMouse: event.pointerType === "mouse", moved: false };
+          onCursorChange(ms);
         }}
         onPointerMove={(event) => {
+          const tracked = pointersRef.current.get(event.pointerId);
+          if (tracked) {
+            tracked.x = event.clientX;
+            tracked.y = event.clientY;
+          }
+          const pinch = pinchRef.current;
+          if (pinch && pointersRef.current.size >= 2) {
+            const el = plotRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0) return;
+            const [a, b] = [...pointersRef.current.values()];
+            const dist = Math.max(10, Math.hypot(a.x - b.x, a.y - b.y));
+            // Fingers apart → smaller window. Clamped between ~20 samples
+            // and the whole recording.
+            const newSpan = Math.min(fullSpan, Math.max(minSpan, pinch.startSpan * (pinch.startDist / dist)));
+            const midFrac = Math.min(1, Math.max(0, ((a.x + b.x) / 2 - rect.left) / rect.width));
+            let from = pinch.anchorMs - midFrac * newSpan;
+            from = Math.min(Math.max(from, fullMs[0]), fullMs[1] - newSpan);
+            onWindowChange([from, from + newSpan]);
+            return;
+          }
           const drag = dragRef.current;
           if (drag && drag.pointerId === event.pointerId) {
             const ms = msFromClientX(event.clientX);
@@ -177,15 +226,25 @@ export function ImuChart({
           }
         }}
         onPointerUp={(event) => {
-          endDrag(event.clientX);
+          pointersRef.current.delete(event.pointerId);
+          if (pinchRef.current) {
+            // Under two fingers the pinch is over, and the survivor does NOT
+            // fall back into a scrub — the cursor jumping to wherever that
+            // finger happens to rest would undo the framing just chosen.
+            if (pointersRef.current.size < 2) pinchRef.current = null;
+          } else {
+            endDrag(event.clientX);
+          }
           try {
             event.currentTarget.releasePointerCapture(event.pointerId);
           } catch {
             // Nothing was captured.
           }
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
           // The browser took the gesture (vertical scroll) — drop everything.
+          pointersRef.current.delete(event.pointerId);
+          if (pointersRef.current.size < 2) pinchRef.current = null;
           dragRef.current = null;
           setSelection(null);
         }}
