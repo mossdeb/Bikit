@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/mobile-nav";
-import { LogoMark } from "@/components/logo";
+import { HeaderLogo } from "@/components/header-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { UserMenu } from "@/components/user-menu";
@@ -33,10 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <AppHeader>
             <HeaderBackButton />
             <HeaderEditButton />
-            <div className="flex items-center gap-2.5 sm:hidden">
-              <LogoMark className="size-8 rounded-[8px]" />
-              <span className="font-display text-lg font-bold">Bikit</span>
-            </div>
+            <HeaderLogo />
             <div className="hidden items-center gap-3 sm:flex">
               <ThemeToggle />
               <NotificationBell notifications={dict.notifications} />

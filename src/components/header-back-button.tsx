@@ -29,6 +29,7 @@ const MOBILE_BACK_ROUTES: { re: RegExp; backHref: (m: RegExpMatchArray) => strin
   { re: /^\/bikes\/new$/, backHref: () => "/bikes" },
   { re: /^\/bikes\/([^/]+)\/edit$/, backHref: (m) => `/bikes/${m[1]}` },
   { re: /^\/bikes\/([^/]+)\/ride-load$/, backHref: (m) => `/bikes/${m[1]}` },
+  { re: /^\/labs\/imu\/[^/]+$/, backHref: () => "/labs/imu" },
   { re: /^\/bikes\/([^/]+)\/components\/new$/, backHref: (m) => `/bikes/${m[1]}` },
   {
     re: /^\/bikes\/([^/]+)\/components\/([^/]+)\/edit$/,
