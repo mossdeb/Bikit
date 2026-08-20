@@ -256,7 +256,7 @@ export function ImuChart({
           cursorMs != null ? formatSessionTime(cursorMs, true) : undefined
         }
         tabIndex={0}
-        className="relative h-[280px] w-full cursor-crosshair touch-pan-y overflow-hidden rounded-[12px] border border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden rounded-[12px] border border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
         onPointerDown={(event) => {
           pointersRef.current.set(event.pointerId, {
             x: event.clientX,
