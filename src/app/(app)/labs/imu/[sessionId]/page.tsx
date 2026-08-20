@@ -46,7 +46,10 @@ export default async function ImuSessionPage({ params }: { params: Promise<{ ses
           own px — that is what lets divide-y run edge to edge. */}
       <div className="divide-y divide-border rounded-lg bg-card">
         <div className="px-5 py-5 sm:px-6">
-          <ImuChartGlyph className="h-auto w-[30px] text-foreground" />
+          {/* stroke-width pinned in CSS, the bike-created screen's trick: the
+              asset's 4 viewBox units paint 1.31px at this size; 4.586 units
+              paint the 1.5px asked for (1.5 ÷ (35/107)). */}
+          <ImuChartGlyph className="h-auto w-[35px] text-foreground [&_path]:[stroke-width:4.586]" />
           <h1 className="mt-4 font-display text-2xl font-bold">{session.name}</h1>
           {bike?.name && (
             <p className="mt-2 flex items-center gap-2 text-sm font-medium">
