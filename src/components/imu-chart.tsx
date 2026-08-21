@@ -9,6 +9,7 @@ import {
   minMaxEnvelope,
   upperBoundIndex,
 } from "@/lib/imu/downsample";
+import { ImuClockIcon } from "@/components/imu-event-icons";
 
 /** The plot's drawing box. Stretched to the container (preserveAspectRatio
  * "none"), so every position is a ratio of these — the trend chart's idiom. */
@@ -241,10 +242,15 @@ export function ImuChart({
   const rawResolution = paths.length > 0 && paths.every((p) => p.raw);
 
   return (
-    // Relative so the cursor's event badge can hang off the plot's top edge:
-    // the plot itself is overflow-hidden (the event bands need clipping) and
-    // would cut the tile in half.
-    <div className="relative">
+    // Full-bleed: the chart cancels the section's own px-5/px-6 so the signal
+    // gets the card's whole width — on a 375px phone that padding was over a
+    // tenth of the plot. The plot and the event lane must break out together,
+    // since the lane only means anything while it shares the plot's x scale;
+    // only the axis labels keep an inset, so text does not kiss the edge.
+    //
+    // Relative so the cursor's badge could hang off the plot's top edge: the
+    // plot itself is overflow-hidden (the event bands need clipping).
+    <div className="relative -mx-5 sm:-mx-6">
       <div
         ref={plotRef}
         role="slider"
@@ -256,7 +262,7 @@ export function ImuChart({
           cursorMs != null ? formatSessionTime(cursorMs, true) : undefined
         }
         tabIndex={0}
-        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden rounded-[12px] border border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-y border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
         onPointerDown={(event) => {
           pointersRef.current.set(event.pointerId, {
             x: event.clientX,
@@ -472,6 +478,42 @@ export function ImuChart({
           />
         )}
 
+        {/* Event names, drawn after the signal so they sit on top of it.
+            Pills rather than bare text: at this size a word laid straight on
+            a busy trace is unreadable, and the plate gives it a floor. They
+            are allowed to spill past their own band — a jump is 600 ms wide
+            and its name is not — and the plot's overflow-hidden trims
+            whatever reaches the edge. */}
+        {visibleEvents.map((event, i) => {
+          if (event.kind === "impact") {
+            return (
+              <span
+                key={i}
+                aria-hidden
+                className="pointer-events-none absolute top-0.5 -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
+                style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+              >
+                ▼
+              </span>
+            );
+          }
+          const [from, to] = eventSpan(event);
+          const mid = (Math.max(w0, from) + Math.min(w1, to)) / 2;
+          return (
+            <span
+              key={i}
+              aria-hidden
+              // Hung from the plot's top edge: square where it meets the
+              // edge, rounded only where it leaves it — a tab, not a floating
+              // chip.
+              className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-b-[6px] bg-foreground px-1.5 py-0.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+              style={{ left: `${((mid - w0) / span) * 100}%` }}
+            >
+              {eventShortLabel(event)}
+            </span>
+          );
+        })}
+
         {cursorPercent != null && (
           <div
             aria-hidden
@@ -499,7 +541,11 @@ export function ImuChart({
       {visibleEvents.length > 0 && (
         <div
           aria-hidden
-          className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-muted"
+          // Square ends: the lane runs the card's full width now, and a
+          // stadium track would leave two pale nicks against the card edges.
+          // Flush against the plot's bottom border — the two share an x axis,
+          // and a gap made them read as two pictures instead of one.
+          className="relative h-2 w-full overflow-hidden bg-muted"
         >
           {[...visibleEvents]
             // Painted widest-context first so a point event lands on top of
@@ -551,17 +597,61 @@ export function ImuChart({
         </div>
       )}
 
-      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground tabular-nums">
-        <span>{formatSessionTime(w0)}</span>
-        <span>
-          {rawResolution
-            ? "dados brutos"
-            : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}
-        </span>
-        <span>{formatSessionTime(w1)}</span>
+      {/* The axis row is padded, but the cursor's pill is positioned against
+          the full-bleed plot — so the pill hangs off this wrapper, not off
+          the padded row, or it would drift from the rule by the padding. */}
+      <div className="relative mt-1.5">
+        <div className="flex justify-between px-5 text-[10px] text-muted-foreground tabular-nums sm:px-6">
+          <span>{formatSessionTime(w0)}</span>
+          <span>
+            {rawResolution
+              ? "dados brutos"
+              : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}
+          </span>
+          <span>{formatSessionTime(w1)}</span>
+        </div>
+
+        {/* The instant, hung under the rule that marks it. Near the edges it
+            stops centring and tucks against the side it is nearest — the
+            trend chart's label trick. */}
+        {cursorPercent != null && snappedCursorMs != null && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-0.5 flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-background tabular-nums"
+            style={{
+              left: `${cursorPercent}%`,
+              transform:
+                cursorPercent > 85
+                  ? "translateX(-100%)"
+                  : cursorPercent < 15
+                    ? "none"
+                    : "translateX(-50%)",
+            }}
+          >
+            <ImuClockIcon className="size-2.5 shrink-0" />
+            {formatSessionTime(snappedCursorMs, true)}
+          </span>
+        )}
       </div>
     </div>
   );
+}
+
+function eventShortLabel(event: ImuEvent): string {
+  switch (event.kind) {
+    case "curve":
+      return event.direction === "left" ? "Curva ←" : "Curva →";
+    case "jump":
+      return "Salto";
+    case "drop":
+      return "Drop";
+    case "rough_section":
+      return "Acidentado";
+    case "braking":
+      return "Travagem";
+    case "impact":
+      return "Impacto";
+  }
 }
 
 function eventSpan(event: ImuEvent): [number, number] {

@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ComponentType } from "react";
-import { Bike, Minus, Plus, Undo2, Zap } from "lucide-react";
+import {
+  Bike,
+  Check,
+  ChevronDown,
+  Minus,
+  Plus,
+  Undo2,
+  Zap,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   BrakingIcon,
   CurveLeftIcon,
@@ -121,12 +134,12 @@ type SeriesId = (typeof SERIES_DEFS)[number]["id"];
 const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 
 const EVENT_KIND_DEFS = [
-  { kind: "curve", label: "Curvas" },
-  { kind: "jump", label: "Saltos" },
-  { kind: "drop", label: "Drops" },
-  { kind: "impact", label: "Impactos" },
-  { kind: "rough_section", label: "Zonas acidentadas" },
-  { kind: "braking", label: "Travagens" },
+  { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
+  { kind: "jump", label: "Saltos", Icon: JumpIcon },
+  { kind: "drop", label: "Drops", Icon: DropIcon },
+  { kind: "impact", label: "Impactos", Icon: Zap },
+  { kind: "rough_section", label: "Zonas acidentadas", Icon: RoughSectionIcon },
+  { kind: "braking", label: "Travagens", Icon: BrakingIcon },
 ] as const;
 
 const SEVERITY_LABEL: Record<string, string> = {
@@ -161,6 +174,13 @@ interface EventMetric {
    * the peak, because the sign is the direction. Carries its own unit.
    */
   now?: string;
+  /**
+   * Where the instant sits against the event's own peak, 0..1 — the bar
+   * under the figures. Clamped: a rolling window can momentarily read above
+   * the whole-window figure it is compared against, and a bar past its own
+   * track would be a rendering bug rather than a fact.
+   */
+  progress?: number;
 }
 
 /** Everything the card's figures are computed from: the raw channels, the
@@ -203,12 +223,24 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     value: ((toMs - fromMs) / 1000).toFixed(1),
     unit: "s",
   });
-  /** The instant's own reading of a channel, signed and with its unit —
-   * degrees ride against the figure, word-like units keep their space. */
-  const now = (values: ArrayLike<number>, unit: string, digits = 2) =>
-    cursorIndex >= 0
-      ? `${values[cursorIndex].toFixed(digits)}${/^[°/]/.test(unit) ? "" : " "}${unit}`
-      : undefined;
+  /**
+   * The instant's own reading of a channel — the printed value, signed and
+   * with its unit (degrees ride against the figure, word-like units keep
+   * their space), plus where it sits against the event's peak.
+   */
+  const nowOf = (
+    values: ArrayLike<number>,
+    unit: string,
+    peak: number,
+    digits = 2,
+  ): Pick<EventMetric, "now" | "progress"> => {
+    if (cursorIndex < 0) return {};
+    const v = values[cursorIndex];
+    return {
+      now: `${v.toFixed(digits)}${/^[°/]/.test(unit) ? "" : " "}${unit}`,
+      progress: peak > 0 ? Math.min(1, Math.abs(v) / peak) : 0,
+    };
+  };
 
   switch (event.kind) {
     case "curve": {
@@ -219,7 +251,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           label: "G lateral máx",
           value: lat.toFixed(2),
           unit: "G",
-          now: now(ay, "G"),
+          ...nowOf(ay, "G", lat),
         });
       const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
       if (maxLean != null)
@@ -227,7 +259,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           label: "Inclinação máx (est.)",
           value: `~${Math.round(maxLean)}`,
           unit: "°",
-          now: now(lean, "°", 0),
+          ...nowOf(lean, "°", maxLean, 0),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -284,7 +316,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           label: "Pico",
           value: peak.toFixed(2),
           unit: "G",
-          now: now(g, "G"),
+          ...nowOf(g, "G", peak),
         });
       const energy = impactEnergy(
         tMs,
@@ -315,7 +347,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           label: "Travagem máx",
           value: decel.toFixed(2),
           unit: "G",
-          now: now(ax, "G"),
+          ...nowOf(ax, "G", decel),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return { title: "Travagem", Icon: BrakingIcon, metrics };
@@ -330,7 +362,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           unit: "G RMS",
           // The rolling roughness at this instant — the same quantity over a
           // 0.5 s window, so it compares with the section's whole-window RMS.
-          now: now(roughness, "G"),
+          ...nowOf(roughness, "G", rms),
         });
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -439,9 +471,17 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   const win = windowMs ?? full;
   const zoomed = win[0] > full[0] || win[1] < full[1];
 
-  const chartSeries: ImuChartSeries[] = SERIES_DEFS.filter((def) =>
+  const activeSeriesDefs = SERIES_DEFS.filter((def) =>
     activeSeries.has(def.id),
-  ).map((def) => ({
+  );
+  const activeKindDefs = EVENT_KIND_DEFS.filter((def) =>
+    activeKinds.has(def.kind),
+  );
+  // JSX will not take an indexed expression as a component name, so the sole
+  // active kind is hoisted to a capitalised binding.
+  const soleKind = activeKindDefs.length === 1 ? activeKindDefs[0] : null;
+
+  const chartSeries: ImuChartSeries[] = activeSeriesDefs.map((def) => ({
     id: def.id,
     label: def.label,
     color: def.color,
@@ -519,7 +559,84 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           directly below them. "Velocidade" is listed but disabled: this file
           records no speed, and a line invented from acceleration would lie. */}
       <div className="relative space-y-4 px-5 py-5 sm:px-6">
-        <div className="space-y-2">
+        {/* Phone: two menus on one line. Desktop: the pill rows below. */}
+        <div className="grid grid-cols-2 gap-1.5 sm:hidden">
+          <ImuFilterMenu
+            summary={
+              activeSeriesDefs.length === 1 ? (
+                <>
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: activeSeriesDefs[0].color }}
+                  />
+                  <span className="truncate">{activeSeriesDefs[0].label}</span>
+                </>
+              ) : (
+                <span className="truncate">
+                  {activeSeriesDefs.length === 0
+                    ? "Métricas"
+                    : `${activeSeriesDefs.length} métricas`}
+                </span>
+              )
+            }
+            items={[
+              ...SERIES_DEFS.map((def) => ({
+                key: def.id,
+                label: def.label,
+                color: def.color,
+                checked: activeSeries.has(def.id),
+                onToggle: () => toggleSeries(def.id),
+              })),
+              {
+                key: "speed",
+                label: "Velocidade",
+                checked: false,
+                disabled: true,
+                hint: "sem dados",
+                onToggle: () => {},
+              },
+            ]}
+          />
+          <ImuFilterMenu
+            summary={
+              !eventsOn ? (
+                <span className="truncate text-muted-foreground">
+                  Eventos ocultos
+                </span>
+              ) : soleKind ? (
+                <>
+                  <soleKind.Icon className="size-4 shrink-0" />
+                  <span className="truncate">{soleKind.label}</span>
+                </>
+              ) : (
+                <span className="truncate">
+                  {activeKindDefs.length === EVENT_KIND_DEFS.length
+                    ? "Eventos"
+                    : `${activeKindDefs.length} de ${EVENT_KIND_DEFS.length} eventos`}
+                </span>
+              )
+            }
+            items={[
+              {
+                key: "events-master",
+                label: "Mostrar eventos",
+                checked: eventsOn,
+                onToggle: () => setEventsOn((v) => !v),
+              },
+              ...EVENT_KIND_DEFS.map((def) => ({
+                key: def.kind,
+                label: def.label,
+                Icon: def.Icon,
+                checked: eventsOn && activeKinds.has(def.kind),
+                disabled: !eventsOn,
+                onToggle: () => toggleKind(def.kind),
+              })),
+            ]}
+          />
+        </div>
+
+        <div className="hidden space-y-2 sm:block">
           <div className="flex flex-wrap gap-1.5">
             {SERIES_DEFS.map((def) => {
               const active = activeSeries.has(def.id);
@@ -630,21 +747,6 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             )}
           </div>
         </div>
-
-        {/* The cursor's exact time, straddling the rule between the chart and
-            the card that describes that instant — it belongs to both, so it
-            sits on the seam. Centred rather than tracking the cursor: down
-            here it is no longer beside the rule anyway, and a pill that slid
-            along a divider would read as a stray control. */}
-        {cursorIndex >= 0 && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full bg-foreground px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-background tabular-nums"
-          >
-            <ImuClockIcon className="size-3 shrink-0" />
-            {formatSessionTime(tMs[cursorIndex], true)}
-          </span>
-        )}
       </div>
 
       {/* Details of the instant under the cursor — the headline is the main
@@ -794,7 +896,8 @@ function EventCard({
           <div className="min-w-0">
             <p className="leading-tight font-semibold">{title}</p>
             {timeMs != null && (
-              <p className="text-sm text-muted-foreground tabular-nums">
+              <p className="flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
+                <ImuClockIcon className="size-3 shrink-0" />
                 {formatSessionTime(timeMs, true)}
               </p>
             )}
@@ -811,7 +914,7 @@ function EventCard({
           comparison needs the width, and three of those on 375px wrapped
           every figure onto its own line. */}
       {metrics.length > 0 && (
-        <div className="mt-3.5 grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
+        <div className="mt-[22px] grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
           {metrics.map((metric) => (
             <div key={metric.label}>
               <p className="text-xs text-muted-foreground">{metric.label}</p>
@@ -832,6 +935,20 @@ function EventCard({
                   </span>
                 )}
               </p>
+              {/* How far the instant is along the event's own peak. Not a
+                  health or Ride Load bar — this one fills from empty and its
+                  full end is this event's maximum, nothing global. */}
+              {metric.progress != null && (
+                <span
+                  aria-hidden
+                  className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                >
+                  <span
+                    className="block h-full rounded-full bg-foreground transition-[width] duration-100"
+                    style={{ width: `${metric.progress * 100}%` }}
+                  />
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -840,11 +957,101 @@ function EventCard({
   );
 }
 
+/** One row of a filter menu. */
+interface FilterMenuItem {
+  key: string;
+  label: string;
+  /** The series' colour, drawn as a dot — metrics have one, events a mark. */
+  color?: string;
+  Icon?: ComponentType<{ className?: string }>;
+  checked: boolean;
+  disabled?: boolean;
+  hint?: string;
+  onToggle: () => void;
+}
+
+/**
+ * A filter as a dropdown with checkboxes — the phone's answer to the pill
+ * rows.
+ *
+ * Seventeen pills wrap into four lines on a 375px screen, and those four
+ * lines push the chart itself below the fold, which is the one thing this
+ * page exists to show. Two menus take one line. Desktop keeps the pills:
+ * there the whole set is visible at a glance and one tap toggles any of
+ * them, which a menu cannot beat.
+ */
+function ImuFilterMenu({
+  summary,
+  items,
+}: {
+  summary: React.ReactNode;
+  items: FilterMenuItem[];
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger className="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-card px-3.5 text-sm font-medium transition-colors hover:bg-muted">
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          {summary}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-1.5">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="checkbox"
+            aria-checked={item.checked}
+            disabled={item.disabled}
+            onClick={item.onToggle}
+            className="flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            {/* Drawn, not interactive. The app's Checkbox is a real control,
+                and nesting one inside this button split the click between the
+                two: the tick swallowed it and toggled nothing. The row is the
+                single target — better for a thumb, too. */}
+            <span
+              aria-hidden
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                item.checked
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-transparent dark:bg-input/30",
+              )}
+            >
+              {item.checked && <Check className="size-3" />}
+            </span>
+            {item.color && (
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+            )}
+            {item.Icon && <item.Icon className="size-4 shrink-0" />}
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {item.hint && (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {item.hint}
+              </span>
+            )}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 font-medium tabular-nums">{value}</p>
+      {/* leading-tight on both, not a smaller margin: the 2px between these
+          two is margin, but the air you SEE is mostly line-box padding — 16px
+          of box around 12px of label, 24px around a 16px figure. Squeezing
+          the boxes is what halves the gap; the margin barely registers. The
+          bike header learned the same thing. */}
+      <p className="text-xs leading-tight text-muted-foreground">{label}</p>
+      <p className="mt-0.5 leading-tight font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
