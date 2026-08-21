@@ -489,9 +489,14 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   }));
 
   const cursorIndex = cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : -1;
+  // The filters hold here too, not just on the plot: a kind switched off is
+  // off everywhere, and a card describing an event the chart is not drawing
+  // was the one place the switch did not mean what it says.
   const cursorEvents = (
     cursorIndex >= 0 ? eventsAt(data.events, tMs[cursorIndex]) : []
-  ).sort((a, b) => EVENT_PRIORITY[a.kind] - EVENT_PRIORITY[b.kind]);
+  )
+    .filter((event) => eventsOn && activeKinds.has(event.kind))
+    .sort((a, b) => EVENT_PRIORITY[a.kind] - EVENT_PRIORITY[b.kind]);
   const primaryEvent = cursorEvents[0] ?? null;
   const eventContext: EventContext = {
     tMs,
@@ -761,24 +766,30 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
         ) : (
           <div>
             {/* The instant's headline event as a card of its own: mark,
-                name, confidence, then its figures as labelled columns. */}
-            <EventCard
-              title={primaryDesc ? primaryDesc.title : "Andamento normal"}
-              Icon={primaryDesc ? primaryDesc.Icon : Bike}
-              timeMs={tMs[cursorIndex]}
-              confidence={primaryEvent?.confidence ?? null}
-              metrics={
-                primaryDesc
-                  ? primaryDesc.metrics
-                  : [
-                      {
-                        label: "Força G",
-                        value: gForce[cursorIndex].toFixed(2),
-                        unit: "G",
-                      },
-                    ]
-              }
-            />
+                name, confidence, then its figures as labelled columns.
+
+                "Andamento normal" is the card for an instant no event covers,
+                and it lives under the same switch: turning events off leaves
+                the raw channels alone down below, with no card at all. */}
+            {eventsOn && (
+              <EventCard
+                title={primaryDesc ? primaryDesc.title : "Andamento normal"}
+                Icon={primaryDesc ? primaryDesc.Icon : Bike}
+                timeMs={tMs[cursorIndex]}
+                confidence={primaryEvent?.confidence ?? null}
+                metrics={
+                  primaryDesc
+                    ? primaryDesc.metrics
+                    : [
+                        {
+                          label: "Força G",
+                          value: gForce[cursorIndex].toFixed(2),
+                          unit: "G",
+                        },
+                      ]
+                }
+              />
+            )}
 
             {/* Anything else covering the same instant — a rough section under
                 an impact, say — gets the same card, one rung quieter. */}
