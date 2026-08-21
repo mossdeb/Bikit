@@ -144,6 +144,12 @@ type SeriesId = (typeof SERIES_DEFS)[number]["id"];
  * sensor — listed apart in the details panel, never under "Dados brutos". */
 const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 
+/** The series that cannot go below zero — a magnitude and an RMS. Their gauge
+ * starts at the left of the positive half; every other channel is signed and
+ * gets a gauge with zero in the middle, because for those the sign is the
+ * direction and a bar that hid it would say the wrong thing. */
+const UNSIGNED_IDS = new Set<SeriesId>(["gforce", "roughness"]);
+
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
   { kind: "jump", label: "Saltos", Icon: JumpIcon },
@@ -462,13 +468,38 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
     } as Record<SeriesId, ArrayLike<number>>;
   }, [data, gForce]);
 
+  /**
+   * The biggest reading each channel produced in this session, as a magnitude
+   * — the full end of that channel's gauge.
+   *
+   * Per channel and not one number for all of them: a gyro reads in hundreds
+   * of °/s where an accelerometer reads in single g, and a shared scale would
+   * flatten every accelerometer row to nothing. Per session and not global,
+   * for the reason the G force gauge already carries: two recordings are not
+   * on the same scale.
+   */
+  const seriesPeaks = useMemo(() => {
+    if (!seriesValues) return null;
+    const peaks = {} as Record<SeriesId, number>;
+    for (const def of SERIES_DEFS) {
+      const values = seriesValues[def.id];
+      let peak = 0;
+      for (let i = 0; i < values.length; i++) {
+        const magnitude = Math.abs(values[i]);
+        if (magnitude > peak) peak = magnitude;
+      }
+      peaks[def.id] = peak;
+    }
+    return peaks;
+  }, [seriesValues]);
+
   if (loadError) {
     // Written on screen with the whole message — the garage rule.
     return (
       <p className="px-5 py-5 text-sm text-destructive sm:px-6">{loadError}</p>
     );
   }
-  if (!data || !summary || !seriesValues || !gForce) {
+  if (!data || !summary || !seriesValues || !seriesPeaks || !gForce) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
         A carregar a sessão…
@@ -790,7 +821,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           // event on the right — because they answer the same instant from two
           // directions and stacking them puts a scroll between the question and
           // its answer. The phone keeps them stacked, channels first.
-          <div className="sm:grid sm:grid-cols-2 sm:items-start sm:gap-3">
+          <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
             {/* Only what the chart is drawing — toggling a pill toggles its
                 reading here too. Each channel is a row of its own, ruled off
                 from the next. The recorded ones carry no heading; the computed
@@ -800,7 +831,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                 The box is a desktop affair: on a phone these rows already have
                 the section to themselves and a border would be a frame around
                 the whole screen width. */}
-            <div className="sm:rounded-[12px] sm:border sm:border-border sm:p-5">
+            <div className="lg:rounded-[12px] lg:border lg:border-border lg:p-5">
               {[
                 {
                   key: "raw",
@@ -852,13 +883,20 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                           half-leading, not margin, so tightening the boxes is
                           what halves it — the bike header's totals again. */}
                         <div className="flex items-baseline justify-between gap-2 leading-tight">
-                          <span className="flex items-center gap-1.5 text-base">
+                          {/* A column of its own width, wide enough for the
+                              longest name this panel has: it is what anchors
+                              the gauge that follows to the same x in every
+                              row, whatever the name's length. */}
+                          <span className="flex w-[116px] shrink-0 items-center gap-1.5 text-base">
                             <span
                               aria-hidden
-                              className="size-2 rounded-full"
+                              className="size-2 shrink-0 rounded-full"
                               style={{ backgroundColor: def.color }}
                             />
-                            {def.label}
+                            {/* The name is the only part allowed to give: if
+                                a longer one ever arrives it ellipsizes rather
+                                than pushing the gauge out of column. */}
+                            <span className="truncate">{def.label}</span>
                             {/* The full sentence moved behind the (i) so the
                               line under the name can be a two-word summary.
                               A popover and not a tooltip: this is read on a
@@ -866,7 +904,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                             <Popover>
                               <PopoverTrigger
                                 aria-label={`O que é ${def.label}`}
-                                className="flex size-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                                className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                               >
                                 <Info className="size-3.5" />
                               </PopoverTrigger>
@@ -880,20 +918,27 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                               </PopoverContent>
                             </Popover>
                           </span>
-                          {/* Only the G force carries a gauge, and its full end
-                            is this session's own peak — the same 7.41 printed
-                            up in the stats. Nothing global: two recordings are
-                            not on the same scale, and saying so would invent a
-                            comparison the data does not support. */}
-                          {def.id === "gforce" && summary.maxG > 0 && (
-                            <WedgeGauge
-                              fraction={
-                                seriesValues.gforce[cursorIndex] / summary.maxG
-                              }
-                              className="ml-auto self-center"
-                            />
-                          )}
-                          <span className="font-medium tabular-nums">
+                          {/* Every channel carries a gauge, and its full end
+                            is that channel's own peak in this session — for
+                            the G force, the same 7.41 printed up in the stats.
+                            Nothing global: two recordings are not on the same
+                            scale, and saying so would invent a comparison the
+                            data does not support. */}
+                          <MetricGauge
+                            value={seriesValues[def.id][cursorIndex]}
+                            peak={seriesPeaks[def.id]}
+                            signed={!UNSIGNED_IDS.has(def.id)}
+                            className="mr-3 self-center"
+                          />
+                          {/* The reading sits in a cell of its own width, so
+                              the gauge beside it lands at the same x in every
+                              row and stays there: without it a sign appearing
+                              or an integer digit arriving shoved every ramp
+                              sideways while the cursor moved. 104px covers a
+                              signed gyro reading in the hundreds, the widest
+                              this file can produce; the phone gives up the
+                              slack it does not have. */}
+                          <span className="min-w-[92px] text-right font-medium tabular-nums whitespace-nowrap sm:min-w-[104px]">
                             {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
                             <span className="text-sm text-muted-foreground">
                               {def.unit}
@@ -916,7 +961,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
                 and it lives under the same switch: turning events off leaves
                 the channels alone, with no card and no column at all. */}
             {eventsOn && (
-              <div className="mt-5 sm:mt-0">
+              <div className="mt-5 lg:mt-0">
                 <EventCard
                   title={primaryDesc ? primaryDesc.title : "Andamento normal"}
                   Icon={primaryDesc ? primaryDesc.Icon : Bike}
@@ -960,45 +1005,112 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   );
 }
 
+/** The gauge's box, in the units the wedge is drawn in. */
+const GAUGE_HALF = 56;
+const GAUGE_H = 20;
 /**
- * A gauge shaped as a wedge: the track is a right triangle rising to the
- * right, and the reading fills it from the thin end.
+ * The box the reading gets, whatever its shape: it takes the space the name
+ * and the number leave and no more.
  *
- * A triangle and not a bar because the quantity it carries is not a
- * proportion of anything the reader chose — it is "how big is this instant
- * next to the biggest of the session", and the widening ramp says *more* in a
- * way a uniform bar does not. The fill is a smaller similar triangle, so the
- * area grows quadratically: a reading at half the peak paints a quarter of the
- * ink, which is honest about how far the top still is.
+ * Fluid rather than fixed because a fixed one had to be sized for the widest
+ * window and then crushed the row in a narrow one — at 700px it ate the names
+ * down to an ellipsis. The name and the number are the parts that must not
+ * move; the ramp is the part that can breathe.
+ */
+const GAUGE_BOX = "h-5 min-w-10 max-w-56 flex-1";
+
+/**
+ * Where the instant sits against the biggest reading its own channel produced
+ * in this session.
+ *
+ * **Zero is at the middle of the box in every row**, whatever the shape, so a
+ * column of these reads as one scale: nothing is ever painted left of the
+ * middle unless the reading is actually negative.
+ *
+ * Two shapes, because two kinds of quantity:
+ *
+ * - **Unsigned** (the G force, the roughness) get a wedge in the right half.
+ *   A ramp and not a bar because the quantity is not a proportion of anything
+ *   the reader chose — it is "how big is this next to the biggest" — and the
+ *   widening ramp says *more* in a way a uniform bar does not. The fill is a
+ *   smaller similar triangle, so its area grows quadratically: half the peak
+ *   paints a quarter of the ink, which is honest about how far the top is.
+ * - **Signed** channels get a bar that grows out of the middle, left for
+ *   negative and right for positive, with a tick standing at zero. For these
+ *   the sign IS the direction — braking against accelerating, leaning left
+ *   against right — and a ramp that folded both into one length would throw
+ *   away the half of the reading that says which way.
  *
  * `aria-hidden`: the exact number sits right beside it.
  */
-function WedgeGauge({
-  fraction,
+function MetricGauge({
+  value,
+  peak,
+  signed,
   className,
 }: {
-  fraction: number;
+  value: number;
+  /** The channel's biggest magnitude this session — the gauge's full end. */
+  peak: number;
+  signed: boolean;
   className?: string;
 }) {
-  const W = 56;
-  const H = 20;
-  // A rolling reading can momentarily sit above the session peak it is scaled
-  // against, and NaN is what an empty channel divides into.
-  const f = Number.isFinite(fraction) ? Math.min(Math.max(fraction, 0), 1) : 0;
-  const x = f * W;
+  const W = GAUGE_HALF * 2;
+  const H = GAUGE_H;
+  // A flat channel divides into NaN, and a rolling reading can momentarily
+  // sit above the whole-session peak it is scaled against.
+  const raw = peak > 0 && Number.isFinite(value) ? value / peak : 0;
+  const f = Math.min(Math.max(raw, -1), 1);
+
+  // The bar is CSS and not SVG for one reason: the gauge changes width with
+  // the breakpoint, and an SVG stretched to fit drags its round caps out into
+  // ellipses. A CSS radius is measured in pixels at paint time, so the caps
+  // stay caps at every width. The wedge can stay SVG — a triangle has no
+  // curve to distort, only a slope.
+  if (signed) {
+    const positive = f >= 0;
+    return (
+      <span
+        aria-hidden
+        className={cn("relative flex items-center", GAUGE_BOX, className)}
+      >
+        <span className="h-2 w-full rounded-full bg-muted" />
+        {f !== 0 && (
+          <span
+            // Square where it meets zero, round at the reading: a rounded
+            // corner against the tick made the fill look as if it started a
+            // hair away from the origin, the one place that has to be exact.
+            className={cn(
+              "absolute h-2 bg-foreground",
+              positive ? "rounded-r-full" : "rounded-l-full",
+            )}
+            style={{
+              left: `${positive ? 50 : 50 + f * 50}%`,
+              width: `${Math.abs(f) * 50}%`,
+            }}
+          />
+        )}
+        {/* Zero, standing taller than the bar so it still reads as the origin
+            when the fill starts right at it. */}
+        <span className="absolute left-1/2 h-5 w-[1.5px] -translate-x-1/2 bg-foreground" />
+      </span>
+    );
+  }
 
   return (
     <svg
       aria-hidden
-      width={W}
-      height={H}
       viewBox={`0 0 ${W} ${H}`}
-      className={cn("shrink-0", className)}
+      preserveAspectRatio="none"
+      className={cn(GAUGE_BOX, className)}
     >
-      <polygon points={`0,${H} ${W},0 ${W},${H}`} className="fill-muted" />
+      <polygon
+        points={`${GAUGE_HALF},${H} ${W},0 ${W},${H}`}
+        className="fill-muted"
+      />
       {f > 0 && (
         <polygon
-          points={`0,${H} ${x},${H - f * H} ${x},${H}`}
+          points={`${GAUGE_HALF},${H} ${GAUGE_HALF + f * GAUGE_HALF},${H - f * H} ${GAUGE_HALF + f * GAUGE_HALF},${H}`}
           className="fill-foreground"
         />
       )}
