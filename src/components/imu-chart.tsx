@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ImuEvent } from "@/lib/imu/format";
 import { formatSessionTime, nearestSampleIndex } from "@/lib/imu/derive";
@@ -84,6 +85,23 @@ export function ImuChart({
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<[number, number] | null>(null);
+  /**
+   * The cursor pinned where it was left, so the details panel can be read
+   * without the mouse having to stay perfectly still over the plot — a double
+   * click locks, the next click anywhere lets it follow again.
+   *
+   * A double click and not a single one, because a single click already means
+   * "read this instant" and scrubbing produces them by the dozen; pinning is
+   * the deliberate act and deserves the deliberate gesture.
+   *
+   * Mouse-only, and by construction rather than by breakpoint: locking is
+   * answering a problem that only hover has. A finger already leaves the
+   * cursor where it lifted, so on touch this state is never entered.
+   */
+  const [locked, setLocked] = useState(false);
+  /** What kind of pointer opened the last gesture — a `dblclick` carries no
+   * pointerType of its own, and a double tap must not lock. */
+  const lastPointerTypeRef = useRef<string>("mouse");
   const dragRef = useRef<{
     pointerId: number;
     startMs: number;
@@ -155,6 +173,24 @@ export function ImuChart({
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [w0, w1, span, fullSpan, minSpan, fullMs, onWindowChange]);
+
+  /**
+   * "Anywhere else" means anywhere, not just the plot: a press that lands on
+   * the page outside the chart releases the cursor too. Captured on the way
+   * down so it fires before whatever was clicked reacts, and skipped inside
+   * the plot, where the press handler already deals with it.
+   */
+  useEffect(() => {
+    if (!locked) return;
+    const onDown = (event: PointerEvent) => {
+      const el = plotRef.current;
+      if (el && event.target instanceof Node && el.contains(event.target))
+        return;
+      setLocked(false);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [locked]);
 
   const paths = useMemo(() => {
     const i0 = Math.max(0, lowerBoundIndex(tMs, w0) - 1);
@@ -297,6 +333,11 @@ export function ImuChart({
             isMouse: event.pointerType === "mouse",
             moved: false,
           };
+          lastPointerTypeRef.current = event.pointerType;
+          // Pressing anywhere releases a locked cursor, here included. The
+          // two presses of a double click release it and then the dblclick
+          // that follows them pins it again, at the new spot.
+          setLocked(false);
           onCursorChange(ms);
         }}
         onPointerMove={(event) => {
@@ -343,8 +384,9 @@ export function ImuChart({
             }
             return;
           }
-          // A mouse just passing over reads the chart without pressing.
-          if (event.pointerType === "mouse") {
+          // A mouse just passing over reads the chart without pressing —
+          // unless the cursor is locked, which is the whole point of locking.
+          if (event.pointerType === "mouse" && !locked) {
             const ms = msFromClientX(event.clientX);
             if (ms != null) onCursorChange(ms);
           }
@@ -364,6 +406,10 @@ export function ImuChart({
           } catch {
             // Nothing was captured.
           }
+        }}
+        onDoubleClick={() => {
+          if (lastPointerTypeRef.current !== "mouse") return;
+          setLocked(true);
         }}
         onPointerCancel={(event) => {
           // The browser took the gesture (vertical scroll) — drop everything.
@@ -515,6 +561,18 @@ export function ImuChart({
             </span>
           );
         })}
+
+        {cursorPercent != null && locked && (
+          // The padlock rides the line rather than sitting in a corner: it is
+          // this line that is pinned, and at the top it clears the signal.
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-2 z-10 flex h-7 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-foreground text-background"
+            style={{ left: `${cursorPercent}%` }}
+          >
+            <Lock className="size-3" />
+          </div>
+        )}
 
         {cursorPercent != null && (
           <div
