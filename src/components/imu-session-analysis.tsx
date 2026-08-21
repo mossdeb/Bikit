@@ -1263,14 +1263,14 @@ function ImuFilterMenu({
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
       {/* Bounded by the room the anchor actually leaves — Base UI publishes it
-          as `--available-height` on the positioner. Eleven two-line rows are
-          taller than the space under a control that already sits halfway down
-          a phone, and the popup does not scroll on its own: without this the
-          last metrics fell off the bottom of the screen with no way to reach
-          them. */}
+          as `--available-height` and `--available-width` on the positioner.
+          Height: the popup does not scroll on its own, and without a ceiling
+          the last metrics fell off the bottom of a phone with no way to reach
+          them. Width: at the shared 280px four of the names lost their tail
+          to the ellipsis, so it grows to 320 where there is room. */}
       <PopoverContent
         align="start"
-        className="max-h-[var(--available-height)] overflow-y-auto overscroll-contain p-1.5"
+        className="max-h-[var(--available-height)] w-[min(20rem,var(--available-width))] overflow-y-auto overscroll-contain p-1.5"
       >
         {items.map((item) => (
           <button
@@ -1305,10 +1305,11 @@ function ImuFilterMenu({
               />
             )}
             {item.Icon && <item.Icon className="size-4 shrink-0" />}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate leading-tight">{item.label}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {item.label}
               {item.sublabel && (
-                <span className="block truncate text-xs leading-tight text-muted-foreground">
+                <span className="text-muted-foreground">
+                  {" · "}
                   {item.sublabel}
                 </span>
               )}
