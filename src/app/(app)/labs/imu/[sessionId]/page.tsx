@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
-import { formatSessionTime } from "@/lib/imu/derive";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
@@ -78,9 +77,11 @@ export default async function ImuSessionPage({
               {bike.name}
             </p>
           )}
+          {/* Date only: the duration is a figure in the stats row right
+              below, and printing it twice made the header read as a summary
+              of a summary. */}
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {formatDate(session.created_at)} ·{" "}
-            {formatSessionTime(session.duration_ms)}
+            {formatDate(session.created_at)}
           </p>
         </div>
 
