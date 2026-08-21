@@ -15,7 +15,11 @@ import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
  * The page serves only the row; the raw file is downloaded by the client
  * component straight from Storage, where RLS guards it a second time.
  */
-export default async function ImuSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
+export default async function ImuSessionPage({
+  params,
+}: {
+  params: Promise<{ sessionId: string }>;
+}) {
   const { sessionId } = await params;
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
@@ -32,9 +36,15 @@ export default async function ImuSessionPage({ params }: { params: Promise<{ ses
   if (!session) notFound();
 
   const { data: bike } = session.bike_id
-    ? await supabase.from("bikes").select("name, type").eq("id", session.bike_id).single()
+    ? await supabase
+        .from("bikes")
+        .select("name, type")
+        .eq("id", session.bike_id)
+        .single()
     : { data: null };
-  const BikeGlyph = bike?.type ? BIKE_TYPE_ICON[bike.type as BikeType] : undefined;
+  const BikeGlyph = bike?.type
+    ? BIKE_TYPE_ICON[bike.type as BikeType]
+    : undefined;
 
   return (
     <div className="pt-4 pb-10 sm:pt-8">
@@ -46,19 +56,31 @@ export default async function ImuSessionPage({ params }: { params: Promise<{ ses
           own px — that is what lets divide-y run edge to edge. */}
       <div className="divide-y divide-border rounded-lg bg-card">
         <div className="px-5 py-5 sm:px-6">
-          {/* stroke-width pinned in CSS, the bike-created screen's trick: the
-              asset's 4 viewBox units paint 1.31px at this size; 4.586 units
-              paint the 1.5px asked for (1.5 ÷ (35/107)). */}
-          <ImuChartGlyph className="h-auto w-[35px] text-foreground [&_path]:[stroke-width:4.586]" />
-          <h1 className="mt-4 font-display text-2xl font-bold">{session.name}</h1>
+          {/* stroke-width pinned in CSS, the bike-created screen's trick. The
+              art is drawn for a 30-unit box, so its own 1.146 units would
+              paint 1.34px at 35px; 1.286 units paint the 1.5px asked for
+              (1.5 ÷ (35/30)). */}
+          <ImuChartGlyph className="h-auto w-[35px] text-foreground [&_path]:[stroke-width:1.286]" />
+          {/* The mark and the name are one unit — the glyph is the session's
+              badge, not a decoration floating above it — so they close ranks
+              and the two lines of provenance underneath step back. */}
+          <h1 className="mt-2 font-display text-2xl font-bold">
+            {session.name}
+          </h1>
           {bike?.name && (
-            <p className="mt-2 flex items-center gap-2 text-sm font-medium">
-              {BikeGlyph && <BikeGlyph className="h-5 w-7 shrink-0 text-foreground" aria-hidden />}
+            <p className="mt-8 flex items-center gap-2 text-sm font-medium">
+              {BikeGlyph && (
+                <BikeGlyph
+                  className="h-5 w-7 shrink-0 text-foreground"
+                  aria-hidden
+                />
+              )}
               {bike.name}
             </p>
           )}
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {formatDate(session.created_at)} · {formatSessionTime(session.duration_ms)}
+            {formatDate(session.created_at)} ·{" "}
+            {formatSessionTime(session.duration_ms)}
           </p>
         </div>
 
