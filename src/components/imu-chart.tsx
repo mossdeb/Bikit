@@ -387,12 +387,14 @@ export function ImuChart({
         }}
       >
         {/* Horizontal gridlines as HTML — a stretched viewBox turns dash
-            patterns and circles into taffy; divs do not stretch. */}
+            patterns and circles into taffy; divs do not stretch. Solid, not
+            dashed: at this width the dashes read as a texture of their own
+            behind a signal that is already dense. */}
         {[0.25, 0.5, 0.75].map((frac) => (
           <div
             key={frac}
             aria-hidden
-            className="absolute inset-x-0 border-t border-dashed border-border"
+            className="absolute inset-x-0 border-t border-border/60"
             style={{ top: `${((PAD_Y + frac * (H - PAD_Y * 2)) / H) * 100}%` }}
           />
         ))}
@@ -411,7 +413,7 @@ export function ImuChart({
               <div
                 key={i}
                 aria-hidden
-                className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/60"
+                className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/30"
                 style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
               />
             );
@@ -517,7 +519,11 @@ export function ImuChart({
         {cursorPercent != null && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 w-px bg-foreground/70"
+            // Black and 2px: the red belongs to the impacts, and now that
+            // those sit at 30% the live cursor does not need a colour of its
+            // own to stand out — weight is enough, and it keeps the plot to
+            // one red meaning one thing.
+            className="pointer-events-none absolute inset-y-0 w-0.5 bg-foreground/70"
             style={{ left: `${cursorPercent}%` }}
           />
         )}
@@ -545,7 +551,7 @@ export function ImuChart({
           // stadium track would leave two pale nicks against the card edges.
           // Flush against the plot's bottom border — the two share an x axis,
           // and a gap made them read as two pictures instead of one.
-          className="relative h-2 w-full overflow-hidden bg-muted"
+          className="relative h-1 w-full overflow-hidden bg-muted"
         >
           {[...visibleEvents]
             // Painted widest-context first so a point event lands on top of
