@@ -652,76 +652,87 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           />
         </div>
 
-        <div className="hidden space-y-2 sm:block">
-          <div className="flex flex-wrap gap-1.5">
-            {SERIES_DEFS.map((def) => {
-              const active = activeSeries.has(def.id);
-              return (
-                <button
-                  key={def.id}
-                  type="button"
-                  aria-pressed={active}
-                  title={def.description}
-                  onClick={() => toggleSeries(def.id)}
-                  className={cn(
-                    "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                    active
-                      ? "border-transparent bg-foreground text-background"
-                      : "border-border bg-card text-foreground hover:bg-muted",
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="size-2 rounded-full"
-                    style={{ backgroundColor: def.color }}
-                  />
-                  {def.label}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              disabled
-              title="Este ficheiro não tem velocidade."
-              className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
-            >
-              Velocidade
-            </button>
+        {/* Desktop keeps the pills, but in two boxed columns rather than two
+            loose rows: the two sets answer different questions — what to draw
+            and what to mark — and stacked bare they read as one long run of
+            seventeen controls. The phone keeps its two menus (above): at
+            375px these columns would be one pill wide. */}
+        <div className="hidden gap-3 sm:grid sm:grid-cols-2">
+          <div className="rounded-[12px] border border-border p-5">
+            <p className="text-base">Métricas</p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {SERIES_DEFS.map((def) => {
+                const active = activeSeries.has(def.id);
+                return (
+                  <button
+                    key={def.id}
+                    type="button"
+                    aria-pressed={active}
+                    title={def.description}
+                    onClick={() => toggleSeries(def.id)}
+                    className={cn(
+                      "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                      active
+                        ? "border-transparent bg-foreground text-background"
+                        : "border-border bg-card text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: def.color }}
+                    />
+                    {def.label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                disabled
+                title="Este ficheiro não tem velocidade."
+                className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
+              >
+                Velocidade
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              aria-pressed={eventsOn}
-              onClick={() => setEventsOn((v) => !v)}
-              className={cn(
-                "h-8 cursor-pointer rounded-full border px-3 text-xs font-medium transition-colors",
-                eventsOn
-                  ? "border-transparent bg-foreground text-background"
-                  : "border-border bg-card text-foreground hover:bg-muted",
-              )}
-            >
-              Eventos
-            </button>
-            {EVENT_KIND_DEFS.map((def) => {
-              const active = eventsOn && activeKinds.has(def.kind);
-              return (
-                <button
-                  key={def.kind}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={!eventsOn}
-                  onClick={() => toggleKind(def.kind)}
-                  className={cn(
-                    "h-8 cursor-pointer rounded-full border px-3 text-xs transition-colors disabled:cursor-default disabled:opacity-40",
-                    active
-                      ? "border-foreground/30 bg-muted text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {def.label}
-                </button>
-              );
-            })}
+          <div className="rounded-[12px] border border-border p-5">
+            <p className="text-base">Eventos</p>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                aria-pressed={eventsOn}
+                onClick={() => setEventsOn((v) => !v)}
+                className={cn(
+                  "h-8 cursor-pointer rounded-full border px-3 text-xs font-medium transition-colors",
+                  eventsOn
+                    ? "border-transparent bg-foreground text-background"
+                    : "border-border bg-card text-foreground hover:bg-muted",
+                )}
+              >
+                Mostrar eventos
+              </button>
+              {EVENT_KIND_DEFS.map((def) => {
+                const active = eventsOn && activeKinds.has(def.kind);
+                return (
+                  <button
+                    key={def.kind}
+                    type="button"
+                    aria-pressed={active}
+                    disabled={!eventsOn}
+                    onClick={() => toggleKind(def.kind)}
+                    className={cn(
+                      "h-8 cursor-pointer rounded-full border px-3 text-xs transition-colors disabled:cursor-default disabled:opacity-40",
+                      active
+                        ? "border-foreground/30 bg-muted text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {def.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -775,149 +786,173 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
             Toca ou arrasta sobre o gráfico para ler um instante.
           </p>
         ) : (
-          <div>
-            {/* The instant's headline event as a card of its own: mark,
-                name, confidence, then its figures as labelled columns.
-
-                "Andamento normal" is the card for an instant no event covers,
-                and it lives under the same switch: turning events off leaves
-                the raw channels alone down below, with no card at all. */}
-            {eventsOn && (
-              <EventCard
-                title={primaryDesc ? primaryDesc.title : "Andamento normal"}
-                Icon={primaryDesc ? primaryDesc.Icon : Bike}
-                timeMs={tMs[cursorIndex]}
-                confidence={primaryEvent?.confidence ?? null}
-                metrics={
-                  primaryDesc
-                    ? primaryDesc.metrics
-                    : [
-                        {
-                          label: "Força G",
-                          value: gForce[cursorIndex].toFixed(2),
-                          unit: "G",
-                        },
-                      ]
-                }
-              />
-            )}
-
-            {/* Anything else covering the same instant — a rough section under
-                an impact, say — gets the same card, one rung quieter. */}
-            {cursorEvents.slice(1).map((event, i) => {
-              const desc = describeEvent(event, eventContext);
-              return (
-                <EventCard
-                  key={i}
-                  className="mt-2"
-                  title={desc.title}
-                  Icon={desc.Icon}
-                  confidence={event.confidence}
-                  metrics={desc.metrics}
-                />
-              );
-            })}
-
+          // Desktop reads the two side by side — the channels on the left, the
+          // event on the right — because they answer the same instant from two
+          // directions and stacking them puts a scroll between the question and
+          // its answer. The phone keeps them stacked, channels first.
+          <div className="sm:grid sm:grid-cols-2 sm:items-start sm:gap-3">
             {/* Only what the chart is drawing — toggling a pill toggles its
                 reading here too. Each channel is a row of its own, ruled off
                 from the next. The recorded ones carry no heading; the computed
                 ones keep theirs, because "Derivadas (calculadas)" is the label
-                that says where roughness/jerk/lean come from. */}
-            {[
-              {
-                key: "raw",
-                heading: null,
-                defs: SERIES_DEFS.filter(
-                  (def) => activeSeries.has(def.id) && !DERIVED_IDS.has(def.id),
-                ),
-              },
-              {
-                key: "derived",
-                heading: "Derivadas (calculadas)",
-                defs: SERIES_DEFS.filter(
-                  (def) => activeSeries.has(def.id) && DERIVED_IDS.has(def.id),
-                ),
-              },
-            ]
-              .filter((group) => group.defs.length > 0)
-              .map((group) => (
-                <div key={group.key}>
-                  {group.heading && (
-                    <p className="mt-4 border-t border-border pt-3 text-xs font-medium text-muted-foreground">
-                      {group.heading}
-                    </p>
-                  )}
-                  {group.defs.map((def, i) => (
-                    <div
-                      key={def.id}
-                      className={cn(
-                        // The rule separates one channel from the next, so the
-                        // first of a group does not carry one: above it there
-                        // is either the event card or the group's own heading,
-                        // both of which already close the space.
-                        i === 0 ? "mt-5" : "mt-5 border-t border-border pt-5",
-                      )}
-                    >
-                      {/* Both lines are `leading-tight` and carry no margin
+                that says where roughness/jerk/lean come from.
+
+                The box is a desktop affair: on a phone these rows already have
+                the section to themselves and a border would be a frame around
+                the whole screen width. */}
+            <div className="sm:rounded-[12px] sm:border sm:border-border sm:p-5">
+              {[
+                {
+                  key: "raw",
+                  heading: null,
+                  defs: SERIES_DEFS.filter(
+                    (def) =>
+                      activeSeries.has(def.id) && !DERIVED_IDS.has(def.id),
+                  ),
+                },
+                {
+                  key: "derived",
+                  heading: "Derivadas (calculadas)",
+                  defs: SERIES_DEFS.filter(
+                    (def) =>
+                      activeSeries.has(def.id) && DERIVED_IDS.has(def.id),
+                  ),
+                },
+              ]
+                .filter((group) => group.defs.length > 0)
+                .map((group, gi) => (
+                  <div key={group.key}>
+                    {group.heading && (
+                      <p
+                        className={cn(
+                          "text-xs font-medium text-muted-foreground",
+                          gi > 0 && "mt-5 border-t border-border pt-5",
+                        )}
+                      >
+                        {group.heading}
+                      </p>
+                    )}
+                    {group.defs.map((def, i) => (
+                      <div
+                        key={def.id}
+                        className={cn(
+                          // The rule separates one channel from the next, so
+                          // the first of a group never carries one: above it
+                          // there is either the group's heading or the top of
+                          // the panel, both of which already close the space.
+                          i > 0
+                            ? "mt-5 border-t border-border pt-5"
+                            : group.heading
+                              ? "mt-3"
+                              : gi > 0 && "mt-5",
+                        )}
+                      >
+                        {/* Both lines are `leading-tight` and carry no margin
                           between them: at this size the gap that shows is
                           half-leading, not margin, so tightening the boxes is
                           what halves it — the bike header's totals again. */}
-                      <div className="flex items-baseline justify-between gap-2 leading-tight">
-                        <span className="flex items-center gap-1.5 text-base">
-                          <span
-                            aria-hidden
-                            className="size-2 rounded-full"
-                            style={{ backgroundColor: def.color }}
-                          />
-                          {def.label}
-                          {/* The full sentence moved behind the (i) so the
+                        <div className="flex items-baseline justify-between gap-2 leading-tight">
+                          <span className="flex items-center gap-1.5 text-base">
+                            <span
+                              aria-hidden
+                              className="size-2 rounded-full"
+                              style={{ backgroundColor: def.color }}
+                            />
+                            {def.label}
+                            {/* The full sentence moved behind the (i) so the
                               line under the name can be a two-word summary.
                               A popover and not a tooltip: this is read on a
                               phone, and hover is not a thing a finger does. */}
-                          <Popover>
-                            <PopoverTrigger
-                              aria-label={`O que é ${def.label}`}
-                              className="flex size-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                            >
-                              <Info className="size-3.5" />
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="p-4">
-                              <p className="text-sm font-semibold">
-                                {def.label}
-                              </p>
-                              <p className="mt-1.5 text-sm text-muted-foreground">
-                                {def.description}
-                              </p>
-                            </PopoverContent>
-                          </Popover>
-                        </span>
-                        {/* Only the G force carries a gauge, and its full end
+                            <Popover>
+                              <PopoverTrigger
+                                aria-label={`O que é ${def.label}`}
+                                className="flex size-5 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                              >
+                                <Info className="size-3.5" />
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="p-4">
+                                <p className="text-sm font-semibold">
+                                  {def.label}
+                                </p>
+                                <p className="mt-1.5 text-sm text-muted-foreground">
+                                  {def.description}
+                                </p>
+                              </PopoverContent>
+                            </Popover>
+                          </span>
+                          {/* Only the G force carries a gauge, and its full end
                             is this session's own peak — the same 7.41 printed
                             up in the stats. Nothing global: two recordings are
                             not on the same scale, and saying so would invent a
                             comparison the data does not support. */}
-                        {def.id === "gforce" && summary.maxG > 0 && (
-                          <WedgeGauge
-                            fraction={
-                              seriesValues.gforce[cursorIndex] / summary.maxG
-                            }
-                            className="ml-auto self-center"
-                          />
-                        )}
-                        <span className="font-medium tabular-nums">
-                          {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
-                          <span className="text-sm text-muted-foreground">
-                            {def.unit}
+                          {def.id === "gforce" && summary.maxG > 0 && (
+                            <WedgeGauge
+                              fraction={
+                                seriesValues.gforce[cursorIndex] / summary.maxG
+                              }
+                              className="ml-auto self-center"
+                            />
+                          )}
+                          <span className="font-medium tabular-nums">
+                            {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
+                            <span className="text-sm text-muted-foreground">
+                              {def.unit}
+                            </span>
                           </span>
-                        </span>
+                        </div>
+                        <p className="pl-3.5 text-sm leading-tight text-muted-foreground">
+                          {def.summary}
+                        </p>
                       </div>
-                      <p className="pl-3.5 text-sm leading-tight text-muted-foreground">
-                        {def.summary}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ))}
+                    ))}
+                  </div>
+                ))}
+            </div>
+
+            {/* The instant's headline event as a card of its own: mark, name,
+                confidence, then its figures as labelled columns.
+
+                "Andamento normal" is the card for an instant no event covers,
+                and it lives under the same switch: turning events off leaves
+                the channels alone, with no card and no column at all. */}
+            {eventsOn && (
+              <div className="mt-5 sm:mt-0">
+                <EventCard
+                  title={primaryDesc ? primaryDesc.title : "Andamento normal"}
+                  Icon={primaryDesc ? primaryDesc.Icon : Bike}
+                  timeMs={tMs[cursorIndex]}
+                  confidence={primaryEvent?.confidence ?? null}
+                  metrics={
+                    primaryDesc
+                      ? primaryDesc.metrics
+                      : [
+                          {
+                            label: "Força G",
+                            value: gForce[cursorIndex].toFixed(2),
+                            unit: "G",
+                          },
+                        ]
+                  }
+                />
+
+                {/* Anything else covering the same instant — a rough section
+                    under an impact, say — gets the same card, one rung
+                    quieter. */}
+                {cursorEvents.slice(1).map((event, i) => {
+                  const desc = describeEvent(event, eventContext);
+                  return (
+                    <EventCard
+                      key={i}
+                      className="mt-2"
+                      title={desc.title}
+                      Icon={desc.Icon}
+                      confidence={event.confidence}
+                      metrics={desc.metrics}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
