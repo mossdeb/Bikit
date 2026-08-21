@@ -631,6 +631,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
               ...SERIES_DEFS.map((def) => ({
                 key: def.id,
                 label: def.label,
+                sublabel: def.summary,
                 color: def.color,
                 checked: activeSeries.has(def.id),
                 onToggle: () => toggleSeries(def.id),
@@ -1222,6 +1223,11 @@ function EventCard({
 interface FilterMenuItem {
   key: string;
   label: string;
+  /** What the channel is, in two or three words, under its name — the same
+   * summary the details panel prints. The phone's menu is where these are
+   * chosen without the panel in view, so the name alone is thin: "Acel Y"
+   * says nothing that "Curvas e movimento lateral" does not say better. */
+  sublabel?: string;
   /** The series' colour, drawn as a dot — metrics have one, events a mark. */
   color?: string;
   Icon?: ComponentType<{ className?: string }>;
@@ -1256,7 +1262,16 @@ function ImuFilterMenu({
         </span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="p-1.5">
+      {/* Bounded by the room the anchor actually leaves — Base UI publishes it
+          as `--available-height` on the positioner. Eleven two-line rows are
+          taller than the space under a control that already sits halfway down
+          a phone, and the popup does not scroll on its own: without this the
+          last metrics fell off the bottom of the screen with no way to reach
+          them. */}
+      <PopoverContent
+        align="start"
+        className="max-h-[var(--available-height)] overflow-y-auto overscroll-contain p-1.5"
+      >
         {items.map((item) => (
           <button
             key={item.key}
@@ -1290,7 +1305,14 @@ function ImuFilterMenu({
               />
             )}
             {item.Icon && <item.Icon className="size-4 shrink-0" />}
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate leading-tight">{item.label}</span>
+              {item.sublabel && (
+                <span className="block truncate text-xs leading-tight text-muted-foreground">
+                  {item.sublabel}
+                </span>
+              )}
+            </span>
             {item.hint && (
               <span className="shrink-0 text-xs text-muted-foreground">
                 {item.hint}
