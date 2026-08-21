@@ -585,21 +585,31 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   }
 
   return (
-    // Sections of the parent's single card, separated by rules — not cards of
-    // their own. divide-y draws the line between consecutive sections.
-    <div className="divide-y divide-border">
-      {/* Session résumé: the numbers the whole recording boils down to. */}
-      <div className="grid grid-cols-3 gap-x-3 gap-y-4 px-5 py-5 sm:grid-cols-7 sm:px-6">
-        <Stat label="Duração" value={formatSessionTime(summary.durationMs)} />
-        <Stat label="G máx" value={summary.maxG.toFixed(2)} />
-        <Stat label="Impactos" value={String(summary.impactCount)} />
-        <Stat label="Curvas" value={String(summary.curveCount)} />
-        <Stat label="Saltos" value={String(summary.jumpCount)} />
-        <Stat
-          label="No ar"
-          value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
-        />
-        <Stat label="Acidentado" value={formatSessionTime(summary.roughMs)} />
+    // Sections of the parent's single card, not cards of their own. Only one
+    // rule left, and it is declared where it belongs (on the details section):
+    // the résumé and the filters carry boxes of their own, and a rule against
+    // a box reads as a frame around a frame.
+    <div>
+      {/* Session résumé: the numbers the whole recording boils down to.
+
+          Desktop puts the seven in one ruled box, the shape the bike header's
+          totals already use — a rule between each pair and the figures
+          centred. The phone keeps three loose columns: seven cells become
+          three rows there, and the last one holds a single figure, so the
+          same box would draw two dividers into empty space. */}
+      <div className="px-5 py-5 sm:px-6">
+        <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
+          <Stat label="Duração" value={formatSessionTime(summary.durationMs)} />
+          <Stat label="G máx" value={summary.maxG.toFixed(2)} />
+          <Stat label="Impactos" value={String(summary.impactCount)} />
+          <Stat label="Curvas" value={String(summary.curveCount)} />
+          <Stat label="Saltos" value={String(summary.jumpCount)} />
+          <Stat
+            label="No ar"
+            value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+          />
+          <Stat label="Acidentado" value={formatSessionTime(summary.roughMs)} />
+        </div>
       </div>
 
       {/* Filters and the plot: one section — the pills configure the chart
@@ -812,7 +822,7 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           event (or "Andamento normal"), its figures computed from the raw
           channels over the event's window, and the raw sample itself sits
           underneath, all channels, whatever the chart is drawing. */}
-      <div className="px-5 pt-5 pb-6 sm:px-6">
+      <div className="border-t border-border px-5 pt-5 pb-6 sm:px-6">
         {cursorIndex < 0 ? (
           <p className="text-sm text-muted-foreground">
             Toca ou arrasta sobre o gráfico para ler um instante.
@@ -1328,7 +1338,9 @@ function ImuFilterMenu({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    // The cell's own padding lives here and not on the box: it is what gives
+    // the desktop rules their full height, edge to edge of the row.
+    <div className="sm:px-3 sm:py-4 sm:text-center">
       {/* leading-tight on both, not a smaller margin: the 2px between these
           two is margin, but the air you SEE is mostly line-box padding — 16px
           of box around 12px of label, 24px around a 16px figure. Squeezing

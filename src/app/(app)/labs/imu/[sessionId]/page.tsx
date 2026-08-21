@@ -50,10 +50,11 @@ export default async function ImuSessionPage({
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 
-      {/* One card with rules between its parts, the Ride Load report's exact
-          shape: the card itself carries no padding, each section brings its
-          own px — that is what lets divide-y run edge to edge. */}
-      <div className="divide-y divide-border rounded-lg bg-card">
+      {/* One card, no padding of its own — each section brings its own px, so
+          the rules that do exist run edge to edge. There is no rule between
+          the header and the résumé: since the résumé became a box of its own,
+          a line above it drew a second frame around the first. */}
+      <div className="rounded-lg bg-card">
         <div className="px-5 py-5 sm:px-6">
           {/* stroke-width pinned in CSS, the bike-created screen's trick. The
               art is drawn for a 30-unit box, so its own 1.146 units would
