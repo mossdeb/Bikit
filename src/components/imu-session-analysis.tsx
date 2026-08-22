@@ -1103,7 +1103,7 @@ function SessionCards({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-[22px] sm:space-y-0">
+    <div className="space-y-[18px] sm:space-y-0">
       <div className="rounded-lg bg-card sm:rounded-b-none">
         {header}
         {resume}
