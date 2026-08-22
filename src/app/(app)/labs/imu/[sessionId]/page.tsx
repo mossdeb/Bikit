@@ -4,7 +4,7 @@ import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
-import { ImuChartGlyph } from "@/components/imu-pro-logo";
+import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
 
 /**
@@ -28,7 +28,9 @@ export default async function ImuSessionPage({
 
   const { data: session } = await supabase
     .from("imu_sessions")
-    .select("id, name, bike_id, created_at, duration_ms, storage_path")
+    .select(
+      "id, name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+    )
     .eq("id", sessionId)
     .eq("user_id", userId)
     .single();
@@ -55,44 +57,63 @@ export default async function ImuSessionPage({
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 
-      {/* One card, no padding of its own — each section brings its own px, so
-          the rules that do exist run edge to edge. There is no rule between
-          the header and the résumé: since the résumé became a box of its own,
-          a line above it drew a second frame around the first. */}
-      <div className="rounded-lg bg-card">
-        <div className="px-5 py-5 sm:px-6">
-          {/* stroke-width pinned in CSS, the bike-created screen's trick. The
-              art is drawn for a 30-unit box, so its own 1.146 units would
-              paint 1.34px at 35px; 1.286 units paint the 1.5px asked for
-              (1.5 ÷ (35/30)). */}
-          <ImuChartGlyph className="h-auto w-[35px] text-foreground [&_path]:[stroke-width:1.286]" />
-          {/* The mark and the name are one unit — the glyph is the session's
-              badge, not a decoration floating above it — so they close ranks
-              and the two lines of provenance underneath step back. */}
-          <h1 className="mt-2 font-display text-2xl font-bold">
-            {session.name}
-          </h1>
-          {bike?.name && (
-            <p className="mt-8 flex items-center gap-2 text-sm font-medium">
+      {/* The identity block is rendered here, on the server, and handed to
+          the client component as a node — it owns the cards, because the
+          figures that share its card are computed from the file it parses.
+          A server node passed as a prop keeps its own props but does receive
+          context, the same arrangement the install invite uses. */}
+      <ImuSessionAnalysis
+        storagePath={session.storage_path}
+        header={
+          <div className="px-5 py-5 sm:px-6">
+            {/* stroke-width pinned in CSS, the bike-created screen's trick.
+                The art is drawn for a 35-unit box, so its own 1.315 units
+                would paint 1.32px at 35px; 1.5 units paint the 1.5px asked
+                for (1.5 ÷ (35/35)). */}
+            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
+            {/* The mark and the name are one unit — the glyph is the
+                session's badge, not a decoration floating above it — so they
+                close ranks and the two lines of provenance underneath step
+                back. */}
+            <h1 className="mt-2 font-display text-2xl font-bold">
+              {session.name}
+            </h1>
+            {/* Bike and date on one line: they are the same fact — where
+                this recording came from — and stacked they read as two
+                claims. The bike carries the weight, the date steps back.
+                No duration here: it is a figure in the résumé right below,
+                and printing it twice made the header a summary of a summary. */}
+            {/* A paragraph and not a flex row: this is one sentence of
+                provenance and it has to wrap like one. As flex items the name
+                and the tail each claimed a line of their own, and at 375px
+                that broke "YT Decoy" across two. The mark goes inline with
+                the text, aligned to its middle. */}
+            <p className="mt-8 text-sm">
               {BikeGlyph && (
+                // A square box, not the app's h-5 w-7: the art is 101×104 and
+                // `meet` fits it to the height, so a 28px box left ~4px of
+                // empty margin on each side of a 19px drawing.
                 <BikeGlyph
-                  className="h-5 w-7 shrink-0 text-foreground"
+                  className="mr-2 inline-block h-5 w-5 align-middle text-foreground"
                   aria-hidden
                 />
               )}
-              {bike.name}
+              {bike?.name && (
+                <span className="align-middle font-medium">{bike.name}</span>
+              )}
+              {/* The rate and the count sit here rather than in the résumé
+                  because they describe the file and not the ride — the same
+                  trio the session list prints. */}
+              <span className="align-middle text-muted-foreground">
+                {bike?.name ? " · " : ""}
+                {formatDate(session.created_at)} ·{" "}
+                {Math.round(session.sample_rate_hz)} Hz ·{" "}
+                {session.sample_count.toLocaleString("pt-PT")} amostras
+              </span>
             </p>
-          )}
-          {/* Date only: the duration is a figure in the stats row right
-              below, and printing it twice made the header read as a summary
-              of a summary. */}
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {formatDate(session.created_at)}
-          </p>
-        </div>
-
-        <ImuSessionAnalysis storagePath={session.storage_path} />
-      </div>
+          </div>
+        }
+      />
     </div>
   );
 }

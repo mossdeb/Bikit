@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import {
   Bike,
   Check,
@@ -47,6 +53,15 @@ import {
   windowRms,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
+import { ImuChartGlyph } from "@/components/imu-pro-logo";
+import {
+  StatClockIcon,
+  StatImpactIcon,
+  StatJumpIcon,
+  StatMetricIcon,
+  StatStopwatchIcon,
+  StatTurnIcon,
+} from "@/components/imu-stat-icons";
 
 /**
  * Series the chart can draw. A future metric (roughness, lateral G, …) is one
@@ -398,7 +413,17 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
  * cursor. Every readout comes from the raw samples via nearestSampleIndex;
  * downsampling only ever touches what is drawn.
  */
-export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
+export function ImuSessionAnalysis({
+  storagePath,
+  header,
+}: {
+  storagePath: string;
+  /** The session's identity block, rendered on the server and handed over as
+   * a node. It shares a card with the résumé, and the résumé's figures are
+   * computed from the file this component parses — so the cards are drawn
+   * here, where both halves are in hand. */
+  header: ReactNode;
+}) {
   const [data, setData] = useState<ImuSessionData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -496,14 +521,20 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   if (loadError) {
     // Written on screen with the whole message — the garage rule.
     return (
-      <p className="px-5 py-5 text-sm text-destructive sm:px-6">{loadError}</p>
+      <SessionCards header={header}>
+        <p className="px-5 py-5 text-sm text-destructive sm:px-6">
+          {loadError}
+        </p>
+      </SessionCards>
     );
   }
   if (!data || !summary || !seriesValues || !seriesPeaks || !gForce) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
-        A carregar a sessão…
-      </p>
+      <SessionCards header={header}>
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          A carregar a sessão…
+        </p>
+      </SessionCards>
     );
   }
 
@@ -585,37 +616,66 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
   }
 
   return (
-    // Sections of the parent's single card, not cards of their own. Only one
-    // rule left, and it is declared where it belongs (on the details section):
-    // the résumé and the filters carry boxes of their own, and a rule against
-    // a box reads as a frame around a frame.
-    <div>
-      {/* Session résumé: the numbers the whole recording boils down to.
+    <SessionCards
+      header={header}
+      /* Session résumé: the numbers the whole recording boils down to. It
+         shares the identity's card, because both answer "what recording is
+         this" — the reading of it starts in the card below.
 
-          Desktop puts the seven in one ruled box, the shape the bike header's
-          totals already use — a rule between each pair and the figures
-          centred. The phone keeps three loose columns: seven cells become
-          three rows there, and the last one holds a single figure, so the
-          same box would draw two dividers into empty space. */}
-      <div className="px-5 py-5 sm:px-6">
-        <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
-          <Stat label="Duração" value={formatSessionTime(summary.durationMs)} />
-          <Stat label="G máx" value={summary.maxG.toFixed(2)} />
-          <Stat label="Impactos" value={String(summary.impactCount)} />
-          <Stat label="Curvas" value={String(summary.curveCount)} />
-          <Stat label="Saltos" value={String(summary.jumpCount)} />
-          <Stat
-            label="No ar"
-            value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
-          />
-          <Stat label="Acidentado" value={formatSessionTime(summary.roughMs)} />
+         Desktop puts the seven in one ruled box, the shape the bike header's
+         totals already use — a rule between each pair and the figures
+         centred. The phone keeps three loose columns: seven cells become
+         three rows there, and the last one holds a single figure, so the
+         same box would draw two dividers into empty space. */
+      resume={
+        <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
+            <Stat
+              Icon={StatClockIcon}
+              label="Duração"
+              value={formatSessionTime(summary.durationMs)}
+            />
+            <Stat
+              Icon={StatMetricIcon}
+              label="G máx"
+              value={summary.maxG.toFixed(2)}
+            />
+            <Stat
+              Icon={StatImpactIcon}
+              label="Impactos"
+              value={String(summary.impactCount)}
+            />
+            <Stat
+              Icon={StatTurnIcon}
+              label="Curvas"
+              value={String(summary.curveCount)}
+            />
+            <Stat
+              Icon={StatJumpIcon}
+              label="Saltos"
+              value={String(summary.jumpCount)}
+            />
+            <Stat
+              Icon={StatStopwatchIcon}
+              label="No ar"
+              value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+            />
+            {/* The rough section borrows the event mark: there is no seventh
+                glyph in the set, and the figure counts exactly the thing that
+                mark already names down in the lane. */}
+            <Stat
+              Icon={RoughSectionIcon}
+              label="Acidentado"
+              value={formatSessionTime(summary.roughMs)}
+            />
+          </div>
         </div>
-      </div>
-
+      }
+    >
       {/* Filters and the plot: one section — the pills configure the chart
           directly below them. "Velocidade" is listed but disabled: this file
           records no speed, and a line invented from acceleration would lie. */}
-      <div className="relative space-y-4 px-5 py-5 sm:px-6">
+      <div className="relative space-y-4 px-5 pt-[22px] pb-5 sm:px-6">
         {/* Phone: two menus on one line. Desktop: the pill rows below. */}
         <div className="grid grid-cols-2 gap-1.5 sm:hidden">
           <ImuFilterMenu
@@ -1012,6 +1072,47 @@ export function ImuSessionAnalysis({ storagePath }: { storagePath: string }) {
           </div>
         )}
       </div>
+    </SessionCards>
+  );
+}
+
+/**
+ * The page's two cards: what the recording IS, and the reading of it.
+ *
+ * Separate cards on a phone, one continuous card from `sm` up. On a small
+ * screen the two are a scroll apart and a rule between them is a hairline
+ * asking to be noticed; a gap says the same thing without being read. On a
+ * wide one they sit close enough that two floating cards would be two
+ * objects where the page has one subject.
+ *
+ * The identity card is rendered whatever the file does — while it downloads,
+ * and if it fails — so the page never opens on a spinner alone.
+ */
+function SessionCards({
+  header,
+  resume,
+  children,
+}: {
+  header: ReactNode;
+  /** The résumé figures, once the file has been parsed. */
+  resume?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-3 sm:space-y-0">
+      <div className="rounded-lg bg-card sm:rounded-b-none">
+        {header}
+        {resume}
+      </div>
+      <div className="rounded-lg bg-card sm:rounded-t-none sm:border-t sm:border-border">
+        {/* The section's own title, the mark first: the glyph belongs to the
+            reading of the recording, which is exactly what this card is. */}
+        <div className="flex items-center gap-2.5 px-5 pt-5 sm:px-6">
+          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.286]" />
+          <h2 className="font-display text-xl font-bold">Telemetria</h2>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -1336,18 +1437,35 @@ function ImuFilterMenu({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  Icon,
+  label,
+  value,
+}: {
+  Icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
   return (
     // The cell's own padding lives here and not on the box: it is what gives
     // the desktop rules their full height, edge to edge of the row.
-    <div className="sm:px-3 sm:py-4 sm:text-center">
-      {/* leading-tight on both, not a smaller margin: the 2px between these
-          two is margin, but the air you SEE is mostly line-box padding — 16px
-          of box around 12px of label, 24px around a 16px figure. Squeezing
-          the boxes is what halves the gap; the margin barely registers. The
-          bike header learned the same thing. */}
-      <p className="text-xs leading-tight text-muted-foreground">{label}</p>
-      <p className="mt-0.5 leading-tight font-semibold tabular-nums">{value}</p>
+    //
+    // The mark sits beside the pair on a phone and above it on desktop: there
+    // the seven columns are ~106px wide and a mark on the left would leave
+    // "Acidentado" less room than the word needs.
+    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:px-3 sm:py-4 sm:text-center">
+      <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+      <div>
+        {/* leading-tight on both, not a smaller margin: the 2px between these
+            two is margin, but the air you SEE is mostly line-box padding —
+            16px of box around 12px of label, 24px around a 16px figure.
+            Squeezing the boxes is what halves the gap; the margin barely
+            registers. The bike header learned the same thing. */}
+        <p className="text-xs leading-tight text-muted-foreground">{label}</p>
+        <p className="mt-0.5 leading-tight font-semibold tabular-nums">
+          {value}
+        </p>
+      </div>
     </div>
   );
 }

@@ -69,6 +69,32 @@ export function ImuChartGlyph({ className }: { className?: string }) {
 }
 
 /**
+ * The session's mark: a document with a trace inside (supplied art,
+ * metrics_doc). A page and not a chart, because what it badges is the
+ * recording itself — the chart glyph above belongs to the reading of it.
+ * Strokes ride currentColor, so the dark theme keeps it visible.
+ */
+export function ImuDocGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 28 35" fill="none" className={className} aria-hidden>
+      <path
+        d="M26.4002 7.01763L20.8423 1.56827C20.1574 0.896775 19.2286 0.519531 18.26 0.519531H4.18172C2.16481 0.519531 0.529785 2.12263 0.529785 4.10015V30.8997C0.529785 32.8772 2.16481 34.4803 4.18172 34.4803H23.8179C25.8348 34.4803 27.4698 32.8772 27.4698 30.8997V9.54951C27.4698 8.59987 27.0851 7.68913 26.4002 7.01763Z"
+        stroke="currentColor"
+        strokeWidth="1.31547"
+        strokeMiterlimit="10"
+      />
+      <path
+        d="M4.18164 19.2503H7.07247L9.14126 15.7498L11.0446 21.6198L14.1367 10.499L18.2026 24.501L20.4783 19.2503H23.8178"
+        stroke="currentColor"
+        strokeWidth="1.31547"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
  * The "Bikit PRO" lockup the IMU lab wears — supplied art (logo_pro3). The
  * tile and the PRO chip keep their fixed colors in both themes; the wordmark
  * rides currentColor, because a fixed near-black vanishes on the dark theme's
