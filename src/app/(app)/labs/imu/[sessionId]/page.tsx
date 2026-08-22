@@ -46,7 +46,12 @@ export default async function ImuSessionPage({
     : undefined;
 
   return (
-    <div className="pt-4 pb-10 sm:pt-8">
+    // 15px of side margin on a phone instead of the app's 20: the plot inside
+    // this card is the one thing the page exists to show, and every pixel of
+    // margin is a pixel it does not get. Done by cancelling the shell's own
+    // px-5 and declaring the smaller one — a deliberate exception to the
+    // 20px rule, like the Ride Load report's 18px, and only in the lab.
+    <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 
