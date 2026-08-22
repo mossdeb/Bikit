@@ -29,7 +29,9 @@ export default async function ImuLabPage() {
     supabase
       .from("imu_sessions")
       .select(
-        "id, name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count, max_g, curve_count, jump_count, impact_count",
+        // No counts: the card stopped printing them, and a column selected
+        // for nobody is a query that grows without a reader.
+        "id, name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
@@ -113,23 +115,6 @@ export default async function ImuLabPage() {
                   {formatSessionTime(session.duration_ms)}
                 </p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {session.max_g != null && (
-                  <>
-                    G máx{" "}
-                    <span className="font-medium text-foreground tabular-nums">
-                      {session.max_g.toFixed(2)}
-                    </span>{" "}
-                    ·{" "}
-                  </>
-                )}
-                <span className="tabular-nums">{session.curve_count}</span>{" "}
-                curvas ·{" "}
-                <span className="tabular-nums">{session.jump_count}</span>{" "}
-                saltos ·{" "}
-                <span className="tabular-nums">{session.impact_count}</span>{" "}
-                impactos
-              </p>
               {/* Above the covering link, so the trash can is clickable. */}
               <div className="absolute top-3 right-3 z-10">
                 <ImuSessionDeleteButton

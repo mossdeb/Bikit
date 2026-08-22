@@ -72,15 +72,14 @@ export default async function ImuSessionPage({
           // here breaks the parse.
           <div className="px-5 pt-5 pb-12 sm:px-6">
             {/* stroke-width pinned in CSS, the bike-created screen's trick.
-                The art is drawn for a 35-unit box, so its own 1.315 units
-                would paint 1.32px at 35px; 1.5 units paint the 1.5px asked
-                for (1.5 ÷ (35/35)). */}
-            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
+                The art is shown 1:1 — 28 units wide in a 28px box — so the
+                number here is the number of pixels painted. */}
+            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:2]" />
             {/* The mark and the name are one unit — the glyph is the
                 session's badge, not a decoration floating above it — so they
                 close ranks and the two lines of provenance underneath step
                 back. */}
-            <h1 className="mt-2 font-display text-2xl font-bold">
+            <h1 className="mt-2 font-display text-2xl font-semibold">
               {session.name}
             </h1>
             {/* Bike and date on one line: they are the same fact — where

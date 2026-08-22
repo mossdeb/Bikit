@@ -10,60 +10,53 @@ export function ImuChartGlyph({ className }: { className?: string }) {
     <svg
       viewBox="0 0 30 30"
       fill="none"
-      className={className}
+      className={cn("overflow-visible", className)}
       aria-hidden="true"
     >
-      <g clipPath="url(#imu-chart-glyph-clip)">
-        <path
-          d="M24.6319 0.573166H5.36813C2.71995 0.573166 0.573181 2.71994 0.573181 5.36811V24.6319C0.573181 27.2801 2.71995 29.4268 5.36813 29.4268H24.6319C27.2801 29.4268 29.4269 27.2801 29.4269 24.6319V5.36811C29.4269 2.71994 27.2801 0.573166 24.6319 0.573166Z"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-        />
-        <path
-          d="M5.78351 21.7218L9.16591 7.85075C9.44225 6.71751 10.5339 6.77793 10.7528 7.93859L13.1085 22.0615C13.3354 23.2643 14.4812 23.2695 14.713 22.0686L17.0235 8.4642C17.2558 7.26003 18.406 7.26977 18.6291 8.4778L21.0532 21.6023C21.2537 22.6877 22.2451 22.8461 22.5962 21.8488L24.2882 15"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-        />
-        <path
-          d="M0.790344 14.5842H1.36351"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-        />
-        <path
-          d="M4.8905 14.5842H26.6396"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-          strokeDasharray="1.18 3.53"
-        />
-        <path
-          d="M28.4032 14.5842H28.9764"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-        />
-        <path
-          d="M24.2882 15.5689C24.832 15.5689 25.2728 15.128 25.2728 14.5842C25.2728 14.0404 24.832 13.5996 24.2882 13.5996C23.7444 13.5996 23.3035 14.0404 23.3035 14.5842C23.3035 15.128 23.7444 15.5689 24.2882 15.5689Z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="1.14633"
-          strokeMiterlimit="10"
-          strokeLinecap="round"
-        />
-      </g>
-      <defs>
-        <clipPath id="imu-chart-glyph-clip">
-          <rect width="30" height="30" fill="white" />
-        </clipPath>
-      </defs>
+      <path
+        d="M24.6319 0.573166H5.36813C2.71995 0.573166 0.573181 2.71994 0.573181 5.36811V24.6319C0.573181 27.2801 2.71995 29.4268 5.36813 29.4268H24.6319C27.2801 29.4268 29.4269 27.2801 29.4269 24.6319V5.36811C29.4269 2.71994 27.2801 0.573166 24.6319 0.573166Z"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M5.78351 21.7218L9.16591 7.85075C9.44225 6.71751 10.5339 6.77793 10.7528 7.93859L13.1085 22.0615C13.3354 23.2643 14.4812 23.2695 14.713 22.0686L17.0235 8.4642C17.2558 7.26003 18.406 7.26977 18.6291 8.4778L21.0532 21.6023C21.2537 22.6877 22.2451 22.8461 22.5962 21.8488L24.2882 15"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M0.790344 14.5842H1.36351"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4.8905 14.5842H26.6396"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+        strokeDasharray="1.18 3.53"
+      />
+      <path
+        d="M28.4032 14.5842H28.9764"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M24.2882 15.5689C24.832 15.5689 25.2728 15.128 25.2728 14.5842C25.2728 14.0404 24.832 13.5996 24.2882 13.5996C23.7444 13.5996 23.3035 14.0404 23.3035 14.5842C23.3035 15.128 23.7444 15.5689 24.2882 15.5689Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.14633"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -76,7 +69,12 @@ export function ImuChartGlyph({ className }: { className?: string }) {
  */
 export function ImuDocGlyph({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 28 35" fill="none" className={className} aria-hidden>
+    <svg
+      viewBox="0 0 28 35"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden
+    >
       <path
         d="M26.4002 7.01763L20.8423 1.56827C20.1574 0.896775 19.2286 0.519531 18.26 0.519531H4.18172C2.16481 0.519531 0.529785 2.12263 0.529785 4.10015V30.8997C0.529785 32.8772 2.16481 34.4803 4.18172 34.4803H23.8179C25.8348 34.4803 27.4698 32.8772 27.4698 30.8997V9.54951C27.4698 8.59987 27.0851 7.68913 26.4002 7.01763Z"
         stroke="currentColor"

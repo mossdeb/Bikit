@@ -629,7 +629,11 @@ export function ImuSessionAnalysis({
          same box would draw two dividers into empty space. */
       resume={
         <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0">
-          <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
+          {/* The rows breathe more than the columns: pulling the label onto
+              its figure made each cell a tight block, and at 16px the three
+              rows read as one paragraph instead of three. Phone only — the
+              desktop box puts all seven on one line. */}
+          <div className="grid grid-cols-3 gap-x-3 gap-y-7 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
             <Stat
               Icon={StatClockIcon}
               label="Duração"
@@ -1099,7 +1103,7 @@ function SessionCards({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-3 sm:space-y-0">
+    <div className="space-y-[22px] sm:space-y-0">
       <div className="rounded-lg bg-card sm:rounded-b-none">
         {header}
         {resume}
@@ -1108,8 +1112,8 @@ function SessionCards({
         {/* The section's own title, the mark first: the glyph belongs to the
             reading of the recording, which is exactly what this card is. */}
         <div className="flex items-center gap-2.5 px-5 pt-5 sm:px-6">
-          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.286]" />
-          <h2 className="font-display text-xl font-bold">Telemetria</h2>
+          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:2]" />
+          <h2 className="font-display text-xl font-semibold">Telemetria</h2>
         </div>
         {children}
       </div>
@@ -1277,8 +1281,15 @@ function EventCard({
           </div>
         </div>
         {confidence != null && (
-          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-            {Math.round(confidence * 100)}%
+          // Named, not just a bare percentage: on its own in the corner of a
+          // card, "98%" reads as a share of something the card is about — how
+          // much of the ride was a jump, say — when it is the detector's own
+          // certainty that this IS a jump.
+          <span className="shrink-0 text-sm text-muted-foreground">
+            Confiança ·{" "}
+            <span className="tabular-nums">
+              {Math.round(confidence * 100)}%
+            </span>
           </span>
         )}
       </div>
@@ -1456,13 +1467,15 @@ function Stat({
     <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:px-3 sm:py-4 sm:text-center">
       <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div>
-        {/* leading-tight on both, not a smaller margin: the 2px between these
-            two is margin, but the air you SEE is mostly line-box padding —
-            16px of box around 12px of label, 24px around a 16px figure.
-            Squeezing the boxes is what halves the gap; the margin barely
-            registers. The bike header learned the same thing. */}
+        {/* A NEGATIVE margin, and measured rather than guessed: with both
+            boxes already `leading-tight`, the ink of the label sat 7.75px
+            above the ink of the figure — 2px of margin plus the half-leading
+            each box carries (15px of box around 12px of label, 20px around a
+            16px figure). Pulling 2px back lands it at 3.75px, which is the
+            4 asked for. A label without a descender reads a hair looser; that
+            is type, not layout. */}
         <p className="text-xs leading-tight text-muted-foreground">{label}</p>
-        <p className="mt-0.5 leading-tight font-semibold tabular-nums">
+        <p className="-mt-0.5 leading-tight font-semibold tabular-nums">
           {value}
         </p>
       </div>
