@@ -65,7 +65,12 @@ export default async function ImuSessionPage({
       <ImuSessionAnalysis
         storagePath={session.storage_path}
         header={
-          <div className="px-5 py-5 sm:px-6">
+          // Deep bottom padding on purpose: the identity is a few short lines
+          // and the air below them is what stops the résumé reading as one
+          // more. A `//` comment and not `{/* */}`: this is the value of a
+          // prop, so the braces are already a JS expression and a JSX comment
+          // here breaks the parse.
+          <div className="px-5 pt-5 pb-12 sm:px-6">
             {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is drawn for a 35-unit box, so its own 1.315 units
                 would paint 1.32px at 35px; 1.5 units paint the 1.5px asked
@@ -88,7 +93,7 @@ export default async function ImuSessionPage({
                 and the tail each claimed a line of their own, and at 375px
                 that broke "YT Decoy" across two. The mark goes inline with
                 the text, aligned to its middle. */}
-            <p className="mt-8 text-sm">
+            <p className="mt-1.5 text-sm">
               {BikeGlyph && (
                 // A square box, not the app's h-5 w-7: the art is 101×104 and
                 // `meet` fits it to the height, so a 28px box left ~4px of
