@@ -74,7 +74,7 @@ export default async function ImuSessionPage({
             {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
                 number here is the number of pixels painted. */}
-            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:2]" />
+            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
             {/* The mark and the name are one unit — the glyph is the
                 session's badge, not a decoration floating above it — so they
                 close ranks and the two lines of provenance underneath step

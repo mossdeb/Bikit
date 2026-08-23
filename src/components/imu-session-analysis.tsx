@@ -1112,7 +1112,7 @@ function SessionCards({
         {/* The section's own title, the mark first: the glyph belongs to the
             reading of the recording, which is exactly what this card is. */}
         <div className="flex items-center gap-2.5 px-5 pt-5 sm:px-6">
-          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:2]" />
+          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.5]" />
           <h2 className="font-display text-xl font-semibold">Telemetria</h2>
         </div>
         {children}
