@@ -278,15 +278,15 @@ export function ImuChart({
   const rawResolution = paths.length > 0 && paths.every((p) => p.raw);
 
   return (
-    // Full-bleed: the chart cancels the section's own px-5/px-6 so the signal
-    // gets the card's whole width — on a 375px phone that padding was over a
-    // tenth of the plot. The plot and the event lane must break out together,
-    // since the lane only means anything while it shares the plot's x scale;
-    // only the axis labels keep an inset, so text does not kiss the edge.
+    // The chart reaches its container's edges — the full-bleed against the
+    // card's padding now lives on the wrapper in the analysis page, which
+    // breaks out and then splits the width with the map on desktop. The plot
+    // and the event lane share one x scale, so they fill together; only the
+    // axis labels keep an inset, so text does not kiss the edge.
     //
     // Relative so the cursor's badge could hang off the plot's top edge: the
     // plot itself is overflow-hidden (the event bands need clipping).
-    <div className="relative -mx-5 sm:-mx-6">
+    <div className="relative">
       <div
         ref={plotRef}
         role="slider"

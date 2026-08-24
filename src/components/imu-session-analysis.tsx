@@ -3,6 +3,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
@@ -11,6 +12,7 @@ import {
   Bike,
   Check,
   ChevronDown,
+  ChevronsLeftRight,
   Info,
   Minus,
   Plus,
@@ -49,10 +51,12 @@ import {
   nearestSampleIndex,
   roughnessSeries,
   sessionSummary,
+  speedKmhSeries,
   windowPeak,
   windowRms,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
+import { ImuSessionMap } from "@/components/imu-session-map";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import {
   StatClockIcon,
@@ -151,6 +155,16 @@ const SERIES_DEFS = [
     description:
       "Inclinação estimada — filtro complementar acel+giro, não calibrado",
   },
+  /** Only offered when the file carries a GPS track — recorded speed,
+   * resampled onto the IMU timeline, never integrated from acceleration. */
+  {
+    id: "speed",
+    label: "Velocidade",
+    unit: "km/h",
+    color: "#65A30D",
+    summary: "Velocidade GPS",
+    description: "Velocidade sobre o solo, medida pelo GPS da gravação",
+  },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
@@ -159,11 +173,12 @@ type SeriesId = (typeof SERIES_DEFS)[number]["id"];
  * sensor — listed apart in the details panel, never under "Dados brutos". */
 const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 
-/** The series that cannot go below zero — a magnitude and an RMS. Their gauge
- * starts at the left of the positive half; every other channel is signed and
- * gets a gauge with zero in the middle, because for those the sign is the
- * direction and a bar that hid it would say the wrong thing. */
-const UNSIGNED_IDS = new Set<SeriesId>(["gforce", "roughness"]);
+/** The series that cannot go below zero — magnitudes, an RMS, a ground
+ * speed. Their gauge starts at the left of the positive half; every other
+ * channel is signed and gets a gauge with zero in the middle, because for
+ * those the sign is the direction and a bar that hid it would say the wrong
+ * thing. */
+const UNSIGNED_IDS = new Set<SeriesId>(["gforce", "roughness", "speed"]);
 
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
@@ -190,6 +205,15 @@ const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
   braking: 3,
   rough_section: 4,
 };
+
+/** The desktop split between the chart and the map: the map column's width,
+ * in px, adjustable by the handle on their shared edge. Per session, not
+ * stored — a framing choice, like the zoom window. */
+const MAP_DEFAULT_W = 300;
+const MAP_MIN_W = 220;
+/** What the chart may never be squeezed below — the plot is the one thing
+ * this page exists to show, so the map is the side that gives. */
+const CHART_MIN_W = 420;
 
 /** One labelled figure in an event's card. */
 interface EventMetric {
@@ -437,6 +461,18 @@ export function ImuSessionAnalysis({
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
 
+  /** The map column's width on desktop — dragged by the handle on the
+   * chart/map edge. The value rides a custom property because the grid only
+   * exists from `lg` up, and an inline style cannot carry a breakpoint. */
+  const [mapWidth, setMapWidth] = useState(MAP_DEFAULT_W);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const splitDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startW: number;
+    maxW: number;
+  } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -478,8 +514,10 @@ export function ImuSessionAnalysis({
     if (!data || !gForce) return null;
     const { tMs, ax, ay, az, gx, gy, gz } = data.channels;
     // Derived series computed once per file, on read — the raw channels are
-    // inputs, never rewritten.
-    return {
+    // inputs, never rewritten. Speed exists only when the file carries a GPS
+    // track; every consumer below goes through availableSeriesDefs, which is
+    // what keeps a missing entry from ever being read.
+    const values: Partial<Record<SeriesId, ArrayLike<number>>> = {
       gforce: gForce,
       ax,
       ay,
@@ -490,7 +528,9 @@ export function ImuSessionAnalysis({
       roughness: roughnessSeries(tMs, gForce),
       jerk: jerkSeries(tMs, gForce),
       lean: leanSeries(tMs, ay, az, gx),
-    } as Record<SeriesId, ArrayLike<number>>;
+    };
+    if (data.gps) values.speed = speedKmhSeries(tMs, data.gps);
+    return values as Record<SeriesId, ArrayLike<number>>;
   }, [data, gForce]);
 
   /**
@@ -508,6 +548,7 @@ export function ImuSessionAnalysis({
     const peaks = {} as Record<SeriesId, number>;
     for (const def of SERIES_DEFS) {
       const values = seriesValues[def.id];
+      if (!values) continue; // speed, in a file without GPS
       let peak = 0;
       for (let i = 0; i < values.length; i++) {
         const magnitude = Math.abs(values[i]);
@@ -544,7 +585,13 @@ export function ImuSessionAnalysis({
   const win = windowMs ?? full;
   const zoomed = win[0] > full[0] || win[1] < full[1];
 
-  const activeSeriesDefs = SERIES_DEFS.filter((def) =>
+  // Speed is a real pill only when this file recorded a track; without one
+  // it stays the disabled pill it always was, with its "sem dados" hint.
+  const hasGps = data.gps != null;
+  const availableSeriesDefs = SERIES_DEFS.filter(
+    (def) => def.id !== "speed" || hasGps,
+  );
+  const activeSeriesDefs = availableSeriesDefs.filter((def) =>
     activeSeries.has(def.id),
   );
   const activeKindDefs = EVENT_KIND_DEFS.filter((def) =>
@@ -600,6 +647,60 @@ export function ImuSessionAnalysis({
       else next.add(kind);
       return next;
     });
+  }
+
+  /** How wide the map may grow right now — everything the chart does not
+   * need, measured at gesture time rather than kept in sync with resizes. */
+  function maxMapWidth(): number {
+    const container = splitRef.current;
+    return container
+      ? Math.max(
+          MAP_MIN_W,
+          container.getBoundingClientRect().width - CHART_MIN_W,
+        )
+      : MAP_MIN_W;
+  }
+
+  function startMapResize(event: React.PointerEvent<HTMLElement>) {
+    // Only a deliberate primary press opens a drag — the preview pane has a
+    // history of synthesizing stray pointer traffic while it settles, and a
+    // resize that can start without a button held is a chart that shrinks
+    // on its own.
+    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0))
+      return;
+    event.preventDefault();
+    splitDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startW: mapWidth,
+      maxW: maxMapWidth(),
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // No capture: moves still arrive while over the handle.
+    }
+  }
+
+  function moveMapResize(event: React.PointerEvent<HTMLElement>) {
+    const drag = splitDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    // A move with no button held means the release was missed (capture torn
+    // down, pointer swapped) — end the drag instead of trailing the hover.
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      splitDragRef.current = null;
+      return;
+    }
+    // The handle rides the columns' shared edge, so dragging left grows the
+    // map by exactly what the pointer travelled.
+    const next = drag.startW + (drag.startX - event.clientX);
+    setMapWidth(Math.min(drag.maxW, Math.max(MAP_MIN_W, next)));
+  }
+
+  function endMapResize(event: React.PointerEvent<HTMLElement>) {
+    if (splitDragRef.current?.pointerId === event.pointerId) {
+      splitDragRef.current = null;
+    }
   }
 
   function zoomAround(factor: number) {
@@ -677,8 +778,9 @@ export function ImuSessionAnalysis({
       }
     >
       {/* Filters and the plot: one section — the pills configure the chart
-          directly below them. "Velocidade" is listed but disabled: this file
-          records no speed, and a line invented from acceleration would lie. */}
+          directly below them. "Velocidade" is a real pill only when the file
+          carries a GPS track; without one it stays listed but disabled,
+          because a line invented from acceleration would lie. */}
       <div className="relative space-y-4 px-5 pt-[22px] pb-5 sm:px-6">
         {/* Phone: two menus on one line. Desktop: the pill rows below. */}
         <div className="grid grid-cols-2 gap-1.5 sm:hidden">
@@ -702,7 +804,7 @@ export function ImuSessionAnalysis({
               )
             }
             items={[
-              ...SERIES_DEFS.map((def) => ({
+              ...availableSeriesDefs.map((def) => ({
                 key: def.id,
                 label: def.label,
                 sublabel: def.summary,
@@ -710,14 +812,18 @@ export function ImuSessionAnalysis({
                 checked: activeSeries.has(def.id),
                 onToggle: () => toggleSeries(def.id),
               })),
-              {
-                key: "speed",
-                label: "Velocidade",
-                checked: false,
-                disabled: true,
-                hint: "sem dados",
-                onToggle: () => {},
-              },
+              ...(hasGps
+                ? []
+                : [
+                    {
+                      key: "speed",
+                      label: "Velocidade",
+                      checked: false,
+                      disabled: true,
+                      hint: "sem dados",
+                      onToggle: () => {},
+                    },
+                  ]),
             ]}
           />
           <ImuFilterMenu
@@ -767,7 +873,7 @@ export function ImuSessionAnalysis({
           <div className="rounded-[12px] border border-border p-5">
             <p className="text-base">Métricas</p>
             <div className="mt-4 flex flex-wrap gap-1.5">
-              {SERIES_DEFS.map((def) => {
+              {availableSeriesDefs.map((def) => {
                 const active = activeSeries.has(def.id);
                 return (
                   <button
@@ -792,14 +898,16 @@ export function ImuSessionAnalysis({
                   </button>
                 );
               })}
-              <button
-                type="button"
-                disabled
-                title="Este ficheiro não tem velocidade."
-                className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
-              >
-                Velocidade
-              </button>
+              {!hasGps && (
+                <button
+                  type="button"
+                  disabled
+                  title="Este ficheiro não tem velocidade."
+                  className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
+                >
+                  Velocidade
+                </button>
+              )}
             </div>
           </div>
           <div className="rounded-[12px] border border-border p-5">
@@ -842,43 +950,119 @@ export function ImuSessionAnalysis({
           </div>
         </div>
 
-        <div>
-          <ImuChart
-            tMs={tMs}
-            series={chartSeries}
-            events={eventsOn ? data.events : []}
-            eventKinds={activeKinds}
-            windowMs={win}
-            fullMs={full}
-            cursorMs={cursorMs}
-            onCursorChange={setCursorMs}
-            // A pinch that grows back to the whole recording IS "reset zoom".
-            onWindowChange={([from, to]) =>
-              setWindowMs(from <= full[0] && to >= full[1] ? null : [from, to])
-            }
-          />
-          <div className="mt-2 flex items-center gap-1.5">
-            <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
-              <Plus className="size-3.5" />
-            </ZoomButton>
-            <ZoomButton
-              label="Afastar"
-              onClick={() => zoomAround(2)}
-              disabled={!zoomed}
-            >
-              <Minus className="size-3.5" />
-            </ZoomButton>
-            {zoomed && (
+        {/* The plot's full-bleed lives here now: the wrapper cancels the
+            section's px-5/px-6 — on a 375px phone that padding was over a
+            tenth of the plot — and on desktop, when the file has a track,
+            splits the freed width between the chart and the map, the map
+            flush against the card's right edge. Without a track the grid
+            never engages and the chart keeps the whole width, as before. */}
+        <div
+          ref={splitRef}
+          style={{ "--imu-map-w": `${mapWidth}px` } as React.CSSProperties}
+          className={cn(
+            "-mx-5 sm:-mx-6",
+            data.gps &&
+              "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)]",
+          )}
+        >
+          <div className="min-w-0">
+            <ImuChart
+              tMs={tMs}
+              series={chartSeries}
+              events={eventsOn ? data.events : []}
+              eventKinds={activeKinds}
+              windowMs={win}
+              fullMs={full}
+              cursorMs={cursorMs}
+              onCursorChange={setCursorMs}
+              // A pinch that grows back to the whole recording IS "reset zoom".
+              onWindowChange={([from, to]) =>
+                setWindowMs(
+                  from <= full[0] && to >= full[1] ? null : [from, to],
+                )
+              }
+            />
+            <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
+              <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
+                <Plus className="size-3.5" />
+              </ZoomButton>
+              <ZoomButton
+                label="Afastar"
+                onClick={() => zoomAround(2)}
+                disabled={!zoomed}
+              >
+                <Minus className="size-3.5" />
+              </ZoomButton>
+              {zoomed && (
+                <button
+                  type="button"
+                  onClick={() => setWindowMs(null)}
+                  className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  <Undo2 className="size-3.5" />
+                  Repor zoom
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* The route, cursor-synchronized both ways. On a phone it takes a
+              band of its own under the chart; on desktop it stretches to the
+              chart column's full height beside it, the mockup's shape. The
+              filter switches govern its marks too — the rule that a kind
+              switched off is off everywhere. */}
+          {data.gps && (
+            <div className="relative mt-4 min-w-0 lg:mt-0">
+              <ImuSessionMap
+                gps={data.gps}
+                events={
+                  eventsOn
+                    ? data.events.filter((event) =>
+                        activeKinds.has(event.kind),
+                      )
+                    : []
+                }
+                windowMs={win}
+                speedOn={activeSeries.has("speed")}
+                cursorMs={cursorMs}
+                onSeek={setCursorMs}
+                className="h-[280px] border-y border-border lg:h-full lg:border-l"
+              />
+              {/* The resize handle, straddling the edge the two columns
+                  share — the split is what it adjusts, so it stands on the
+                  split. A separator by role, with the separator's keyboard
+                  contract; the arrows move the edge the way they point, and
+                  a double click restores the default framing. Desktop only:
+                  below `lg` the two are stacked and there is no split. */}
               <button
                 type="button"
-                onClick={() => setWindowMs(null)}
-                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Redimensionar o mapa"
+                aria-valuenow={Math.round(mapWidth)}
+                aria-valuemin={MAP_MIN_W}
+                onPointerDown={startMapResize}
+                onPointerMove={moveMapResize}
+                onPointerUp={endMapResize}
+                onPointerCancel={endMapResize}
+                onDoubleClick={() => setMapWidth(MAP_DEFAULT_W)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowLeft")
+                    setMapWidth((w) => Math.min(maxMapWidth(), w + 24));
+                  else if (event.key === "ArrowRight")
+                    setMapWidth((w) => Math.max(MAP_MIN_W, w - 24));
+                  else return;
+                  event.preventDefault();
+                }}
+                // z above 1000: the Leaflet panes inside the sibling map div
+                // carry z-indexes up to 1000 (controls) in this same stacking
+                // context, and at z-20 the map painted over the disc's half.
+                className="absolute top-1/2 left-0 z-[1100] hidden size-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex"
               >
-                <Undo2 className="size-3.5" />
-                Repor zoom
+                <ChevronsLeftRight className="size-3.5" />
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -911,17 +1095,15 @@ export function ImuSessionAnalysis({
                 {
                   key: "raw",
                   heading: null,
-                  defs: SERIES_DEFS.filter(
-                    (def) =>
-                      activeSeries.has(def.id) && !DERIVED_IDS.has(def.id),
+                  defs: activeSeriesDefs.filter(
+                    (def) => !DERIVED_IDS.has(def.id),
                   ),
                 },
                 {
                   key: "derived",
                   heading: "Derivadas (calculadas)",
-                  defs: SERIES_DEFS.filter(
-                    (def) =>
-                      activeSeries.has(def.id) && DERIVED_IDS.has(def.id),
+                  defs: activeSeriesDefs.filter((def) =>
+                    DERIVED_IDS.has(def.id),
                   ),
                 },
               ]
