@@ -493,7 +493,7 @@ export function ImuSessionMap({
         L.circleMarker([pos.latDeg, pos.lonDeg], {
           radius: 5,
           color: event.kind === "impact" ? "#ffffff" : "#1c1c1c",
-          weight: 1.5,
+          weight: 1,
           fillColor: event.kind === "impact" ? "#F5533D" : "#43F3AF",
           fillOpacity: 1,
         }).addTo(layer);
