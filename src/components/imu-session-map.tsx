@@ -329,12 +329,15 @@ export function ImuSessionMap({
         },
       ).addTo(map);
 
-      // The imagery dimmed a step, so the track's mint — and the speed
-      // gradient — sit on it with more contrast. On the tile pane and not
-      // the container: the route, the marks and the controls keep full
-      // strength. Set here rather than as a Tailwind arbitrary variant,
-      // which the build failed to generate for a Leaflet-owned class.
-      map.getPane("tilePane")!.style.filter = "brightness(0.75)";
+      // The imagery in a dark treatment — dimmed and desaturated, so the
+      // map reads as a dark surface and the track's mint, the gradient and
+      // the marks carry all the colour. On the tile pane and not the
+      // container: everything drawn over it keeps full strength. The same
+      // in both app themes, like every mark on the satellite. Set here
+      // rather than as a Tailwind arbitrary variant, which the build
+      // failed to generate for a Leaflet-owned class.
+      map.getPane("tilePane")!.style.filter =
+        "brightness(0.62) saturate(0.65)";
 
       const track: [number, number][] = [];
       for (let i = 0; i < gps.tMs.length; i++) {
