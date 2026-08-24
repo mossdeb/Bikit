@@ -68,6 +68,34 @@ export interface ImuChannels {
   gForce: Float32Array | null;
 }
 
+/**
+ * The GNSS track, when the recording carries one (format v2's
+ * `gps_samples`). Its own clock and its own rate — typically 10 Hz against
+ * the IMU's 100 — joined to the IMU channels by the shared `t_ms`; the
+ * file's synchronization block puts the alignment error at a few ms, well
+ * under one IMU sample.
+ */
+export interface GpsChannels {
+  /** GPS sample timestamps in ms from session start. Monotonic. */
+  tMs: Float64Array;
+  /** Degrees, kept in doubles: a Float32 carries ~7 significant digits,
+   * which at these latitudes rounds a coordinate by about a metre. */
+  latDeg: Float64Array;
+  lonDeg: Float64Array;
+  /** Metres above mean sea level. */
+  altitudeM: Float32Array;
+  /** Ground speed in m/s — the recorded speed, never integrated from
+   * acceleration. */
+  speedMps: Float32Array;
+  /** Heading over ground, degrees true. NaN where the file omits it. */
+  headingDeg: Float32Array;
+  /** Cumulative distance in metres. NaN where the file omits it. */
+  distanceM: Float32Array;
+  /** Horizontal accuracy in metres. NaN where the file omits it — kept for
+   * gating derived metrics on fix quality, not shown as a channel. */
+  hAccM: Float32Array;
+}
+
 export interface ImuSessionData {
   /** Which parser produced this — travels to the DB row for provenance. */
   format: string;
@@ -76,6 +104,10 @@ export interface ImuSessionData {
   sampleRateHz: number;
   sampleCount: number;
   channels: ImuChannels;
+  /** Null when the file records no GNSS — every v1 file, and a v2 file
+   * whose valid fixes all dropped out. The speed series and the map exist
+   * only when this does. */
+  gps: GpsChannels | null;
   events: ImuEvent[];
 }
 
@@ -187,6 +219,9 @@ const bikitImuV1: ImuParser = {
       }
     }
 
+    const gpsResult = parseGpsSamples(json.gps_samples);
+    if (!gpsResult.ok) return { ok: false, error: gpsResult.error };
+
     const lastT = tMs[n - 1];
     const durationMs = finiteNumber(meta.duration_ms) ?? lastT;
     // The declared rate when present, otherwise measured off the recording
@@ -204,11 +239,104 @@ const bikitImuV1: ImuParser = {
         sampleRateHz,
         sampleCount: n,
         channels: { tMs, ax, ay, az, gx, gy, gz, gForce },
+        gps: gpsResult.gps,
         events,
       },
     };
   },
 };
+
+/**
+ * The `gps_samples` block (format v2). Absent in v1 files — that is not an
+ * error, it is a recording without GNSS. When present, the core fields are
+ * strict the way IMU samples are: a GPS sample missing its time or its
+ * coordinates is a corrupt recording, not a variant. Two exceptions:
+ *
+ * - A sample with `fix_valid: false` is skipped rather than failing the
+ *   file — no fix is a tunnel, not corruption, and its coordinates are
+ *   whatever the receiver last guessed.
+ * - Heading, cumulative distance and accuracy are optional per sample (NaN
+ *   when missing): useful when there, nothing downstream requires them.
+ */
+function parseGpsSamples(
+  raw: unknown,
+): { ok: true; gps: GpsChannels | null } | { ok: false; error: string } {
+  if (raw == null) return { ok: true, gps: null };
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: '"gps_samples" não é uma lista.' };
+  }
+
+  const kept: {
+    t: number;
+    lat: number;
+    lon: number;
+    alt: number;
+    speed: number;
+    heading: number;
+    dist: number;
+    hAcc: number;
+  }[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const s = raw[i];
+    if (!isRecord(s)) {
+      return { ok: false, error: `A amostra GPS ${i} não é um objeto.` };
+    }
+    if (s.fix_valid === false) continue;
+    const t = finiteNumber(s.t_ms);
+    const lat = finiteNumber(s.latitude_deg);
+    const lon = finiteNumber(s.longitude_deg);
+    const alt = finiteNumber(s.altitude_msl_m);
+    const speed = finiteNumber(s.ground_speed_mps);
+    if (t == null || lat == null || lon == null || alt == null || speed == null) {
+      return {
+        ok: false,
+        error: `A amostra GPS ${i} tem campos em falta ou não numéricos.`,
+      };
+    }
+    const prev = kept[kept.length - 1];
+    if (prev && t < prev.t) {
+      return {
+        ok: false,
+        error: `O tempo anda para trás na amostra GPS ${i} (${t} ms após ${prev.t} ms).`,
+      };
+    }
+    kept.push({
+      t,
+      lat,
+      lon,
+      alt,
+      speed,
+      heading: finiteNumber(s.heading_deg) ?? NaN,
+      dist: finiteNumber(s.distance_m) ?? NaN,
+      hAcc: finiteNumber(s.horizontal_accuracy_m) ?? NaN,
+    });
+  }
+  if (kept.length === 0) return { ok: true, gps: null };
+
+  const m = kept.length;
+  const gps: GpsChannels = {
+    tMs: new Float64Array(m),
+    latDeg: new Float64Array(m),
+    lonDeg: new Float64Array(m),
+    altitudeM: new Float32Array(m),
+    speedMps: new Float32Array(m),
+    headingDeg: new Float32Array(m),
+    distanceM: new Float32Array(m),
+    hAccM: new Float32Array(m),
+  };
+  for (let i = 0; i < m; i++) {
+    const s = kept[i];
+    gps.tMs[i] = s.t;
+    gps.latDeg[i] = s.lat;
+    gps.lonDeg[i] = s.lon;
+    gps.altitudeM[i] = s.alt;
+    gps.speedMps[i] = s.speed;
+    gps.headingDeg[i] = s.heading;
+    gps.distanceM[i] = s.dist;
+    gps.hAccM[i] = s.hAcc;
+  }
+  return { ok: true, gps };
+}
 
 function normalizeBikitEvent(raw: Record<string, unknown>): ImuEvent | null {
   const confidence = confidenceOf(raw);

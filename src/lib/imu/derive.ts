@@ -6,7 +6,7 @@
  * here (and a filter entry in the chart) — the stored file does not change.
  */
 
-import type { ImuEvent, ImuSessionData } from "./format";
+import type { GpsChannels, ImuEvent, ImuSessionData } from "./format";
 import { lowerBoundIndex, upperBoundIndex } from "./downsample";
 
 /**
@@ -314,6 +314,73 @@ export function leanSeries(
     out[i] = roll;
   }
   return out;
+}
+
+/**
+ * Ground speed resampled onto the IMU timeline, in km/h — one value per IMU
+ * sample, so the chart and the cursor treat it exactly like any other
+ * series. Linear interpolation between GPS fixes (10 Hz against the IMU's
+ * 100): the receiver's own speed is already smoothed, so the straight line
+ * between two fixes is honest in a way a staircase is not. Clamped at the
+ * ends — before the first fix and after the last, the nearest one holds.
+ *
+ * Recorded, not derived: this is the receiver's Doppler speed resampled,
+ * never a velocity integrated from acceleration.
+ */
+export function speedKmhSeries(
+  tMs: Float64Array,
+  gps: GpsChannels,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  const gT = gps.tMs;
+  const gV = gps.speedMps;
+  const m = gT.length;
+  if (m === 0) return out;
+  let hi = 0;
+  for (let i = 0; i < n; i++) {
+    const t = tMs[i];
+    while (hi < m && gT[hi] < t) hi++;
+    let mps: number;
+    if (hi === 0) mps = gV[0];
+    else if (hi >= m) mps = gV[m - 1];
+    else {
+      const t0 = gT[hi - 1];
+      const t1 = gT[hi];
+      const f = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+      mps = gV[hi - 1] + f * (gV[hi] - gV[hi - 1]);
+    }
+    out[i] = mps * 3.6;
+  }
+  return out;
+}
+
+/**
+ * Where the bike was at an instant — the map needle's question. Linear
+ * interpolation between the two GPS fixes around the time; at 10 Hz and
+ * riding speeds the fixes are under a metre apart, so the straight segment
+ * is well inside the receiver's own accuracy. Clamped to the track's ends.
+ */
+export function gpsPositionAt(
+  gps: GpsChannels,
+  timeMs: number,
+): { latDeg: number; lonDeg: number } | null {
+  const gT = gps.tMs;
+  const m = gT.length;
+  if (m === 0) return null;
+  if (timeMs <= gT[0]) return { latDeg: gps.latDeg[0], lonDeg: gps.lonDeg[0] };
+  if (timeMs >= gT[m - 1])
+    return { latDeg: gps.latDeg[m - 1], lonDeg: gps.lonDeg[m - 1] };
+  const hi = lowerBoundIndex(gT, timeMs);
+  const lo = gT[hi] === timeMs ? hi : hi - 1;
+  const next = Math.min(m - 1, lo + 1);
+  const t0 = gT[lo];
+  const t1 = gT[next];
+  const f = t1 > t0 ? (timeMs - t0) / (t1 - t0) : 0;
+  return {
+    latDeg: gps.latDeg[lo] + f * (gps.latDeg[next] - gps.latDeg[lo]),
+    lonDeg: gps.lonDeg[lo] + f * (gps.lonDeg[next] - gps.lonDeg[lo]),
+  };
 }
 
 /** mm:ss.mmm for the details panel, mm:ss for axes. */

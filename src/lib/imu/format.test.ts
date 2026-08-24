@@ -5,6 +5,22 @@ function sample(t: number, overrides: Record<string, number> = {}) {
   return { t_ms: t, ax_g: 0.01, ay_g: -0.02, az_g: 1.0, gx_dps: 0.5, gy_dps: -0.5, gz_dps: 1.2, g_force: 1.0002, ...overrides };
 }
 
+function gpsSample(t: number, overrides: Record<string, unknown> = {}) {
+  return {
+    t_ms: t,
+    fix_type: 3,
+    fix_valid: true,
+    latitude_deg: 37.1217259,
+    longitude_deg: -7.7828334,
+    altitude_msl_m: 118.63,
+    ground_speed_mps: 8.766,
+    heading_deg: 41.93,
+    distance_m: 0.88,
+    horizontal_accuracy_m: 1.25,
+    ...overrides,
+  };
+}
+
 function demoFile(overrides: Record<string, unknown> = {}) {
   return {
     format: "bikit_imu_session",
@@ -111,6 +127,70 @@ describe("parseImuFile", () => {
     expect(jump.kind).toBe("jump");
     if (jump.kind !== "jump") return;
     expect(jump.airtimeMs).toBe(20);
+  });
+
+  it("reads gps as null when the file has no gps_samples — a v1 file", () => {
+    const result = parseImuFile(demoFile());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.session.gps).toBeNull();
+  });
+
+  it("parses gps_samples into typed channels, doubles for the coordinates", () => {
+    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(0), gpsSample(100, { ground_speed_mps: 9.0 })] }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const gps = result.session.gps;
+    expect(gps).not.toBeNull();
+    expect(Array.from(gps!.tMs)).toEqual([0, 100]);
+    // Float64 keeps the seventh decimal a Float32 would round away.
+    expect(gps!.latDeg[0]).toBe(37.1217259);
+    expect(gps!.lonDeg[0]).toBe(-7.7828334);
+    expect(gps!.speedMps[1]).toBeCloseTo(9.0, 5);
+    expect(gps!.headingDeg[0]).toBeCloseTo(41.93, 5);
+    expect(gps!.distanceM[0]).toBeCloseTo(0.88, 5);
+  });
+
+  it("skips a gps sample without a valid fix — a tunnel, not corruption", () => {
+    const result = parseImuFile(
+      demoFile({ gps_samples: [gpsSample(0), gpsSample(100, { fix_valid: false }), gpsSample(200)] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Array.from(result.session.gps!.tMs)).toEqual([0, 200]);
+  });
+
+  it("reads gps as null when every fix is invalid, instead of an empty track", () => {
+    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(0, { fix_valid: false })] }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.session.gps).toBeNull();
+  });
+
+  it("rejects a gps sample missing its coordinates — corrupt, not a variant", () => {
+    const bad = gpsSample(100) as Record<string, unknown>;
+    delete bad.latitude_deg;
+    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(0), bad] }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("GPS 1");
+  });
+
+  it("rejects gps time running backwards", () => {
+    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(100), gpsSample(0)] }));
+    expect(result.ok).toBe(false);
+  });
+
+  it("tolerates a gps sample without heading or distance — NaN, not a failure", () => {
+    const bare = gpsSample(0) as Record<string, unknown>;
+    delete bare.heading_deg;
+    delete bare.distance_m;
+    delete bare.horizontal_accuracy_m;
+    const result = parseImuFile(demoFile({ gps_samples: [bare] }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Number.isNaN(result.session.gps!.headingDeg[0])).toBe(true);
+    expect(Number.isNaN(result.session.gps!.distanceM[0])).toBe(true);
   });
 
   it("measures the sample rate off the recording when the metadata omits it", () => {

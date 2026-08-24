@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ImuSessionData } from "./format";
+import type { GpsChannels, ImuSessionData } from "./format";
 import {
   IMPACT_SEVERITY_REF_ENERGY,
   eventsAt,
   formatSessionTime,
   gForceOf,
+  gpsPositionAt,
   impactEnergy,
   impactSeverityIndex,
   jerkSeries,
@@ -12,6 +13,7 @@ import {
   nearestSampleIndex,
   roughnessSeries,
   sessionSummary,
+  speedKmhSeries,
   windowPeak,
   windowRms,
 } from "./derive";
@@ -33,8 +35,23 @@ function session(overrides: Partial<ImuSessionData> = {}): ImuSessionData {
       gz: new Float32Array(4),
       gForce: null,
     },
+    gps: null,
     events: [],
     ...overrides,
+  };
+}
+
+/** A straight-line GPS track: one fix per 100 ms, speeds 2 → 4 m/s. */
+function gpsTrack(): GpsChannels {
+  return {
+    tMs: new Float64Array([0, 100, 200]),
+    latDeg: new Float64Array([37.1, 37.2, 37.3]),
+    lonDeg: new Float64Array([-7.7, -7.8, -7.9]),
+    altitudeM: new Float32Array([100, 110, 120]),
+    speedMps: new Float32Array([2, 3, 4]),
+    headingDeg: new Float32Array([0, 0, 0]),
+    distanceM: new Float32Array([0, 5, 10]),
+    hAccM: new Float32Array([1, 1, 1]),
   };
 }
 
@@ -277,6 +294,44 @@ describe("leanSeries", () => {
     const gx = new Float32Array(n).fill(100); // 100°/s of roll
     const lean = leanSeries(t, ay, az, gx);
     expect(lean[n - 1]).toBeGreaterThan(10);
+  });
+});
+
+describe("speedKmhSeries", () => {
+  it("interpolates the 10 Hz speed onto the IMU timeline, in km/h", () => {
+    const tMs = new Float64Array([0, 50, 100, 150, 200]);
+    const out = speedKmhSeries(tMs, gpsTrack());
+    // 2 m/s = 7.2 km/h; halfway between fixes reads halfway between speeds.
+    expect(out[0]).toBeCloseTo(7.2, 4);
+    expect(out[1]).toBeCloseTo(2.5 * 3.6, 4);
+    expect(out[2]).toBeCloseTo(3 * 3.6, 4);
+    expect(out[4]).toBeCloseTo(4 * 3.6, 4);
+  });
+
+  it("holds the nearest fix beyond the track's ends instead of extrapolating", () => {
+    const tMs = new Float64Array([-100, 500]);
+    const out = speedKmhSeries(tMs, gpsTrack());
+    expect(out[0]).toBeCloseTo(7.2, 4);
+    expect(out[1]).toBeCloseTo(14.4, 4);
+  });
+});
+
+describe("gpsPositionAt", () => {
+  it("interpolates the position between two fixes", () => {
+    const pos = gpsPositionAt(gpsTrack(), 50);
+    expect(pos).not.toBeNull();
+    expect(pos!.latDeg).toBeCloseTo(37.15, 10);
+    expect(pos!.lonDeg).toBeCloseTo(-7.75, 10);
+  });
+
+  it("reads a fix's own time exactly", () => {
+    const pos = gpsPositionAt(gpsTrack(), 100);
+    expect(pos!.latDeg).toBeCloseTo(37.2, 10);
+  });
+
+  it("clamps to the track's ends", () => {
+    expect(gpsPositionAt(gpsTrack(), -50)!.latDeg).toBeCloseTo(37.1, 10);
+    expect(gpsPositionAt(gpsTrack(), 999)!.latDeg).toBeCloseTo(37.3, 10);
   });
 });
 
