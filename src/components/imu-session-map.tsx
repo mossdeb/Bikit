@@ -2,9 +2,10 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Crosshair, Minus, Plus } from "lucide-react";
 import type {
   CircleMarker,
+  LatLngBounds,
   LayerGroup,
   Map as LeafletMap,
   Path,
@@ -244,6 +245,8 @@ export function ImuSessionMap({
   const sliceTrackRef = useRef<LayerGroup | null>(null);
   /** The start dot — ref'd only so restacking can raise it. */
   const startRef = useRef<CircleMarker | null>(null);
+  /** The whole route's bounds — what the crosshair reframes to. */
+  const boundsRef = useRef<LatLngBounds | null>(null);
 
   /**
    * Re-imposes the paint order after any repaint. Every vector shares one
@@ -296,10 +299,13 @@ export function ImuSessionMap({
         // below the way the chart handles it.
         scrollWheelZoom: false,
         // Fractional zoom, so the trackpad pinch glides instead of
-        // snapping a whole level per tick. The +/− control still steps.
+        // snapping a whole level per tick. The +/− capsule still steps.
         zoomSnap: 0,
         attributionControl: true,
-        zoomControl: true,
+        // Leaflet's own control is off — the capsule overlaid in the JSX
+        // below replaces it, drawn in the app's vocabulary instead of the
+        // library's stylesheet.
+        zoomControl: false,
         // Turned so the ride runs down the screen: the bearing is the
         // compass direction that points up, and pointing the ride's
         // reverse up is what puts the start at the top. Fixed framing —
@@ -344,7 +350,8 @@ export function ImuSessionMap({
       // through the current view, and without one leaflet-rotate throws
       // "Set map center and zoom first".
       map.setView(track[Math.floor(track.length / 2)], 15);
-      map.fitBounds(L.latLngBounds(track), { padding: [24, 24] });
+      boundsRef.current = L.latLngBounds(track);
+      map.fitBounds(boundsRef.current, { padding: [24, 24] });
 
       // Start and finish, fixed for the session: a small mint dot where the
       // recording began, the checkered disc where it ended. Not interactive
@@ -462,6 +469,7 @@ export function ImuSessionMap({
       baseTrackRef.current = null;
       sliceTrackRef.current = null;
       startRef.current = null;
+      boundsRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       setReady(false);
@@ -582,6 +590,45 @@ export function ImuSessionMap({
         aria-label="Percurso da sessão no mapa"
         className="absolute inset-0"
       />
+      {/* The map's own controls, in the app's vocabulary instead of the
+          library's stylesheet: a white capsule that steps the zoom, and a
+          crosshair disc that reframes the whole route — the map's "Repor
+          zoom". Fixed colours, like every mark on the satellite. */}
+      {ready && (
+        <div className="absolute top-2 left-2 z-[1100] flex flex-col items-center gap-1.5">
+          <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
+            <button
+              type="button"
+              aria-label="Aproximar"
+              onClick={() => mapRef.current?.zoomIn()}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center text-[#1c1c1c] transition-colors hover:bg-black/5"
+            >
+              <Plus className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Afastar"
+              onClick={() => mapRef.current?.zoomOut()}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center text-[#1c1c1c] transition-colors hover:bg-black/5"
+            >
+              <Minus className="size-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            aria-label="Enquadrar o percurso"
+            onClick={() => {
+              const map = mapRef.current;
+              const bounds = boundsRef.current;
+              if (map && bounds) map.fitBounds(bounds, { padding: [24, 24] });
+            }}
+            className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm transition-colors hover:bg-white"
+          >
+            <Crosshair className="size-4" />
+          </button>
+        </div>
+      )}
+
       {/* Which way north went, since the map no longer promises north-up.
           Fixed colours like the rest of the lab's map marks — the satellite
           under it never changes with the theme. The arrow alone rotates;
