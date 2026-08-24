@@ -37,6 +37,11 @@ export interface ImuSessionSummary {
   airtimeMs: number;
   /** Total time inside rough sections, ms. */
   roughMs: number;
+  /** Distance ridden in metres — the receiver's cumulative figure when the
+   * file carries one, integrated speed otherwise. Null without GPS. */
+  distanceM: number | null;
+  /** Fastest fix of the session, km/h. Null without GPS. */
+  maxSpeedKmh: number | null;
 }
 
 /** The numbers the session list and the report header show — computed once
@@ -63,6 +68,18 @@ export function sessionSummary(session: ImuSessionData): ImuSessionSummary {
       roughMs += event.endMs - event.startMs;
   }
 
+  const gps = session.gps;
+  let distanceM: number | null = null;
+  let maxSpeedKmh: number | null = null;
+  if (gps && gps.tMs.length > 0) {
+    distanceM = gpsDistance(gps, gps.tMs[0], gps.tMs[gps.tMs.length - 1]);
+    let maxMps = 0;
+    for (let i = 0; i < gps.speedMps.length; i++) {
+      if (gps.speedMps[i] > maxMps) maxMps = gps.speedMps[i];
+    }
+    maxSpeedKmh = maxMps * 3.6;
+  }
+
   return {
     durationMs: session.durationMs,
     sampleRateHz: session.sampleRateHz,
@@ -75,6 +92,8 @@ export function sessionSummary(session: ImuSessionData): ImuSessionSummary {
     brakingCount,
     airtimeMs,
     roughMs,
+    distanceM,
+    maxSpeedKmh,
   };
 }
 
@@ -317,42 +336,152 @@ export function leanSeries(
 }
 
 /**
- * Ground speed resampled onto the IMU timeline, in km/h — one value per IMU
- * sample, so the chart and the cursor treat it exactly like any other
- * series. Linear interpolation between GPS fixes (10 Hz against the IMU's
- * 100): the receiver's own speed is already smoothed, so the straight line
- * between two fixes is honest in a way a staircase is not. Clamped at the
- * ends — before the first fix and after the last, the nearest one holds.
- *
- * Recorded, not derived: this is the receiver's Doppler speed resampled,
- * never a velocity integrated from acceleration.
+ * A GPS channel resampled onto the IMU timeline — one value per IMU sample,
+ * so the chart and the cursor treat it exactly like any other series.
+ * Linear interpolation between fixes (10 Hz against the IMU's 100): the
+ * receiver's own values are already smoothed, so the straight line between
+ * two fixes is honest in a way a staircase is not. Clamped at the ends —
+ * before the first fix and after the last, the nearest one holds.
  */
-export function speedKmhSeries(
+function resampleGpsSeries(
   tMs: Float64Array,
-  gps: GpsChannels,
+  gT: Float64Array,
+  gV: ArrayLike<number>,
+  scale: number,
 ): Float32Array {
   const n = tMs.length;
   const out = new Float32Array(n);
-  const gT = gps.tMs;
-  const gV = gps.speedMps;
   const m = gT.length;
   if (m === 0) return out;
   let hi = 0;
   for (let i = 0; i < n; i++) {
     const t = tMs[i];
     while (hi < m && gT[hi] < t) hi++;
-    let mps: number;
-    if (hi === 0) mps = gV[0];
-    else if (hi >= m) mps = gV[m - 1];
+    let v: number;
+    if (hi === 0) v = gV[0];
+    else if (hi >= m) v = gV[m - 1];
     else {
       const t0 = gT[hi - 1];
       const t1 = gT[hi];
       const f = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
-      mps = gV[hi - 1] + f * (gV[hi] - gV[hi - 1]);
+      v = gV[hi - 1] + f * (gV[hi] - gV[hi - 1]);
     }
-    out[i] = mps * 3.6;
+    out[i] = v * scale;
   }
   return out;
+}
+
+/** Ground speed on the IMU timeline, km/h. Recorded, not derived: the
+ * receiver's Doppler speed resampled, never integrated from acceleration. */
+export function speedKmhSeries(
+  tMs: Float64Array,
+  gps: GpsChannels,
+): Float32Array {
+  return resampleGpsSeries(tMs, gps.tMs, gps.speedMps, 3.6);
+}
+
+/** Altitude on the IMU timeline, metres above mean sea level. */
+export function altitudeMSeries(
+  tMs: Float64Array,
+  gps: GpsChannels,
+): Float32Array {
+  return resampleGpsSeries(tMs, gps.tMs, gps.altitudeM, 1);
+}
+
+/** A GPS channel's value at one instant — linear between the surrounding
+ * fixes, clamped to the track's ends. Null on an empty track. */
+function gpsValueAt(
+  gT: Float64Array,
+  gV: ArrayLike<number>,
+  timeMs: number,
+): number | null {
+  const m = gT.length;
+  if (m === 0) return null;
+  if (timeMs <= gT[0]) return gV[0];
+  if (timeMs >= gT[m - 1]) return gV[m - 1];
+  const hi = lowerBoundIndex(gT, timeMs);
+  const lo = hi > 0 ? hi - 1 : 0;
+  const t0 = gT[lo];
+  const t1 = gT[hi];
+  const f = t1 > t0 ? (timeMs - t0) / (t1 - t0) : 0;
+  return gV[lo] + f * (gV[hi] - gV[lo]);
+}
+
+/** Ground speed at an instant, m/s — the takeoff speed question. */
+export function gpsSpeedAt(gps: GpsChannels, timeMs: number): number | null {
+  return gpsValueAt(gps.tMs, gps.speedMps, timeMs);
+}
+
+/**
+ * Mean ground speed across a window, m/s — time-weighted (trapezoidal over
+ * the fixes inside plus interpolated endpoints), so an uneven fix spacing
+ * cannot bias the figure. Null when the window is empty or degenerate.
+ */
+export function gpsMeanSpeed(
+  gps: GpsChannels,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (toMs <= fromMs) return null;
+  const gT = gps.tMs;
+  const m = gT.length;
+  if (m === 0) return null;
+  const nodesT: number[] = [fromMs];
+  const nodesV: number[] = [gpsValueAt(gT, gps.speedMps, fromMs)!];
+  for (let i = 0; i < m; i++) {
+    if (gT[i] > fromMs && gT[i] < toMs) {
+      nodesT.push(gT[i]);
+      nodesV.push(gps.speedMps[i]);
+    }
+  }
+  nodesT.push(toMs);
+  nodesV.push(gpsValueAt(gT, gps.speedMps, toMs)!);
+  let area = 0;
+  for (let i = 1; i < nodesT.length; i++) {
+    area += ((nodesV[i - 1] + nodesV[i]) / 2) * (nodesT[i] - nodesT[i - 1]);
+  }
+  return area / (toMs - fromMs);
+}
+
+/**
+ * Distance travelled across a window, metres. The receiver's own cumulative
+ * distance when the file carries it (interpolated at both ends); otherwise
+ * the mean speed times the duration — same integral, one step removed.
+ */
+export function gpsDistance(
+  gps: GpsChannels,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (toMs <= fromMs) return null;
+  const d0 = gpsValueAt(gps.tMs, gps.distanceM, fromMs);
+  const d1 = gpsValueAt(gps.tMs, gps.distanceM, toMs);
+  if (d0 != null && d1 != null && Number.isFinite(d0) && Number.isFinite(d1)) {
+    return Math.max(0, d1 - d0);
+  }
+  const mean = gpsMeanSpeed(gps, fromMs, toMs);
+  return mean != null ? mean * ((toMs - fromMs) / 1000) : null;
+}
+
+/**
+ * Mean magnitude of a channel across [fromMs, toMs] — the steady figure for
+ * an event's window where the peak overstates: a curve's yaw rate holds for
+ * seconds, and the radius comes from what it held, not what it spiked.
+ */
+export function windowMeanAbs(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = upperBoundIndex(tMs, toMs);
+  if (i0 > i1 || i0 >= tMs.length) return null;
+  let sum = 0;
+  for (let i = i0; i <= i1; i++) sum += Math.abs(values[i]);
+  return sum / (i1 - i0 + 1);
 }
 
 /**

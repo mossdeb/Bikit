@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { GpsChannels, ImuSessionData } from "./format";
 import {
   IMPACT_SEVERITY_REF_ENERGY,
+  altitudeMSeries,
   eventsAt,
   formatSessionTime,
   gForceOf,
+  gpsDistance,
+  gpsMeanSpeed,
   gpsPositionAt,
+  gpsSpeedAt,
   impactEnergy,
   impactSeverityIndex,
   jerkSeries,
@@ -14,6 +18,7 @@ import {
   roughnessSeries,
   sessionSummary,
   speedKmhSeries,
+  windowMeanAbs,
   windowPeak,
   windowRms,
 } from "./derive";
@@ -332,6 +337,79 @@ describe("gpsPositionAt", () => {
   it("clamps to the track's ends", () => {
     expect(gpsPositionAt(gpsTrack(), -50)!.latDeg).toBeCloseTo(37.1, 10);
     expect(gpsPositionAt(gpsTrack(), 999)!.latDeg).toBeCloseTo(37.3, 10);
+  });
+});
+
+describe("gpsSpeedAt / gpsMeanSpeed / gpsDistance", () => {
+  it("interpolates the speed at an instant", () => {
+    expect(gpsSpeedAt(gpsTrack(), 50)).toBeCloseTo(2.5, 6);
+    expect(gpsSpeedAt(gpsTrack(), 100)).toBeCloseTo(3, 6);
+    // Clamped at the ends.
+    expect(gpsSpeedAt(gpsTrack(), -10)).toBeCloseTo(2, 6);
+    expect(gpsSpeedAt(gpsTrack(), 999)).toBeCloseTo(4, 6);
+  });
+
+  it("takes the time-weighted mean across a window", () => {
+    // Linear ramp 2→4 m/s over the whole track: the mean is the midpoint.
+    expect(gpsMeanSpeed(gpsTrack(), 0, 200)).toBeCloseTo(3, 6);
+    // Half windows read their own midpoints.
+    expect(gpsMeanSpeed(gpsTrack(), 0, 100)).toBeCloseTo(2.5, 6);
+    expect(gpsMeanSpeed(gpsTrack(), 100, 200)).toBeCloseTo(3.5, 6);
+  });
+
+  it("returns null for a degenerate window", () => {
+    expect(gpsMeanSpeed(gpsTrack(), 100, 100)).toBeNull();
+  });
+
+  it("reads distance off the receiver's cumulative figure when carried", () => {
+    // distanceM runs 0 → 5 → 10 over 200 ms.
+    expect(gpsDistance(gpsTrack(), 0, 200)).toBeCloseTo(10, 6);
+    expect(gpsDistance(gpsTrack(), 50, 150)).toBeCloseTo(5, 6);
+  });
+
+  it("falls back to integrated speed when the cumulative distance is absent", () => {
+    const gps = gpsTrack();
+    gps.distanceM = new Float32Array([NaN, NaN, NaN]);
+    // Mean 3 m/s across 0.2 s → 0.6 m.
+    expect(gpsDistance(gps, 0, 200)).toBeCloseTo(0.6, 6);
+  });
+});
+
+describe("windowMeanAbs", () => {
+  it("averages magnitudes across the window", () => {
+    const tMs = new Float64Array([0, 10, 20, 30]);
+    const values = new Float32Array([1, -3, 5, -7]);
+    expect(windowMeanAbs(tMs, values, 0, 30)).toBeCloseTo(4, 6);
+    expect(windowMeanAbs(tMs, values, 10, 20)).toBeCloseTo(4, 6);
+  });
+
+  it("returns null outside the recording", () => {
+    const tMs = new Float64Array([0, 10]);
+    expect(windowMeanAbs(tMs, new Float32Array(2), 50, 60)).toBeNull();
+  });
+});
+
+describe("altitudeMSeries", () => {
+  it("interpolates the altitude onto the IMU timeline", () => {
+    const tMs = new Float64Array([0, 50, 200]);
+    const out = altitudeMSeries(tMs, gpsTrack());
+    expect(out[0]).toBeCloseTo(100, 4);
+    expect(out[1]).toBeCloseTo(105, 4);
+    expect(out[2]).toBeCloseTo(120, 4);
+  });
+});
+
+describe("sessionSummary — GPS figures", () => {
+  it("carries distance and max speed when the session has a track", () => {
+    const s = sessionSummary(session({ gps: gpsTrack() }));
+    expect(s.distanceM).toBeCloseTo(10, 6);
+    expect(s.maxSpeedKmh).toBeCloseTo(14.4, 4);
+  });
+
+  it("reads null figures without GPS", () => {
+    const s = sessionSummary(session());
+    expect(s.distanceM).toBeNull();
+    expect(s.maxSpeedKmh).toBeNull();
   });
 });
 

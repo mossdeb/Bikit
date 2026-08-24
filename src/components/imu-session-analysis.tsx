@@ -13,9 +13,11 @@ import {
   Check,
   ChevronDown,
   ChevronsLeftRight,
+  Gauge,
   Info,
   Minus,
   Plus,
+  Route,
   Undo2,
   Zap,
 } from "lucide-react";
@@ -37,13 +39,18 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   parseImuFile,
+  type GpsChannels,
   type ImuEvent,
   type ImuSessionData,
 } from "@/lib/imu/format";
 import {
+  altitudeMSeries,
   eventsAt,
   formatSessionTime,
   gForceOf,
+  gpsDistance,
+  gpsMeanSpeed,
+  gpsSpeedAt,
   impactEnergy,
   impactSeverityIndex,
   jerkSeries,
@@ -52,6 +59,7 @@ import {
   roughnessSeries,
   sessionSummary,
   speedKmhSeries,
+  windowMeanAbs,
   windowPeak,
   windowRms,
 } from "@/lib/imu/derive";
@@ -165,6 +173,15 @@ const SERIES_DEFS = [
     summary: "Velocidade GPS",
     description: "Velocidade sobre o solo, medida pelo GPS da gravação",
   },
+  /** GPS-only as well: the receiver's own altitude, resampled. */
+  {
+    id: "altitude",
+    label: "Altitude",
+    unit: "m",
+    color: "#92400E",
+    summary: "Perfil de elevação",
+    description: "Altitude acima do nível do mar, medida pelo GPS da gravação",
+  },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
@@ -174,11 +191,21 @@ type SeriesId = (typeof SERIES_DEFS)[number]["id"];
 const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
 
 /** The series that cannot go below zero — magnitudes, an RMS, a ground
- * speed. Their gauge starts at the left of the positive half; every other
- * channel is signed and gets a gauge with zero in the middle, because for
- * those the sign is the direction and a bar that hid it would say the wrong
- * thing. */
-const UNSIGNED_IDS = new Set<SeriesId>(["gforce", "roughness", "speed"]);
+ * speed, an altitude above sea level. Their gauge starts at the left of the
+ * positive half; every other channel is signed and gets a gauge with zero
+ * in the middle, because for those the sign is the direction and a bar that
+ * hid it would say the wrong thing. */
+const UNSIGNED_IDS = new Set<SeriesId>([
+  "gforce",
+  "roughness",
+  "speed",
+  "altitude",
+]);
+
+/** The series that only exist when the file carries a GPS track. Without
+ * one they stay listed but disabled — the promise the Velocidade pill has
+ * made since before speed existed. */
+const GPS_SERIES_IDS = new Set<SeriesId>(["speed", "altitude"]);
 
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
@@ -246,9 +273,15 @@ interface EventContext {
   tMs: Float64Array;
   ax: ArrayLike<number>;
   ay: ArrayLike<number>;
+  /** Yaw rate, °/s — the curve radius and the theoretical lean read it. */
+  gz: ArrayLike<number>;
   g: ArrayLike<number>;
   lean: ArrayLike<number>;
   roughness: ArrayLike<number>;
+  /** The GPS track when the file carries one — the fusion figures (jump
+   * length, curve radius, braking distance, retained speed) exist only
+   * with it, and every card degrades to its IMU-only self without. */
+  gps: GpsChannels | null;
   cursorIndex: number;
 }
 
@@ -273,7 +306,7 @@ interface EventDescription {
  * caveat stays attached.
  */
 function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
-  const { tMs, ax, ay, g, lean, roughness, cursorIndex } = ctx;
+  const { tMs, ax, ay, gz, g, lean, roughness, gps, cursorIndex } = ctx;
   const seconds = (fromMs: number, toMs: number) => ({
     label: "Duração",
     value: ((toMs - fromMs) / 1000).toFixed(1),
@@ -317,6 +350,32 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           unit: "°",
           ...nowOf(lean, "°", maxLean, 0),
         });
+      // IMU+GPS fusion: the mean speed through the curve against the mean
+      // yaw rate it held. Radius = v/ω; theoretical lean = atan(v·ω/g) —
+      // the balance angle physics asks for at that speed and rate, printed
+      // beside the complementary filter's estimate as its external check.
+      // Means and not peaks: the radius comes from what the curve held,
+      // not what it spiked. Skipped below 1 °/s, where a "curve" is a
+      // straight and the division makes up kilometres.
+      if (gps) {
+        const vMean = gpsMeanSpeed(gps, event.startMs, event.endMs);
+        const omegaDeg = windowMeanAbs(tMs, gz, event.startMs, event.endMs);
+        if (vMean != null && omegaDeg != null && omegaDeg > 1) {
+          const omega = (omegaDeg * Math.PI) / 180;
+          metrics.push({
+            label: "Raio (est.)",
+            value: `~${Math.round(vMean / omega)}`,
+            unit: "m",
+          });
+          metrics.push({
+            label: "Inclinação teórica",
+            value: `~${Math.round(
+              (Math.atan((vMean * omega) / 9.81) * 180) / Math.PI,
+            )}`,
+            unit: "°",
+          });
+        }
+      }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
         title:
@@ -336,6 +395,18 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           unit: "s",
         },
       ];
+      // Fusion: takeoff speed × airtime — how far the bike flew. The
+      // ballistic horizontal estimate, not track distance: in the air the
+      // receiver's own distance barely accumulates.
+      if (gps) {
+        const v = gpsSpeedAt(gps, event.takeoffMs);
+        if (v != null)
+          metrics.push({
+            label: "Distância",
+            value: `~${((v * event.airtimeMs) / 1000).toFixed(1)}`,
+            unit: "m",
+          });
+      }
       const landing = windowPeak(
         tMs,
         g,
@@ -405,6 +476,27 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           unit: "G",
           ...nowOf(ax, "G", decel),
         });
+      // Fusion: what the braking actually did — the speed it entered and
+      // left with, and the ground it took to do it. Read off the GPS series
+      // rather than the file's own event fields, so a braking WE detect one
+      // day carries the same figures.
+      if (gps) {
+        const v0 = gpsSpeedAt(gps, event.startMs);
+        const v1 = gpsSpeedAt(gps, event.endMs);
+        if (v0 != null && v1 != null)
+          metrics.push({
+            label: "Velocidade",
+            value: `${Math.round(v0 * 3.6)} → ${Math.round(v1 * 3.6)}`,
+            unit: "km/h",
+          });
+        const dist = gpsDistance(gps, event.startMs, event.endMs);
+        if (dist != null)
+          metrics.push({
+            label: "Distância",
+            value: String(Math.round(dist)),
+            unit: "m",
+          });
+      }
       metrics.push(seconds(event.startMs, event.endMs));
       return { title: "Travagem", Icon: BrakingIcon, metrics };
     }
@@ -420,6 +512,27 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           // 0.5 s window, so it compares with the section's whole-window RMS.
           ...nowOf(roughness, "G", rms),
         });
+      // Fusion: how much pace the ground cost — mean speed inside the
+      // section against the stretch of equal length just before it. The
+      // first honest cut of a flow figure; the composite Smoothness/Flow
+      // scores still wait for real recordings. Skipped when there is less
+      // than half a second of "before" to compare against, or when the
+      // before-speed is walking pace and the ratio would be noise.
+      if (gps) {
+        const durMs = event.endMs - event.startMs;
+        const beforeFrom = Math.max(tMs[0], event.startMs - durMs);
+        if (event.startMs - beforeFrom >= 500) {
+          const inside = gpsMeanSpeed(gps, event.startMs, event.endMs);
+          const before = gpsMeanSpeed(gps, beforeFrom, event.startMs);
+          if (inside != null && before != null && before > 0.5) {
+            metrics.push({
+              label: "Vel. retida",
+              value: String(Math.round((inside / before) * 100)),
+              unit: "%",
+            });
+          }
+        }
+      }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
         title: "Zona muito acidentada",
@@ -529,7 +642,10 @@ export function ImuSessionAnalysis({
       jerk: jerkSeries(tMs, gForce),
       lean: leanSeries(tMs, ay, az, gx),
     };
-    if (data.gps) values.speed = speedKmhSeries(tMs, data.gps);
+    if (data.gps) {
+      values.speed = speedKmhSeries(tMs, data.gps);
+      values.altitude = altitudeMSeries(tMs, data.gps);
+    }
     return values as Record<SeriesId, ArrayLike<number>>;
   }, [data, gForce]);
 
@@ -585,11 +701,12 @@ export function ImuSessionAnalysis({
   const win = windowMs ?? full;
   const zoomed = win[0] > full[0] || win[1] < full[1];
 
-  // Speed is a real pill only when this file recorded a track; without one
-  // it stays the disabled pill it always was, with its "sem dados" hint.
+  // The GPS series are real pills only when this file recorded a track;
+  // without one they stay the disabled pills they always were, with their
+  // "sem dados" hint.
   const hasGps = data.gps != null;
   const availableSeriesDefs = SERIES_DEFS.filter(
-    (def) => def.id !== "speed" || hasGps,
+    (def) => !GPS_SERIES_IDS.has(def.id) || hasGps,
   );
   const activeSeriesDefs = availableSeriesDefs.filter((def) =>
     activeSeries.has(def.id),
@@ -622,9 +739,11 @@ export function ImuSessionAnalysis({
     tMs,
     ax: data.channels.ax,
     ay: data.channels.ay,
+    gz: data.channels.gz,
     g: gForce,
     lean: seriesValues.lean,
     roughness: seriesValues.roughness,
+    gps: data.gps,
     cursorIndex,
   };
   const primaryDesc = primaryEvent
@@ -734,12 +853,37 @@ export function ImuSessionAnalysis({
               its figure made each cell a tight block, and at 16px the three
               rows read as one paragraph instead of three. Phone only — the
               desktop box puts all seven on one line. */}
-          <div className="grid grid-cols-3 gap-x-3 gap-y-7 sm:grid-cols-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border">
+          <div
+            className={cn(
+              "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border",
+              // Nine figures with a GPS track (three clean phone rows),
+              // the original seven without one.
+              summary.distanceM != null ? "sm:grid-cols-9" : "sm:grid-cols-7",
+            )}
+          >
             <Stat
               Icon={StatClockIcon}
               label="Duração"
               value={formatSessionTime(summary.durationMs)}
             />
+            {/* The ride-level GPS figures ride next to the duration —
+                the three answer "how much ride" before the rest answer
+                "how hard". Lucide marks for now; the supplied art set has
+                no distance or speedometer glyph yet. */}
+            {summary.distanceM != null && (
+              <Stat
+                Icon={StatRouteIcon}
+                label="Distância"
+                value={formatTrackDistance(summary.distanceM)}
+              />
+            )}
+            {summary.maxSpeedKmh != null && (
+              <Stat
+                Icon={StatGaugeIcon}
+                label="Vel. máx"
+                value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+              />
+            )}
             <Stat
               Icon={StatMetricIcon}
               label="G máx"
@@ -814,16 +958,14 @@ export function ImuSessionAnalysis({
               })),
               ...(hasGps
                 ? []
-                : [
-                    {
-                      key: "speed",
-                      label: "Velocidade",
-                      checked: false,
-                      disabled: true,
-                      hint: "sem dados",
-                      onToggle: () => {},
-                    },
-                  ]),
+                : ["Velocidade", "Altitude"].map((label) => ({
+                    key: label,
+                    label,
+                    checked: false,
+                    disabled: true,
+                    hint: "sem dados",
+                    onToggle: () => {},
+                  }))),
             ]}
           />
           <ImuFilterMenu
@@ -898,16 +1040,18 @@ export function ImuSessionAnalysis({
                   </button>
                 );
               })}
-              {!hasGps && (
-                <button
-                  type="button"
-                  disabled
-                  title="Este ficheiro não tem velocidade."
-                  className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
-                >
-                  Velocidade
-                </button>
-              )}
+              {!hasGps &&
+                ["Velocidade", "Altitude"].map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled
+                    title="Este ficheiro não tem GPS."
+                    className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
+                  >
+                    {label}
+                  </button>
+                ))}
             </div>
           </div>
           <div className="rounded-[12px] border border-border p-5">
@@ -1628,6 +1772,20 @@ function ImuFilterMenu({
       </PopoverContent>
     </Popover>
   );
+}
+
+/** Lucide stand-ins for the two GPS résumé figures, thinned to the 1.5px
+ * the supplied stat art paints — until that set gains its own glyphs. */
+function StatRouteIcon({ className }: { className?: string }) {
+  return <Route strokeWidth={1.5} className={className} />;
+}
+function StatGaugeIcon({ className }: { className?: string }) {
+  return <Gauge strokeWidth={1.5} className={className} />;
+}
+
+/** Metres below a kilometre, kilometres with two decimals above it. */
+function formatTrackDistance(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
 
 function Stat({
