@@ -162,6 +162,29 @@ function paintTrack(
   }
 }
 
+/**
+ * The key a ride's place name is cached under — the middle of the track,
+ * rounded to ~100 m of ground. Nominatim's terms ask that results be cached
+ * rather than re-requested, and two sessions on the same trail should cost
+ * one lookup.
+ */
+function placeCacheKey(gps: GpsChannels): string | null {
+  const m = gps.tMs.length;
+  if (m === 0) return null;
+  const mid = Math.floor(m / 2);
+  return `imu-place:${gps.latDeg[mid].toFixed(3)},${gps.lonDeg[mid].toFixed(3)}`;
+}
+
+/** The cached name, read at first render so a revisit paints it with the
+ * map rather than a beat later. Nothing on the server, where there is no
+ * sessionStorage — and nothing is rendered there either, since the label
+ * only appears once the map is up. */
+function readCachedPlace(gps: GpsChannels): string | null {
+  if (typeof window === "undefined") return null;
+  const key = placeCacheKey(gps);
+  return key ? sessionStorage.getItem(key) || null : null;
+}
+
 /** The finish marker: a checkered disc in a white ring, drawn as inline SVG
  * for a divIcon — the start is a plain mint dot and the needle a black one,
  * so the finish is the only mark that needs to say "finish" by itself. */
@@ -217,6 +240,7 @@ export function ImuSessionMap({
   speedOn,
   cursorMs,
   onSeek,
+  title,
   className,
 }: {
   gps: GpsChannels;
@@ -232,6 +256,10 @@ export function ImuSessionMap({
   speedOn: boolean;
   cursorMs: number | null;
   onSeek: (ms: number) => void;
+  /** Names the map over its own corner, when the layout wants it named —
+   * overlaid rather than given a header row, so it costs the picture no
+   * height. */
+  title?: string;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -247,6 +275,9 @@ export function ImuSessionMap({
   const startRef = useRef<CircleMarker | null>(null);
   /** The whole route's bounds — what the crosshair reframes to. */
   const boundsRef = useRef<LatLngBounds | null>(null);
+  /** Cancels the vignette's per-frame follow — held so teardown can stop a
+   * loop that would otherwise outlive the map it reads from. */
+  const stopVignetteFollowRef = useRef<(() => void) | null>(null);
 
   /**
    * Re-imposes the paint order after any repaint. Every vector shares one
@@ -278,6 +309,12 @@ export function ImuSessionMap({
   /** Where north points on the rotated map, degrees clockwise from screen-up
    * — the badge arrow's rotation. Null until the map exists. */
   const [northDeg, setNorthDeg] = useState<number | null>(null);
+  /** Where the ride happened, in words — OpenStreetMap's name for the
+   * ground under the track. Null until it resolves, and it may never: the
+   * label falls back to the given title. */
+  const [placeName, setPlaceName] = useState<string | null>(() =>
+    readCachedPlace(gps),
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -319,10 +356,13 @@ export function ImuSessionMap({
       L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         {
-          // Esri's imagery stops at 19; the three extra levels upscale
-          // those tiles (maxNativeZoom), trading sharpness for the room to
-          // read one stretch of trail up close.
-          maxZoom: 22,
+          // Esri's imagery stops at 19. One level past it upscales those
+          // tiles (maxNativeZoom) — soft, but still ground you can read.
+          // It was 22 for a while and that was a mistake worth recording:
+          // three levels of upscaling stretched a 256px tile to 2552px,
+          // and the map stopped being a map. A ceiling the imagery cannot
+          // honour is not more zoom, it is a blank screen with a scale.
+          maxZoom: 20,
           maxNativeZoom: 19,
           attribution:
             "&copy; Esri &mdash; Maxar, Earthstar Geographics",
@@ -424,6 +464,89 @@ export function ImuSessionMap({
         onSeekRef.current(gps.tMs[best]);
       });
 
+      /**
+       * The vignette: the imagery melts into the card's own dark at the
+       * edges instead of stopping at a hard rectangle.
+       *
+       * **It has to live inside the map's pane hierarchy.** `.leaflet-map-
+       * pane` and `.leaflet-rotate-pane` both carry a transform, so each
+       * opens a stacking context — from outside, tiles and route are one
+       * atomic block and nothing can be slipped between them. Inside the
+       * rotate pane, z-index 300 lands exactly where it must: above the
+       * tile pane (200) and below the overlay pane (400), so the fade dims
+       * the ground and leaves the track, the marks and the needle at full
+       * strength.
+       *
+       * The price of being in there is that it pans and rotates with the
+       * map, and this one must stay glued to the card. So it is given the
+       * inverse of its ancestors' combined matrix, which cancels them
+       * exactly — rotation included, without the bearing ever being named
+       * here. `transform-origin: 0 0` on all three (the panes are 0×0
+       * boxes, so theirs already is) is what keeps that inverse honest.
+       *
+       * The inverse is re-taken **every frame while the map is moving**,
+       * not on Leaflet's events alone. Leaflet zooms with a CSS transition
+       * on those same ancestors, so between `zoomstart` and `zoomend` the
+       * map slides under a vignette that sampled the matrix once. Turning
+       * the zoom animation off did hold it still — and made the trackpad
+       * pinch rebuild every tile on every wheel tick, which read as the
+       * map flickering. Reading per frame keeps both.
+       */
+      const vignette = L.DomUtil.create("div");
+      vignette.setAttribute("aria-hidden", "true");
+      vignette.style.cssText =
+        "position:absolute;left:0;top:0;z-index:300;pointer-events:none;transform-origin:0 0;" +
+        "background:radial-gradient(95% 75% at 50% 50%," +
+        "rgba(28,28,28,0) 30%,rgba(28,28,28,0.55) 62%," +
+        "rgba(28,28,28,0.92) 85%,rgb(28,28,28) 100%)";
+      const paneHost =
+        containerRef.current.querySelector<HTMLElement>(
+          ".leaflet-rotate-pane",
+        ) ?? map.getPane("mapPane");
+      paneHost?.appendChild(vignette);
+
+      const matrixOf = (el: Element) => {
+        const t = getComputedStyle(el).transform;
+        return t && t !== "none" ? new DOMMatrix(t) : new DOMMatrix();
+      };
+      const syncVignette = () => {
+        const host = vignette.parentElement;
+        const box = containerRef.current;
+        if (!host || !box) return;
+        vignette.style.width = `${box.clientWidth}px`;
+        vignette.style.height = `${box.clientHeight}px`;
+        // Screen = mapPane × rotatePane × self, so self = (…)⁻¹ is identity.
+        let m = new DOMMatrix();
+        for (
+          let el: HTMLElement | null = host;
+          el && el !== box;
+          el = el.parentElement
+        ) {
+          m = matrixOf(el).multiply(m);
+        }
+        vignette.style.transform = m.inverse().toString();
+      };
+      syncVignette();
+      map.on("move zoom viewreset resize", syncVignette);
+      // The per-frame follow, armed only while something is actually
+      // moving so the page can idle the rest of the time.
+      let raf = 0;
+      const follow = () => {
+        syncVignette();
+        raf = requestAnimationFrame(follow);
+      };
+      const startFollow = () => {
+        if (!raf) follow();
+      };
+      const stopFollow = () => {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        syncVignette();
+      };
+      map.on("movestart zoomstart", startFollow);
+      map.on("moveend zoomend", stopFollow);
+      stopVignetteFollowRef.current = stopFollow;
+
       // Trackpad pinch, the chart's arrangement: it arrives as a wheel
       // event with ctrlKey set (Chrome/Edge/Firefox; Safari's gesture
       // events are not handled), zooming around the pointer. A plain
@@ -467,6 +590,8 @@ export function ImuSessionMap({
       cancelled = true;
       observer?.disconnect();
       removeWheel?.();
+      stopVignetteFollowRef.current?.();
+      stopVignetteFollowRef.current = null;
       needleRef.current = null;
       eventLayerRef.current = null;
       baseTrackRef.current = null;
@@ -515,6 +640,72 @@ export function ImuSessionMap({
       cancelled = true;
     };
   }, [events, gps, ready]);
+
+  /**
+   * The ride's place name, reverse-geocoded from OpenStreetMap's Nominatim
+   * — "Foupana, Olhão" instead of "Mapa". A name is decoration: every
+   * failure path simply leaves the given title standing.
+   *
+   * The middle of the track and not its start: it names where the ride IS,
+   * and a start can sit just outside the place it belongs to. The result is
+   * cached per ~100 m of ground (three decimals) for the tab's lifetime —
+   * Nominatim's terms ask that results be cached and not re-requested, and
+   * two sessions on the same trail should cost one lookup.
+   */
+  useEffect(() => {
+    const key = placeCacheKey(gps);
+    // Already answered for this ground — the initial state read it.
+    if (!key || sessionStorage.getItem(key) != null) return;
+    const mid = Math.floor(gps.tMs.length / 2);
+    const lat = gps.latDeg[mid];
+    const lon = gps.lonDeg[mid];
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=16&accept-language=pt`,
+          { signal: ctrl.signal },
+        );
+        if (!res.ok) return;
+        const address = (await res.json())?.address ?? {};
+        // The finest named place, then the council it belongs to — the
+        // shape a rider would say out loud. `city` is the concelho in
+        // Portuguese addresses, which is why it leads the second half.
+        const place =
+          address.village ??
+          address.hamlet ??
+          address.suburb ??
+          address.neighbourhood ??
+          address.isolated_dwelling ??
+          address.locality ??
+          address.town;
+        const area =
+          address.city ?? address.municipality ?? address.town ?? address.county;
+        const label = [place, area === place ? null : area]
+          .filter(Boolean)
+          .join(", ");
+        // An empty string is cached too: "we asked, there is no name here"
+        // is an answer, and re-asking would not change it.
+        sessionStorage.setItem(key, label);
+        if (label) setPlaceName(label);
+      } catch {
+        // Offline, blocked, rate-limited: the title stands.
+      }
+    })();
+    return () => ctrl.abort();
+  }, [gps]);
+
+  /** Naming the ground is using OpenStreetMap's data, so it is credited
+   * beside Esri's — and only while a name is actually shown. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !placeName) return;
+    const credit = "Nomes &copy; OpenStreetMap";
+    map.attributionControl?.addAttribution(credit);
+    return () => {
+      map.attributionControl?.removeAttribution(credit);
+    };
+  }, [placeName, ready]);
 
   // The dimmed whole track — repainted only when the colour mode flips.
   useEffect(() => {
@@ -584,10 +775,14 @@ export function ImuSessionMap({
   }, [cursorMs, gps, ready]);
 
   return (
-    // bg-muted while the tiles arrive, so the box reads as a surface and
-    // not as a hole in the card. The wrapper owns the box; the map fills it,
-    // and the north badge floats over it, unrotated.
-    <div className={cn("relative bg-muted", className)}>
+    // The app's fixed dark surface while the tiles arrive: this box IS the
+    // map's card, and the imagery that lands on it is dark-treated, so a
+    // light placeholder would flash bright and then go dark. overflow-hidden
+    // is what makes the tiles take the card's rounded corners — a Leaflet
+    // pane happily paints straight over a radius it was not told about. The
+    // wrapper owns the box; the map fills it, and the title, the controls
+    // and the north badge float over it, unrotated.
+    <div className={cn("relative overflow-hidden bg-sidebar", className)}>
       <div
         ref={containerRef}
         aria-label="Percurso da sessão no mapa"
@@ -598,7 +793,22 @@ export function ImuSessionMap({
           crosshair disc that reframes the whole route — the map's "Repor
           zoom". Fixed colours, like every mark on the satellite. */}
       {ready && (
-        <div className="absolute top-2 left-2 z-[1100] flex flex-col items-center gap-1.5">
+        <div className="absolute top-2 left-2 z-[1100] flex flex-col items-start gap-1.5">
+          {(placeName ?? title) && (
+            <span
+              // Capped and clipped: a place name is written by whoever
+              // mapped it and can run long, and the north badge owns the
+              // opposite corner.
+              className="block max-w-52 truncate px-1.5 pb-0.5 font-display text-sm font-semibold text-white"
+              // A shadow and not a plate: the imagery is dark-treated, so
+              // the word only needs enough separation to survive a pale
+              // patch of ground. Inline because the value is static and a
+              // one-off arbitrary class is not worth the build's trouble.
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.75)" }}
+            >
+              {placeName ?? title}
+            </span>
+          )}
           <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
             <button
               type="button"
