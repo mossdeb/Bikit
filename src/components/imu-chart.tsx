@@ -306,7 +306,16 @@ export function ImuChart({
           cursorMs != null ? formatSessionTime(cursorMs, true) : undefined
         }
         tabIndex={0}
-        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-y border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        // The card around this plot carries a hairline in the dark theme, but
+        // an inset ring paints UNDER its children — and this plot is a
+        // full-width child with a `bg-card` of its own, so along its 350px it
+        // covered the card's sides up. It closes its own box instead.
+        //
+        // A shadow and not `border-x`: a border is two more pixels of width,
+        // and the plot and the event strip below share an x scale that has to
+        // stay aligned to the pixel. A shadow and not a `ring`, because `ring`
+        // here already belongs to the focus state.
+        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-y border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]"
         onPointerDown={(event) => {
           pointersRef.current.set(event.pointerId, {
             x: event.clientX,
