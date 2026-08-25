@@ -56,6 +56,7 @@ import {
   jerkSeries,
   leanSeries,
   nearestSampleIndex,
+  pitchSeries,
   roughnessSeries,
   sessionSummary,
   speedKmhSeries,
@@ -64,6 +65,7 @@ import {
   windowRms,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
+import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
 import { ImuSessionMap } from "@/components/imu-session-map";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import {
@@ -232,6 +234,10 @@ const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
   braking: 3,
   rough_section: 4,
 };
+
+/** The speedometer ring's full end, km/h — fixed rather than per-session,
+ * so the needle's position reads the same on every ride. */
+const DASH_SPEED_FULL_KMH = 60;
 
 /** The desktop split between the chart and the map: the map column's width,
  * in px, adjustable by the handle on their shared edge. Per session, not
@@ -568,6 +574,11 @@ export function ImuSessionAnalysis({
     new Set(["gforce"]),
   );
   const [eventsOn, setEventsOn] = useState(true);
+  /** The optional panels beside the plot — the dashboard and the map, each
+   * behind its own switch in the Painéis card. Per session, like the
+   * filters: which panels are up is a way of looking, not a setting. */
+  const [dashOn, setDashOn] = useState(true);
+  const [mapOn, setMapOn] = useState(true);
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
     new Set(EVENT_KIND_DEFS.map((d) => d.kind)),
   );
@@ -656,6 +667,14 @@ export function ImuSessionAnalysis({
     return values as Record<SeriesId, ArrayLike<number>>;
   }, [data, gForce]);
 
+  /** The estimated pitch, the dashboard's second attitude — not a chart
+   * series, so it lives beside seriesValues rather than inside it. */
+  const pitchValues = useMemo(() => {
+    if (!data) return null;
+    const { tMs, ax, ay, az, gy } = data.channels;
+    return pitchSeries(tMs, ax, ay, az, gy);
+  }, [data]);
+
   /**
    * The biggest reading each channel produced in this session, as a magnitude
    * — the full end of that channel's gauge.
@@ -692,7 +711,14 @@ export function ImuSessionAnalysis({
       </SessionCards>
     );
   }
-  if (!data || !summary || !seriesValues || !seriesPeaks || !gForce) {
+  if (
+    !data ||
+    !summary ||
+    !seriesValues ||
+    !seriesPeaks ||
+    !gForce ||
+    !pitchValues
+  ) {
     return (
       <SessionCards header={header}>
         <p className="py-10 text-center text-sm text-muted-foreground">
@@ -757,6 +783,27 @@ export function ImuSessionAnalysis({
     ? describeEvent(primaryEvent, eventContext)
     : null;
 
+  // The dashboard reads the same instant as the cards; before the first
+  // scrub it parks at the recording's start, so the instruments open on the
+  // ride's first breath instead of on a dead panel.
+  //
+  // The ring is a speedometer with a FIXED 60 km/h dial — a deliberate
+  // exception to the per-session gauges everywhere else, by the owner's
+  // call: a speedometer's whole point is that the needle's position means
+  // the same thing on every ride. Without GPS there is no speed, and the
+  // ring falls back to the clock — how far into the recording the cursor
+  // sits.
+  const dashIndex = cursorIndex >= 0 ? cursorIndex : 0;
+  const dashSpeedKmh = data.gps
+    ? (seriesValues.speed[dashIndex] as number)
+    : null;
+  const dashProgress =
+    dashSpeedKmh != null
+      ? dashSpeedKmh / DASH_SPEED_FULL_KMH
+      : data.durationMs > 0
+        ? tMs[dashIndex] / data.durationMs
+        : 0;
+
   function toggleSeries(id: SeriesId) {
     setActiveSeries((prev) => {
       const next = new Set(prev);
@@ -792,7 +839,10 @@ export function ImuSessionAnalysis({
     // history of synthesizing stray pointer traffic while it settles, and a
     // resize that can start without a button held is a chart that shrinks
     // on its own.
-    if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0))
+    if (
+      !event.isPrimary ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    )
       return;
     event.preventDefault();
     splitDragRef.current = {
@@ -858,17 +908,23 @@ export function ImuSessionAnalysis({
          three rows there, and the last one holds a single figure, so the
          same box would draw two dividers into empty space. */
       resume={
-        <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0">
+        <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:py-6 2xl:pl-0">
           {/* The rows breathe more than the columns: pulling the label onto
               its figure made each cell a tight block, and at 16px the three
               rows read as one paragraph instead of three. Phone only — the
-              desktop box puts all seven on one line. */}
+              desktop tiles space themselves.
+
+              Desktop gives each figure a tile of its own instead of one
+              ruled box: beside the name they read as a row of facts rather
+              than as a table, and a tile can wrap where a ruled cell would
+              have to shrink. Nine of them (with GPS) need two rows until
+              `xl` gives them one. */}
           <div
             className={cn(
-              "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-0 sm:divide-x sm:divide-border sm:rounded-[12px] sm:border sm:border-border",
-              // Nine figures with a GPS track (three clean phone rows),
-              // the original seven without one.
-              summary.distanceM != null ? "sm:grid-cols-9" : "sm:grid-cols-7",
+              "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-2",
+              summary.distanceM != null
+                ? "sm:grid-cols-5 lg:grid-cols-9"
+                : "sm:grid-cols-7",
             )}
           >
             <Stat
@@ -931,11 +987,13 @@ export function ImuSessionAnalysis({
         </div>
       }
     >
-      {/* Filters and the plot: one section — the pills configure the chart
-          directly below them. "Velocidade" is a real pill only when the file
-          carries a GPS track; without one it stays listed but disabled,
-          because a line invented from acceleration would lie. */}
-      <div className="relative space-y-4 px-5 pt-[22px] pb-5 sm:px-6">
+      {/* The filters. On a phone they are the head of the one telemetry
+          card; on desktop the two sets become two cards of their own, above
+          the title of everything they drive. "Velocidade" is a real pill
+          only when the file carries a GPS track; without one it stays
+          listed but disabled, because a line invented from acceleration
+          would lie. */}
+      <div className="px-5 pt-[22px] pb-5 sm:p-0">
         {/* Phone: two menus on one line. Desktop: the pill rows below. */}
         <div className="grid grid-cols-2 gap-1.5 sm:hidden">
           <ImuFilterMenu
@@ -1021,8 +1079,8 @@ export function ImuSessionAnalysis({
             and what to mark — and stacked bare they read as one long run of
             seventeen controls. The phone keeps its two menus (above): at
             375px these columns would be one pill wide. */}
-        <div className="hidden gap-3 sm:grid sm:grid-cols-2">
-          <div className="rounded-[12px] border border-border p-5">
+        <div className="hidden gap-[18px] sm:grid sm:grid-cols-[1fr_1fr_auto]">
+          <div className="rounded-lg bg-card p-6">
             <p className="text-base">Métricas</p>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {availableSeriesDefs.map((def) => {
@@ -1064,7 +1122,7 @@ export function ImuSessionAnalysis({
                 ))}
             </div>
           </div>
-          <div className="rounded-[12px] border border-border p-5">
+          <div className="rounded-lg bg-card p-6">
             <p className="text-base">Eventos</p>
             <div className="mt-4 flex flex-wrap gap-1.5">
               <button
@@ -1102,154 +1160,216 @@ export function ImuSessionAnalysis({
               })}
             </div>
           </div>
-        </div>
 
-        {/* The plot's full-bleed lives here now: the wrapper cancels the
-            section's px-5/px-6 — on a 375px phone that padding was over a
-            tenth of the plot — and on desktop, when the file has a track,
-            splits the freed width between the chart and the map, the map
-            flush against the card's right edge. Without a track the grid
-            never engages and the chart keeps the whole width, as before. */}
-        <div
-          ref={splitRef}
-          style={{ "--imu-map-w": `${mapWidth}px` } as React.CSSProperties}
-          // The handle only shows as the pointer nears the columns' edge —
-          // measured here on the wrapper, since the boundary is its grid's
-          // fact. Mouse only: a finger cannot hover, and below lg there is
-          // no boundary at all.
-          onPointerMove={(event) => {
-            if (!data.gps || event.pointerType !== "mouse") return;
-            const el = splitRef.current;
-            if (!el) return;
-            const boundary = el.getBoundingClientRect().right - mapWidth;
-            const near = Math.abs(event.clientX - boundary) < 48;
-            if (near !== splitNear) setSplitNear(near);
-          }}
-          onPointerLeave={() => {
-            if (splitNear) setSplitNear(false);
-          }}
-          className={cn(
-            "-mx-5 sm:-mx-6",
-            data.gps &&
-              "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)]",
-          )}
-        >
-          <div className="min-w-0">
-            <ImuChart
-              tMs={tMs}
-              series={chartSeries}
-              events={eventsOn ? data.events : []}
-              eventKinds={activeKinds}
-              windowMs={win}
-              fullMs={full}
-              cursorMs={cursorMs}
-              onCursorChange={setCursorMs}
-              // A pinch that grows back to the whole recording IS "reset zoom".
-              onWindowChange={([from, to]) =>
-                setWindowMs(
-                  from <= full[0] && to >= full[1] ? null : [from, to],
-                )
-              }
-            />
-            <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
-              <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
-                <Plus className="size-3.5" />
-              </ZoomButton>
-              <ZoomButton
-                label="Afastar"
-                onClick={() => zoomAround(2)}
-                disabled={!zoomed}
-              >
-                <Minus className="size-3.5" />
-              </ZoomButton>
-              {zoomed && (
-                <button
-                  type="button"
-                  onClick={() => setWindowMs(null)}
-                  className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
-                >
-                  <Undo2 className="size-3.5" />
-                  Repor zoom
-                </button>
+          {/* Which panels stand beside the plot. Switches and not pills:
+              the pills say what to draw INSIDE the panels; these say
+              whether a panel exists at all — a different kind of decision
+              deserves a different control. Desktop only, like the columns
+              they govern. */}
+          <div className="rounded-lg bg-card p-6">
+            <p className="text-base">Painéis</p>
+            <div className="mt-4 flex gap-2">
+              <PanelToggle
+                label="Dash"
+                on={dashOn}
+                onToggle={() => setDashOn((v) => !v)}
+              />
+              {hasGps && (
+                <PanelToggle
+                  label="Mapa"
+                  on={mapOn}
+                  onToggle={() => setMapOn((v) => !v)}
+                />
               )}
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* The route, cursor-synchronized both ways. On a phone it takes a
-              band of its own under the chart; on desktop it stretches to the
-              chart column's full height beside it, the mockup's shape. The
-              filter switches govern its marks too — the rule that a kind
-              switched off is off everywhere. */}
-          {data.gps && (
-            <div className="relative mt-4 min-w-0 lg:mt-0">
-              <ImuSessionMap
-                gps={data.gps}
-                events={
-                  eventsOn
-                    ? data.events.filter((event) =>
-                        activeKinds.has(event.kind),
-                      )
-                    : []
-                }
-                windowMs={win}
-                speedOn={activeSeries.has("speed")}
-                cursorMs={cursorMs}
-                onSeek={setCursorMs}
-                className="h-[280px] border-y border-border lg:h-full lg:border-l"
-              />
-              {/* The resize handle, straddling the edge the two columns
+      <TelemetryHeading />
+
+      {/* The plot and the route: one card each from `sm` up, side by side
+          from `lg`. The plot runs to its card's edges — on a 375px phone
+          the padding was over a tenth of it, and on desktop the card has no
+          side padding for it to cancel; only the axis labels and the zoom
+          row keep an inset. Without a GPS track the grid never engages and
+          the chart keeps the whole width, as before. */}
+      <div
+        ref={splitRef}
+        style={{ "--imu-map-w": `${mapWidth}px` } as React.CSSProperties}
+        // The handle only shows as the pointer nears the columns' edge —
+        // measured here on the wrapper, since the boundary is its grid's
+        // fact. Mouse only: a finger cannot hover, and below lg there is
+        // no boundary at all.
+        onPointerMove={(event) => {
+          if (!data.gps || !mapOn || event.pointerType !== "mouse") return;
+          const el = splitRef.current;
+          if (!el) return;
+          const boundary = el.getBoundingClientRect().right - mapWidth;
+          const near = Math.abs(event.clientX - boundary) < 48;
+          if (near !== splitNear) setSplitNear(near);
+        }}
+        onPointerLeave={() => {
+          if (splitNear) setSplitNear(false);
+        }}
+        // The grid's shape follows the switches: chart alone, chart with one
+        // panel, or all three. Spelled out as whole literal classes because
+        // Tailwind only generates what it can read in the source.
+        className={cn(
+          data.gps && mapOn && dashOn
+            ? "lg:grid lg:grid-cols-[minmax(0,1fr)_320px_var(--imu-map-w)] lg:gap-[18px]"
+            : data.gps && mapOn
+              ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-[18px]"
+              : dashOn
+                ? "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-[18px]"
+                : undefined,
+        )}
+      >
+        <div className="min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5">
+          <ImuChart
+            tMs={tMs}
+            series={chartSeries}
+            events={eventsOn ? data.events : []}
+            eventKinds={activeKinds}
+            windowMs={win}
+            fullMs={full}
+            cursorMs={cursorMs}
+            onCursorChange={setCursorMs}
+            // A pinch that grows back to the whole recording IS "reset zoom".
+            onWindowChange={([from, to]) =>
+              setWindowMs(from <= full[0] && to >= full[1] ? null : [from, to])
+            }
+          />
+          <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
+            <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
+              <Plus className="size-3.5" />
+            </ZoomButton>
+            <ZoomButton
+              label="Afastar"
+              onClick={() => zoomAround(2)}
+              disabled={!zoomed}
+            >
+              <Minus className="size-3.5" />
+            </ZoomButton>
+            {zoomed && (
+              <button
+                type="button"
+                onClick={() => setWindowMs(null)}
+                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                <Undo2 className="size-3.5" />
+                Repor zoom
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* The instant dashboard — the same cursor, read as instruments. A
+            card of its own beside the chart on desktop, a stacked section
+            on a phone. */}
+        {dashOn && (
+          <ImuSessionDashboard
+            progress={dashProgress}
+            headline={
+              dashSpeedKmh != null
+                ? dashSpeedKmh.toFixed(1)
+                : formatSessionTime(tMs[dashIndex])
+            }
+            headlineUnit={dashSpeedKmh != null ? "km/h" : undefined}
+            gForce={gForce[dashIndex]}
+            ax={data.channels.ax[dashIndex]}
+            axPeak={seriesPeaks.ax}
+            ay={data.channels.ay[dashIndex]}
+            leanDeg={seriesValues.lean[dashIndex] as number}
+            pitchDeg={pitchValues[dashIndex]}
+            // 15px all round instead of the cards' 24: the tiles inside
+            // carry their own outlines, and at a 320px column every pixel
+            // of card padding is a pixel the gauges do not get — the same
+            // trade the lab's 15px page margin already makes.
+            className="mt-4 min-w-0 px-5 sm:rounded-lg sm:bg-card sm:p-[15px] lg:mt-0"
+          />
+        )}
+
+        {/* The route, cursor-synchronized both ways. On a phone it takes a
+              band of its own under the chart; from `sm` it becomes a card of
+              its own, and from `lg` that card stands beside the plot at its
+              full height — the mockup's shape. Its card is the app's fixed
+              dark surface: the imagery is dark-treated, so a white card
+              around it would be a bright frame on a dark picture. The filter
+              switches govern its marks too — the rule that a kind switched
+              off is off everywhere. */}
+        {data.gps && mapOn && (
+          <div className="relative mt-4 min-w-0 lg:mt-0">
+            <ImuSessionMap
+              gps={data.gps}
+              events={
+                eventsOn
+                  ? data.events.filter((event) => activeKinds.has(event.kind))
+                  : []
+              }
+              windowMs={win}
+              speedOn={activeSeries.has("speed")}
+              cursorMs={cursorMs}
+              onSeek={setCursorMs}
+              title="Mapa"
+              className="h-[280px] border-y border-border sm:rounded-lg sm:border-0 lg:h-full"
+            />
+            {/* The resize handle, straddling the edge the two columns
                   share — the split is what it adjusts, so it stands on the
                   split. A separator by role, with the separator's keyboard
                   contract; the arrows move the edge the way they point, and
                   a double click restores the default framing. Desktop only:
                   below `lg` the two are stacked and there is no split. */}
-              <button
-                type="button"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Redimensionar o mapa"
-                aria-valuenow={Math.round(mapWidth)}
-                aria-valuemin={MAP_MIN_W}
-                onPointerDown={startMapResize}
-                onPointerMove={moveMapResize}
-                onPointerUp={endMapResize}
-                onPointerCancel={endMapResize}
-                onDoubleClick={() => setMapWidth(MAP_DEFAULT_W)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft")
-                    setMapWidth((w) => Math.min(maxMapWidth(), w + 24));
-                  else if (event.key === "ArrowRight")
-                    setMapWidth((w) => Math.max(MAP_MIN_W, w - 24));
-                  else return;
-                  event.preventDefault();
-                }}
-                // z above 1000: the Leaflet panes inside the sibling map div
-                // carry z-indexes up to 1000 (controls) in this same stacking
-                // context, and at z-20 the map painted over the disc's half.
-                //
-                // Shown only as the pointer nears the boundary (or through a
-                // drag, or under keyboard focus) — faded out it also stops
-                // taking clicks, so the corner of map it straddles stays
-                // reachable.
-                className={cn(
-                  "absolute top-1/2 left-0 z-[1100] hidden size-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background outline-none transition-opacity duration-150 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 lg:flex",
-                  splitNear || splitActive
-                    ? "opacity-100"
-                    : "pointer-events-none opacity-0",
-                )}
-              >
-                <ChevronsLeftRight className="size-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
+            <button
+              type="button"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Redimensionar o mapa"
+              aria-valuenow={Math.round(mapWidth)}
+              aria-valuemin={MAP_MIN_W}
+              onPointerDown={startMapResize}
+              onPointerMove={moveMapResize}
+              onPointerUp={endMapResize}
+              onPointerCancel={endMapResize}
+              onDoubleClick={() => setMapWidth(MAP_DEFAULT_W)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft")
+                  setMapWidth((w) => Math.min(maxMapWidth(), w + 24));
+                else if (event.key === "ArrowRight")
+                  setMapWidth((w) => Math.max(MAP_MIN_W, w - 24));
+                else return;
+                event.preventDefault();
+              }}
+              // z above 1000: the Leaflet panes inside the sibling map div
+              // carry z-indexes up to 1000 (controls) in this same stacking
+              // context, and at z-20 the map painted over the disc's half.
+              //
+              // Shown only as the pointer nears the boundary (or through a
+              // drag, or under keyboard focus) — faded out it also stops
+              // taking clicks, so the corner of map it straddles stays
+              // reachable.
+              className={cn(
+                // Half the gap to the left of the map's edge puts it in
+                // the middle of the channel between the two cards, where
+                // a dark disc reads against the page rather than against
+                // the dark map it would otherwise sit on.
+                "absolute top-1/2 left-0 z-[1100] hidden size-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background outline-none transition-opacity duration-150 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 lg:-ml-[9px] lg:flex",
+                splitNear || splitActive
+                  ? "opacity-100"
+                  : "pointer-events-none opacity-0",
+              )}
+            >
+              <ChevronsLeftRight className="size-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Details of the instant under the cursor — the headline is the main
           event (or "Andamento normal"), its figures computed from the raw
           channels over the event's window, and the raw sample itself sits
           underneath, all channels, whatever the chart is drawing. */}
-      <div className="border-t border-border px-5 pt-5 pb-6 sm:px-6">
+      <div className="border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6">
         {cursorIndex < 0 ? (
           <p className="text-sm text-muted-foreground">
             Toca ou arrasta sobre o gráfico para ler um instante.
@@ -1399,7 +1519,7 @@ export function ImuSessionAnalysis({
             {eventsOn && (
               <div className="mt-5 lg:mt-0">
                 <EventCard
-                  title={primaryDesc ? primaryDesc.title : "Andamento normal"}
+                  title={primaryDesc ? primaryDesc.title : null}
                   Icon={primaryDesc ? primaryDesc.Icon : Bike}
                   timeMs={tMs[cursorIndex]}
                   confidence={primaryEvent?.confidence ?? null}
@@ -1442,13 +1562,19 @@ export function ImuSessionAnalysis({
 }
 
 /**
- * The page's two cards: what the recording IS, and the reading of it.
+ * The page's shell.
  *
- * Separate cards on a phone, one continuous card from `sm` up. On a small
- * screen the two are a scroll apart and a rule between them is a hairline
- * asking to be noticed; a gap says the same thing without being read. On a
- * wide one they sit close enough that two floating cards would be two
- * objects where the page has one subject.
+ * **A phone keeps two cards** — what the recording IS, and the reading of
+ * it: the two are a scroll apart there, and a rule between them would be a
+ * hairline asking to be noticed where a gap says the same thing unread.
+ *
+ * **A wide screen breaks the second card apart**, one card per subject:
+ * identity beside its figures, the two filter sets, then the plot, the map
+ * and the readout. The single continuous card was one object holding five
+ * unrelated things, and at this width that reads as a wall; separate cards
+ * let the eye find the one it wants. The sections carry their own
+ * `sm:rounded-lg sm:bg-card`, so this wrapper simply stops being a card
+ * from `sm` up.
  *
  * The identity card is rendered whatever the file does — while it downloads,
  * and if it fails — so the page never opens on a spinner alone.
@@ -1464,20 +1590,38 @@ function SessionCards({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-[18px] sm:space-y-0">
-      <div className="rounded-lg bg-card sm:rounded-b-none">
+    <div className="space-y-[18px]">
+      {/* Identity and its figures: stacked while there is no room, side by
+          side from `2xl`, which is where nine tiles still read beside the
+          name. At `xl` they were 81px wide and "36.0 km/h" broke in two —
+          measured, not guessed. Stacked, the figures take the full width and
+          go back to one comfortable row from `lg`. */}
+      <div className="rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6">
         {header}
         {resume}
       </div>
-      <div className="rounded-lg bg-card sm:rounded-t-none sm:border-t sm:border-border">
-        {/* The section's own title, the mark first: the glyph belongs to the
-            reading of the recording, which is exactly what this card is. */}
-        <div className="flex items-center gap-2.5 px-5 pt-5 sm:px-6">
+      <div className="rounded-lg bg-card sm:space-y-[18px] sm:rounded-none sm:bg-transparent">
+        {/* The reading's title. On a phone it is the head of the one card
+            that follows; on desktop it stands on the page between the
+            filters and the plot they configure — see the twin below. */}
+        <div className="flex items-center gap-2.5 px-5 pt-5 sm:hidden">
           <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.5]" />
           <h2 className="font-display text-xl font-semibold">Telemetria</h2>
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+/** The desktop twin of the title above: on the page background, between the
+ * filters and the cards they drive. Rendered by the analysis body, because
+ * only there is it between the right two sections. */
+function TelemetryHeading() {
+  return (
+    <div className="hidden items-center gap-2.5 px-1 pt-1 sm:flex">
+      <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.5]" />
+      <h2 className="font-display text-xl font-semibold">Telemetria</h2>
     </div>
   );
 }
@@ -1612,7 +1756,9 @@ function EventCard({
   metrics,
   className,
 }: {
-  title: string;
+  /** Null for an instant no event covers: the card drops the headline and
+   * promotes the time into its place. */
+  title: string | null;
   Icon: ComponentType<{ className?: string }>;
   timeMs?: number;
   confidence: number | null;
@@ -1631,11 +1777,24 @@ function EventCard({
           <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sidebar text-white">
             <Icon className="size-5" />
           </span>
+          {/* An instant no event covers has no name worth printing — the
+              old "Andamento normal" was a label for the absence of one. The
+              time takes the headline's place instead: it is the only fact
+              the card carries, so it gets the headline's weight. */}
           <div className="min-w-0">
-            <p className="leading-tight font-semibold">{title}</p>
+            {title && <p className="leading-tight font-semibold">{title}</p>}
             {timeMs != null && (
-              <p className="flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
-                <ImuClockIcon className="size-3 shrink-0" />
+              <p
+                className={cn(
+                  "flex items-center gap-1 tabular-nums",
+                  title
+                    ? "text-sm text-muted-foreground"
+                    : "leading-tight font-semibold",
+                )}
+              >
+                <ImuClockIcon
+                  className={cn("shrink-0", title ? "size-3" : "size-4")}
+                />
                 {formatSessionTime(timeMs, true)}
               </p>
             )}
@@ -1833,13 +1992,14 @@ function Stat({
   value: string;
 }) {
   return (
-    // The cell's own padding lives here and not on the box: it is what gives
-    // the desktop rules their full height, edge to edge of the row.
+    // A tile of its own from `sm` up — outlined, not filled: the card under
+    // it is already white, and an outline is what separates nine of these
+    // without inventing a second surface.
     //
     // The mark sits beside the pair on a phone and above it on desktop: there
-    // the seven columns are ~106px wide and a mark on the left would leave
+    // the columns are ~106px wide and a mark on the left would leave
     // "Acidentado" less room than the word needs.
-    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:px-3 sm:py-4 sm:text-center">
+    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:px-2 sm:py-4 sm:text-center">
       <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div>
         {/* A NEGATIVE margin, and measured rather than guessed: with both
@@ -1855,6 +2015,49 @@ function Stat({
         </p>
       </div>
     </div>
+  );
+}
+
+/** One panel switch: an iOS-style track and thumb over its label, the
+ * whole tile the target. Hand-rolled — the app has no Switch primitive,
+ * and a checkbox styled as one would fight Base UI for nothing. */
+function PanelToggle({
+  label,
+  on,
+  onToggle,
+}: {
+  label: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`Mostrar ${label}`}
+      onClick={onToggle}
+      className="flex w-16 cursor-pointer flex-col items-center gap-2 rounded-[14px] border border-border px-2 py-3 transition-colors hover:bg-muted"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-5 w-9 rounded-full transition-colors",
+          on ? "bg-foreground" : "bg-muted-foreground/30",
+        )}
+      >
+        <span
+          className={cn(
+            // bg-background and not white: the on-track is bg-foreground,
+            // which is LIGHT in dark theme — a white thumb would sink
+            // into it there.
+            "absolute top-0.5 left-0.5 size-4 rounded-full bg-background transition-transform",
+            on && "translate-x-4",
+          )}
+        />
+      </span>
+      <span className="text-xs font-medium">{label}</span>
+    </button>
   );
 }
 

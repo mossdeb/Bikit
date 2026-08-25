@@ -65,12 +65,13 @@ export default async function ImuSessionPage({
       <ImuSessionAnalysis
         storagePath={session.storage_path}
         header={
-          // Deep bottom padding on purpose: the identity is a few short lines
-          // and the air below them is what stops the résumé reading as one
-          // more. A `//` comment and not `{/* */}`: this is the value of a
-          // prop, so the braces are already a JS expression and a JSX comment
-          // here breaks the parse.
-          <div className="px-5 pt-5 pb-12 sm:px-6">
+          // Deep bottom padding on purpose: while the résumé sits underneath,
+          // the air below the identity is what stops it reading as one more
+          // line. From `2xl` the figures move to this block's right instead,
+          // and the padding evens out. A `//` comment and not `{/* */}`: this
+          // is the value of a prop, so the braces are already a JS expression
+          // and a JSX comment here breaks the parse.
+          <div className="px-5 pt-5 pb-12 sm:px-6 2xl:py-6 2xl:pr-0">
             {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
                 number here is the number of pixels painted. */}
