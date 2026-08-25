@@ -226,7 +226,11 @@ function RideGauge({
       <p className="-mt-1 text-base leading-tight font-semibold tabular-nums">
         {ax.toFixed(2)} <span className="text-sm text-muted-foreground">G</span>
       </p>
-      <p className="text-xs leading-tight text-muted-foreground">
+      {/* The same hairline the ring's own G already wears: figure above,
+          what it is below, a rule between them. All four figures on the
+          panel carry it now, so they read as one idiom instead of the ring
+          having a private one. */}
+      <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground">
         Acelerar e travar
       </p>
     </div>
@@ -372,11 +376,13 @@ function AttitudeTile({
   angleDeg,
   subValue,
   bike,
+  className,
 }: {
   title: string;
   angleDeg: number;
   subValue: number;
   bike: "rear" | "side";
+  className?: string;
 }) {
   return (
     // The bikes say what each tile measures, so the written title came
@@ -384,7 +390,16 @@ function AttitudeTile({
     <div
       aria-label={title}
       title={title}
-      className="flex flex-col items-center rounded-[14px] border border-border px-2 py-4"
+      // Centred in whatever height the band ends up with: the band stretches
+      // to the card's floor, and left to itself the dial would sit against
+      // the rule above with all the slack pooled underneath it.
+      className={cn(
+        // Symmetric padding, or centring is thrown off by the difference:
+        // free space splits evenly, so uneven padding lands the dial off
+        // the middle by exactly the gap between the two.
+        "flex flex-col items-center justify-center px-2 py-4",
+        className,
+      )}
     >
       <svg
         viewBox="0 0 96 55"
@@ -430,7 +445,7 @@ function AttitudeTile({
         {formatAngle(angleDeg)}
         <span className="text-sm">°</span>
       </p>
-      <p className="text-xs leading-tight tabular-nums">
+      <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground tabular-nums">
         {subValue.toFixed(2)} G
       </p>
     </div>
@@ -472,13 +487,19 @@ export function ImuSessionDashboard({
   className?: string;
 }) {
   return (
-    <div className={cn(className)}>
+    // A column so the last band can absorb whatever height the card is
+    // given. Beside the chart the card is stretched to the chart's height,
+    // and the attitude band ends where its own content ends — leaving the
+    // rule between the two dials stopping short of the card's floor. `h-full`
+    // is inert below `lg`, where nothing stretches the card and a percentage
+    // height against an auto-height parent resolves back to auto.
+    <div className={cn("flex h-full flex-col", className)}>
       {/* The rider's name where the panel's own name used to be: these are
           somebody's instruments, and "Dashboard" only said what the box is
           — which the box already shows. The mark and the word label the
           name; the name itself is the one part that can run long, so it is
           the one that truncates (`min-w-0`, or a flex item refuses to). */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 px-5 pb-4 sm:px-[15px] sm:pt-[15px]">
         {/* 1.875 in the file paints 1.5px on the page: the art is drawn in a
             25-wide viewBox and shown at 20px, so the number is the page's
             weight divided back through that ratio. */}
@@ -504,29 +525,50 @@ export function ImuSessionDashboard({
           )}
         </div>
       </div>
-      <div className="mt-4 rounded-[14px] border border-border px-3 pt-5 pb-4">
-        <RideGauge
-          progress={progress}
-          headline={headline}
-          headlineUnit={headlineUnit}
-          gForce={gForce}
-          ax={ax}
-          axPeak={axPeak}
-        />
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <AttitudeTile
-          title="Movimento lateral"
-          angleDeg={leanDeg}
-          subValue={ay}
-          bike="rear"
-        />
-        <AttitudeTile
-          title="Empinar e mergulhar"
-          angleDeg={pitchDeg}
-          subValue={ax}
-          bike="side"
-        />
+      {/* The panel's three subjects are told apart by rules that run the
+          card's full width, not by boxes floating inside it — the lab's
+          edge-to-edge divider idiom, the same one the analysis card and the
+          Ride Load report already use. Boxes inside a box drew a second
+          frame a few pixels in from the first and spent the gauges' width
+          on it; a rule says "different subject" without costing anything.
+          Each section carries its own padding for that reason: the card's
+          own padding would hold the rules off its edges. */}
+      {/* Below `lg` this panel is as wide as the page, and the instruments
+          sit side by side: the ring on the left, the two attitude dials
+          stacked in a column of their own to its right. In the 300px column
+          at `lg` there is no width for that, so the same three sections
+          stack instead. It is one flex direction that tells the two apart —
+          the rules follow, turning with the axis they divide. */}
+      <div className="flex flex-1 border-t border-border lg:flex-col">
+        <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-[15px] lg:flex-none lg:pt-5 lg:pb-4">
+          <RideGauge
+            progress={progress}
+            headline={headline}
+            headlineUnit={headlineUnit}
+            gForce={gForce}
+            ax={ax}
+            axPeak={axPeak}
+          />
+        </div>
+        {/* The dials' own band: a column beside the ring, a row beneath it.
+            `flex-1` on each tile splits that band evenly whichever way it
+            runs, and the rule between them turns with it. */}
+        <div className="flex flex-col border-l border-border lg:flex-1 lg:flex-row lg:border-t lg:border-l-0">
+          <AttitudeTile
+            title="Movimento lateral"
+            angleDeg={leanDeg}
+            subValue={ay}
+            bike="rear"
+            className="flex-1 border-b border-border lg:border-r lg:border-b-0"
+          />
+          <AttitudeTile
+            title="Empinar e mergulhar"
+            angleDeg={pitchDeg}
+            subValue={ax}
+            bike="side"
+            className="flex-1"
+          />
+        </div>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DARK_CARD_HAIRLINE, DARK_CARD_HAIRLINE_SM } from "@/lib/card-styles";
 import {
   Popover,
   PopoverContent,
@@ -235,9 +236,16 @@ const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
   rough_section: 4,
 };
 
-/** The speedometer ring's full end, km/h — fixed rather than per-session,
- * so the needle's position reads the same on every ride. */
-const DASH_SPEED_FULL_KMH = 60;
+/** How much room the speedometer keeps above the session's own top speed,
+ * km/h.
+ *
+ * The dial used to end at a fixed 60 — chosen so a needle position meant the
+ * same thing on every ride — and now ends at this session's fastest plus
+ * this. The trade is deliberate: readings are no longer comparable between
+ * recordings, but a ride that never passes 20 km/h stops living in the first
+ * third of the dial. The headroom is what keeps the fastest instant off the
+ * end stop, so the needle still reads as having somewhere left to go. */
+const DASH_SPEED_HEADROOM_KMH = 20;
 
 /** The desktop split between the chart and the map: the map column's width,
  * in px, adjustable by the handle on their shared edge. Per session, not
@@ -581,8 +589,8 @@ export function ImuSessionAnalysis({
   );
   const [eventsOn, setEventsOn] = useState(true);
   /** The optional panels beside the plot — the dashboard and the map, each
-   * behind its own switch in the Painéis card. Per session, like the
-   * filters: which panels are up is a way of looking, not a setting. */
+   * behind its own switch on the Telemetria heading row. Per session, like
+   * the filters: which panels are up is a way of looking, not a setting. */
   const [dashOn, setDashOn] = useState(true);
   const [mapOn, setMapOn] = useState(true);
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
@@ -793,19 +801,27 @@ export function ImuSessionAnalysis({
   // scrub it parks at the recording's start, so the instruments open on the
   // ride's first breath instead of on a dead panel.
   //
-  // The ring is a speedometer with a FIXED 60 km/h dial — a deliberate
-  // exception to the per-session gauges everywhere else, by the owner's
-  // call: a speedometer's whole point is that the needle's position means
-  // the same thing on every ride. Without GPS there is no speed, and the
-  // ring falls back to the clock — how far into the recording the cursor
-  // sits.
+  // The ring is a speedometer whose dial ends at THIS session's top speed
+  // plus a fixed headroom — the per-session rule the rest of the lab's
+  // gauges already follow, adopted here in place of the old fixed 60 km/h.
+  // What it costs is comparability between rides; what it buys is a needle
+  // that uses the whole dial on a slow one. The full end comes from the same
+  // `summary.maxSpeedKmh` the "Vel. máx" tile prints, so the two can never
+  // disagree, and it is the whole recording's maximum rather than the
+  // visible window's — a dial that rescaled while zooming would move the
+  // needle without the ride changing.
+  //
+  // Without GPS there is no speed, and the ring falls back to the clock —
+  // how far into the recording the cursor sits.
   const dashIndex = cursorIndex >= 0 ? cursorIndex : 0;
   const dashSpeedKmh = data.gps
     ? (seriesValues.speed[dashIndex] as number)
     : null;
+  const dashSpeedFullKmh =
+    (summary.maxSpeedKmh ?? 0) + DASH_SPEED_HEADROOM_KMH;
   const dashProgress =
     dashSpeedKmh != null
-      ? dashSpeedKmh / DASH_SPEED_FULL_KMH
+      ? dashSpeedKmh / dashSpeedFullKmh
       : data.durationMs > 0
         ? tMs[dashIndex] / data.durationMs
         : 0;
@@ -901,6 +917,116 @@ export function ImuSessionAnalysis({
     setWindowMs(to - from >= full[1] - full[0] ? null : [from, to]);
   }
 
+  // The two filter menus, built once and placed twice — at the head of the
+  // telemetry card on a phone, and on the Telemetria heading row from `sm`
+  // up. They used to be the phone's answer only, with desktop keeping a
+  // wall of pills; two controls for one job meant every metric added had to
+  // be added in both places, and the pills spent a full band of the page on
+  // decisions that are taken rarely. The menu says what is on — a name and
+  // its mark when one is picked, a count when several are.
+  const metricsMenu = (
+    <ImuFilterMenu
+      summary={
+        activeSeriesDefs.length === 1 ? (
+          <>
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: activeSeriesDefs[0].color }}
+            />
+            <span className="truncate">{activeSeriesDefs[0].label}</span>
+          </>
+        ) : (
+          <span className="truncate">
+            {activeSeriesDefs.length === 0
+              ? "Métricas"
+              : `${activeSeriesDefs.length} métricas`}
+          </span>
+        )
+      }
+      items={[
+        ...availableSeriesDefs.map((def) => ({
+          key: def.id,
+          label: def.label,
+          sublabel: def.summary,
+          color: def.color,
+          checked: activeSeries.has(def.id),
+          onToggle: () => toggleSeries(def.id),
+        })),
+        ...(hasGps
+          ? []
+          : ["Velocidade", "Altitude"].map((label) => ({
+              key: label,
+              label,
+              checked: false,
+              disabled: true,
+              hint: "sem dados",
+              onToggle: () => {},
+            }))),
+      ]}
+    />
+  );
+  const eventsMenu = (
+    <ImuFilterMenu
+      summary={
+        !eventsOn ? (
+          <span className="truncate text-muted-foreground">
+            Eventos ocultos
+          </span>
+        ) : soleKind ? (
+          <>
+            <soleKind.Icon className="size-4 shrink-0" />
+            <span className="truncate">{soleKind.label}</span>
+          </>
+        ) : (
+          <span className="truncate">
+            {activeKindDefs.length === EVENT_KIND_DEFS.length
+              ? "Eventos"
+              : `${activeKindDefs.length} de ${EVENT_KIND_DEFS.length} eventos`}
+          </span>
+        )
+      }
+      items={[
+        {
+          key: "events-master",
+          label: "Mostrar eventos",
+          checked: eventsOn,
+          onToggle: () => setEventsOn((v) => !v),
+        },
+        ...EVENT_KIND_DEFS.map((def) => ({
+          key: def.kind,
+          label: def.label,
+          Icon: def.Icon,
+          checked: eventsOn && activeKinds.has(def.kind),
+          disabled: !eventsOn,
+          onToggle: () => toggleKind(def.kind),
+        })),
+      ]}
+    />
+  );
+
+  // The panel switches, built once and placed twice like the menus above:
+  // on the heading row from `sm`, and down in the filter grid on a phone,
+  // where the heading has no room for them beside the title. They matter on
+  // a phone too — there the panels do not stand beside the plot, they stack
+  // under it, so switching one off is scrolling saved.
+  const panelToggles = (
+    <>
+      <PanelToggle
+        label="Rider"
+        on={dashOn}
+        onToggle={() => setDashOn((v) => !v)}
+      />
+      {hasGps && (
+        <PanelToggle
+          label="Mapa"
+          on={mapOn}
+          onToggle={() => setMapOn((v) => !v)}
+        />
+      )}
+    </>
+  );
+
   return (
     <SessionCards
       header={header}
@@ -993,206 +1119,34 @@ export function ImuSessionAnalysis({
         </div>
       }
     >
-      {/* The filters. On a phone they are the head of the one telemetry
-          card; on desktop the two sets become two cards of their own, above
-          the title of everything they drive. "Velocidade" is a real pill
-          only when the file carries a GPS track; without one it stays
-          listed but disabled, because a line invented from acceleration
-          would lie. */}
-      <div className="px-5 pt-[22px] pb-5 sm:p-0">
-        {/* Phone: two menus on one line. Desktop: the pill rows below. */}
-        <div className="grid grid-cols-2 gap-1.5 sm:hidden">
-          <ImuFilterMenu
-            summary={
-              activeSeriesDefs.length === 1 ? (
-                <>
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: activeSeriesDefs[0].color }}
-                  />
-                  <span className="truncate">{activeSeriesDefs[0].label}</span>
-                </>
-              ) : (
-                <span className="truncate">
-                  {activeSeriesDefs.length === 0
-                    ? "Métricas"
-                    : `${activeSeriesDefs.length} métricas`}
-                </span>
-              )
-            }
-            items={[
-              ...availableSeriesDefs.map((def) => ({
-                key: def.id,
-                label: def.label,
-                sublabel: def.summary,
-                color: def.color,
-                checked: activeSeries.has(def.id),
-                onToggle: () => toggleSeries(def.id),
-              })),
-              ...(hasGps
-                ? []
-                : ["Velocidade", "Altitude"].map((label) => ({
-                    key: label,
-                    label,
-                    checked: false,
-                    disabled: true,
-                    hint: "sem dados",
-                    onToggle: () => {},
-                  }))),
-            ]}
-          />
-          <ImuFilterMenu
-            summary={
-              !eventsOn ? (
-                <span className="truncate text-muted-foreground">
-                  Eventos ocultos
-                </span>
-              ) : soleKind ? (
-                <>
-                  <soleKind.Icon className="size-4 shrink-0" />
-                  <span className="truncate">{soleKind.label}</span>
-                </>
-              ) : (
-                <span className="truncate">
-                  {activeKindDefs.length === EVENT_KIND_DEFS.length
-                    ? "Eventos"
-                    : `${activeKindDefs.length} de ${EVENT_KIND_DEFS.length} eventos`}
-                </span>
-              )
-            }
-            items={[
-              {
-                key: "events-master",
-                label: "Mostrar eventos",
-                checked: eventsOn,
-                onToggle: () => setEventsOn((v) => !v),
-              },
-              ...EVENT_KIND_DEFS.map((def) => ({
-                key: def.kind,
-                label: def.label,
-                Icon: def.Icon,
-                checked: eventsOn && activeKinds.has(def.kind),
-                disabled: !eventsOn,
-                onToggle: () => toggleKind(def.kind),
-              })),
-            ]}
-          />
-        </div>
-
-        {/* Desktop keeps the pills, but in two boxed columns rather than two
-            loose rows: the two sets answer different questions — what to draw
-            and what to mark — and stacked bare they read as one long run of
-            seventeen controls. The phone keeps its two menus (above): at
-            375px these columns would be one pill wide. */}
-        <div className="hidden gap-[18px] sm:grid sm:grid-cols-[1fr_1fr_auto]">
-          <div className="rounded-lg bg-card p-6">
-            <p className="text-base">Métricas</p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {availableSeriesDefs.map((def) => {
-                const active = activeSeries.has(def.id);
-                return (
-                  <button
-                    key={def.id}
-                    type="button"
-                    aria-pressed={active}
-                    title={def.description}
-                    onClick={() => toggleSeries(def.id)}
-                    className={cn(
-                      "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                      active
-                        ? "border-transparent bg-foreground text-background"
-                        : "border-border bg-card text-foreground hover:bg-muted",
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className="size-2 rounded-full"
-                      style={{ backgroundColor: def.color }}
-                    />
-                    {def.label}
-                  </button>
-                );
-              })}
-              {!hasGps &&
-                ["Velocidade", "Altitude"].map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    disabled
-                    title="Este ficheiro não tem GPS."
-                    className="h-8 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground/60"
-                  >
-                    {label}
-                  </button>
-                ))}
-            </div>
-          </div>
-          <div className="rounded-lg bg-card p-6">
-            <p className="text-base">Eventos</p>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                aria-pressed={eventsOn}
-                onClick={() => setEventsOn((v) => !v)}
-                className={cn(
-                  "h-8 cursor-pointer rounded-full border px-3 text-xs font-medium transition-colors",
-                  eventsOn
-                    ? "border-transparent bg-foreground text-background"
-                    : "border-border bg-card text-foreground hover:bg-muted",
-                )}
-              >
-                Mostrar eventos
-              </button>
-              {EVENT_KIND_DEFS.map((def) => {
-                const active = eventsOn && activeKinds.has(def.kind);
-                return (
-                  <button
-                    key={def.kind}
-                    type="button"
-                    aria-pressed={active}
-                    disabled={!eventsOn}
-                    onClick={() => toggleKind(def.kind)}
-                    className={cn(
-                      "h-8 cursor-pointer rounded-full border px-3 text-xs transition-colors disabled:cursor-default disabled:opacity-40",
-                      active
-                        ? "border-foreground/30 bg-muted text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {def.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Which panels stand beside the plot. Switches and not pills:
-              the pills say what to draw INSIDE the panels; these say
-              whether a panel exists at all — a different kind of decision
-              deserves a different control. Desktop only, like the columns
-              they govern. */}
-          <div className="rounded-lg bg-card p-6">
-            <p className="text-base">Painéis</p>
-            <div className="mt-4 flex gap-2">
-              <PanelToggle
-                label="Rider dash"
-                on={dashOn}
-                onToggle={() => setDashOn((v) => !v)}
-              />
-              {hasGps && (
-                <PanelToggle
-                  label="Mapa"
-                  on={mapOn}
-                  onToggle={() => setMapOn((v) => !v)}
-                />
-              )}
-            </div>
-          </div>
-        </div>
+      {/* The filters, at the head of the telemetry card on a phone. From
+          `sm` up the very same two menus move to the Telemetria heading row
+          — see below — and this copy stands down. "Velocidade" and
+          "Altitude" stay listed but disabled without a GPS track, because a
+          line invented from acceleration would lie. */}
+      <div className="grid grid-cols-2 gap-1.5 px-5 pt-[22px] pb-5 sm:hidden">
+        {metricsMenu}
+        {eventsMenu}
+        {panelToggles}
       </div>
 
-      <TelemetryHeading />
+      {/* Every control for this screen on one row, in the order of the
+          questions they answer: what to draw, what to mark, and which
+          panels stand at all. They all govern what sits under this heading,
+          so they belong to it — and the two boxed pill walls they replace
+          spent a whole band of the page on decisions taken rarely, above
+          the plot that is the reason to be here. The menus keep their own
+          shape and the panels keep switches: a menu picks from a list, a
+          switch says whether a thing exists. */}
+      <TelemetryHeading
+        controls={
+          <>
+            {metricsMenu}
+            {eventsMenu}
+            {panelToggles}
+          </>
+        }
+      />
 
       {/* The plot and the route: one card each from `sm` up, side by side
           from `lg`. The plot runs to its card's edges — on a 375px phone
@@ -1223,15 +1177,25 @@ export function ImuSessionAnalysis({
         // Tailwind only generates what it can read in the source.
         className={cn(
           data.gps && mapOn && dashOn
-            ? "lg:grid lg:grid-cols-[minmax(0,1fr)_320px_var(--imu-map-w)] lg:gap-[18px]"
+            ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-[18px]"
             : data.gps && mapOn
               ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-[18px]"
               : dashOn
-                ? "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-[18px]"
+                ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-[18px]"
                 : undefined,
         )}
       >
-        <div className="min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5">
+        {/* The columns are reordered by `order` and not by moving these
+            blocks: on a phone they stack in source order, and there the
+            chart has to come first — it is the thing you drag, and the
+            panels below it only say what the cursor found. `order` is
+            inert until the grid engages at `lg`. */}
+        <div
+          className={cn(
+            "min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5 lg:order-2",
+            DARK_CARD_HAIRLINE_SM,
+          )}
+        >
           <ImuChart
             tMs={tMs}
             series={chartSeries}
@@ -1289,11 +1253,15 @@ export function ImuSessionAnalysis({
             ay={data.channels.ay[dashIndex]}
             leanDeg={seriesValues.lean[dashIndex] as number}
             pitchDeg={pitchValues[dashIndex]}
-            // 15px all round instead of the cards' 24: the tiles inside
-            // carry their own outlines, and at a 320px column every pixel
-            // of card padding is a pixel the gauges do not get — the same
-            // trade the lab's 15px page margin already makes.
-            className="mt-4 min-w-0 px-5 sm:rounded-lg sm:bg-card sm:p-[15px] lg:mt-0"
+            // No padding on the card itself: its sections are told apart by
+            // rules that have to reach both edges, and a padded card would
+            // hold every one of them off by 15px. Each section pads itself
+            // instead — 15px inside the card, the lab's page margin on a
+            // phone, where this panel has no card of its own.
+            className={cn(
+              "mt-4 min-w-0 sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
+              DARK_CARD_HAIRLINE_SM,
+            )}
           />
         )}
 
@@ -1306,7 +1274,22 @@ export function ImuSessionAnalysis({
               switches govern its marks too — the rule that a kind switched
               off is off everywhere. */}
         {data.gps && mapOn && (
-          <div className="relative mt-4 min-w-0 lg:mt-0">
+          // `isolate` fences the map in. Leaflet gives its panes z-indexes
+          // from 200 to 1000, and with no stacking context around them those
+          // numbers competed with the whole page — the filter menus opened
+          // from the heading row and the map painted straight over them,
+          // because a popover sits at z-40 and a Leaflet control at 800.
+          // Raising the popover was the wrong lever: it is a shared primitive
+          // and above 1000 it would also cover dialogs (z-50) and toasts.
+          // Isolating turns the map into one opaque layer that stacks by
+          // document order, so its internals stop bidding against the app.
+          // The resize handle is inside this same fence, which is why its
+          // z-[1100] still clears the panes.
+          //
+          // `//` and not `{/* */}`: this div is the whole of a `&&`
+          // expression, and a JSX comment there is a second child where only
+          // one is allowed. That trap has now bitten seven times.
+          <div className="relative isolate mt-4 min-w-0 lg:order-3 lg:mt-0">
             <ImuSessionMap
               gps={data.gps}
               events={
@@ -1319,7 +1302,15 @@ export function ImuSessionAnalysis({
               cursorMs={cursorMs}
               onSeek={setCursorMs}
               title="Mapa"
-              className="h-[280px] border-y border-border sm:rounded-lg sm:border-0 lg:h-full"
+              // The hairline reaches the map too. Its surface is `--sidebar`
+              // rather than `--card` — a fixed dark panel in both themes — so
+              // in the light theme it is already a dark card on a light page
+              // and needs no help; in the dark one it is #1c1c1c against
+              // #17181b, the same vanishing edge every other card had.
+              className={cn(
+                "h-[280px] border-y border-border sm:rounded-lg sm:border-0 lg:h-full",
+                DARK_CARD_HAIRLINE_SM,
+              )}
             />
             {/* The resize handle, straddling the edge the two columns
                   share — the split is what it adjusts, so it stands on the
@@ -1386,7 +1377,12 @@ export function ImuSessionAnalysis({
           of padding) — enough that entering or leaving an event moves
           nothing. Two events at the same instant — an impact inside a rough
           section — still stack two cards and still grow past it. */}
-      <div className="min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6">
+      <div
+        className={cn(
+          "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6",
+          DARK_CARD_HAIRLINE_SM,
+        )}
+      >
         {cursorIndex < 0 ? (
           <p className="text-sm text-muted-foreground">
             Toca ou arrasta sobre o gráfico para ler um instante.
@@ -1625,11 +1621,34 @@ function SessionCards({
           name. At `xl` they were 81px wide and "36.0 km/h" broke in two —
           measured, not guessed. Stacked, the figures take the full width and
           go back to one comfortable row from `lg`. */}
-      <div className="rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6">
+      <div
+        className={cn(
+          "rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
+          DARK_CARD_HAIRLINE,
+        )}
+      >
         {header}
         {resume}
       </div>
-      <div className="rounded-lg bg-card sm:space-y-[18px] sm:rounded-none sm:bg-transparent">
+      {/* `mt-10` — 40px above this block against the page's 18, so the
+          recording's identity and its reading read as two chapters and not
+          as two cards in a list. On the scale rather than an arbitrary 42:
+          it is a step the rest of the app already speaks, and it happens to
+          be twice the 20px margin the app takes as its base.
+
+          Written as a margin on this side and not as a bigger `space-y`
+          above, which would have stretched every gap on the page. And it has
+          to be LARGER than the 18px the `space-y` puts under the card above:
+          adjacent sibling margins collapse to the greater of the two rather
+          than adding up, so a matching 18 here would have changed nothing. */}
+      <div
+        className={cn(
+          "mt-10 rounded-lg bg-card sm:space-y-[18px] sm:rounded-none sm:bg-transparent",
+          // A card only on a phone: the ring goes with the background.
+          DARK_CARD_HAIRLINE,
+          "sm:dark:ring-0",
+        )}
+      >
         {/* The reading's title. On a phone it is the head of the one card
             that follows; on desktop it stands on the page between the
             filters and the plot they configure — see the twin below. */}
@@ -1646,11 +1665,17 @@ function SessionCards({
 /** The desktop twin of the title above: on the page background, between the
  * filters and the cards they drive. Rendered by the analysis body, because
  * only there is it between the right two sections. */
-function TelemetryHeading() {
+function TelemetryHeading({ controls }: { controls?: React.ReactNode }) {
   return (
     <div className="hidden items-center gap-2.5 px-1 pt-1 sm:flex">
       <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
       <h2 className="font-display text-xl font-semibold">Telemetria</h2>
+      {controls && (
+        // Pushed to the far end by `ml-auto` rather than by making the row
+        // `justify-between`: the glyph and the title are one group with a
+        // gap of their own, and space-between would have prised them apart.
+        <div className="ml-auto flex items-center gap-2">{controls}</div>
+      )}
     </div>
   );
 }
@@ -2066,12 +2091,25 @@ function PanelToggle({
       aria-checked={on}
       aria-label={`Mostrar ${label}`}
       onClick={onToggle}
-      className="flex w-16 cursor-pointer flex-col items-center gap-2 rounded-[14px] border border-border px-2 py-3 transition-colors hover:bg-muted"
+      // A pill on the heading row now, name first and the switch at its
+      // end — read left to right as "this panel: on". 40px and not the
+      // app's 44: it shares the row with the two filter menus, whose
+      // trigger is 40, and that trigger is the phone's control too — so
+      // the height that gives is this one, which exists only here.
+      // `justify-between` for the phone, where this sits in a grid cell and
+      // stretches to it — the switch belongs at the pill's far end, the way
+      // the filter menu's chevron does. On the heading row the pill is sized
+      // by its content, so there is no free space and the rule is inert.
+      // `px-3.5` to match the filter menu's trigger exactly: on a phone the
+      // two sit in the same grid, one above the other, and 16px here against
+      // its 14 left the switch and the chevron on two different columns.
+      className="flex h-10 cursor-pointer items-center justify-between gap-2.5 rounded-full border border-border bg-card px-3.5 transition-colors hover:bg-muted"
     >
+      <span className="text-sm font-medium whitespace-nowrap">{label}</span>
       <span
         aria-hidden
         className={cn(
-          "relative h-5 w-9 rounded-full transition-colors",
+          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
           on ? "bg-foreground" : "bg-muted-foreground/30",
         )}
       >
@@ -2085,7 +2123,6 @@ function PanelToggle({
           )}
         />
       </span>
-      <span className="text-xs font-medium">{label}</span>
     </button>
   );
 }
