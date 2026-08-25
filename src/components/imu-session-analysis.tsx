@@ -1379,7 +1379,14 @@ export function ImuSessionAnalysis({
           section — still stack two cards and still grow past it. */}
       <div
         className={cn(
-          "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6",
+          "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card/40 sm:p-6",
+          // The identity card's treatment, and only from `sm` for the same
+          // reason the hairline is: below that this is a transparent section
+          // inside the one big card, and neither a translucent fill nor a
+          // ring means anything there. The light outline is what the 40%
+          // fill costs — #f5f5f5 against the page's #efefef no longer draws
+          // its own edge. Dark keeps the hairline's 60%.
+          "sm:ring-1 sm:ring-inset sm:ring-border",
           DARK_CARD_HAIRLINE_SM,
         )}
       >
@@ -1402,7 +1409,7 @@ export function ImuSessionAnalysis({
                 The box is a desktop affair: on a phone these rows already have
                 the section to themselves and a border would be a frame around
                 the whole screen width. */}
-            <div className="lg:rounded-[12px] lg:border lg:border-border lg:p-5">
+            <div className="lg:rounded-[12px] lg:border lg:border-border lg:bg-card lg:p-5">
               {[
                 {
                   key: "raw",
@@ -1831,7 +1838,12 @@ function EventCard({
   return (
     <div
       className={cn(
-        "rounded-[12px] border border-border px-4 py-3.5",
+        // Its own solid fill, like the résumé tiles: the card under it is
+        // translucent from `sm` up, and an outlined box with nothing behind
+        // it would let the lab's dot texture run straight through the
+        // figures. On a phone the surface under it is still opaque white, so
+        // this costs nothing there.
+        "rounded-[12px] border border-border bg-card px-4 py-3.5",
         className,
       )}
     >
