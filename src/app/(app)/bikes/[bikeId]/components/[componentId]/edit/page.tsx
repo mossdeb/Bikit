@@ -19,6 +19,7 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { categoryLabel } from "@/lib/component-category";
 import { kmToUnit } from "@/lib/format";
 import type { IntervalType } from "@/lib/validations/component.schema";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function EditComponentPage({
   params,
@@ -88,7 +89,7 @@ export default async function EditComponentPage({
 
       <form
         action={updateComponent.bind(null, bike.id, component.id)}
-        className="flex flex-1 flex-col rounded-lg bg-card p-6 sm:block"
+        className={`flex flex-1 flex-col rounded-lg bg-card p-6 sm:block ${DARK_CARD_HAIRLINE}`}
       >
         <div className="mb-6">
           <h1 className="text-2xl font-display font-bold">{dict.components.form.editTitle}</h1>

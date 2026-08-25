@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { getLegalDictionary } from "@/components/landing/i18n";
 import { LegalDocumentBody } from "@/components/legal-document";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 /**
  * The legal documents inside the app, in the app's own UI.
@@ -75,7 +76,7 @@ export default async function AppLegalPage({ params }: { params: Promise<{ docum
 
       <div className="hidden sm:block">{heading}</div>
 
-      <article className="rounded-lg bg-card px-5 py-6 sm:px-6">
+      <article className={`rounded-lg bg-card px-5 py-6 sm:px-6 ${DARK_CARD_HAIRLINE}`}>
         <div className="sm:hidden">{heading}</div>
         <LegalDocumentBody doc={doc} variant="app" />
       </article>

@@ -14,6 +14,7 @@ import { ResetIntervalToggle } from "@/components/reset-interval-toggle";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { kmToUnit } from "@/lib/format";
 import { INTERVENTION_TYPE_ICON } from "@/lib/intervention-type";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function EditInterventionPage({
   params,
@@ -64,7 +65,7 @@ export default async function EditInterventionPage({
 
       <form
         action={updateIntervention.bind(null, bike.id, component.id, intervention.id)}
-        className="flex flex-1 flex-col rounded-lg bg-card p-6 sm:block"
+        className={`flex flex-1 flex-col rounded-lg bg-card p-6 sm:block ${DARK_CARD_HAIRLINE}`}
       >
         <div className="mb-6">
           <h1 className="text-2xl font-display font-bold">{dict.interventions.form.editTitle}</h1>

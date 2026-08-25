@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { SUPPORT_EMAIL, CONTACT_EMAIL } from "@/lib/contact";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 /**
  * Where to write, and which address to pick.
@@ -63,7 +64,7 @@ export default async function SupportPage() {
 
       <div className="hidden sm:block">{heading}</div>
 
-      <article className="rounded-lg bg-card px-5 py-6 sm:px-6">
+      <article className={`rounded-lg bg-card px-5 py-6 sm:px-6 ${DARK_CARD_HAIRLINE}`}>
         <div className="sm:hidden">{heading}</div>
         <div className="space-y-4">
           <MailBlock heading={page.helpHeading} body={page.helpBody} email={SUPPORT_EMAIL} />

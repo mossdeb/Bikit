@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
 import { cn } from "@/lib/utils";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 /** Splits the "add bike" form into a 3-step wizard on mobile only — desktop
  * keeps showing every field at once (all three step groups stay mounted so
@@ -70,7 +71,7 @@ export function NewBikeWizard({
     <form
       ref={formRef}
       action={action}
-      className="flex flex-1 flex-col rounded-lg bg-card p-6 sm:block"
+      className={`flex flex-1 flex-col rounded-lg bg-card p-6 sm:block ${DARK_CARD_HAIRLINE}`}
     >
       <div className="mb-6">
         <h1 className="text-2xl font-display font-bold">{title}</h1>

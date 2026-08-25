@@ -24,6 +24,7 @@ import { updateFullName, deleteAccount } from "@/lib/actions/settings";
 import { logout } from "@/lib/actions/auth";
 import { connectStrava, disconnectStrava } from "@/lib/actions/strava";
 import { getUserSubscription } from "@/lib/subscription";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 function SettingsSection({
   title,
@@ -35,7 +36,7 @@ function SettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg bg-card p-6">
+    <section className={`rounded-lg bg-card p-6 ${DARK_CARD_HAIRLINE}`}>
       <h3 className="font-display font-bold">{title}</h3>
       {description && <p className="mb-4 mt-1 text-sm text-muted-foreground">{description}</p>}
       {children}

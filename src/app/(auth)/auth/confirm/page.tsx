@@ -1,6 +1,7 @@
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { confirmEmail } from "@/lib/actions/auth";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function ConfirmEmailPage({
   searchParams,
@@ -11,7 +12,7 @@ export default async function ConfirmEmailPage({
 
   if (!token_hash || !type) {
     return (
-      <div className="rounded-lg bg-card p-8 text-center shadow-sm">
+      <div className={`rounded-lg bg-card p-8 text-center shadow-sm ${DARK_CARD_HAIRLINE}`}>
         <LogoMark className="mx-auto mb-4" />
         <h1 className="text-xl font-display font-bold tracking-tight">Link invalid</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -24,7 +25,7 @@ export default async function ConfirmEmailPage({
   const isRecovery = type === "recovery";
 
   return (
-    <div className="rounded-lg bg-card p-8 text-center shadow-sm">
+    <div className={`rounded-lg bg-card p-8 text-center shadow-sm ${DARK_CARD_HAIRLINE}`}>
       <LogoMark className="mx-auto mb-4" />
       <h1 className="text-xl font-display font-bold tracking-tight">
         {isRecovery ? "Reset your password" : "Confirm your email"}

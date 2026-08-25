@@ -7,7 +7,7 @@ import { CHECKOUT_INTENT_COOKIE } from "@/lib/checkout-intent";
 import { selectActiveInterval, type NamedIntervalStatusInput } from "@/lib/maintenance/calculation";
 import { bikeHealthLevel, classifyHealth, healthPercent, type HealthLevel } from "@/lib/maintenance/health";
 import { formatDate, formatDistance, formatHours } from "@/lib/format";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { Button } from "@/components/ui/button";
 import { HealthBadge, HealthPercentBadge } from "@/components/health-badge";
 import { BikeIcon } from "@/components/bike-icon";
@@ -248,14 +248,14 @@ export default async function DashboardPage({
           <p className="text-xs text-emphasis-foreground/60">{dict.dashboard.totalBikes}</p>
           <p className="font-display text-2xl font-bold">{totalBikes}</p>
         </div>
-        <div className="rounded-lg bg-card p-5">
+        <div className={`rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}>
           <div className="mb-4 flex size-9 items-center justify-center rounded-full bg-muted">
             <Cog className="size-4 text-muted-foreground" />
           </div>
           <p className="text-xs text-muted-foreground">{dict.dashboard.componentsTracked}</p>
           <p className="font-display text-2xl font-bold">{totalComponents}</p>
         </div>
-        <div className="rounded-lg bg-card p-5">
+        <div className={`rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}>
           <div className="mb-4 flex size-9 items-center justify-center rounded-full bg-muted">
             <ClipboardList className="size-4 text-muted-foreground" />
           </div>
@@ -284,7 +284,7 @@ export default async function DashboardPage({
               <Link
                 key={bike.id}
                 href={`/bikes/${bike.id}`}
-                className={`flex h-full min-h-[250px] flex-col rounded-lg bg-card p-6 sm:min-h-0 sm:p-5 ${CLICKABLE_CARD_HOVER}`}
+                className={`flex h-full min-h-[250px] flex-col rounded-lg bg-card p-6 sm:min-h-0 sm:p-5 ${CLICKABLE_CARD_HOVER} ${DARK_CARD_HAIRLINE}`}
               >
                 <div className="flex items-start justify-end gap-3 sm:justify-between">
                   <BikeIcon type={bike.type} plain className="hidden sm:block" />
@@ -358,7 +358,7 @@ export default async function DashboardPage({
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-lg bg-card p-5">
+        <div className={`rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}>
           <h2 className="mb-3 font-display font-bold">{dict.dashboard.needsAttention}</h2>
           {needsAttention.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
@@ -392,7 +392,7 @@ export default async function DashboardPage({
           )}
         </div>
 
-        <div className="rounded-lg bg-card p-5">
+        <div className={`rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}>
           <h2 className="mb-3 font-display font-bold">{dict.dashboard.recentInterventions}</h2>
           {!recentRaw || recentRaw.length === 0 ? (
             <div className="py-6 text-center">

@@ -16,7 +16,7 @@ import { healthPercent, classifyHealth } from "@/lib/maintenance/health";
 import { formatDate, formatDistance, formatHours, kmToUnit } from "@/lib/format";
 import { formatWarranty } from "@/lib/warranty";
 import { cn } from "@/lib/utils";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { Button } from "@/components/ui/button";
 import { HealthBadge, HealthPercentBadge } from "@/components/health-badge";
@@ -252,7 +252,7 @@ export default async function ComponentDetailPage({
         <span className="truncate text-[15px] font-bold">{bike.name}</span>
       </Link>
 
-      <div className="relative mb-6 rounded-lg bg-card px-6 pt-6 pb-6">
+      <div className={`relative mb-6 rounded-lg bg-card px-6 pt-6 pb-6 ${DARK_CARD_HAIRLINE}`}>
         {/* Desktop: icon + name/badge, full details grid inline, edit far right */}
         <div className="hidden sm:flex sm:items-center sm:justify-between sm:gap-6">
           <div className="flex items-center gap-4">
@@ -476,7 +476,7 @@ export default async function ComponentDetailPage({
               </span>
               <Link
                 href={`/bikes/${bike.id}/components/${component.id}/interventions/${iv.id}/edit`}
-                className={cn("flex flex-wrap items-center gap-4 rounded-lg bg-card p-5 sm:flex-nowrap", CLICKABLE_CARD_HOVER)}
+                className={cn("flex flex-wrap items-center gap-4 rounded-lg bg-card p-5 sm:flex-nowrap", DARK_CARD_HAIRLINE, CLICKABLE_CARD_HOVER)}
               >
                 <div className="w-28 shrink-0">
                   <TypeBadge type={iv.type as "service" | "repair" | "replacement"} dict={dict} />

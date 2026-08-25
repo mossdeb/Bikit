@@ -9,7 +9,7 @@ import { formatDate, formatDistance, formatHours, kmToUnit, splitFigureUnit } fr
 import { AnimatedNumber } from "@/components/animated-number";
 import { formatWarranty } from "@/lib/warranty";
 import { cn } from "@/lib/utils";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { Button } from "@/components/ui/button";
 import { HealthBadge, HealthPercentBadge } from "@/components/health-badge";
 import { ServiceIntervalBar } from "@/components/service-interval-bar";
@@ -799,6 +799,7 @@ export default async function BikeDetailPage({
                   key={component.id}
                   className={cn(
                     "flex items-center gap-4 rounded-[20px] bg-card px-5 py-4 sm:gap-5 sm:px-6",
+                    DARK_CARD_HAIRLINE,
                     CLICKABLE_CARD_HOVER
                   )}
                 >
@@ -890,6 +891,7 @@ export default async function BikeDetailPage({
                     href={`/bikes/${bike.id}/components/${component.id}`}
                     className={cn(
                       "flex items-center gap-4 rounded-[20px] bg-card px-5 py-4 sm:px-6",
+                      DARK_CARD_HAIRLINE,
                       CLICKABLE_CARD_HOVER
                     )}
                   >
@@ -929,7 +931,7 @@ export default async function BikeDetailPage({
 
         <TabsContent value="timeline">
           {!canSeeTimeline && (
-            <div className="mb-6 overflow-hidden rounded-lg bg-card">
+            <div className={`mb-6 overflow-hidden rounded-lg bg-card ${DARK_CARD_HAIRLINE}`}>
               <p className="px-5 pt-5 pb-4 text-center text-sm font-semibold">
                 {dict.bikes.detail.timelineLocked}
               </p>

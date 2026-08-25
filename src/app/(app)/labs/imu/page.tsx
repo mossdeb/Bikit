@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import { formatSessionTime } from "@/lib/imu/derive";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
@@ -94,6 +94,7 @@ export default async function ImuLabPage() {
               key={session.id}
               className={cn(
                 "relative rounded-lg bg-card p-5",
+                DARK_CARD_HAIRLINE,
                 CLICKABLE_CARD_HOVER,
               )}
             >

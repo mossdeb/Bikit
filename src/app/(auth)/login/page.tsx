@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login, signInWithGoogle } from "@/lib/actions/auth";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function LoginPage({
   searchParams,
@@ -14,7 +15,7 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="rounded-lg bg-card p-8 shadow-sm">
+    <div className={`rounded-lg bg-card p-8 shadow-sm ${DARK_CARD_HAIRLINE}`}>
       <div className="mb-6 flex flex-col items-center text-center">
         <LogoMark className="mb-4" />
         <h1 className="text-xl font-display font-bold tracking-tight">Welcome back</h1>

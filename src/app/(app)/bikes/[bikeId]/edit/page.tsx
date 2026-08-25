@@ -22,6 +22,7 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { hasLabAccess } from "@/lib/lab-access";
 import { SyncMethodChooser } from "@/components/sync-method-chooser";
 import { SensorPairField } from "@/components/sensor-pair-field";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function EditBikePage({
   params,
@@ -167,7 +168,7 @@ export default async function EditBikePage({
 
       <form
         action={updateBike.bind(null, bike.id)}
-        className="flex flex-1 flex-col rounded-lg bg-card p-6 sm:block"
+        className={`flex flex-1 flex-col rounded-lg bg-card p-6 sm:block ${DARK_CARD_HAIRLINE}`}
       >
         <div className="mb-6">
           <h1 className="text-2xl font-display font-bold">{dict.bikes.form.editTitle}</h1>

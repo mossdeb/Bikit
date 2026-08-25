@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BikeTypeIconCarousel } from "@/components/bike-type-icon-carousel";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export function NewToBikitCard({
   heading,
@@ -20,6 +21,7 @@ export function NewToBikitCard({
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-4 rounded-lg bg-card px-6 text-center",
+        DARK_CARD_HAIRLINE,
         compact ? "h-[217px]" : "py-14",
         className
       )}

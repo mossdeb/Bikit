@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPasswordReset } from "@/lib/actions/auth";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function ForgotPasswordPage({
   searchParams,
@@ -14,7 +15,7 @@ export default async function ForgotPasswordPage({
 
   if (success) {
     return (
-      <div className="rounded-lg bg-card p-8 text-center shadow-sm">
+      <div className={`rounded-lg bg-card p-8 text-center shadow-sm ${DARK_CARD_HAIRLINE}`}>
         <LogoMark className="mx-auto mb-4" />
         <h1 className="text-xl font-display font-bold tracking-tight">Check your email</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -34,7 +35,7 @@ export default async function ForgotPasswordPage({
   }
 
   return (
-    <div className="rounded-lg bg-card p-8 shadow-sm">
+    <div className={`rounded-lg bg-card p-8 shadow-sm ${DARK_CARD_HAIRLINE}`}>
       <div className="mb-6 flex flex-col items-center text-center">
         <LogoMark className="mb-4" />
         <h1 className="text-xl font-display font-bold tracking-tight">Forgot your password?</h1>

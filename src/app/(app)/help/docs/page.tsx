@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { getLandingDictionary } from "@/components/landing/i18n";
 import { FaqAccordion } from "@/components/faq-accordion";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 /**
  * The FAQ, for a reader who already has an account.
@@ -51,7 +52,7 @@ export default async function DocsPage() {
 
       <div className="hidden sm:block">{heading}</div>
 
-      <article className="rounded-lg bg-card px-5 py-6 sm:px-6">
+      <article className={`rounded-lg bg-card px-5 py-6 sm:px-6 ${DARK_CARD_HAIRLINE}`}>
         <div className="sm:hidden">{heading}</div>
         <FaqAccordion items={[...faq.questions]} />
       </article>

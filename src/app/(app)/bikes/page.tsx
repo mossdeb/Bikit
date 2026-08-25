@@ -8,7 +8,7 @@ import { BikeIcon } from "@/components/bike-icon";
 import { HealthBadge } from "@/components/health-badge";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { formatDistance, formatHours } from "@/lib/format";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { StravaBadgeIcon } from "@/components/strava-icon";
 import { NewToBikitCard } from "@/components/new-to-bikit-card";
 import { UpgradeToPersonalCard } from "@/components/upgrade-to-personal-card";
@@ -140,7 +140,7 @@ export default async function BikesPage() {
             <Link
               key={bike.id}
               href={`/bikes/${bike.id}`}
-              className={`flex h-full flex-col rounded-lg bg-card p-5 ${CLICKABLE_CARD_HOVER}`}
+              className={`flex h-full flex-col rounded-lg bg-card p-5 ${CLICKABLE_CARD_HOVER} ${DARK_CARD_HAIRLINE}`}
             >
               <div className="mb-2 flex items-start justify-between gap-3">
                 <BikeIcon type={bike.type} plain />

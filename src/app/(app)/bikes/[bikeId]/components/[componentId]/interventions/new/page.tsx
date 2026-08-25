@@ -14,6 +14,7 @@ import { getDictionary, localeFromMetadata } from "@/lib/i18n";
 import { calculateComponentUsage } from "@/lib/maintenance/calculation";
 import { kmToUnit } from "@/lib/format";
 import { INTERVENTION_TYPE_ICON } from "@/lib/intervention-type";
+import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 
 export default async function NewInterventionPage({
   params,
@@ -76,7 +77,7 @@ export default async function NewInterventionPage({
 
       <form
         action={createIntervention.bind(null, bike.id, component.id)}
-        className="flex flex-1 flex-col rounded-lg bg-card p-6 sm:block"
+        className={`flex flex-1 flex-col rounded-lg bg-card p-6 sm:block ${DARK_CARD_HAIRLINE}`}
       >
         <div className="mb-6">
           <h1 className="text-2xl font-display font-bold">{dict.interventions.form.addTitle}</h1>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { Ban, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { formatDate, formatDistance, formatHours, splitFigureUnit } from "@/lib/format";
 import type { TimelineEvent } from "@/lib/timeline";
 import { INTERVENTION_TYPE_ICON } from "@/lib/intervention-type";
@@ -83,7 +83,7 @@ function ComponentEventCard({
   return (
     <Link
       href={href}
-      className={cn("flex w-full items-center gap-4 rounded-lg bg-card p-5", CLICKABLE_CARD_HOVER)}
+      className={cn("flex w-full items-center gap-4 rounded-lg bg-card p-5", DARK_CARD_HAIRLINE, CLICKABLE_CARD_HOVER)}
     >
       <BadgedCategoryIcon category={category} badge={badge} badgeStyle={badgeStyle} />
 
@@ -142,6 +142,7 @@ function ComponentMilestoneCard({
       href={href}
       className={cn(
         "flex flex-col items-center gap-2 rounded-lg bg-card px-8 py-6 text-center",
+        DARK_CARD_HAIRLINE,
         CLICKABLE_CARD_HOVER
       )}
     >
@@ -210,7 +211,7 @@ function MilestoneCard({
   date: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-[12px] bg-card px-8 py-6 text-center">
+    <div className={`flex flex-col items-center gap-2 rounded-[12px] bg-card px-8 py-6 text-center ${DARK_CARD_HAIRLINE}`}>
       <span className="flex shrink-0 items-center gap-2 text-foreground">{icon}</span>
       <div className="flex flex-col items-center gap-0.5">
         <p className="text-base leading-tight font-semibold">{label}</p>
@@ -349,7 +350,7 @@ export function BikeTimeline({
             content = (
               <div className="flex flex-col items-center gap-3">
                 <TimelineDot />
-                <div className="flex flex-col items-center gap-2 rounded-[12px] bg-card px-8 py-6 text-center">
+                <div className={`flex flex-col items-center gap-2 rounded-[12px] bg-card px-8 py-6 text-center ${DARK_CARD_HAIRLINE}`}>
                   <BikeIcon type={bikeType} size="lg" plain className="size-16" />
                   <div className="flex flex-col items-center gap-0.5">
                     <p className="text-base leading-tight font-semibold">{dict.bikes.detail.addedToBikit}</p>
