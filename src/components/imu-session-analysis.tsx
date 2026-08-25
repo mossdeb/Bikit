@@ -1973,7 +1973,14 @@ function ImuFilterMenu({
 }) {
   return (
     <Popover>
-      <PopoverTrigger className="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-card px-3.5 text-sm font-medium transition-colors hover:bg-muted">
+      {/* The page's own colour, not a card's white: these sit on the heading
+          row over the background, and a white pill there read as a small card
+          floating beside the title rather than as a control.
+          The hover had to swap with it. `--muted` is #f1f1f1 against a
+          #efefef page — two levels, no feedback at all — so light now lifts
+          TO the card's white. Dark keeps `--muted`, which is 13 levels above
+          its background and still the right lift there. */}
+      <PopoverTrigger className="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-background px-3.5 text-sm font-medium transition-colors hover:bg-card dark:hover:bg-muted">
         <span className="flex min-w-0 items-center gap-2 truncate">
           {summary}
         </span>
@@ -2124,7 +2131,10 @@ function PanelToggle({
       // `px-3.5` to match the filter menu's trigger exactly: on a phone the
       // two sit in the same grid, one above the other, and 16px here against
       // its 14 left the switch and the chevron on two different columns.
-      className="flex h-10 cursor-pointer items-center justify-between gap-2.5 rounded-full border border-border bg-card px-3.5 transition-colors hover:bg-muted"
+      // Background and not card white, with the hover swapped to match — the
+      // reasoning is written on the filter menu's trigger, and the two share
+      // this row, so they have to share the fill too.
+      className="flex h-10 cursor-pointer items-center justify-between gap-2.5 rounded-full border border-border bg-background px-3.5 transition-colors hover:bg-card dark:hover:bg-muted"
     >
       <span className="text-sm font-medium whitespace-nowrap">{label}</span>
       <span
