@@ -432,19 +432,14 @@ export function ImuChart({
           event.preventDefault();
         }}
       >
-        {/* Horizontal gridlines as HTML — a stretched viewBox turns dash
-            patterns and circles into taffy; divs do not stretch. Solid, not
-            dashed: at this width the dashes read as a texture of their own
-            behind a signal that is already dense. */}
-        {[0.25, 0.5, 0.75].map((frac) => (
-          <div
-            key={frac}
-            aria-hidden
-            className="absolute inset-x-0 border-t border-border/60"
-            style={{ top: `${((PAD_Y + frac * (H - PAD_Y * 2)) / H) * 100}%` }}
-          />
-        ))}
-
+        {/* No horizontal gridlines. They were three rules at a quarter, a
+            half and three quarters of the plot — and they measured nothing:
+            every series here is normalised to its own min/max over the
+            visible window, so a line at "half height" is half of a different
+            number for each one. The exact figures are read from the cursor's
+            panel, which is where the y axis actually lives. Removed on
+            request; the vertical marks (events, the cursor's rule) stay,
+            because those do line up with something real. */}
         {/* The event stretches, shaded behind the signal. They say where the
             signal is happening; the lane below says what and how long. What
             they no longer carry is their old label — at this width the text
