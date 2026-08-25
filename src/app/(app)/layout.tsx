@@ -33,7 +33,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           anywhere else. */}
       <div data-app-shell className="flex min-h-dvh bg-background">
         <AppSidebar nav={dict.nav} />
-        <div className="mx-auto flex min-w-0 w-full max-w-[1440px] flex-1 flex-col">
+        {/* The app's widest measure, raised from 1440 to 1600 on 2026-08-25.
+            It governs every authenticated page, not just the lab that asked
+            for it: past this width the surplus becomes equal margins. The
+            content itself lands 48px narrower — `main` keeps its 24px of
+            side padding. */}
+        <div className="mx-auto flex min-w-0 w-full max-w-[1600px] flex-1 flex-col">
           <AppHeader>
             <HeaderBackButton />
             <HeaderEditButton />
