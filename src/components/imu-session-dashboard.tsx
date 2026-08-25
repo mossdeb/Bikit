@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils";
  * - **Movimento lateral / Empinar e mergulhar** — the two attitude tiles:
  *   the bike seen from behind and from the side, a mint horizon line
  *   rotated by the estimated lean and pitch, the ticked arc art behind.
- *   Both angles are complementary-filter ESTIMATES and read as such.
+ *   Both angles are complementary-filter ESTIMATES; the tiles print the
+ *   figure alone and leave the caveat to the pill and the event cards.
  *
  * The art comes from the supplied SVG set, recolored to currentColor so it
  * survives both themes; the mint and the blue are fixed, the lab's way.
@@ -148,7 +149,7 @@ function RideGauge({
       <div className="relative">
         <svg
           viewBox="0 0 160 160"
-          className="h-auto w-40 text-foreground"
+          className="h-auto w-44 text-foreground"
           aria-hidden
         >
           {/* Ring track and progress. */}
@@ -201,14 +202,18 @@ function RideGauge({
         </svg>
 
         {/* The figures at the ring's heart — the circle's true centre now
-            that the band shares its radius. */}
-        <div className="absolute inset-x-0 top-[60px] flex flex-col items-center">
+            that the band shares its radius. Held as a FRACTION of the
+            gauge and not in pixels: the drawing is square and sized by one
+            class, so 60px of a 160px gauge stops being the heart the
+            moment that class changes. */}
+        <div className="absolute inset-x-0 top-[37.5%] flex flex-col items-center">
           <p className="text-lg leading-tight font-semibold tabular-nums">
             {headline}
             {headlineUnit && (
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                {headlineUnit}
-              </span>
+              // Small and regular, but the same ink as the figure: size and
+              // weight already say it is the unit, so grey was a third
+              // signal saying it again.
+              <span className="ml-1 text-xs font-normal">{headlineUnit}</span>
             )}
           </p>
           <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground tabular-nums">
@@ -272,18 +277,41 @@ function AttitudeDialArt() {
   );
 }
 
+/** How much bigger than the supplied art each attitude mark is drawn,
+ * scaled about the horizon's centre so it stays on the line at any angle. */
+const BIKE_SCALE = 1.18;
+
+/**
+ * The stroke every attitude mark is drawn with, in the art's own units.
+ *
+ * A stroke-width means nothing without the boxes above it: what gets
+ * painted is `width × (screen size ÷ viewBox) × any scale in between`.
+ * This art lives in a 96-wide viewBox rendered at 112px (`w-28`) and is
+ * then scaled again by `BIKE_SCALE`, so the number written in the file is
+ * the page's 1.5px divided back out through both — 1.09 here, which is
+ * why the two marks cannot simply share the value they came with.
+ */
+const MARK_STROKE = 1.5 / ((112 / 96) * BIKE_SCALE);
+
 /** The bike seen from behind — the lateral tile's mark, supplied art. */
 function RearBikeArt() {
   return (
     <g
       stroke="currentColor"
-      strokeWidth={1.13}
+      strokeWidth={MARK_STROKE}
       strokeLinejoin="round"
       fill="none"
     >
       <path d="M7.87891 0V20.6035" />
       <path d="M0 1.22656L15.7568 1.22656" />
-      <path d="M7.87891 21.3555V9.40308" strokeWidth={2.27} strokeLinecap="round" />
+      {/* The one member the supplied art draws at double weight — the seat
+          tube reading as the bike's body. It keeps the ratio rather than the
+          number, so the mark's own emphasis survives the reweighting. */}
+      <path
+        d="M7.87891 21.3555V9.40308"
+        strokeWidth={MARK_STROKE * 2}
+        strokeLinecap="round"
+      />
       <path d="M5.38086 15.7353V5.41863L7.87816 4.29785L10.2739 5.41863V15.7353" />
     </g>
   );
@@ -294,7 +322,7 @@ function SideBikeArt() {
   return (
     <g
       stroke="currentColor"
-      strokeWidth={0.93}
+      strokeWidth={MARK_STROKE}
       strokeLinecap="square"
       strokeLinejoin="round"
       fill="none"
@@ -311,11 +339,33 @@ function SideBikeArt() {
 }
 
 /**
- * One attitude tile: the dial art fixed, and the bike WITH its ground line
+ * One attitude tile: the dial art fixed, and the bike WITH its horizon line
  * rotated together by the estimated angle — the supplied example art does
  * exactly this, the bike leaning as one piece with its horizon while the
  * dial stays put behind them.
+ *
+ * The horizon is TWO segments with the bike centred in the gap between
+ * them, the way the supplied mockup draws it: the line reads as passing
+ * behind the bike instead of as ground it stands on.
  */
+
+/** Each mark's own geometry, in the art's units: how far it reaches either
+ * side of the horizon's centre, and where it hangs so its middle sits on
+ * the line (48, 27.5) instead of resting above it. */
+const BIKE_ART = {
+  rear: { halfWidth: 7.88, offset: "40.1 16.82" },
+  side: { halfWidth: 13.76, offset: "33.8 18.88" },
+} as const;
+
+/** The breath between the mark's widest point and where the horizon picks
+ * up again. The gap is derived from each art and not shared: the bike seen
+ * from the side is nearly twice as wide as the one seen from behind, and a
+ * single number would either crowd one or leave the other in a void. */
+const HORIZON_PAD = 2.6;
+
+const horizonGap = (bike: keyof typeof BIKE_ART) =>
+  BIKE_ART[bike].halfWidth * BIKE_SCALE + HORIZON_PAD;
+
 function AttitudeTile({
   title,
   angleDeg,
@@ -347,30 +397,39 @@ function AttitudeTile({
           <line
             x1={-4}
             y1={27.5}
+            x2={48 - horizonGap(bike)}
+            y2={27.5}
+            stroke={MINT}
+            strokeWidth={1.25}
+          />
+          <line
+            x1={48 + horizonGap(bike)}
+            y1={27.5}
             x2={100}
             y2={27.5}
             stroke={MINT}
             strokeWidth={1.25}
           />
-          {bike === "rear" ? (
-            <g transform="translate(40.1 7)">
-              <RearBikeArt />
-            </g>
-          ) : (
-            <g transform="translate(33.8 11)">
-              <SideBikeArt />
-            </g>
-          )}
+          <g
+            transform={`translate(48 27.5) scale(${BIKE_SCALE}) translate(-48 -27.5) translate(${BIKE_ART[bike].offset})`}
+          >
+            {bike === "rear" ? <RearBikeArt /> : <SideBikeArt />}
+          </g>
         </g>
       </svg>
-      <p className="mt-2 text-base leading-tight font-semibold tabular-nums">
+      {/* No "(est.)" here, by decision: the dial is read at a glance while
+          scrubbing, and the caveat still stands where it can be read
+          properly — the "Lean (est.)" pill and the event cards' figures. */}
+      {/* Pulled up into the dial's own box: the art fills the viewBox at the
+          sides but nothing hangs below its middle, so the figure centred
+          under the bike was reading a good 25px adrift of it. The dial's
+          arcs reach the bottom corners only, and this number is short and
+          centred, so it rises into that empty band without meeting them. */}
+      <p className="-mt-2 text-base leading-tight font-semibold tabular-nums">
         {formatAngle(angleDeg)}
-        <span className="text-sm text-muted-foreground">°</span>
-        <span className="ml-1 text-xs font-normal text-muted-foreground">
-          (est.)
-        </span>
+        <span className="text-sm">°</span>
       </p>
-      <p className="text-xs leading-tight text-muted-foreground tabular-nums">
+      <p className="text-xs leading-tight tabular-nums">
         {subValue.toFixed(2)} G
       </p>
     </div>
