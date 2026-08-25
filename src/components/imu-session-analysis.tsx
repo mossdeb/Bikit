@@ -1572,6 +1572,18 @@ export function ImuSessionAnalysis({
 }
 
 /**
+ * The wave glyph beside "Telemetria" — the phone's card head and the
+ * desktop twin wear the same one, so it is written once.
+ *
+ * The stroke is 2.25 and not 1.5 because what gets painted is
+ * `width × (size on screen ÷ viewBox)`: the art is drawn in a 30-wide box
+ * and rendered at 20px, so 1.5 ÷ (20/30) is what lands on the page's
+ * 1.5px. Changing the size means changing both numbers.
+ */
+const TELEMETRY_GLYPH_CLASS =
+  "h-auto w-[20px] shrink-0 text-foreground [&_path]:[stroke-width:2.25]";
+
+/**
  * The page's shell.
  *
  * **A phone keeps two cards** — what the recording IS, and the reading of
@@ -1615,7 +1627,7 @@ function SessionCards({
             that follows; on desktop it stands on the page between the
             filters and the plot they configure — see the twin below. */}
         <div className="flex items-center gap-2.5 px-5 pt-5 sm:hidden">
-          <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.5]" />
+          <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
           <h2 className="font-display text-xl font-semibold">Telemetria</h2>
         </div>
         {children}
@@ -1630,7 +1642,7 @@ function SessionCards({
 function TelemetryHeading() {
   return (
     <div className="hidden items-center gap-2.5 px-1 pt-1 sm:flex">
-      <ImuChartGlyph className="h-auto w-[30px] shrink-0 text-foreground [&_path]:[stroke-width:1.5]" />
+      <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
       <h2 className="font-display text-xl font-semibold">Telemetria</h2>
     </div>
   );
