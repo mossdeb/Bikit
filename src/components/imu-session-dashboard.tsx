@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { ImuRiderGlyph } from "@/components/imu-pro-logo";
 
 /**
  * The instant dashboard: the ride read as instruments instead of curves.
@@ -437,6 +438,7 @@ function AttitudeTile({
 }
 
 export function ImuSessionDashboard({
+  riderName,
   progress,
   headline,
   headlineUnit,
@@ -448,6 +450,11 @@ export function ImuSessionDashboard({
   pitchDeg,
   className,
 }: {
+  /** Whose ride these instruments are showing — the panel's title. Null on
+   * sessions imported before the rider was asked for, and then the old
+   * "Dashboard" stands: a name is only worth printing when it is recorded,
+   * never guessed from whoever happens to be looking. */
+  riderName: string | null;
   /** How far the needle sits along the ring, 0..1 — speed against the
    * fixed dial with GPS, elapsed time without. */
   progress: number;
@@ -466,7 +473,37 @@ export function ImuSessionDashboard({
 }) {
   return (
     <div className={cn(className)}>
-      <p className="text-base">Dashboard</p>
+      {/* The rider's name where the panel's own name used to be: these are
+          somebody's instruments, and "Dashboard" only said what the box is
+          — which the box already shows. The mark and the word label the
+          name; the name itself is the one part that can run long, so it is
+          the one that truncates (`min-w-0`, or a flex item refuses to). */}
+      <div className="flex items-center gap-2">
+        {/* 1.875 in the file paints 1.5px on the page: the art is drawn in a
+            25-wide viewBox and shown at 20px, so the number is the page's
+            weight divided back through that ratio. */}
+        <ImuRiderGlyph className="h-auto w-5 shrink-0 text-foreground [&_path]:[stroke-width:1.875]" />
+        {/* The word above the name, not beside it: it is a label for what
+            follows, and side by side the two read as one phrase. Both lines
+            are `leading-tight` and carry no margin between them — at this
+            size the gap that shows is half-leading, the bike header's rule
+            again. `min-w-0` because a flex item refuses to truncate without
+            it, and the name is the part that can run long. */}
+        <div className="min-w-0">
+          <p className="text-xs leading-tight text-muted-foreground uppercase">
+            Rider
+          </p>
+          {riderName && (
+            // Pulled up 4px: the two boxes already touch, so what is left
+            // between them is half-leading — the name's own 16px type
+            // carries ~4px of air above its caps inside a 20px line box.
+            // Only a negative margin reaches that; there is no gap to zero.
+            <p className="-mt-1 truncate text-base leading-tight">
+              {riderName}
+            </p>
+          )}
+        </div>
+      </div>
       <div className="mt-4 rounded-[14px] border border-border px-3 pt-5 pb-4">
         <RideGauge
           progress={progress}

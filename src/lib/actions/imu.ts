@@ -8,6 +8,8 @@ export type ImuActionResult = { status: "ok" } | { status: "error"; message: str
 
 export interface CreateImuSessionInput {
   name: string;
+  /** Who rode it. Blank falls back to the account's own name — see below. */
+  riderName: string | null;
   bikeId: string | null;
   /** Where the browser already uploaded the file: {user_id}/{uuid}.json. */
   storagePath: string;
@@ -44,6 +46,18 @@ export async function createImuSession(input: CreateImuSessionInput): Promise<Im
   }
   const name = input.name.trim();
   if (!name) return { status: "error", message: "A sessão precisa de um nome." };
+
+  // Left blank, the rider is whoever is importing: the overwhelmingly common
+  // case is the account's owner recording their own ride, and a blank field
+  // should not cost a recording its provenance. Decided here and not in the
+  // form because this is the side that actually knows the account — and a
+  // form field can always be cleared on the way out. The claims carry
+  // user_metadata (it rides in the JWT), so this costs no extra query.
+  const metadata = userData?.claims?.user_metadata as
+    | { full_name?: string }
+    | undefined;
+  const riderName =
+    input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
   if (
     !Number.isFinite(input.durationMs) ||
     !Number.isFinite(input.sampleRateHz) ||
@@ -67,6 +81,7 @@ export async function createImuSession(input: CreateImuSessionInput): Promise<Im
     user_id: userId,
     bike_id: input.bikeId,
     name,
+    rider_name: riderName,
     storage_path: input.storagePath,
     format: input.format,
     duration_ms: Math.round(input.durationMs),

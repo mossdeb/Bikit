@@ -33,7 +33,16 @@ interface BikeOption {
  * the dialog rather than toasted: the file input keeps the failed choice
  * visible next to what went wrong.
  */
-export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: BikeOption[] }) {
+export function ImuSessionImport({
+  userId,
+  bikes,
+  riderDefault,
+}: {
+  userId: string;
+  bikes: BikeOption[];
+  /** The account's own name, offered as the rider before anyone types. */
+  riderDefault: string;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -45,6 +54,7 @@ export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: Bik
     summary: ImuSessionSummary;
   } | null>(null);
   const [name, setName] = useState("");
+  const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
 
   function reset() {
@@ -52,6 +62,7 @@ export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: Bik
     setError(null);
     setBusy(false);
     setName("");
+    setRider(riderDefault);
     setBikeId("");
   }
 
@@ -96,6 +107,7 @@ export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: Bik
     const { summary, session } = parsed;
     const result = await createImuSession({
       name,
+      riderName: rider,
       bikeId: bikeId || null,
       storagePath,
       format: session.format,
@@ -163,6 +175,21 @@ export function ImuSessionImport({ userId, bikes }: { userId: string; bikes: Bik
               <div className="space-y-1.5">
                 <Label htmlFor="imu-name">Nome</Label>
                 <Input id="imu-name" value={name} onChange={(event) => setName(event.target.value)} />
+              </div>
+
+              {/* Under the name, because the two are the same question
+                  asked twice — what this recording is, and whose ride it
+                  was. Prefilled with the account's name and clearable: left
+                  empty, the server writes that same name back, so a blank
+                  field never costs a session its rider. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="imu-rider">Rider</Label>
+                <Input
+                  id="imu-rider"
+                  value={rider}
+                  onChange={(event) => setRider(event.target.value)}
+                  placeholder={riderDefault}
+                />
               </div>
 
               <div className="space-y-1.5">

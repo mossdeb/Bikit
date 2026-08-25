@@ -30,7 +30,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+      "id, name, rider_name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -68,6 +68,7 @@ export default async function ImuSessionPage({
           context, the same arrangement the install invite uses. */}
       <ImuSessionAnalysis
         storagePath={session.storage_path}
+        riderName={session.rider_name}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more
@@ -115,6 +116,10 @@ export default async function ImuSessionPage({
                   trio the session list prints. */}
               <span className="align-middle text-muted-foreground">
                 {bike?.name ? " · " : ""}
+                {/* The rider leads the provenance tail: whose ride it was
+                    belongs beside what carried the sensor, ahead of the
+                    facts that describe the file rather than the ride. */}
+                {session.rider_name ? `${session.rider_name} · ` : ""}
                 {formatDate(session.created_at)} ·{" "}
                 {Math.round(session.sample_rate_hz)} Hz ·{" "}
                 {session.sample_count.toLocaleString("pt-PT")} amostras

@@ -558,9 +558,15 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
  */
 export function ImuSessionAnalysis({
   storagePath,
+  riderName,
   header,
 }: {
   storagePath: string;
+  /** Who rode this recording, as recorded on import. It titles the
+   * dashboard — the instruments are that person's ride, not a panel with a
+   * generic name. Null on sessions imported before the field existed, and
+   * then the panel falls back to its old title. */
+  riderName: string | null;
   /** The session's identity block, rendered on the server and handed over as
    * a node. It shares a card with the résumé, and the résumé's figures are
    * computed from the file this component parses — so the cards are drawn
@@ -1170,7 +1176,7 @@ export function ImuSessionAnalysis({
             <p className="text-base">Painéis</p>
             <div className="mt-4 flex gap-2">
               <PanelToggle
-                label="Dash"
+                label="Rider dash"
                 on={dashOn}
                 onToggle={() => setDashOn((v) => !v)}
               />
@@ -1269,6 +1275,7 @@ export function ImuSessionAnalysis({
             on a phone. */}
         {dashOn && (
           <ImuSessionDashboard
+            riderName={riderName}
             progress={dashProgress}
             headline={
               dashSpeedKmh != null

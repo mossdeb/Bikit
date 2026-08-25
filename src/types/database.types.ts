@@ -372,6 +372,7 @@ export type Database = {
           jump_count: number
           max_g: number | null
           name: string
+          rider_name: string | null
           sample_count: number
           sample_rate_hz: number
           storage_path: string
@@ -390,6 +391,7 @@ export type Database = {
           jump_count?: number
           max_g?: number | null
           name: string
+          rider_name?: string | null
           sample_count: number
           sample_rate_hz: number
           storage_path: string
@@ -408,6 +410,7 @@ export type Database = {
           jump_count?: number
           max_g?: number | null
           name?: string
+          rider_name?: string | null
           sample_count?: number
           sample_rate_hz?: number
           storage_path?: string

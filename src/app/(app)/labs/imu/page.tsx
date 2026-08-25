@@ -25,6 +25,13 @@ export default async function ImuLabPage() {
   const email = userData?.claims?.email as string | undefined;
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
+  // The name the app knows this account by, offered as the rider in the
+  // import dialog. The server action falls back to the same value, so the
+  // two agree whether or not anyone types in the field.
+  const metadata = userData?.claims?.user_metadata as
+    | { full_name?: string }
+    | undefined;
+  const riderDefault = metadata?.full_name?.trim() || email || "";
 
   const [{ data: sessions }, { data: bikes }] = await Promise.all([
     supabase
@@ -32,7 +39,7 @@ export default async function ImuLabPage() {
       .select(
         // No counts: the card stopped printing them, and a column selected
         // for nobody is a query that grows without a reader.
-        "id, name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count",
+        "id, name, rider_name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
@@ -63,6 +70,7 @@ export default async function ImuLabPage() {
         <ImuSessionImport
           userId={userId}
           bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
+          riderDefault={riderDefault}
         />
       </div>
 
@@ -102,6 +110,12 @@ export default async function ImuLabPage() {
                   />
                 )}
                 <span>{bike?.name ?? "Sem bicicleta"}</span>
+                {/* Who rode it, beside what carried the sensor: two facts of
+                    the same kind, and the list is where sessions are told
+                    apart from each other. */}
+                {session.rider_name && (
+                  <span className="truncate">· {session.rider_name}</span>
+                )}
               </div>
               <p className="mt-1 font-display text-xl leading-tight font-bold">
                 {session.name}
