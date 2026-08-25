@@ -15,6 +15,7 @@ import {
   jerkSeries,
   leanSeries,
   nearestSampleIndex,
+  pitchSeries,
   roughnessSeries,
   sessionSummary,
   speedKmhSeries,
@@ -410,6 +411,31 @@ describe("sessionSummary — GPS figures", () => {
     const s = sessionSummary(session());
     expect(s.distanceM).toBeNull();
     expect(s.maxSpeedKmh).toBeNull();
+  });
+});
+
+describe("pitchSeries", () => {
+  it("settles on the accelerometer's angle when the bike is held nose-up", () => {
+    // 30° nose up: ax = -sin 30° = -0.5, az = cos 30°, gyro silent.
+    const n = 500;
+    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+    const ax = new Float32Array(n).fill(-0.5);
+    const ay = new Float32Array(n);
+    const az = new Float32Array(n).fill(Math.cos(Math.PI / 6));
+    const gy = new Float32Array(n);
+    const pitch = pitchSeries(t, ax, ay, az, gy);
+    expect(pitch[n - 1]).toBeCloseTo(30, 1);
+  });
+
+  it("reads level ground as zero", () => {
+    const n = 100;
+    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+    const ax = new Float32Array(n);
+    const ay = new Float32Array(n);
+    const az = new Float32Array(n).fill(1);
+    const gy = new Float32Array(n);
+    const pitch = pitchSeries(t, ax, ay, az, gy);
+    expect(pitch[n - 1]).toBeCloseTo(0, 5);
   });
 });
 

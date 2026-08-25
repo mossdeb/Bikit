@@ -512,6 +512,40 @@ export function gpsPositionAt(
   };
 }
 
+/**
+ * Estimated pitch angle in degrees — nose up positive — via the same
+ * complementary filter as leanSeries, on the other axis: the gyro's pitch
+ * rate for the fast component, pulled toward the accelerometer's
+ * atan2(-ax, √(ay²+az²)) for the slow one. The same caveats too: braking
+ * and acceleration bend the accelerometer's idea of "down" forward and
+ * back — which is precisely what the pitch axis measures — so this is an
+ * ESTIMATE, labelled (est.) wherever it appears.
+ */
+export function pitchSeries(
+  tMs: Float64Array,
+  ax: ArrayLike<number>,
+  ay: ArrayLike<number>,
+  az: ArrayLike<number>,
+  gy: ArrayLike<number>,
+  tauMs = 500,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  if (n === 0) return out;
+  const toDeg = 180 / Math.PI;
+  const accPitchAt = (i: number) =>
+    Math.atan2(-ax[i], Math.sqrt(ay[i] * ay[i] + az[i] * az[i])) * toDeg;
+  let pitch = accPitchAt(0);
+  out[0] = pitch;
+  for (let i = 1; i < n; i++) {
+    const dtMs = tMs[i] - tMs[i - 1];
+    const alpha = tauMs / (tauMs + dtMs);
+    pitch = alpha * (pitch + gy[i] * (dtMs / 1000)) + (1 - alpha) * accPitchAt(i);
+    out[i] = pitch;
+  }
+  return out;
+}
+
 /** mm:ss.mmm for the details panel, mm:ss for axes. */
 export function formatSessionTime(ms: number, withMillis = false): string {
   const clamped = Math.max(0, ms);
