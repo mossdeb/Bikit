@@ -27,7 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
-      <div className="flex min-h-dvh bg-background">
+      {/* `data-app-shell` is a hook, not a style: it is the element that
+          paints the page's background, and the IMU lab's dot texture needs
+          to reach exactly it (see globals.css). No rule matches it
+          anywhere else. */}
+      <div data-app-shell className="flex min-h-dvh bg-background">
         <AppSidebar nav={dict.nav} />
         <div className="mx-auto flex min-w-0 w-full max-w-[1440px] flex-1 flex-col">
           <AppHeader>

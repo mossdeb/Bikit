@@ -6,6 +6,7 @@ import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
+import { ImuLabTexture } from "@/components/imu-lab-texture";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -54,6 +55,9 @@ export default async function ImuSessionPage({
     // px-5 and declaring the smaller one — a deliberate exception to the
     // 20px rule, like the Ride Load report's 18px, and only in the lab.
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
+      {/* The lab's dot grid on the page background, for as long as this
+          page is mounted. Renders nothing of its own. */}
+      <ImuLabTexture />
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 

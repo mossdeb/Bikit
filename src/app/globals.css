@@ -309,6 +309,20 @@
   color: rgba(255, 255, 255, 0.62);
 }
 
+/* The IMU lab's own texture: a dot grid over the app's background, nowhere
+   else in the app (class toggled by ImuLabTexture, which mounts with the
+   lab's pages). It rides on the shell — the element that actually paints
+   bg-background — so every card, control and popover stays above it without
+   a single z-index. The dots are mixed from the foreground, which is what
+   makes the same rule read in both themes. */
+body.imu-lab-texture [data-app-shell] {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--foreground) 14%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

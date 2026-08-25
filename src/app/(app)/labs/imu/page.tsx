@@ -10,6 +10,7 @@ import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
 import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
+import { ImuLabTexture } from "@/components/imu-lab-texture";
 
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
@@ -49,6 +50,9 @@ export default async function ImuLabPage() {
     // makes: the two are one screen to whoever is using the lab, and a list
     // that stepped in 5px from the page it opens would read as a seam.
     <div className="-mx-5 px-[15px] pt-4 sm:mx-0 sm:px-0 sm:pt-8">
+      {/* The lab's dot grid on the page background, for as long as this
+          page is mounted. Renders nothing of its own. */}
+      <ImuLabTexture />
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold">Sessões IMU</h1>
