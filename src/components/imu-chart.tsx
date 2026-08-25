@@ -29,6 +29,14 @@ const STRIP_PAINT_ORDER: Record<ImuEvent["kind"], number> = {
   impact: 4,
 };
 
+/** How tall the event-name tabs hang from the plot's top edge, px.
+ *
+ * One number for two things that must agree: the tabs are pinned to it, and
+ * the impact arrows start just under it. Left to itself the tab measured
+ * 16.5px — `py-0.5` around 10px/tight text — and the arrows sat at 2px,
+ * which put them straight through any tab they shared an instant with. */
+const EVENT_TAB_H = 17;
+
 /** Envelope buckets across the visible window. ~2 points per bucket keeps the
  * polyline near 800 points whatever the recording length; below ~2 samples
  * per bucket the raw samples are drawn as they are. */
@@ -533,8 +541,15 @@ export function ImuChart({
               <span
                 key={i}
                 aria-hidden
-                className="pointer-events-none absolute top-0.5 -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
-                style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+                // Below the tab strip, not inside it: an impact falling within
+                // a rough patch put its arrow straight through the word
+                // "Acidentado" — three of them, in the demo. The tabs hang
+                // from the top edge and the arrows now start where they end.
+                className="pointer-events-none absolute -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
+                style={{
+                  left: `${((event.timeMs - w0) / span) * 100}%`,
+                  top: EVENT_TAB_H + 2,
+                }}
               >
                 ▼
               </span>
@@ -549,8 +564,8 @@ export function ImuChart({
               // Hung from the plot's top edge: square where it meets the
               // edge, rounded only where it leaves it — a tab, not a floating
               // chip.
-              className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-b-[6px] bg-foreground px-1.5 py-0.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
-              style={{ left: `${((mid - w0) / span) * 100}%` }}
+              className="pointer-events-none absolute top-0 flex -translate-x-1/2 items-center rounded-b-[6px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+              style={{ left: `${((mid - w0) / span) * 100}%`, height: EVENT_TAB_H }}
             >
               {eventShortLabel(event)}
             </span>
