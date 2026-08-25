@@ -1623,7 +1623,16 @@ function SessionCards({
           go back to one comfortable row from `lg`. */}
       <div
         className={cn(
-          "rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
+          "rounded-lg bg-card/40 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
+          // An outline in the LIGHT theme too, which no other card in the app
+          // carries. It is the translucent fill that earns it: at 40% the
+          // white lands on #f5f5f5 against the page's #efefef, six levels of
+          // difference, so the edge no longer draws itself. Same `--border`
+          // token as the tiles inside, and a ring rather than a border for
+          // the reason written on DARK_CARD_HAIRLINE — this card's paddings
+          // are measured and a border would eat a pixel of them. Dark keeps
+          // the hairline's own 60% value.
+          "ring-1 ring-inset ring-border",
           DARK_CARD_HAIRLINE,
         )}
       >
@@ -2046,14 +2055,14 @@ function Stat({
   value: string;
 }) {
   return (
-    // A tile of its own from `sm` up — outlined, not filled: the card under
-    // it is already white, and an outline is what separates nine of these
-    // without inventing a second surface.
+    // A tile of its own from `sm` up — outlined AND filled: the card under it
+    // is translucent, so the tile paints its own solid `bg-card` to stay a
+    // clean white plate against the texture showing through around it.
     //
     // The mark sits beside the pair on a phone and above it on desktop: there
     // the columns are ~106px wide and a mark on the left would leave
     // "Acidentado" less room than the word needs.
-    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:px-2 sm:py-4 sm:text-center">
+    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:bg-card sm:px-2 sm:py-4 sm:text-center">
       <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div>
         {/* A NEGATIVE margin, and measured rather than guessed: with both
