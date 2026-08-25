@@ -288,6 +288,27 @@
   }
 }
 
+/* The lab map's credits. The data attributions STAY — crediting Esri's
+   imagery and OpenStreetMap's names is a condition of using either — but
+   they are dressed like every other mark on the satellite instead of the
+   library's white plate: small, dim, and shadowed enough to survive a pale
+   patch of ground. Written here and not as a Tailwind variant, which the
+   build does not generate for a Leaflet-owned class. */
+/* `.leaflet-container` is in the selector to outweigh Leaflet's own
+   `.leaflet-container .leaflet-control-attribution`, which sets the white
+   plate and, being loaded after this file, wins any tie. */
+.imu-map .leaflet-container .leaflet-control-attribution {
+  background: transparent;
+  padding: 0 6px 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.imu-map .leaflet-container .leaflet-control-attribution a {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

@@ -338,6 +338,9 @@ export function ImuSessionMap({
         // Fractional zoom, so the trackpad pinch glides instead of
         // snapping a whole level per tick. The +/− capsule still steps.
         zoomSnap: 0,
+        // Kept, and kept legible: the imagery and the place names are both
+        // served on the condition that they are credited. What comes off is
+        // only what nobody requires — see the prefix below.
         attributionControl: true,
         // Leaflet's own control is off — the capsule overlaid in the JSX
         // below replaces it, drawn in the app's vocabulary instead of the
@@ -353,6 +356,10 @@ export function ImuSessionMap({
         shiftKeyRotate: false,
         rotateControl: false,
       });
+      // "Leaflet" with its flag is the library's own courtesy line, not a
+      // term of use — it is the half of the credit nobody is owed, and the
+      // half that made this wrap onto a second line. The data credits stay.
+      map.attributionControl?.setPrefix(false);
       L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         {
@@ -695,6 +702,20 @@ export function ImuSessionMap({
     return () => ctrl.abort();
   }, [gps]);
 
+  /** How tall Leaflet's credit line is right now, so the place name can sit
+   * on top of the corner it owns without landing on it. Measured and not
+   * assumed: the credits wrap to a second line on a narrow map, and the
+   * label would cover the very attribution the tiles are served under. */
+  const [attributionH, setAttributionH] = useState(0);
+  useEffect(() => {
+    const el = mapRef.current?.attributionControl?.getContainer();
+    if (!el) return;
+    setAttributionH(el.offsetHeight);
+    const observer = new ResizeObserver(() => setAttributionH(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ready, placeName]);
+
   /** Naming the ground is using OpenStreetMap's data, so it is credited
    * beside Esri's — and only while a name is actually shown. */
   useEffect(() => {
@@ -782,7 +803,9 @@ export function ImuSessionMap({
     // pane happily paints straight over a radius it was not told about. The
     // wrapper owns the box; the map fills it, and the title, the controls
     // and the north badge float over it, unrotated.
-    <div className={cn("relative overflow-hidden bg-sidebar", className)}>
+    // `imu-map` is the hook the credits' styling hangs off (globals.css):
+    // a Leaflet-owned class cannot be reached from a Tailwind variant here.
+    <div className={cn("imu-map relative overflow-hidden bg-sidebar", className)}>
       <div
         ref={containerRef}
         aria-label="Percurso da sessão no mapa"
@@ -794,21 +817,6 @@ export function ImuSessionMap({
           zoom". Fixed colours, like every mark on the satellite. */}
       {ready && (
         <div className="absolute top-2 left-2 z-[1100] flex flex-col items-start gap-1.5">
-          {(placeName ?? title) && (
-            <span
-              // Capped and clipped: a place name is written by whoever
-              // mapped it and can run long, and the north badge owns the
-              // opposite corner.
-              className="block max-w-52 truncate px-1.5 pb-0.5 font-display text-sm font-semibold text-white"
-              // A shadow and not a plate: the imagery is dark-treated, so
-              // the word only needs enough separation to survive a pale
-              // patch of ground. Inline because the value is static and a
-              // one-off arbitrary class is not worth the build's trouble.
-              style={{ textShadow: "0 1px 4px rgba(0,0,0,0.75)" }}
-            >
-              {placeName ?? title}
-            </span>
-          )}
           <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
             <button
               type="button"
@@ -856,6 +864,28 @@ export function ImuSessionMap({
             style={{ transform: `rotate(${northDeg}deg)` }}
           />
           <span className="text-[9px] leading-none font-semibold">N</span>
+        </span>
+      )}
+
+      {/* The place name, in the bottom-right corner. It rides just above
+          Leaflet's credit line — measured, because those credits wrap to a
+          second line on a narrow map and this label must never be the
+          thing covering the attribution the tiles are served under. */}
+      {ready && (placeName ?? title) && (
+        <span
+          // Capped and clipped: a place name is written by whoever mapped
+          // it and can run long, and the north badge owns the corner above.
+          className="pointer-events-none absolute right-2 z-[1100] block max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white"
+          // A shadow and not a plate: the imagery is dark-treated, so the
+          // word only needs enough separation to survive a pale patch of
+          // ground. Inline because the offset is computed and the shadow is
+          // a one-off not worth an arbitrary class.
+          style={{
+            bottom: attributionH + 4,
+            textShadow: "0 1px 4px rgba(0,0,0,0.75)",
+          }}
+        >
+          {placeName ?? title}
         </span>
       )}
     </div>
