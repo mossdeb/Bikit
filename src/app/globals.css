@@ -317,10 +317,22 @@
    makes the same rule read in both themes. */
 body.imu-lab-texture [data-app-shell] {
   background-image: radial-gradient(
-    color-mix(in srgb, var(--foreground) 14%, transparent) 1px,
+    color-mix(in srgb, var(--foreground) 10%, transparent) 1px,
     transparent 1px
   );
   background-size: 18px 18px;
+}
+/* Dark carries less of it. One percentage cannot serve both themes: the mix
+   is made from --foreground, which is near-black in light and near-white in
+   dark, so the same number moves the dot in opposite directions. The two
+   also start from different distances — 10% lands the dot 22 levels off the
+   page in light and 23 in dark, and the darker screen shows that separation
+   more. 7% brings dark back to 15. */
+.dark body.imu-lab-texture [data-app-shell] {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--foreground) 7%, transparent) 1px,
+    transparent 1px
+  );
 }
 
 @layer utilities {
