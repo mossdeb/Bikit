@@ -1368,8 +1368,18 @@ export function ImuSessionAnalysis({
       {/* Details of the instant under the cursor — the headline is the main
           event (or "Andamento normal"), its figures computed from the raw
           channels over the event's window, and the raw sample itself sits
-          underneath, all channels, whatever the chart is drawing. */}
-      <div className="border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6">
+          underneath, all channels, whatever the chart is drawing.
+
+          The floor exists because this card is read WHILE scrubbing, and its
+          content changes size under the cursor: an instant no event covers
+          carries one figure, a curve carries five over two rows. Left to its
+          natural height the page grew and shrank with every event the cursor
+          crossed, which moves everything on screen. 248px is the tallest
+          single-card reading measured (a curve, at 200px of card inside 48px
+          of padding) — enough that entering or leaving an event moves
+          nothing. Two events at the same instant — an impact inside a rough
+          section — still stack two cards and still grow past it. */}
+      <div className="min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card sm:p-6">
         {cursorIndex < 0 ? (
           <p className="text-sm text-muted-foreground">
             Toca ou arrasta sobre o gráfico para ler um instante.
