@@ -254,6 +254,13 @@ const MAP_MIN_W = 220;
 /** What the chart may never be squeezed below — the plot is the one thing
  * this page exists to show, so the map is the side that gives. */
 const CHART_MIN_W = 420;
+/** The Rider column's width and the channel between columns, exactly as the
+ * grid templates below spell them. Repeated here as numbers because Tailwind
+ * only generates classes it can read literally, so those templates cannot be
+ * built from these — the two have to be changed together, and this note is
+ * the only thing linking them. */
+const DASH_COL_W = 300;
+const COL_GAP = 22;
 
 /** One labelled figure in an event's card. */
 interface EventMetric {
@@ -846,16 +853,43 @@ export function ImuSessionAnalysis({
     });
   }
 
-  /** How wide the map may grow right now — everything the chart does not
-   * need, measured at gesture time rather than kept in sync with resizes. */
-  function maxMapWidth(): number {
+  /**
+   * How wide the map may grow right now — everything the row does not owe
+   * the other columns, measured at gesture time rather than kept in sync
+   * with resizes.
+   *
+   * It used to subtract the chart's floor and nothing else, which was wrong
+   * by a whole column: the Rider panel's 300px and BOTH channels were never
+   * counted. Reproduced with the handle's arrow keys — the map grew to
+   * 713px and the plot was squeezed to 84, against the 420 it declares as
+   * its minimum. What the row owes is the chart's floor plus the channel it
+   * shares with the map, and, while the Rider stands, that column plus its
+   * own channel.
+   */
+  function maxMapWidth(withDash: boolean = dashOn): number {
     const container = splitRef.current;
-    return container
-      ? Math.max(
-          MAP_MIN_W,
-          container.getBoundingClientRect().width - CHART_MIN_W,
-        )
-      : MAP_MIN_W;
+    if (!container) return MAP_MIN_W;
+    const owed =
+      CHART_MIN_W + COL_GAP + (withDash ? DASH_COL_W + COL_GAP : 0);
+    return Math.max(MAP_MIN_W, container.getBoundingClientRect().width - owed);
+  }
+
+  /**
+   * The Rider switch, which is also where the map gets pulled back under
+   * its ceiling.
+   *
+   * Fixing the arithmetic above closes one door and leaves the next one
+   * open: drag the map wide with the panel off, switch the panel back on,
+   * and its 300px plus a channel come out of the plot — the grid hands them
+   * over silently, because `minmax(0,1fr)` lets the chart go to nothing.
+   * Clamped here and not in an effect on `dashOn`: a `setState` in an
+   * effect body is an ESLint error in this project, and the switch is where
+   * the fact actually changes.
+   */
+  function toggleDash() {
+    const next = !dashOn;
+    if (next) setMapWidth((w) => Math.min(w, maxMapWidth(true)));
+    setDashOn(next);
   }
 
   function startMapResize(event: React.PointerEvent<HTMLElement>) {
@@ -1025,7 +1059,7 @@ export function ImuSessionAnalysis({
       <PanelToggle
         label="Rider"
         on={dashOn}
-        onToggle={() => setDashOn((v) => !v)}
+        onToggle={toggleDash}
       />
       {hasGps && (
         <PanelToggle
