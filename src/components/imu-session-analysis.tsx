@@ -1034,11 +1034,10 @@ export function ImuSessionAnalysis({
          shares the identity's card, because both answer "what recording is
          this" — the reading of it starts in the card below.
 
-         Desktop puts the seven in one ruled box, the shape the bike header's
-         totals already use — a rule between each pair and the figures
-         centred. The phone keeps three loose columns: seven cells become
-         three rows there, and the last one holds a single figure, so the
-         same box would draw two dividers into empty space. */
+         Eight figures with a GPS track, six without. The phone keeps three
+         loose columns and takes the ragged last row that follows: a ruled
+         box, which is what the bike header's totals use, would draw its
+         dividers into the empty cells. */
       resume={
         <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:py-6 2xl:pl-0">
           {/* The rows breathe more than the columns: pulling the label onto
@@ -1046,75 +1045,89 @@ export function ImuSessionAnalysis({
               rows read as one paragraph instead of three. Phone only — the
               desktop tiles space themselves.
 
-              Desktop gives each figure a tile of its own instead of one
-              ruled box: beside the name they read as a row of facts rather
-              than as a table, and a tile can wrap where a ruled cell would
-              have to shrink. Nine of them (with GPS) need two rows until
-              `xl` gives them one. */}
-          <div
-            className={cn(
-              "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-2",
-              summary.distanceM != null
-                ? "sm:grid-cols-5 lg:grid-cols-9"
-                : "sm:grid-cols-7",
-            )}
-          >
-            <Stat
-              Icon={StatClockIcon}
-              label="Duração"
-              value={formatSessionTime(summary.durationMs)}
-            />
-            {/* The ride-level GPS figures ride next to the duration —
-                the three answer "how much ride" before the rest answer
-                "how hard". Lucide marks for now; the supplied art set has
-                no distance or speedometer glyph yet. */}
-            {summary.distanceM != null && (
+              From `sm` the figures share ONE ruled box instead of standing
+              as eight outlined tiles — the shape the bike header's totals
+              already use. Eight boxes, each with its own outline and its own
+              gap, made a row of eight objects out of what is one fact about
+              one recording; a box with rules says the same thing quietly.
+
+              The rules are `gap-px` over a background, not borders on the
+              cells. A border would have to know which cell ends a row, and
+              this grid wraps — 8 cells over 4 columns at `sm`, 8 over 8 at
+              `lg`, 6 over 6 without GPS. A one-pixel gap draws the line
+              wherever the wrap happens to fall, and needs no `nth-child`.
+
+              Eight divide where nine did not: `sm` takes two rows of four
+              and `lg` puts them on one line. Without GPS the six fit a
+              single row from `sm`. The phone stays at three columns either
+              way — four cells across 345px of content leave ~77px each, and
+              "36.0 km/h" already broke at 81. */}
+          {/* The box's white base, so the rules read at the strength they
+              read everywhere else. `--border` is a 9% ink, so what it paints
+              depends on what is under it: over the identity card — white at
+              40% over the page, #f5f5f5 — the same token came out #e0e0e0,
+              against the #e9e9e9 the Rider card's rules make over solid
+              white. Same token, two intensities. An opaque white plate under
+              the grid puts them back on the same backdrop, and with it the
+              same colour. */}
+          <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
+            <div
+              className={cn(
+                "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
+                summary.distanceM != null
+                  ? "sm:grid-cols-4 lg:grid-cols-8"
+                  : "sm:grid-cols-6",
+              )}
+            >
               <Stat
-                Icon={StatRouteIcon}
-                label="Distância"
-                value={formatTrackDistance(summary.distanceM)}
+                Icon={StatClockIcon}
+                label="Duração"
+                value={formatSessionTime(summary.durationMs)}
               />
-            )}
-            {summary.maxSpeedKmh != null && (
+              {/* The ride-level GPS figures ride next to the duration —
+                  the three answer "how much ride" before the rest answer
+                  "how hard". Lucide marks for now; the supplied art set has
+                  no distance or speedometer glyph yet. */}
+              {summary.distanceM != null && (
+                <Stat
+                  Icon={StatRouteIcon}
+                  label="Distância"
+                  value={formatTrackDistance(summary.distanceM)}
+                />
+              )}
+              {summary.maxSpeedKmh != null && (
+                <Stat
+                  Icon={StatGaugeIcon}
+                  label="Vel. máx"
+                  value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                />
+              )}
               <Stat
-                Icon={StatGaugeIcon}
-                label="Vel. máx"
-                value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                Icon={StatMetricIcon}
+                label="G máx"
+                value={summary.maxG.toFixed(2)}
               />
-            )}
-            <Stat
-              Icon={StatMetricIcon}
-              label="G máx"
-              value={summary.maxG.toFixed(2)}
-            />
-            <Stat
-              Icon={StatImpactIcon}
-              label="Impactos"
-              value={String(summary.impactCount)}
-            />
-            <Stat
-              Icon={StatTurnIcon}
-              label="Curvas"
-              value={String(summary.curveCount)}
-            />
-            <Stat
-              Icon={StatJumpIcon}
-              label="Saltos"
-              value={String(summary.jumpCount)}
-            />
-            <Stat
-              Icon={StatStopwatchIcon}
-              label="No ar"
-              value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
-            />
-            {/* The rough section borrows the event mark: there is no seventh
-                glyph in the set, and the figure counts exactly the thing that
-                mark already names down in the lane. */}
-            <Stat
-              Icon={RoughSectionIcon}
-              label="Acidentado"
-              value={formatSessionTime(summary.roughMs)}
-            />
+              <Stat
+                Icon={StatImpactIcon}
+                label="Impactos"
+                value={String(summary.impactCount)}
+              />
+              <Stat
+                Icon={StatTurnIcon}
+                label="Curvas"
+                value={String(summary.curveCount)}
+              />
+              <Stat
+                Icon={StatJumpIcon}
+                label="Saltos"
+                value={String(summary.jumpCount)}
+              />
+              <Stat
+                Icon={StatStopwatchIcon}
+                label="No ar"
+                value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+              />
+            </div>
           </div>
         </div>
       }
@@ -2136,14 +2149,15 @@ function Stat({
   value: string;
 }) {
   return (
-    // A tile of its own from `sm` up — outlined AND filled: the card under it
-    // is translucent, so the tile paints its own solid `bg-card` to stay a
-    // clean white plate against the texture showing through around it.
+    // A cell of the ruled box from `sm` up. No outline of its own — the
+    // box draws one line between neighbours instead of two — but it keeps
+    // the solid `bg-card`: it is what the 1px gaps show as rules, and what
+    // stops the lab's texture coming through the translucent card behind.
     //
     // The mark sits beside the pair on a phone and above it on desktop: there
     // the columns are ~106px wide and a mark on the left would leave
     // "Acidentado" less room than the word needs.
-    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:bg-card sm:px-2 sm:py-4 sm:text-center">
+    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:bg-card sm:px-2 sm:py-4 sm:text-center">
       <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div>
         {/* A NEGATIVE margin, and measured rather than guessed: with both
