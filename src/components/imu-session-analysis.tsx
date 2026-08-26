@@ -1763,16 +1763,13 @@ function SessionCards({
           go back to one comfortable row from `lg`. */}
       <div
         className={cn(
-          "rounded-lg bg-card/40 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
-          // An outline in the LIGHT theme too, which no other card in the app
-          // carries. It is the translucent fill that earns it: at 40% the
-          // white lands on #f5f5f5 against the page's #efefef, six levels of
-          // difference, so the edge no longer draws itself. Same `--border`
-          // token as the tiles inside, and a ring rather than a border for
-          // the reason written on DARK_CARD_HAIRLINE — this card's paddings
-          // are measured and a border would eat a pixel of them. Dark keeps
-          // the hairline's own 60% value.
-          "ring-1 ring-inset ring-border",
+          // Opaque white again. It spent a while at 40%, letting the lab's
+          // dot texture through, and the light outline that went with it has
+          // gone too — that ring existed only because the translucent fill
+          // landed on #f5f5f5 against a #efefef page and stopped drawing its
+          // own edge. White on the page reads on its own, which is the rule
+          // the rest of the app keeps.
+          "rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
           DARK_CARD_HAIRLINE,
         )}
       >
@@ -2376,10 +2373,17 @@ function PanelToggle({
       // `px-3.5` to match the filter menu's trigger exactly: on a phone the
       // two sit in the same grid, one above the other, and 16px here against
       // its 14 left the switch and the chevron on two different columns.
-      // Background and not card white, with the hover swapped to match — the
-      // reasoning is written on the filter menu's trigger, and the two share
-      // this row, so they have to share the fill too.
-      className="flex h-10 cursor-pointer items-center justify-between gap-2.5 rounded-full border border-border bg-background px-3.5 transition-colors hover:bg-card dark:hover:bg-muted"
+      // A filled pill with no outline, which is the whole difference between
+      // these and the two menus: the menus are white with a border because
+      // they open something, and these only flip. `--muted` is two levels
+      // off the page in the light theme, and that is enough here where a
+      // hairline was not — the fill is opaque, so what actually says "pill"
+      // is the dot texture stopping at its edge rather than a colour step.
+      //
+      // The hover lifts in both themes: to white in light (+14 levels), and
+      // to `--emphasis` in dark, which is the one token above `--muted`
+      // there (+7). `--card` would have gone DOWN in dark.
+      className="flex h-10 cursor-pointer items-center justify-between gap-2.5 rounded-full bg-muted px-3.5 transition-colors hover:bg-card dark:hover:bg-emphasis"
     >
       <span className="text-sm font-medium whitespace-nowrap">{label}</span>
       <span
