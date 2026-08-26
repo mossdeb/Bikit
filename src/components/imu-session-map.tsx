@@ -8,6 +8,7 @@ import type {
   LatLngBounds,
   LayerGroup,
   Map as LeafletMap,
+  Marker,
   Path,
 } from "leaflet";
 import { cn } from "@/lib/utils";
@@ -209,12 +210,12 @@ function fitPadding(el: HTMLElement | null): [number, number] {
   const pad = side ? Math.min(24, Math.max(6, Math.round(side / 12))) : 24;
   return [pad, pad];
 }
-const FINISH_ICON_SVG = (() => {
-  const S = FINISH_ICON_SIZE;
+function finishIconSvg(S: number): string {
   const cell = S / 4;
   // The ring is centred on the radius, so pulling the radius in by half the
   // stroke keeps the whole mark inside the box.
-  const r = (S - 1.5) / 2;
+  const ring = S < 14 ? 1 : 1.5;
+  const r = (S - ring) / 2;
   let cells = "";
   for (let i = 0; i < 4; i++) {
     for (let j = 0; j < 4; j++) {
@@ -222,13 +223,38 @@ const FINISH_ICON_SVG = (() => {
         cells += `<rect x="${i * cell}" y="${j * cell}" width="${cell}" height="${cell}" fill="#1c1c1c"/>`;
     }
   }
+  // The clip path is referenced by id, so the id has to differ between the
+  // two sizes — two SVGs in one document sharing `imu-finish-clip` would
+  // both resolve to whichever landed first, and the small disc would be
+  // clipped to the big circle.
+  const id = `imu-finish-clip-${Math.round(S)}`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">` +
-    `<defs><clipPath id="imu-finish-clip"><circle cx="${S / 2}" cy="${S / 2}" r="${r}"/></clipPath></defs>` +
-    `<g clip-path="url(#imu-finish-clip)"><rect width="${S}" height="${S}" fill="#ffffff"/>${cells}</g>` +
-    `<circle cx="${S / 2}" cy="${S / 2}" r="${r}" fill="none" stroke="#ffffff" stroke-width="1.5"/></svg>`
+    `<defs><clipPath id="${id}"><circle cx="${S / 2}" cy="${S / 2}" r="${r}"/></clipPath></defs>` +
+    `<g clip-path="url(#${id})"><rect width="${S}" height="${S}" fill="#ffffff"/>${cells}</g>` +
+    `<circle cx="${S / 2}" cy="${S / 2}" r="${r}" fill="none" stroke="#ffffff" stroke-width="${ring}"/></svg>`
   );
-})();
+}
+
+/**
+ * How big the marks are drawn, as a factor of the sizes the full map uses.
+ *
+ * Measured off the box and not off a media query, because these are SVG
+ * geometry: Leaflet bakes a circleMarker's radius straight into the path's
+ * arc, and no stylesheet can resize a circle drawn as a path. The track's
+ * width could go to CSS; a radius cannot.
+ *
+ * At 104px the marks were the picture — a 5px dot is a twentieth of the tile
+ * against a two-hundredth of the full map, and three impacts in a row read
+ * as one blob sitting on the ride.
+ */
+const COMPACT_BOX_PX = 200;
+const COMPACT_MARK_SCALE = 0.5;
+function markScale(el: HTMLElement | null): number {
+  if (!el) return 1;
+  const side = Math.min(el.clientWidth, el.clientHeight);
+  return side > 0 && side < COMPACT_BOX_PX ? COMPACT_MARK_SCALE : 1;
+}
 
 /**
  * The session's route on a satellite map, synchronized with the chart's
@@ -298,6 +324,12 @@ export function ImuSessionMap({
    * what tells a resize whether it may re-frame — see the observer. The
    * crosshair sets it back, since re-framing is exactly what it does. */
   const framedRef = useRef(true);
+  /** The finish disc, ref'd so a change of scale can re-issue its icon —
+   * a divIcon's size is baked into the html it was given. */
+  const finishRef = useRef<Marker | null>(null);
+  /** Mirrors `markScale` for the current box, so the effects that draw marks
+   * re-run when the map crosses between thumbnail and card. */
+  const [markS, setMarkS] = useState(1);
   /** The whole route's bounds — what the crosshair reframes to. */
   const boundsRef = useRef<LatLngBounds | null>(null);
   /** Cancels the vignette's per-frame follow — held so teardown can stop a
@@ -430,22 +462,29 @@ export function ImuSessionMap({
         padding: fitPadding(containerRef.current),
       });
 
+      // Read here and not from state: the marks are drawn in this pass and
+      // a `setMarkS` would only land on the next one, so a thumbnail would
+      // paint full-size marks first and shrink them a frame later.
+      const s0 = markScale(containerRef.current);
+      setMarkS(s0);
+
       // Start and finish, fixed for the session: a small mint dot where the
       // recording began, the checkered disc where it ended. Not interactive
       // — a press on either is a press on the map, which is a seek.
       startRef.current = L.circleMarker(track[0], {
-        radius: 6,
+        radius: 6 * s0,
         stroke: false,
         fillColor: "#43F3AF",
         fillOpacity: 1,
         interactive: false,
       }).addTo(map);
-      L.marker(track[track.length - 1], {
+      const finishSize = FINISH_ICON_SIZE * s0;
+      finishRef.current = L.marker(track[track.length - 1], {
         icon: L.divIcon({
-          html: FINISH_ICON_SVG,
+          html: finishIconSvg(finishSize),
           className: "",
-          iconSize: [FINISH_ICON_SIZE, FINISH_ICON_SIZE],
-          iconAnchor: [FINISH_ICON_SIZE / 2, FINISH_ICON_SIZE / 2],
+          iconSize: [finishSize, finishSize],
+          iconAnchor: [finishSize / 2, finishSize / 2],
         }),
         interactive: false,
         keyboard: false,
@@ -458,7 +497,7 @@ export function ImuSessionMap({
       // The needle: a plain black dot, added last so it paints above the
       // event marks.
       needleRef.current = L.circleMarker(track[0], {
-        radius: 7,
+        radius: 7 * s0,
         stroke: false,
         fillColor: "#1c1c1c",
         fillOpacity: 1,
@@ -639,6 +678,12 @@ export function ImuSessionMap({
       // would be thrown back to the whole ride mid-drag.
       observer = new ResizeObserver(() => {
         map.invalidateSize();
+        // Only on a change of value, or this would set state on every frame
+        // of a separator drag.
+        setMarkS((prev) => {
+          const next = markScale(containerRef.current);
+          return next === prev ? prev : next;
+        });
         if (!framedRef.current || !boundsRef.current) return;
         map.fitBounds(boundsRef.current, {
           padding: fitPadding(containerRef.current),
@@ -661,6 +706,7 @@ export function ImuSessionMap({
       baseTrackRef.current = null;
       sliceTrackRef.current = null;
       startRef.current = null;
+      finishRef.current = null;
       boundsRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
@@ -691,9 +737,9 @@ export function ImuSessionMap({
         const pos = gpsPositionAt(gps, timeMs);
         if (!pos) continue;
         L.circleMarker([pos.latDeg, pos.lonDeg], {
-          radius: 5,
+          radius: 5 * markS,
           color: event.kind === "impact" ? "#ffffff" : "#1c1c1c",
-          weight: 1,
+          weight: markS < 1 ? 0.75 : 1,
           fillColor: event.kind === "impact" ? "#F5533D" : "#43F3AF",
           fillOpacity: 1,
         }).addTo(layer);
@@ -703,7 +749,34 @@ export function ImuSessionMap({
     return () => {
       cancelled = true;
     };
-  }, [events, gps, ready]);
+  }, [events, gps, ready, markS]);
+
+  /* The three marks that are made once at init follow the box when it
+   * crosses between thumbnail and card. The two dots take a new radius in
+   * place; the finish disc has to be handed a whole new icon, because a
+   * divIcon's size lives in the html it was given. */
+  useEffect(() => {
+    if (!ready) return;
+    startRef.current?.setRadius(6 * markS);
+    needleRef.current?.setRadius(7 * markS);
+    const size = FINISH_ICON_SIZE * markS;
+    let cancelled = false;
+    (async () => {
+      const L = await import("leaflet");
+      if (cancelled || !finishRef.current) return;
+      finishRef.current.setIcon(
+        L.divIcon({
+          html: finishIconSvg(size),
+          className: "",
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [markS, ready]);
 
   /**
    * The ride's place name, reverse-geocoded from OpenStreetMap's Nominatim
