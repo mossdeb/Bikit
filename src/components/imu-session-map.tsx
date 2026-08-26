@@ -248,6 +248,20 @@ function finishIconSvg(S: number): string {
  * against a two-hundredth of the full map, and three impacts in a row read
  * as one blob sitting on the ride.
  */
+/**
+ * The cursor's mark, in the radii the full-size map is drawn with.
+ *
+ * Three circles and not one: a plain black dot was the same weight as an
+ * event point and got lost on a dark satellite among them, when it is the
+ * one mark that answers "where am I reading". The mint halo is the app's
+ * own idiom — the maintenance timeline draws its dots the same way, a ring
+ * at a quarter opacity around a solid core — and the pupil is what makes
+ * the disc read as a sight rather than a blob.
+ */
+const NEEDLE_HALO_R = 14;
+const NEEDLE_DISC_R = 7;
+const NEEDLE_PUPIL_R = 2.25;
+
 const COMPACT_BOX_PX = 200;
 const COMPACT_MARK_SCALE = 0.5;
 function markScale(el: HTMLElement | null): number {
@@ -310,7 +324,10 @@ export function ImuSessionMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
-  const needleRef = useRef<CircleMarker | null>(null);
+  /** The cursor's mark: three circles that move as one. */
+  const needleRef = useRef<LayerGroup | null>(null);
+  /** Its parts, held so a change of scale can re-radius each one. */
+  const needlePartsRef = useRef<CircleMarker[]>([]);
   const eventLayerRef = useRef<LayerGroup | null>(null);
   /** The dimmed whole-track context, repainted when the colour mode flips. */
   const baseTrackRef = useRef<LayerGroup | null>(null);
@@ -352,7 +369,11 @@ export function ImuSessionMap({
     if (startRef.current) raise(startRef.current);
     const map = mapRef.current;
     const needle = needleRef.current;
-    if (map && needle && map.hasLayer(needle)) raise(needle);
+    // `eachLayer` and not `raise` on the group: a LayerGroup has no
+    // `bringToFront`, so raising it did nothing the moment the needle grew
+    // from one circle into three. In insertion order — halo, disc, pupil —
+    // which is the order they have to end up in.
+    if (map && needle && map.hasLayer(needle)) needle.eachLayer(raise);
   };
   /** The latest seek callback, read at click time — the map is built once
    * and must not be torn down because a parent render remade the closure. */
@@ -494,15 +515,23 @@ export function ImuSessionMap({
       // rebuild them without touching the route or the needle.
       eventLayerRef.current = L.layerGroup().addTo(map);
 
-      // The needle: a plain black dot, added last so it paints above the
-      // event marks.
-      needleRef.current = L.circleMarker(track[0], {
-        radius: 7 * s0,
-        stroke: false,
-        fillColor: "#1c1c1c",
-        fillOpacity: 1,
-        interactive: false,
-      });
+      // The needle: halo, disc, pupil, built back to front so insertion
+      // order is already the paint order. Added last of everything so it
+      // sits above the event marks.
+      const needleCircle = (radius: number, color: string, opacity: number) =>
+        L.circleMarker(track[0], {
+          radius: radius * s0,
+          stroke: false,
+          fillColor: color,
+          fillOpacity: opacity,
+          interactive: false,
+        });
+      needlePartsRef.current = [
+        needleCircle(NEEDLE_HALO_R, "#43F3AF", 0.25),
+        needleCircle(NEEDLE_DISC_R, "#1c1c1c", 1),
+        needleCircle(NEEDLE_PUPIL_R, "#43F3AF", 1),
+      ];
+      needleRef.current = L.layerGroup(needlePartsRef.current);
 
       // Where north landed after the turn, measured rather than assumed:
       // project a due-north step and read its screen angle. Whatever sign
@@ -702,6 +731,7 @@ export function ImuSessionMap({
       stopVignetteFollowRef.current?.();
       stopVignetteFollowRef.current = null;
       needleRef.current = null;
+      needlePartsRef.current = [];
       eventLayerRef.current = null;
       baseTrackRef.current = null;
       sliceTrackRef.current = null;
@@ -758,7 +788,10 @@ export function ImuSessionMap({
   useEffect(() => {
     if (!ready) return;
     startRef.current?.setRadius(6 * markS);
-    needleRef.current?.setRadius(7 * markS);
+    const [halo, disc, pupil] = needlePartsRef.current;
+    halo?.setRadius(NEEDLE_HALO_R * markS);
+    disc?.setRadius(NEEDLE_DISC_R * markS);
+    pupil?.setRadius(NEEDLE_PUPIL_R * markS);
     const size = FINISH_ICON_SIZE * markS;
     let cancelled = false;
     (async () => {
@@ -923,7 +956,8 @@ export function ImuSessionMap({
     }
     const pos = gpsPositionAt(gps, cursorMs);
     if (!pos) return;
-    needle.setLatLng([pos.latDeg, pos.lonDeg]);
+    for (const part of needlePartsRef.current)
+      part.setLatLng([pos.latDeg, pos.lonDeg]);
     if (!map.hasLayer(needle)) needle.addTo(map);
   }, [cursorMs, gps, ready]);
 
