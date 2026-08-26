@@ -12,7 +12,6 @@ import {
   Bike,
   Check,
   ChevronDown,
-  ChevronsLeftRight,
   Gauge,
   Info,
   Minus,
@@ -603,13 +602,16 @@ export function ImuSessionAnalysis({
    * chart/map edge. The value rides a custom property because the grid only
    * exists from `lg` up, and an inline style cannot carry a breakpoint. */
   const [mapWidth, setMapWidth] = useState(MAP_DEFAULT_W);
-  /** Whether the pointer is close enough to the chart/map edge for the
-   * resize handle to show — the disc lives on the boundary and appears as
-   * the hand approaches it, instead of sitting on the map permanently. */
-  const [splitNear, setSplitNear] = useState(false);
-  /** Held true through a drag, so the handle cannot fade mid-gesture when
-   * the pointer overshoots the clamped boundary. */
+  /** Held true through a drag, so the handle stays in its grabbed colour
+   * while the pointer wanders off it — a drag keeps the pointer captured,
+   * and the bar going grey mid-gesture would say the grip had been lost. */
   const [splitActive, setSplitActive] = useState(false);
+  /** A mouse is over the handle. State and not `group-hover:`, because
+   * `hover:` in this build is NOT wrapped in `@media (hover: hover)` —
+   * measured in the generated CSS on 2026-08-25 — so a touch would leave
+   * the bar stuck black. Gating on `pointerType` is the hand-written
+   * version of the media query the utility does not carry. */
+  const [splitHover, setSplitHover] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
   const splitDragRef = useRef<{
     pointerId: number;
@@ -1170,21 +1172,11 @@ export function ImuSessionAnalysis({
       <div
         ref={splitRef}
         style={{ "--imu-map-w": `${mapWidth}px` } as React.CSSProperties}
-        // The handle only shows as the pointer nears the columns' edge —
-        // measured here on the wrapper, since the boundary is its grid's
-        // fact. Mouse only: a finger cannot hover, and below lg there is
-        // no boundary at all.
-        onPointerMove={(event) => {
-          if (!data.gps || !mapOn || event.pointerType !== "mouse") return;
-          const el = splitRef.current;
-          if (!el) return;
-          const boundary = el.getBoundingClientRect().right - mapWidth;
-          const near = Math.abs(event.clientX - boundary) < 48;
-          if (near !== splitNear) setSplitNear(near);
-        }}
-        onPointerLeave={() => {
-          if (splitNear) setSplitNear(false);
-        }}
+        // The proximity tracking that used to live here is gone with the
+        // fade: the handle is a bar that stands in the channel at all times,
+        // so nothing has to measure the pointer against the boundary on
+        // every move to decide whether to show it.
+        //
         // The grid's shape follows the switches: chart alone, chart with one
         // panel, or all three. Spelled out as whole literal classes because
         // Tailwind only generates what it can read in the source.
@@ -1401,6 +1393,11 @@ export function ImuSessionAnalysis({
               onPointerMove={moveMapResize}
               onPointerUp={endMapResize}
               onPointerCancel={endMapResize}
+              onPointerEnter={(event) => {
+                if (event.pointerType === "mouse") setSplitHover(true);
+              }}
+              onPointerLeave={() => setSplitHover(false)}
+              onBlur={() => setSplitHover(false)}
               onDoubleClick={() => setMapWidth(MAP_DEFAULT_W)}
               onKeyDown={(event) => {
                 if (event.key === "ArrowLeft")
@@ -1412,24 +1409,34 @@ export function ImuSessionAnalysis({
               }}
               // z above 1000: the Leaflet panes inside the sibling map div
               // carry z-indexes up to 1000 (controls) in this same stacking
-              // context, and at z-20 the map painted over the disc's half.
+              // context, and at z-20 the map painted over the handle.
               //
-              // Shown only as the pointer nears the boundary (or through a
-              // drag, or under keyboard focus) — faded out it also stops
-              // taking clicks, so the corner of map it straddles stays
-              // reachable.
-              className={cn(
-                // Half the gap to the left of the map's edge puts it in
-                // the middle of the channel between the two cards, where
-                // a dark disc reads against the page rather than against
-                // the dark map it would otherwise sit on.
-                "absolute top-1/2 left-0 z-[1100] hidden size-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background outline-none transition-opacity duration-150 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/50 lg:-ml-[9px] lg:flex",
-                splitNear || splitActive
-                  ? "opacity-100"
-                  : "pointer-events-none opacity-0",
-              )}
+              // The button is a 32px-wide grab area and the bar inside it is
+              // 4px of it. A 4px target is a target you miss; a 32px one
+              // that LOOKS 4px is the grip every split view uses. Centred on
+              // the channel between the cards — half the gap left of the
+              // map's edge — where it reads against the page instead of
+              // against the dark map it would otherwise sit on.
+              className="absolute top-1/2 left-0 z-[1100] hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px] lg:flex"
             >
-              <ChevronsLeftRight className="size-3.5" />
+              {/* Always there, and grey until the hand is on it. The disc it
+                  replaces only appeared within 48px of the boundary, which
+                  meant the split existed but nothing said so — you had to
+                  already know to go looking. A rule standing in the channel
+                  says "this edge moves" without asking for the page's
+                  attention.
+                  `--border` on the page is a hair too faint to read as a
+                  grip, so it takes the `--muted-foreground` at 40%, and goes
+                  to full `--foreground` under the hand or through a drag. */}
+              <span
+                aria-hidden
+                className={cn(
+                  "h-full w-1 rounded-full transition-colors",
+                  splitActive || splitHover
+                    ? "bg-foreground"
+                    : "bg-muted-foreground/40",
+                )}
+              />
             </button>
           </div>
         )}
