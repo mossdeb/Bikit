@@ -1197,11 +1197,11 @@ export function ImuSessionAnalysis({
         className={cn(
           "flex flex-col",
           data.gps && mapOn && dashOn
-            ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[18px]"
+            ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
             : data.gps && mapOn
-              ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[18px]"
+              ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
               : dashOn
-                ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-x-[18px]"
+                ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-x-[22px]"
                 : undefined,
         )}
       >
@@ -1460,7 +1460,7 @@ export function ImuSessionAnalysis({
             // plus `col-span-full` puts it across the foot of the grid,
             // where it stood as the block's last sibling before.
             //
-            // The 18px above it is a margin at every width from `sm`, and
+            // The 22px above it is a margin at every width from `sm`, and
             // the grid's gap was narrowed to `gap-x` so nothing adds to it.
             // The block used to get that space from the parent's `space-y`,
             // which stops reaching it a level down. Leaving it to a row gap
@@ -1470,7 +1470,7 @@ export function ImuSessionAnalysis({
             // came up flush against the plot. One rule owns the distance in
             // every combination. Zero only on a phone, where the top rule is
             // the divider and a gap would leave it floating.
-            "order-3 sm:mt-[18px] lg:order-4 lg:col-span-full",
+            "order-3 sm:mt-[22px] lg:order-4 lg:col-span-full",
             // The identity card's treatment, and only from `sm` for the same
             // reason the hairline is: below that this is a transparent section
             // inside the one big card, and neither a translucent fill nor a
@@ -1738,20 +1738,22 @@ function SessionCards({
         {header}
         {resume}
       </div>
-      {/* `mt-10` — 40px above this block against the page's 18, so the
-          recording's identity and its reading read as two chapters and not
-          as two cards in a list. On the scale rather than an arbitrary 42:
-          it is a step the rest of the app already speaks, and it happens to
-          be twice the 20px margin the app takes as its base.
+      {/* `mt-5` — 20px above this block, half the 40 it carried. The 40 was
+          there to make the recording's identity and its reading read as two
+          chapters rather than two cards in a list, and it no longer has to
+          do that work alone: the block below now opens on the page with its
+          own switch row and the plot's head, which separate the two on their
+          own.
 
           Written as a margin on this side and not as a bigger `space-y`
           above, which would have stretched every gap on the page. And it has
           to be LARGER than the 18px the `space-y` puts under the card above:
           adjacent sibling margins collapse to the greater of the two rather
-          than adding up, so a matching 18 here would have changed nothing. */}
+          than adding up, so anything up to 18 here would change nothing —
+          which is also the floor this value cannot go under. */}
       <div
         className={cn(
-          "mt-10 rounded-lg bg-card sm:space-y-[18px] sm:rounded-none sm:bg-transparent",
+          "mt-5 rounded-lg bg-card sm:space-y-[18px] sm:rounded-none sm:bg-transparent",
           // A card only on a phone: the ring goes with the background.
           DARK_CARD_HAIRLINE,
           "sm:dark:ring-0",
