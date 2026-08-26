@@ -1124,10 +1124,13 @@ export function ImuSessionAnalysis({
           — see below — and this copy stands down. "Velocidade" and
           "Altitude" stay listed but disabled without a GPS track, because a
           line invented from acceleration would lie. */}
+      {/* No panel switches in this copy: on a phone the Rider panel is not
+          shown at all and the map is a thumbnail that costs nothing to
+          leave standing, so both switches would govern something the reader
+          cannot see the point of. Two menus, one row. */}
       <div className="grid grid-cols-2 gap-1.5 px-5 pt-[22px] pb-5 sm:hidden">
         {metricsMenu}
         {eventsMenu}
-        {panelToggles}
       </div>
 
       {/* Every control for this screen on one row, in the order of the
@@ -1175,24 +1178,31 @@ export function ImuSessionAnalysis({
         // The grid's shape follows the switches: chart alone, chart with one
         // panel, or all three. Spelled out as whole literal classes because
         // Tailwind only generates what it can read in the source.
+        //
+        // `flex flex-col` below `lg` so `order` has a formatting context to
+        // work in: stacked, this was a plain block and `order` is inert
+        // there. No `gap` with it — the children keep their own `mt-4`, and
+        // since the phone's first item carries none while the rest do, the
+        // spacing lands the same as when they stacked in source order.
         className={cn(
+          "flex flex-col",
           data.gps && mapOn && dashOn
-            ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-[18px]"
+            ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[18px]"
             : data.gps && mapOn
-              ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-[18px]"
+              ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[18px]"
               : dashOn
-                ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-[18px]"
+                ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-x-[18px]"
                 : undefined,
         )}
       >
-        {/* The columns are reordered by `order` and not by moving these
-            blocks: on a phone they stack in source order, and there the
-            chart has to come first — it is the thing you drag, and the
-            panels below it only say what the cursor found. `order` is
-            inert until the grid engages at `lg`. */}
+        {/* The four blocks are placed by `order` and not by moving them in
+            the source. The chart comes first on either layout — it is the
+            thing you drag, and everything else only says what the cursor
+            found. Phone: chart, map, reading, Rider. Desktop: Rider, chart,
+            map, then the reading across the foot. */}
         <div
           className={cn(
-            "min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5 lg:order-2",
+            "order-1 min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5 lg:order-2",
             DARK_CARD_HAIRLINE_SM,
           )}
         >
@@ -1256,10 +1266,21 @@ export function ImuSessionAnalysis({
             // No padding on the card itself: its sections are told apart by
             // rules that have to reach both edges, and a padded card would
             // hold every one of them off by 15px. Each section pads itself
-            // instead — 15px inside the card, the lab's page margin on a
-            // phone, where this panel has no card of its own.
+            // instead.
+            //
+            // Off the phone entirely. It is the one block that says nothing
+            // the plot and the reading have not already said — a dial and
+            // two attitudes of the instant under a cursor you are holding
+            // with the same thumb — and on a screen you scroll it was a
+            // whole panel between the reader and the end of the page. Hidden
+            // and not unmounted: the same instance is back at `sm` with no
+            // state to rebuild.
+            //
+            // `order-4` is still live where it IS shown and stacked — the
+            // `sm`-to-`lg` band — and puts it under the reading there for
+            // the same reason. From `lg` it is the first column again.
             className={cn(
-              "mt-4 min-w-0 sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
+              "order-4 mt-4 hidden min-w-0 sm:flex sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
               DARK_CARD_HAIRLINE_SM,
             )}
           />
@@ -1361,221 +1382,241 @@ export function ImuSessionAnalysis({
             </button>
           </div>
         )}
-      </div>
 
-      {/* Details of the instant under the cursor — the headline is the main
-          event (or "Andamento normal"), its figures computed from the raw
-          channels over the event's window, and the raw sample itself sits
-          underneath, all channels, whatever the chart is drawing.
+        {/* Details of the instant under the cursor — the headline is the main
+            event (or "Andamento normal"), its figures computed from the raw
+            channels over the event's window, and the raw sample itself sits
+            underneath, all channels, whatever the chart is drawing.
 
-          The floor exists because this card is read WHILE scrubbing, and its
-          content changes size under the cursor: an instant no event covers
-          carries one figure, a curve carries five over two rows. Left to its
-          natural height the page grew and shrank with every event the cursor
-          crossed, which moves everything on screen. 248px is the tallest
-          single-card reading measured (a curve, at 200px of card inside 48px
-          of padding) — enough that entering or leaving an event moves
-          nothing. Two events at the same instant — an impact inside a rough
-          section — still stack two cards and still grow past it. */}
-      <div
-        className={cn(
-          "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card/40 sm:p-6",
-          // The identity card's treatment, and only from `sm` for the same
-          // reason the hairline is: below that this is a transparent section
-          // inside the one big card, and neither a translucent fill nor a
-          // ring means anything there. The light outline is what the 40%
-          // fill costs — #f5f5f5 against the page's #efefef no longer draws
-          // its own edge. Dark keeps the hairline's 60%.
-          "sm:ring-1 sm:ring-inset sm:ring-border",
-          DARK_CARD_HAIRLINE_SM,
-        )}
-      >
-        {cursorIndex < 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Toca ou arrasta sobre o gráfico para ler um instante.
-          </p>
-        ) : (
-          // Desktop reads the two side by side — the channels on the left, the
-          // event on the right — because they answer the same instant from two
-          // directions and stacking them puts a scroll between the question and
-          // its answer. The phone keeps them stacked, channels first.
-          <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
-            {/* Only what the chart is drawing — toggling a pill toggles its
-                reading here too. Each channel is a row of its own, ruled off
-                from the next. The recorded ones carry no heading; the computed
-                ones keep theirs, because "Derivadas (calculadas)" is the label
-                that says where roughness/jerk/lean come from.
+            The floor exists because this card is read WHILE scrubbing, and its
+            content changes size under the cursor: an instant no event covers
+            carries one figure, a curve carries five over two rows. Left to its
+            natural height the page grew and shrank with every event the cursor
+            crossed, which moves everything on screen. 248px is the tallest
+            single-card reading measured (a curve, at 200px of card inside 48px
+            of padding) — enough that entering or leaving an event moves
+            nothing. Two events at the same instant — an impact inside a rough
+            section — still stack two cards and still grow past it. */}
+        <div
+          className={cn(
+            "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card/40 sm:p-6",
+            // It lives inside the columns block now, which is what lets the
+            // Rider panel fall past it on a phone — `order` can only shuffle
+            // siblings, and these two were in different parents.
+            //
+            // `order-3` on a phone: third of four, straight after the map,
+            // still flush against it with its own top rule. `lg:order-4`
+            // plus `col-span-full` puts it across the foot of the grid,
+            // where it stood as the block's last sibling before.
+            //
+            // The 18px above it is a margin at every width from `sm`, and
+            // the grid's gap was narrowed to `gap-x` so nothing adds to it.
+            // The block used to get that space from the parent's `space-y`,
+            // which stops reaching it a level down. Leaving it to a row gap
+            // instead does not cover the case where both panels are off:
+            // there the grid never engages, the container stays a flex
+            // column, and there is no row gap to give — measured, the card
+            // came up flush against the plot. One rule owns the distance in
+            // every combination. Zero only on a phone, where the top rule is
+            // the divider and a gap would leave it floating.
+            "order-3 sm:mt-[18px] lg:order-4 lg:col-span-full",
+            // The identity card's treatment, and only from `sm` for the same
+            // reason the hairline is: below that this is a transparent section
+            // inside the one big card, and neither a translucent fill nor a
+            // ring means anything there. The light outline is what the 40%
+            // fill costs — #f5f5f5 against the page's #efefef no longer draws
+            // its own edge. Dark keeps the hairline's 60%.
+            "sm:ring-1 sm:ring-inset sm:ring-border",
+            DARK_CARD_HAIRLINE_SM,
+          )}
+        >
+          {cursorIndex < 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Toca ou arrasta sobre o gráfico para ler um instante.
+            </p>
+          ) : (
+            // Desktop reads the two side by side — the channels on the left, the
+            // event on the right — because they answer the same instant from two
+            // directions and stacking them puts a scroll between the question and
+            // its answer. The phone keeps them stacked, channels first.
+            <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
+              {/* Only what the chart is drawing — toggling a pill toggles its
+                  reading here too. Each channel is a row of its own, ruled off
+                  from the next. The recorded ones carry no heading; the computed
+                  ones keep theirs, because "Derivadas (calculadas)" is the label
+                  that says where roughness/jerk/lean come from.
 
-                The box is a desktop affair: on a phone these rows already have
-                the section to themselves and a border would be a frame around
-                the whole screen width. */}
-            <div className="lg:rounded-[12px] lg:border lg:border-border lg:bg-card lg:p-5">
-              {[
-                {
-                  key: "raw",
-                  heading: null,
-                  defs: activeSeriesDefs.filter(
-                    (def) => !DERIVED_IDS.has(def.id),
-                  ),
-                },
-                {
-                  key: "derived",
-                  heading: "Derivadas (calculadas)",
-                  defs: activeSeriesDefs.filter((def) =>
-                    DERIVED_IDS.has(def.id),
-                  ),
-                },
-              ]
-                .filter((group) => group.defs.length > 0)
-                .map((group, gi) => (
-                  <div key={group.key}>
-                    {group.heading && (
-                      <p
-                        className={cn(
-                          "text-xs font-medium text-muted-foreground",
-                          gi > 0 && "mt-5 border-t border-border pt-5",
-                        )}
-                      >
-                        {group.heading}
-                      </p>
-                    )}
-                    {group.defs.map((def, i) => (
-                      <div
-                        key={def.id}
-                        className={cn(
-                          // The rule separates one channel from the next, so
-                          // the first of a group never carries one: above it
-                          // there is either the group's heading or the top of
-                          // the panel, both of which already close the space.
-                          i > 0
-                            ? "mt-5 border-t border-border pt-5"
-                            : group.heading
-                              ? "mt-3"
-                              : gi > 0 && "mt-5",
-                        )}
-                      >
-                        {/* Both lines are `leading-tight` and carry no margin
-                          between them: at this size the gap that shows is
-                          half-leading, not margin, so tightening the boxes is
-                          what halves it — the bike header's totals again. */}
-                        <div className="flex items-baseline justify-between gap-2 leading-tight">
-                          {/* A column of its own width, wide enough for the
-                              longest name this panel has: it is what anchors
-                              the gauge that follows to the same x in every
-                              row, whatever the name's length. */}
-                          <span className="flex w-[116px] shrink-0 items-center gap-1.5 text-base">
-                            <span
-                              aria-hidden
-                              className="size-2 shrink-0 rounded-full"
-                              style={{ backgroundColor: def.color }}
-                            />
-                            {/* The name is the only part allowed to give: if
-                                a longer one ever arrives it ellipsizes rather
-                                than pushing the gauge out of column. */}
-                            <span className="truncate">{def.label}</span>
-                            {/* The full sentence moved behind the (i) so the
-                              line under the name can be a two-word summary.
-                              A popover and not a tooltip: this is read on a
-                              phone, and hover is not a thing a finger does. */}
-                            <Popover>
-                              <PopoverTrigger
-                                aria-label={`O que é ${def.label}`}
-                                className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-                              >
-                                <Info className="size-3.5" />
-                              </PopoverTrigger>
-                              <PopoverContent align="start" className="p-4">
-                                <p className="text-sm font-semibold">
-                                  {def.label}
-                                </p>
-                                <p className="mt-1.5 text-sm text-muted-foreground">
-                                  {def.description}
-                                </p>
-                              </PopoverContent>
-                            </Popover>
-                          </span>
-                          {/* Every channel carries a gauge, and its full end
-                            is that channel's own peak in this session — for
-                            the G force, the same 7.41 printed up in the stats.
-                            Nothing global: two recordings are not on the same
-                            scale, and saying so would invent a comparison the
-                            data does not support. */}
-                          <MetricGauge
-                            value={seriesValues[def.id][cursorIndex]}
-                            peak={seriesPeaks[def.id]}
-                            signed={!UNSIGNED_IDS.has(def.id)}
-                            className="mr-3 self-center"
-                          />
-                          {/* The reading sits in a cell of its own width, so
-                              the gauge beside it lands at the same x in every
-                              row and stays there: without it a sign appearing
-                              or an integer digit arriving shoved every ramp
-                              sideways while the cursor moved. 104px covers a
-                              signed gyro reading in the hundreds, the widest
-                              this file can produce; the phone gives up the
-                              slack it does not have. */}
-                          <span className="min-w-[92px] text-right font-medium tabular-nums whitespace-nowrap sm:min-w-[104px]">
-                            {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
-                            <span className="text-sm text-muted-foreground">
-                              {def.unit}
-                            </span>
-                          </span>
-                        </div>
-                        <p className="pl-3.5 text-sm leading-tight text-muted-foreground">
-                          {def.summary}
+                  The box is a desktop affair: on a phone these rows already have
+                  the section to themselves and a border would be a frame around
+                  the whole screen width. */}
+              <div className="lg:rounded-[12px] lg:border lg:border-border lg:bg-card lg:p-5">
+                {[
+                  {
+                    key: "raw",
+                    heading: null,
+                    defs: activeSeriesDefs.filter(
+                      (def) => !DERIVED_IDS.has(def.id),
+                    ),
+                  },
+                  {
+                    key: "derived",
+                    heading: "Derivadas (calculadas)",
+                    defs: activeSeriesDefs.filter((def) =>
+                      DERIVED_IDS.has(def.id),
+                    ),
+                  },
+                ]
+                  .filter((group) => group.defs.length > 0)
+                  .map((group, gi) => (
+                    <div key={group.key}>
+                      {group.heading && (
+                        <p
+                          className={cn(
+                            "text-xs font-medium text-muted-foreground",
+                            gi > 0 && "mt-5 border-t border-border pt-5",
+                          )}
+                        >
+                          {group.heading}
                         </p>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-            </div>
-
-            {/* The instant's headline event as a card of its own: mark, name,
-                confidence, then its figures as labelled columns.
-
-                "Andamento normal" is the card for an instant no event covers,
-                and it lives under the same switch: turning events off leaves
-                the channels alone, with no card and no column at all. */}
-            {eventsOn && (
-              <div className="mt-5 lg:mt-0">
-                <EventCard
-                  title={primaryDesc ? primaryDesc.title : null}
-                  Icon={primaryDesc ? primaryDesc.Icon : Bike}
-                  timeMs={tMs[cursorIndex]}
-                  confidence={primaryEvent?.confidence ?? null}
-                  metrics={
-                    primaryDesc
-                      ? primaryDesc.metrics
-                      : [
-                          {
-                            label: "Força G",
-                            value: gForce[cursorIndex].toFixed(2),
-                            unit: "G",
-                          },
-                        ]
-                  }
-                />
-
-                {/* Anything else covering the same instant — a rough section
-                    under an impact, say — gets the same card, one rung
-                    quieter. */}
-                {cursorEvents.slice(1).map((event, i) => {
-                  const desc = describeEvent(event, eventContext);
-                  return (
-                    <EventCard
-                      key={i}
-                      className="mt-2"
-                      title={desc.title}
-                      Icon={desc.Icon}
-                      confidence={event.confidence}
-                      metrics={desc.metrics}
-                    />
-                  );
-                })}
+                      )}
+                      {group.defs.map((def, i) => (
+                        <div
+                          key={def.id}
+                          className={cn(
+                            // The rule separates one channel from the next, so
+                            // the first of a group never carries one: above it
+                            // there is either the group's heading or the top of
+                            // the panel, both of which already close the space.
+                            i > 0
+                              ? "mt-5 border-t border-border pt-5"
+                              : group.heading
+                                ? "mt-3"
+                                : gi > 0 && "mt-5",
+                          )}
+                        >
+                          {/* Both lines are `leading-tight` and carry no margin
+                            between them: at this size the gap that shows is
+                            half-leading, not margin, so tightening the boxes is
+                            what halves it — the bike header's totals again. */}
+                          <div className="flex items-baseline justify-between gap-2 leading-tight">
+                            {/* A column of its own width, wide enough for the
+                                longest name this panel has: it is what anchors
+                                the gauge that follows to the same x in every
+                                row, whatever the name's length. */}
+                            <span className="flex w-[116px] shrink-0 items-center gap-1.5 text-base">
+                              <span
+                                aria-hidden
+                                className="size-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: def.color }}
+                              />
+                              {/* The name is the only part allowed to give: if
+                                  a longer one ever arrives it ellipsizes rather
+                                  than pushing the gauge out of column. */}
+                              <span className="truncate">{def.label}</span>
+                              {/* The full sentence moved behind the (i) so the
+                                line under the name can be a two-word summary.
+                                A popover and not a tooltip: this is read on a
+                                phone, and hover is not a thing a finger does. */}
+                              <Popover>
+                                <PopoverTrigger
+                                  aria-label={`O que é ${def.label}`}
+                                  className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                                >
+                                  <Info className="size-3.5" />
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="p-4">
+                                  <p className="text-sm font-semibold">
+                                    {def.label}
+                                  </p>
+                                  <p className="mt-1.5 text-sm text-muted-foreground">
+                                    {def.description}
+                                  </p>
+                                </PopoverContent>
+                              </Popover>
+                            </span>
+                            {/* Every channel carries a gauge, and its full end
+                              is that channel's own peak in this session — for
+                              the G force, the same 7.41 printed up in the stats.
+                              Nothing global: two recordings are not on the same
+                              scale, and saying so would invent a comparison the
+                              data does not support. */}
+                            <MetricGauge
+                              value={seriesValues[def.id][cursorIndex]}
+                              peak={seriesPeaks[def.id]}
+                              signed={!UNSIGNED_IDS.has(def.id)}
+                              className="mr-3 self-center"
+                            />
+                            {/* The reading sits in a cell of its own width, so
+                                the gauge beside it lands at the same x in every
+                                row and stays there: without it a sign appearing
+                                or an integer digit arriving shoved every ramp
+                                sideways while the cursor moved. 104px covers a
+                                signed gyro reading in the hundreds, the widest
+                                this file can produce; the phone gives up the
+                                slack it does not have. */}
+                            <span className="min-w-[92px] text-right font-medium tabular-nums whitespace-nowrap sm:min-w-[104px]">
+                              {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
+                              <span className="text-sm text-muted-foreground">
+                                {def.unit}
+                              </span>
+                            </span>
+                          </div>
+                          <p className="pl-3.5 text-sm leading-tight text-muted-foreground">
+                            {def.summary}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* The instant's headline event as a card of its own: mark, name,
+                  confidence, then its figures as labelled columns.
+
+                  "Andamento normal" is the card for an instant no event covers,
+                  and it lives under the same switch: turning events off leaves
+                  the channels alone, with no card and no column at all. */}
+              {eventsOn && (
+                <div className="mt-5 lg:mt-0">
+                  <EventCard
+                    title={primaryDesc ? primaryDesc.title : null}
+                    Icon={primaryDesc ? primaryDesc.Icon : Bike}
+                    timeMs={tMs[cursorIndex]}
+                    confidence={primaryEvent?.confidence ?? null}
+                    metrics={
+                      primaryDesc
+                        ? primaryDesc.metrics
+                        : [
+                            {
+                              label: "Força G",
+                              value: gForce[cursorIndex].toFixed(2),
+                              unit: "G",
+                            },
+                          ]
+                    }
+                  />
+
+                  {/* Anything else covering the same instant — a rough section
+                      under an impact, say — gets the same card, one rung
+                      quieter. */}
+                  {cursorEvents.slice(1).map((event, i) => {
+                    const desc = describeEvent(event, eventContext);
+                    return (
+                      <EventCard
+                        key={i}
+                        className="mt-2"
+                        title={desc.title}
+                        Icon={desc.Icon}
+                        confidence={event.confidence}
+                        metrics={desc.metrics}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </SessionCards>
   );
