@@ -94,16 +94,33 @@ export function ImuDocGlyph({ className }: { className?: string }) {
 
 /**
  * The "Bikit PRO" lockup the IMU lab wears — supplied art (logo_pro3). The
- * tile and the PRO chip keep their fixed colors in both themes; the wordmark
- * rides currentColor, because a fixed near-black vanishes on the dark theme's
- * background. Lab branding only; nothing else in the app uses this mark.
+ * tile keeps its mint in both themes; the wordmark rides currentColor,
+ * because a fixed near-black vanishes on the dark theme's background. Lab
+ * branding only; nothing else in the app uses this mark.
+ *
+ * `onDark` is for a surface that is dark in BOTH themes — the sidebar rail,
+ * which is `--sidebar` whatever the page around it does. There the chip's
+ * near-black plate lands on near-black and stops being a plate at all, so it
+ * trades places with its letters: mint plate, dark type. The theme-following
+ * variant cannot cover this, because the surface does not follow the theme.
  */
-export function ImuProLogo({ className }: { className?: string }) {
+export function ImuProLogo({
+  className,
+  onDark = false,
+}: {
+  className?: string;
+  onDark?: boolean;
+}) {
+  const chipPlate = onDark ? "#43F3AF" : "#0B0B0B";
+  const chipType = onDark ? "#0B0B0B" : "#43F3AF";
   return (
     <svg
       viewBox="0 0 356 102"
       fill="none"
-      className={cn("text-[#101014] dark:text-foreground", className)}
+      className={cn(
+        onDark ? "text-white" : "text-[#101014] dark:text-foreground",
+        className,
+      )}
       aria-label="Bikit Pro"
       role="img"
     >
@@ -129,11 +146,11 @@ export function ImuProLogo({ className }: { className?: string }) {
         width="90.6875"
         height="51.3125"
         rx="15.4688"
-        fill="#0B0B0B"
+        fill={chipPlate}
       />
       <path
         d="M280.371 55.7299V52.3816H287.491C289.105 52.3816 290.274 51.9849 291.001 51.1915C291.74 50.3846 292.11 49.2685 292.11 47.8431V46.0882C292.11 44.6225 291.747 43.4996 291.021 42.7197C290.295 41.9398 289.131 41.5498 287.531 41.5498H280.35V38.2216H287.612C290.57 38.2216 292.729 38.9074 294.087 40.279C295.458 41.6372 296.144 43.54 296.144 45.9874V47.944C296.144 50.3914 295.458 52.3009 294.087 53.6725C292.715 55.0441 290.55 55.7299 287.592 55.7299H280.371ZM277.708 64V38.2216H281.682V53.3699L281.702 55.1853V64H277.708ZM315.463 64L314.777 58.7757C314.656 57.821 314.441 57.0074 314.132 56.3351C313.836 55.6492 313.372 55.1181 312.74 54.7416C312.108 54.365 311.227 54.1768 310.098 54.1768L303.381 54.1566V50.9696L310.521 50.9494C312.175 50.9494 313.359 50.5527 314.071 49.7593C314.784 48.966 315.14 47.8633 315.14 46.4513V45.8865C315.14 44.5015 314.777 43.4324 314.051 42.6794C313.325 41.9263 312.122 41.5498 310.441 41.5498H303.3V38.2216H311.005C313.87 38.2216 315.954 38.8334 317.258 40.0571C318.576 41.2808 319.235 42.9886 319.235 45.1806V45.826C319.235 47.4531 318.859 48.7844 318.106 49.8199C317.366 50.8553 316.122 51.5075 314.374 51.7764V52.3009L312.68 51.7159C314.172 51.8235 315.322 52.1462 316.129 52.6841C316.949 53.222 317.548 53.9616 317.924 54.9029C318.301 55.8442 318.59 56.9873 318.791 58.332L319.659 64H315.463ZM300.597 64V38.2216H304.571V52.079L304.591 53.5918V64H300.597ZM333.418 64.5244C330.056 64.5244 327.501 63.61 325.753 61.7812C324.018 59.9524 323.151 57.3369 323.151 53.9347V48.2667C323.151 44.878 324.018 42.2692 325.753 40.4404C327.501 38.6116 330.056 37.6971 333.418 37.6971C336.779 37.6971 339.328 38.6116 341.062 40.4404C342.81 42.2692 343.685 44.878 343.685 48.2667V53.9347C343.685 57.3369 342.81 59.9524 341.062 61.7812C339.328 63.61 336.779 64.5244 333.418 64.5244ZM333.418 61.1559C335.462 61.1559 336.994 60.5441 338.016 59.3204C339.052 58.0832 339.57 56.3418 339.57 54.0961V48.1053C339.57 45.8462 339.052 44.1115 338.016 42.9012C336.994 41.6775 335.462 41.0657 333.418 41.0657C331.374 41.0657 329.834 41.6775 328.798 42.9012C327.776 44.1115 327.265 45.8462 327.265 48.1053V54.0961C327.265 56.3418 327.776 58.0832 328.798 59.3204C329.834 60.5441 331.374 61.1559 333.418 61.1559Z"
-        fill="#43F3AF"
+        fill={chipType}
       />
     </svg>
   );

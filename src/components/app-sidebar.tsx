@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { LogoMark } from "@/components/logo";
+import { ImuProLogo } from "@/components/imu-pro-logo";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -28,6 +29,8 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
   const [override, setOverride] = useState<boolean | null>(null);
 
   const expanded = mounted && (override ?? localStorage.getItem(STORAGE_KEY) === "1");
+  /** Same route test the mobile header's logo uses, so the two agree. */
+  const isLab = pathname.startsWith("/labs/imu");
 
   function toggle() {
     const next = !expanded;
@@ -42,9 +45,24 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
         expanded ? "w-[232px] items-stretch px-4" : "w-[84px] items-center px-0"
       )}
     >
+      {/* The rail wears the lab's branding too, not just the phone's header:
+          on desktop the sidebar IS the place the app names itself, and
+          standing inside `/labs/imu` under a plain "Bikit" said the lab was
+          somewhere else.
+          Only while expanded — collapsed the rail is 84px and the lockup
+          wants ~140 at this height, so there the mark stands alone, which
+          is the same mark either way. */}
       <div className="mb-8 flex items-center gap-2.5 px-1">
-        <LogoMark />
-        {expanded && <span className="font-display text-lg font-bold">Bikit</span>}
+        {isLab && expanded ? (
+          <ImuProLogo onDark className="h-10 w-auto" />
+        ) : (
+          <>
+            <LogoMark />
+            {expanded && (
+              <span className="font-display text-lg font-bold">Bikit</span>
+            )}
+          </>
+        )}
       </div>
 
       <nav className="flex flex-1 flex-col gap-1.5">
