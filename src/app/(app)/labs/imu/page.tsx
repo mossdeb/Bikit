@@ -62,7 +62,9 @@ export default async function ImuLabPage() {
       <ImuLabTexture />
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Sessões IMU</h1>
+          {/* "Sessões" and not "Sessões IMU": the lockup above it already
+              says which lab this is, and the page was naming itself twice. */}
+          <h1 className="font-display text-2xl font-bold">Sessões</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Importe e analise sessões gravadas pelo sensor IMU.
           </p>
