@@ -1310,7 +1310,24 @@ export function ImuSessionAnalysis({
           // `//` and not `{/* */}`: this div is the whole of a `&&`
           // expression, and a JSX comment there is a second child where only
           // one is allowed. That trap has now bitten seven times.
-          <div className="relative isolate mt-4 min-w-0 lg:order-3 lg:mt-0">
+          // A thumbnail on the phone, a card everywhere else. The full-width
+          // band was 280px of satellite between the plot and its reading,
+          // and it made the map the subject of a screen whose subject is the
+          // numbers — you scrolled past a picture to reach them.
+          //
+          // 104px square, held to the right, and lifted by a negative top
+          // margin so it rides over the plot's bottom corner. The small
+          // negative bottom margin is what lets the reading's top rule pass
+          // BEHIND it instead of stopping at it: the tile contributes
+          // 104−36−8 = 60px of flow, and draws over both neighbours because
+          // `relative` puts it above two siblings that are not positioned.
+          //
+          // The 36 is measured, not chosen: the plot's axis line — the two
+          // times and "envelope ~75 ms" — ends exactly 40px above the card's
+          // foot, so a taller lift covered the word. What it does cover is
+          // the right half of the zoom row, which is empty even with "Repor
+          // zoom" showing.
+          <div className="relative isolate order-2 -mt-9 -mb-2 ml-auto h-[104px] w-[104px] min-w-0 sm:mt-4 sm:mb-0 sm:ml-0 sm:h-auto sm:w-auto lg:order-3 lg:mt-0">
             <ImuSessionMap
               gps={data.gps}
               events={
@@ -1329,7 +1346,11 @@ export function ImuSessionAnalysis({
               // and needs no help; in the dark one it is #1c1c1c against
               // #17181b, the same vanishing edge every other card had.
               className={cn(
-                "h-[280px] border-y border-border sm:rounded-lg sm:border-0 lg:h-full",
+                // The rules that ran the band's full width are gone with the
+                // band: a 104px tile is an object with corners, not a strip
+                // of page, so it takes a radius instead. From `sm` it is the
+                // card it always was.
+                "h-full rounded-[14px] sm:h-[280px] sm:rounded-lg lg:h-full",
                 DARK_CARD_HAIRLINE_SM,
               )}
             />

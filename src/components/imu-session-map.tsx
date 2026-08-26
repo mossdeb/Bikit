@@ -137,6 +137,11 @@ function paintTrack(
   pace: number[] | null,
   opacity: number,
   weight: number,
+  /** Rides on every segment so a stylesheet can reach the track and nothing
+   * else: the markers are `<path>` too, and a blanket rule would thin the
+   * event dots' rings along with the line. Used to take 2px off both tracks
+   * on the phone's thumbnail — see globals.css. */
+  className: string,
 ) {
   layer.clearLayers();
   const { pts, speeds } = track;
@@ -146,6 +151,7 @@ function paintTrack(
       color: "#43F3AF",
       weight,
       opacity,
+      className,
       interactive: false,
     }).addTo(layer);
     return;
@@ -156,6 +162,7 @@ function paintTrack(
       color: `hsl(${Math.round(t * 130)} 80% 45%)`,
       weight,
       opacity,
+      className,
       lineCap: "round",
       interactive: false,
     }).addTo(layer);
@@ -189,6 +196,19 @@ function readCachedPlace(gps: GpsChannels): string | null {
  * for a divIcon — the start is a plain mint dot and the needle a black one,
  * so the finish is the only mark that needs to say "finish" by itself. */
 const FINISH_ICON_SIZE = 18;
+
+/** Breathing room around the fitted route, in pixels a side.
+ *
+ * Proportional and not the flat 24 it used to be: on the phone's thumbnail
+ * the box is ~104px, and 24 a side spent nearly half of it on margin — the
+ * ride came out a squiggle in the middle. A twelfth of the shorter side
+ * keeps the same look at every size, capped at the 24 the big map was
+ * drawn with and floored at 6 so the finish disc never touches the edge. */
+function fitPadding(el: HTMLElement | null): [number, number] {
+  const side = el ? Math.min(el.clientWidth, el.clientHeight) : 0;
+  const pad = side ? Math.min(24, Math.max(6, Math.round(side / 12))) : 24;
+  return [pad, pad];
+}
 const FINISH_ICON_SVG = (() => {
   const S = FINISH_ICON_SIZE;
   const cell = S / 4;
@@ -273,6 +293,11 @@ export function ImuSessionMap({
   const sliceTrackRef = useRef<LayerGroup | null>(null);
   /** The start dot — ref'd only so restacking can raise it. */
   const startRef = useRef<CircleMarker | null>(null);
+  /** True while the view is still the fitted whole route, false once the
+   * reader has zoomed, stepped or dragged it somewhere of their own. It is
+   * what tells a resize whether it may re-frame — see the observer. The
+   * crosshair sets it back, since re-framing is exactly what it does. */
+  const framedRef = useRef(true);
   /** The whole route's bounds — what the crosshair reframes to. */
   const boundsRef = useRef<LatLngBounds | null>(null);
   /** Cancels the vignette's per-frame follow — held so teardown can stop a
@@ -401,7 +426,9 @@ export function ImuSessionMap({
       // "Set map center and zoom first".
       map.setView(track[Math.floor(track.length / 2)], 15);
       boundsRef.current = L.latLngBounds(track);
-      map.fitBounds(boundsRef.current, { padding: [24, 24] });
+      map.fitBounds(boundsRef.current, {
+        padding: fitPadding(containerRef.current),
+      });
 
       // Start and finish, fixed for the session: a small mint dot where the
       // recording began, the checkered disc where it ended. Not interactive
@@ -578,15 +605,45 @@ export function ImuSessionMap({
             map.getZoom() - event.deltaY * (0.055 / Math.LN2),
           ),
         );
+        framedRef.current = false;
         map.setZoomAround(map.mouseEventToLatLng(event), zoom);
       };
       container.addEventListener("wheel", onWheel, { passive: false });
       removeWheel = () => container.removeEventListener("wheel", onWheel);
 
-      // The container changes size with the breakpoint (fixed height on a
-      // phone, stretched to the chart's row on desktop) — Leaflet only
+      // The reader taking the view over. Listed one by one rather than hung
+      // off `zoomstart`, which our own `fitBounds` fires too and which would
+      // therefore disarm the re-framing the first time it ran. `dragstart`
+      // covers a two-finger pinch as well, since a pinch drags.
+      map.on("dragstart", () => {
+        framedRef.current = false;
+      });
+      map.on("dblclick", () => {
+        framedRef.current = false;
+      });
+
+      // The container changes size with the breakpoint (a 104px thumbnail on
+      // a phone, stretched to the chart's row on desktop) — Leaflet only
       // measures itself on init, so every resize must be reported.
-      observer = new ResizeObserver(() => map.invalidateSize());
+      //
+      // And re-framed, while the framing is still the one WE chose. A zoom
+      // level fitted to a 104px square shows several times the ground in a
+      // 300×455 card, which is what a phone turning to landscape does: it
+      // crosses `sm`, the thumbnail becomes a card, and the route arrives as
+      // a squiggle in the middle of it. `invalidateSize` alone cannot know
+      // that — it keeps the zoom and hands you more map.
+      //
+      // Guarded by `framed`, because re-fitting a view the reader chose
+      // would be worse than the problem: dragging the desktop separator
+      // resizes this box continuously, and someone zoomed into a corner
+      // would be thrown back to the whole ride mid-drag.
+      observer = new ResizeObserver(() => {
+        map.invalidateSize();
+        if (!framedRef.current || !boundsRef.current) return;
+        map.fitBounds(boundsRef.current, {
+          padding: fitPadding(containerRef.current),
+        });
+      });
       observer.observe(container);
 
       mapRef.current = map;
@@ -743,6 +800,7 @@ export function ImuSessionMap({
         speedOn ? speedDistribution(gps) : null,
         0.3,
         3,
+        "imu-track-base",
       );
       restack();
     })();
@@ -771,6 +829,7 @@ export function ImuSessionMap({
         speedOn ? speedDistribution(gps) : null,
         1,
         5,
+        "imu-track-slice",
       );
       restack();
     })();
@@ -809,19 +868,30 @@ export function ImuSessionMap({
       <div
         ref={containerRef}
         aria-label="Percurso da sessão no mapa"
-        className="absolute inset-0"
+        // Deaf to the pointer on a phone, where this is a thumbnail and not
+        // a map you work: drag, pinch and tap-to-seek all die here, and the
+        // finger that lands on it scrolls the page instead of being eaten
+        // by a 104px box. The handlers stay attached — Leaflet simply never
+        // hears them — so the same instance is a full map again from `sm`
+        // with nothing to re-initialise.
+        className="pointer-events-none absolute inset-0 sm:pointer-events-auto"
       />
       {/* The map's own controls, in the app's vocabulary instead of the
           library's stylesheet: a white capsule that steps the zoom, and a
           crosshair disc that reframes the whole route — the map's "Repor
-          zoom". Fixed colours, like every mark on the satellite. */}
+          zoom". Fixed colours, like every mark on the satellite.
+          Gone below `sm`: there the map is a thumbnail with no interaction
+          to control, and three discs would be most of the picture. */}
       {ready && (
-        <div className="absolute top-2 left-2 z-[1100] flex flex-col items-start gap-1.5">
+        <div className="absolute top-2 left-2 z-[1100] hidden flex-col items-start gap-1.5 sm:flex">
           <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
             <button
               type="button"
               aria-label="Aproximar"
-              onClick={() => mapRef.current?.zoomIn()}
+              onClick={() => {
+                framedRef.current = false;
+                mapRef.current?.zoomIn();
+              }}
               className="flex h-8 w-8 cursor-pointer items-center justify-center text-[#1c1c1c] transition-colors hover:bg-black/5"
             >
               <Plus className="size-4" />
@@ -829,7 +899,10 @@ export function ImuSessionMap({
             <button
               type="button"
               aria-label="Afastar"
-              onClick={() => mapRef.current?.zoomOut()}
+              onClick={() => {
+                framedRef.current = false;
+                mapRef.current?.zoomOut();
+              }}
               className="flex h-8 w-8 cursor-pointer items-center justify-center text-[#1c1c1c] transition-colors hover:bg-black/5"
             >
               <Minus className="size-4" />
@@ -841,7 +914,12 @@ export function ImuSessionMap({
             onClick={() => {
               const map = mapRef.current;
               const bounds = boundsRef.current;
-              if (map && bounds) map.fitBounds(bounds, { padding: [24, 24] });
+              if (!map || !bounds) return;
+              map.fitBounds(bounds, {
+                padding: fitPadding(containerRef.current),
+              });
+              // Back to our framing, so a later resize may keep it fitted.
+              framedRef.current = true;
             }}
             className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm transition-colors hover:bg-white"
           >
@@ -857,7 +935,7 @@ export function ImuSessionMap({
       {northDeg != null && (
         <span
           aria-hidden
-          className="pointer-events-none absolute top-2 right-2 z-[1100] flex size-7 flex-col items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm"
+          className="pointer-events-none absolute top-2 right-2 z-[1100] hidden size-7 flex-col items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm sm:flex"
         >
           <ArrowUp
             className="size-3"
@@ -875,7 +953,7 @@ export function ImuSessionMap({
         <span
           // Capped and clipped: a place name is written by whoever mapped
           // it and can run long, and the north badge owns the corner above.
-          className="pointer-events-none absolute right-2 z-[1100] block max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white"
+          className="pointer-events-none absolute right-2 z-[1100] hidden max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white sm:block"
           // A shadow and not a plate: the imagery is dark-treated, so the
           // word only needs enough separation to survive a pale patch of
           // ground. Inline because the offset is computed and the shadow is
