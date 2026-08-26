@@ -294,6 +294,18 @@
    library's white plate: small, dim, and shadowed enough to survive a pale
    patch of ground. Written here and not as a Tailwind variant, which the
    build does not generate for a Leaflet-owned class. */
+/* What shows while the tiles are on their way. Leaflet paints its own #ddd
+   on `.leaflet-container`, straight over the `bg-sidebar` the wrapper sets,
+   so the map opened as a light grey plate and then went dark as the imagery
+   landed — a flash in the wrong direction, since the imagery is
+   dark-treated. Takes the same `--sidebar` the card under it uses, so the
+   two are one surface until there is something to show.
+   Same specificity trick as the credits below: the library's stylesheet is
+   imported from the component and therefore loaded after this file, so a
+   plain `.leaflet-container` here would only tie and lose. */
+.imu-map .leaflet-container {
+  background: var(--sidebar);
+}
 /* `.leaflet-container` is in the selector to outweigh Leaflet's own
    `.leaflet-container .leaflet-control-attribution`, which sets the white
    plate and, being loaded after this file, wins any tie. */
