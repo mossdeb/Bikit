@@ -927,22 +927,30 @@ export function ImuSessionAnalysis({
   const metricsMenu = (
     <ImuFilterMenu
       summary={
-        activeSeriesDefs.length === 1 ? (
-          <>
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ backgroundColor: activeSeriesDefs[0].color }}
-            />
-            <span className="truncate">{activeSeriesDefs[0].label}</span>
-          </>
-        ) : (
-          <span className="truncate">
-            {activeSeriesDefs.length === 0
-              ? "Métricas"
-              : `${activeSeriesDefs.length} métricas`}
+        // Two readings of the same control, because two things sit beside
+        // it. On a phone the menu is alone and has to say what is on. From
+        // `sm` the legend on the plot's head says it, in the series' own
+        // colours, so the trigger goes back to naming what it opens —
+        // otherwise "Força G" would be printed twice, a chip apart.
+        <>
+          <span className="truncate sm:hidden">
+            {activeSeriesDefs.length === 1 ? (
+              <>
+                <span
+                  aria-hidden
+                  className="mr-1.5 inline-block size-2 shrink-0 rounded-full align-middle"
+                  style={{ backgroundColor: activeSeriesDefs[0].color }}
+                />
+                {activeSeriesDefs[0].label}
+              </>
+            ) : activeSeriesDefs.length === 0 ? (
+              "Métricas"
+            ) : (
+              `${activeSeriesDefs.length} métricas`
+            )}
           </span>
-        )
+          <span className="hidden truncate sm:inline">Métricas</span>
+        </>
       }
       items={[
         ...availableSeriesDefs.map((def) => ({
@@ -1146,23 +1154,12 @@ export function ImuSessionAnalysis({
         {eventsMenu}
       </div>
 
-      {/* Every control for this screen on one row, in the order of the
-          questions they answer: what to draw, what to mark, and which
-          panels stand at all. They all govern what sits under this heading,
-          so they belong to it — and the two boxed pill walls they replace
-          spent a whole band of the page on decisions taken rarely, above
-          the plot that is the reason to be here. The menus keep their own
-          shape and the panels keep switches: a menu picks from a list, a
-          switch says whether a thing exists. */}
-      <TelemetryHeading
-        controls={
-          <>
-            {metricsMenu}
-            {eventsMenu}
-            {panelToggles}
-          </>
-        }
-      />
+      {/* Only the panel switches stand on the page now. The two menus went
+          down onto the plot's own head, where the thing they configure is:
+          they never governed the Rider panel or the map, and a heading over
+          all three cards said they did. What is left up here is the pair
+          that decides which cards exist at all, which is nobody's card. */}
+      <PanelSwitchRow>{panelToggles}</PanelSwitchRow>
 
       {/* The plot and the route: one card each from `sm` up, side by side
           from `lg`. The plot runs to its card's edges — on a 375px phone
@@ -1213,47 +1210,67 @@ export function ImuSessionAnalysis({
             thing you drag, and everything else only says what the cursor
             found. Phone: chart, map, reading, Rider. Desktop: Rider, chart,
             map, then the reading across the foot. */}
-        <div
-          className={cn(
-            "order-1 min-w-0 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5 lg:order-2",
-            DARK_CARD_HAIRLINE_SM,
-          )}
-        >
-          <ImuChart
-            tMs={tMs}
-            series={chartSeries}
-            events={eventsOn ? data.events : []}
-            eventKinds={activeKinds}
-            windowMs={win}
-            fullMs={full}
-            cursorMs={cursorMs}
-            onCursorChange={setCursorMs}
-            // A pinch that grows back to the whole recording IS "reset zoom".
-            onWindowChange={([from, to]) =>
-              setWindowMs(from <= full[0] && to >= full[1] ? null : [from, to])
+        {/* The plot's column: its head on the page, the plot in a card under
+            it. The head is not part of the card because it is not part of
+            the picture — it names the picture and holds the controls that
+            shape it, the way the page's own section titles do. Inside the
+            card it had read as a strip of chrome bolted onto the plot. */}
+        <div className="order-1 flex min-w-0 flex-col lg:order-2">
+          <ChartCardHeading
+            legend={<MetricLegend defs={activeSeriesDefs} />}
+            controls={
+              <>
+                {metricsMenu}
+                {eventsMenu}
+              </>
             }
           />
-          <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
-            <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
-              <Plus className="size-3.5" />
-            </ZoomButton>
-            <ZoomButton
-              label="Afastar"
-              onClick={() => zoomAround(2)}
-              disabled={!zoomed}
-            >
-              <Minus className="size-3.5" />
-            </ZoomButton>
-            {zoomed && (
-              <button
-                type="button"
-                onClick={() => setWindowMs(null)}
-                className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
-              >
-                <Undo2 className="size-3.5" />
-                Repor zoom
-              </button>
+          <div
+            className={cn(
+              // `flex-1` so the card takes what the head leaves: at `lg` the
+              // grid row is as tall as the tallest column, and without it
+              // the card would stop at its content and leave the map and the
+              // Rider standing past its foot.
+              "min-w-0 flex-1 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5",
+              DARK_CARD_HAIRLINE_SM,
             )}
+          >
+            <ImuChart
+              tMs={tMs}
+              series={chartSeries}
+              events={eventsOn ? data.events : []}
+              eventKinds={activeKinds}
+              windowMs={win}
+              fullMs={full}
+              cursorMs={cursorMs}
+              onCursorChange={setCursorMs}
+              // A pinch that grows back to the whole recording IS "reset zoom".
+              onWindowChange={([from, to]) =>
+                setWindowMs(from <= full[0] && to >= full[1] ? null : [from, to])
+              }
+            />
+            <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
+              <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
+                <Plus className="size-3.5" />
+              </ZoomButton>
+              <ZoomButton
+                label="Afastar"
+                onClick={() => zoomAround(2)}
+                disabled={!zoomed}
+              >
+                <Minus className="size-3.5" />
+              </ZoomButton>
+              {zoomed && (
+                <button
+                  type="button"
+                  onClick={() => setWindowMs(null)}
+                  className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  <Undo2 className="size-3.5" />
+                  Repor zoom
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1753,19 +1770,128 @@ function SessionCards({
   );
 }
 
-/** The desktop twin of the title above: on the page background, between the
- * filters and the cards they drive. Rendered by the analysis body, because
- * only there is it between the right two sections. */
-function TelemetryHeading({ controls }: { controls?: React.ReactNode }) {
+/**
+ * The panel switches, alone on the page above the cards they govern.
+ *
+ * They are the only controls left outside a card, and that is the point:
+ * the metric and event menus decide what is drawn INSIDE the plot and now
+ * ride on its own head, while these two decide which cards stand at all.
+ * A control that adds and removes cards does not belong to any one of them.
+ *
+ * Right-aligned on an otherwise empty row, so the eye meets the three cards
+ * first and finds the switches only when it looks for them.
+ */
+function PanelSwitchRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="hidden items-center gap-2.5 px-1 pt-1 sm:flex">
+    <div className="hidden justify-end gap-2 px-1 pt-1 sm:flex">{children}</div>
+  );
+}
+
+/** How many metrics the legend names before it starts counting. Four is what
+ * fits beside the title in the narrowest desktop column measured; past that
+ * the names would start eating the menus. */
+const LEGEND_MAX = 4;
+
+/**
+ * What the plot is drawing, said in its own head.
+ *
+ * A legend and not a control: the menu beside it is the single place a
+ * metric is switched, and putting a second set of toggles here would bring
+ * back exactly the two-controls-for-one-job the pill wall was removed for.
+ * What it buys back is the state at a glance that a closed menu cannot give
+ * — and it costs nothing to keep true, since it reads the same list the
+ * plot does.
+ *
+ * The mark is the series' own colour, so the chip and the line it names are
+ * the same object. Past four it counts the rest, because the row has a menu
+ * and a title to house as well.
+ */
+function MetricLegend({ defs }: { defs: { id: string; label: string; color: string }[] }) {
+  if (defs.length === 0) return null;
+  const shown = defs.slice(0, LEGEND_MAX);
+  const rest = defs.length - shown.length;
+  return (
+    // Nothing here shrinks. Four names plus the title plus two menus ask for
+    // more than the middle column has at 1400, and the first version let the
+    // names truncate to keep one line — which produced "● F.", a chip that
+    // names nothing. A legend that cannot be read is not a legend, so the
+    // row wraps instead (see the head) and the head grows a line on the one
+    // case that causes it: many metrics on at once.
+    <div aria-hidden className="flex items-center gap-1.5">
+      {shown.map((def) => (
+        <span
+          key={def.id}
+          // White, where the menus beside it are the page's own colour. On
+          // the background `--muted` is #f1f1f1 against #efefef — two levels,
+          // a chip you cannot see. Making it white instead of outlining it
+          // like the menus is also the tell: an outlined pill next to an
+          // outlined menu invites a click, and this one does nothing.
+          // `rounded-[6px]`, not a token: the app's scale starts at 11px
+          // (`rounded-sm`) and a 24px-tall chip at 11 is most of the way to
+          // a capsule, which is the shape the controls use. A small radius
+          // is the second thing, after the fill, that keeps a legend from
+          // reading as something you press.
+          className="flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] bg-card px-2 text-xs font-medium"
+        >
+          <span
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: def.color }}
+          />
+          {def.label}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="flex h-6 shrink-0 items-center rounded-[6px] bg-card px-2 text-xs font-medium text-muted-foreground">
+          +{rest}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The plot's head: the mark, the name, what is being drawn, and the two
+ * menus that decide it.
+ *
+ * On the page background and not on the card, which is the whole point of
+ * where it sits. It used to stand above all THREE cards, which said it
+ * governed all three — it never did; the Rider panel and the map take
+ * nothing from these menus but the event filter. Now it stands above one,
+ * in that column, on the page: a section title over the section it names,
+ * with the picture in a card beneath. Put inside the card it read as a
+ * strip of chrome bolted to the plot.
+ *
+ * No side padding: it lines up with the card's edges rather than with the
+ * axis times inside it. Standing on the page it belongs to the column, not
+ * to the plot's inner grid, and an inset would have read as a margin nobody
+ * else on this page keeps.
+ */
+function ChartCardHeading({
+  legend,
+  controls,
+}: {
+  legend?: React.ReactNode;
+  controls?: React.ReactNode;
+}) {
+  return (
+    // `flex-wrap` and a row gap: the legend never shortens a name, so when
+    // the title, four chips and two menus do not fit — the middle column is
+    // 617px at 1400 and four chips alone want ~290 — the menus drop to a
+    // second line rather than everything being crushed on one. Costs 36px of
+    // head, and only while many metrics are on.
+    <div className="mb-4 hidden flex-wrap items-center gap-x-2.5 gap-y-2 sm:flex">
       <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
-      <h2 className="font-display text-xl font-semibold">Telemetria</h2>
+      <h2 className="font-display text-xl font-semibold whitespace-nowrap">
+        Telemetria
+      </h2>
+      {legend}
       {controls && (
         // Pushed to the far end by `ml-auto` rather than by making the row
         // `justify-between`: the glyph and the title are one group with a
         // gap of their own, and space-between would have prised them apart.
-        <div className="ml-auto flex items-center gap-2">{controls}</div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {controls}
+        </div>
       )}
     </div>
   );
@@ -2048,14 +2174,14 @@ function ImuFilterMenu({
 }) {
   return (
     <Popover>
-      {/* The page's own colour, not a card's white: these sit on the heading
-          row over the background, and a white pill there read as a small card
-          floating beside the title rather than as a control.
-          The hover had to swap with it. `--muted` is #f1f1f1 against a
-          #efefef page — two levels, no feedback at all — so light now lifts
-          TO the card's white. Dark keeps `--muted`, which is 13 levels above
-          its background and still the right lift there. */}
-      <PopoverTrigger className="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-background px-3.5 text-sm font-medium transition-colors hover:bg-card dark:hover:bg-muted">
+      {/* White, and back to lifting to `--muted` on hover. It briefly took
+          the page's own colour, from when both menus and both panel switches
+          shared one row over the background and a white pill there read as a
+          small card floating beside the title. The menus have since moved
+          down onto the plot's head, where they are the only controls in the
+          column and want to be found; white is what separates them from the
+          page they stand on. */}
+      <PopoverTrigger className="flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-card px-3.5 text-sm font-medium transition-colors hover:bg-muted">
         <span className="flex min-w-0 items-center gap-2 truncate">
           {summary}
         </span>
