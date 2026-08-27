@@ -321,7 +321,11 @@ export function ImuChart({
         // and the plot and the event strip below share an x scale that has to
         // stay aligned to the pixel. A shadow and not a `ring`, because `ring`
         // here already belongs to the focus state.
-        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-y border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]"
+        //
+        // Only the bottom rule survives — it is the seam against the event
+        // strip. The top one was the edge the event tabs hung from, and since
+        // they float clear of it nothing needs it any more.
+        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-b border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]"
         onPointerDown={(event) => {
           pointersRef.current.set(event.pointerId, {
             x: event.clientX,
