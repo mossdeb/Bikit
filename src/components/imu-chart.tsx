@@ -61,9 +61,10 @@ export interface ImuChartSeries {
  *
  * Fully controlled: the window (zoom) and cursor live in the parent, this
  * component turns them into pixels and gestures back into times. Each series
- * is normalized to its own min/max over the visible window — G forces and
+ * is normalized to its own min/max over the WHOLE recording — G forces and
  * °/s share one plot only as shapes, and the details panel is where exact
- * numbers live.
+ * numbers live. Session-wide and not the visible window's, so panning and
+ * zooming never re-stretch a trace (see seriesRanges).
  *
  * Gestures: hover or touch-drag scrubs the cursor (touch-action is pan-y, so
  * a thumb can still scroll past the chart — the browser sends pointercancel
@@ -206,19 +207,43 @@ export function ImuChart({
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [locked]);
 
+  /**
+   * Each series' range over the WHOLE recording — the y scale every window
+   * is drawn against.
+   *
+   * It used to be the visible window's own min/max, and that is what made
+   * the curves change shape while the window moved: the scale was re-derived
+   * from whatever the window happened to contain, so panning past a peak
+   * re-stretched the entire trace the instant the peak crossed the edge —
+   * with the wheel drift, with the pan bar, with anything. Anchored to the
+   * session, the trace is one fixed drawing seen through a moving window.
+   * The price is stated: zoomed into a quiet stretch, small ripples stay
+   * small instead of being amplified to fill the plot.
+   */
+  const seriesRanges = useMemo(
+    () =>
+      series.map((s) => {
+        let min = Infinity;
+        let max = -Infinity;
+        for (let i = 0; i < s.values.length; i++) {
+          const v = s.values[i];
+          if (!Number.isFinite(v)) continue;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        return min <= max ? { min, max } : { min: 0, max: 0 };
+      }),
+    [series],
+  );
+
   const paths = useMemo(() => {
     const i0 = Math.max(0, lowerBoundIndex(tMs, w0) - 1);
     const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, w1) + 1);
-    return series.map((s) => {
+    return series.map((s, si) => {
+      const { min, max } = seriesRanges[si];
       const points = minMaxEnvelope(tMs, s.values, i0, i1, BUCKETS);
       if (points.length === 0)
-        return { id: s.id, color: s.color, d: "", raw: false, min: 0, max: 0 };
-      let min = Infinity;
-      let max = -Infinity;
-      for (const p of points) {
-        if (p.value < min) min = p.value;
-        if (p.value > max) max = p.value;
-      }
+        return { id: s.id, color: s.color, d: "", raw: false, min, max };
       const range = max - min || 1;
       let d = "";
       for (let i = 0; i < points.length; i++) {
@@ -239,7 +264,7 @@ export function ImuChart({
         max,
       };
     });
-  }, [tMs, series, w0, w1, span]);
+  }, [tMs, series, seriesRanges, w0, w1, span]);
 
   const visibleEvents = useMemo(
     () =>
@@ -530,9 +555,10 @@ export function ImuChart({
           ))}
         </svg>
 
-        {/* The y extremes of the first active series — the plot normalizes
-            each series to its own range, so one pair of numbers is honest
-            and eight would be noise. */}
+        {/* The y extremes of the first active series, over the whole
+            recording — the scale the plot is drawn against, so they hold
+            still while the window moves. One pair of numbers is honest where
+            eight would be noise. */}
         {primary && primary.d && (
           <>
             <span className="absolute top-0.5 right-1.5 text-[10px] text-muted-foreground tabular-nums">
@@ -642,9 +668,15 @@ export function ImuChart({
           legend to memorise. Greys carry intensity instead, and only two
           kinds earn a colour: what is airborne, and what hit hard. Which
           event it is comes from the badge on the rule and the card below. */}
-      {visibleEvents.length > 0 && (
+      {events.some((event) => eventKinds.has(event.kind)) && (
         <div
           aria-hidden
+          // Gated on the SESSION's events, not the window's: while panning, a
+          // stretch with nothing in it used to unmount the lane, and its 4px
+          // collapsing mid-drag walked the axis row and everything under it
+          // up the page. The lane stands whenever the session has events to
+          // show; an empty window just shows it empty.
+          //
           // Square ends: the lane runs the card's full width now, and a
           // stadium track would leave two pale nicks against the card edges.
           // Flush against the plot's bottom border — the two share an x axis,
