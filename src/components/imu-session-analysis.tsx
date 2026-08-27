@@ -613,6 +613,10 @@ export function ImuSessionAnalysis({
   );
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
+  /** The value pills on the plot, by the cursor's hand. Off by default (by
+   * request): the reading panel already answers the cursor, and the pills
+   * are the opt-in extra for tracing one line closely. */
+  const [valuesOn, setValuesOn] = useState(false);
 
   /** The map column's width on desktop — dragged by the handle on the
    * chart/map edge. The value rides a custom property because the grid only
@@ -1391,6 +1395,7 @@ export function ImuSessionAnalysis({
                   from <= full[0] && to >= full[1] ? null : [from, to],
                 )
               }
+              showValues={valuesOn}
             />
             <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
               <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
@@ -1413,6 +1418,39 @@ export function ImuSessionAnalysis({
                   Repor zoom
                 </button>
               )}
+              {/* The value pills' control, on the zoom row because both
+                  shape what the plot shows of the cursor. A small switch, by
+                  request — the panel toggles' track-and-thumb at two thirds
+                  the size, since it shares a row with 32px buttons rather
+                  than 40px menus. Same inks as theirs: `bg-foreground` track
+                  when on, `bg-background` thumb (NOT white — the on-track is
+                  light in the dark theme, and a white thumb would sink). */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={valuesOn}
+                onClick={() => setValuesOn((on) => !on)}
+                // At the row's far end, apart from the zoom cluster it shares a line
+                // with: the three buttons act on the window, this one only dresses
+                // the cursor's reading.
+                className="ml-auto flex h-8 cursor-pointer items-center gap-2 text-xs font-medium"
+              >
+                Valores
+                <span
+                  aria-hidden
+                  className={cn(
+                    "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+                    valuesOn ? "bg-foreground" : "bg-muted-foreground/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-0.5 left-0.5 size-3 rounded-full bg-background transition-transform",
+                      valuesOn && "translate-x-3",
+                    )}
+                  />
+                </span>
+              </button>
             </div>
           </div>
         </div>

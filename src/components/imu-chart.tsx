@@ -93,6 +93,7 @@ export function ImuChart({
   cursorMs,
   onCursorChange,
   onWindowChange,
+  showValues = true,
 }: {
   tMs: Float64Array;
   series: ImuChartSeries[];
@@ -104,6 +105,9 @@ export function ImuChart({
   cursorMs: number | null;
   onCursorChange: (ms: number) => void;
   onWindowChange: (windowMs: [number, number]) => void;
+  /** Value pills where the cursor crosses each trace — toggleable, because
+   * with several series on they cost real plot. */
+  showValues?: boolean;
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<[number, number] | null>(null);
@@ -291,6 +295,27 @@ export function ImuChart({
     [events, eventKinds, w0, w1],
   );
 
+  /**
+   * The hand's height over the plot, as a fraction — where the value pills
+   * anchor. They used to sit on each trace's intersection, which meant the
+   * whole stack jumped vertically with every sample the cursor crossed;
+   * pinned to the pointer instead, they move only when the hand does, and
+   * whoever is scrubbing is already looking exactly there. Kept after the
+   * gesture ends (a lock, a lifted finger), so the reading stays where it
+   * was left.
+   */
+  const [pointerYFrac, setPointerYFrac] = useState(0.5);
+
+  function captureYFrac(clientY: number) {
+    const el = plotRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.height === 0) return;
+    setPointerYFrac(
+      Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
+    );
+  }
+
   function msFromClientX(clientX: number): number | null {
     const el = plotRef.current;
     if (!el) return null;
@@ -322,8 +347,8 @@ export function ImuChart({
   // The rule and its time pill snap to the nearest sample — the pointer's
   // continuous position read 24251.x ms while the details panel read the
   // sample at 24250, and two clocks for one cursor is a bug report waiting.
-  const snappedCursorMs =
-    cursorMs != null ? tMs[nearestSampleIndex(tMs, cursorMs)] : null;
+  const cursorIndex = cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : null;
+  const snappedCursorMs = cursorIndex != null ? tMs[cursorIndex] : null;
   const cursorPercent =
     snappedCursorMs != null && snappedCursorMs >= w0 && snappedCursorMs <= w1
       ? ((snappedCursorMs - w0) / span) * 100
@@ -405,6 +430,7 @@ export function ImuChart({
           // two presses of a double click release it and then the dblclick
           // that follows them pins it again, at the new spot.
           setLocked(false);
+          captureYFrac(event.clientY);
           onCursorChange(ms);
         }}
         onPointerMove={(event) => {
@@ -447,6 +473,7 @@ export function ImuChart({
                 Math.max(drag.startMs, ms),
               ]);
             } else {
+              captureYFrac(event.clientY);
               onCursorChange(ms);
             }
             return;
@@ -455,7 +482,10 @@ export function ImuChart({
           // unless the cursor is locked, which is the whole point of locking.
           if (event.pointerType === "mouse" && !locked) {
             const ms = msFromClientX(event.clientX);
-            if (ms != null) onCursorChange(ms);
+            if (ms != null) {
+              captureYFrac(event.clientY);
+              onCursorChange(ms);
+            }
           }
         }}
         onPointerUp={(event) => {
@@ -666,6 +696,67 @@ export function ImuChart({
             style={{ left: `${cursorPercent}%` }}
           />
         )}
+
+        {/* The cursor's reading on the plot: one pill per active series —
+            its dot and the sample's value, the time pill's idiom. Behind a
+            toggle (the "Valores" switch by the zoom buttons): with several
+            series they cost real plot, and the exact figures also live in
+            the panel below — `aria-hidden` for that same reason.
+
+            The stack rides the HAND's height, not each trace's: pinned to
+            the intersections it jumped with every sample the cursor crossed,
+            and the eye it is for is already at the pointer. The y is only
+            captured while scrubbing, so a lock or a lifted finger leaves the
+            reading where it was. Near the right edge the stack steps to the
+            rule's other side — the time pill's trick.
+
+            And only the series the hand is NEAR (Grafana's manner, asked
+            for): a pill answers the line under the pointer, not every line
+            on the plot — hold the hand on the trace you are reading and the
+            others stay quiet. The reach is generous (32px) because a scrub
+            follows the time axis, not the wiggle of the line. */}
+        {showValues &&
+          cursorPercent != null &&
+          cursorIndex != null &&
+          (() => {
+            // The plot is h-[350px] by class, so a px reach converts to the
+            // fraction space the pointer is tracked in.
+            const near = paths.flatMap((p, i) => {
+              const value = series[i].values[cursorIndex];
+              if (!Number.isFinite(value) || !p.d) return [];
+              const range = p.max - p.min || 1;
+              const traceFrac =
+                (H - PAD_Y - ((value - p.min) / range) * (H - PAD_Y * 2)) / H;
+              if (Math.abs(traceFrac - pointerYFrac) * 350 > 32) return [];
+              return [{ id: p.id, color: p.color, value }];
+            });
+            if (near.length === 0) return null;
+            return (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute z-10 flex flex-col items-start gap-1"
+                style={{
+                  left: `calc(${cursorPercent}% + ${cursorPercent > 80 ? -8 : 8}px)`,
+                  // Clamped so the stack never hangs off the plot's edge.
+                  top: `${Math.min(92, Math.max(8, pointerYFrac * 100))}%`,
+                  transform: `translateY(-50%)${cursorPercent > 80 ? " translateX(-100%)" : ""}`,
+                }}
+              >
+                {near.map((p) => (
+                  <span
+                    key={p.id}
+                    className="flex items-center gap-1.5 rounded-full bg-foreground py-0.5 pr-2.5 pl-2 text-[11px] font-semibold text-background tabular-nums"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: p.color }}
+                    />
+                    {p.value.toFixed(4)}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
       </div>
 
       {/* The event lane.
