@@ -158,7 +158,7 @@ export function OnboardingDialog({
                       <p className="font-display text-2xl font-bold">{s.greeting}</p>
                     ) : (
                       <div className="mb-16 flex items-center justify-center gap-2.5">
-                        <LogoMark className="size-8 rounded-[8px]" />
+                        <LogoMark className="size-8" />
                         <span className="font-display text-lg font-bold">Bikit</span>
                       </div>
                     )}

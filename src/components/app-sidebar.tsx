@@ -4,8 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
-import { LogoMark } from "@/components/logo";
-import { ImuProLogo } from "@/components/imu-pro-logo";
+import { BikitLockup, LogoMark } from "@/components/logo";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -52,16 +51,17 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
           Only while expanded — collapsed the rail is 84px and the lockup
           wants ~140 at this height, so there the mark stands alone, which
           is the same mark either way. */}
-      <div className="mb-8 flex items-center gap-2.5 px-1">
-        {isLab && expanded ? (
-          <ImuProLogo onDark className="h-10 w-auto" />
+      <div className="mb-8 flex items-center px-1">
+        {expanded ? (
+          // `onDark` on both: the rail is `--sidebar` in either theme, so the
+          // word cannot be left to follow the theme — it would be near-black
+          // on near-black in the light one.
+          <BikitLockup onDark pro={isLab} className="h-10 w-auto" />
         ) : (
-          <>
-            <LogoMark />
-            {expanded && (
-              <span className="font-display text-lg font-bold">Bikit</span>
-            )}
-          </>
+          // Collapsed the rail is 84px and the lockup wants ~140 at this
+          // height, so the mark stands alone — the same mark the lockup
+          // carries, lifted out of the same drawing.
+          <LogoMark />
         )}
       </div>
 
