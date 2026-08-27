@@ -27,7 +27,12 @@ import { ImuRiderGlyph } from "@/components/imu-pro-logo";
  */
 
 const MINT = "#43F3AF";
-const BLUE = "#379CB8";
+const BLUE = "#43BBF3";
+/** The braking half of the accelerate/brake band. The two sides of that
+ * band are opposite signs of one channel, and one ink for both left the
+ * direction to be read from which way the fill leans — a shape, at a
+ * glance. Orange gives the side its own answer. */
+const ORANGE = "#FF5A39";
 
 /** The corner radius of every arc end in the ride gauge, px. A stroke cap
  * only knows flat (0) or a full half-circle (half the width, 7.5 here);
@@ -43,6 +48,10 @@ const CAP_RADIUS = 4;
  * the segment's radial cut, with the rim arcs inset by exactly the angle
  * that tangency demands. On a span too narrow for the asked radius, the
  * radius gives way (down to what fits) rather than the geometry breaking.
+ *
+ * The two ends carry their own radius, and either may be 0 for a square
+ * cut: the band's fills meet the zero tick square and only round on the
+ * end that travels.
  */
 function ringSegmentPath(
   cx: number,
@@ -51,7 +60,8 @@ function ringSegmentPath(
   width: number,
   fromDeg: number,
   toDeg: number,
-  cornerR = CAP_RADIUS,
+  cornerFromR = CAP_RADIUS,
+  cornerToR = cornerFromR,
 ): string {
   const span = toDeg - fromDeg;
   if (span <= 0.1) return "";
@@ -62,41 +72,44 @@ function ringSegmentPath(
   const outer = r + width / 2;
   const inner = r - width / 2;
   // The outer rim is the binding constraint on how big a corner the span
-  // can carry: both end insets have to fit inside it.
-  const halfSpanSin = Math.sin(((span / 2) * Math.PI) / 180);
-  const c = Math.min(
-    cornerR,
-    width / 2,
-    (halfSpanSin * outer) / (1 + halfSpanSin),
-  );
-  if (c <= 0.05) {
-    // Flat ends — a plain annular sector.
-    const large = span > 180 ? 1 : 0;
-    return [
-      `M ${pt(outer, fromDeg)}`,
-      `A ${outer} ${outer} 0 ${large} 1 ${pt(outer, toDeg)}`,
-      `L ${pt(inner, toDeg)}`,
-      `A ${inner} ${inner} 0 ${large} 0 ${pt(inner, fromDeg)}`,
-      "Z",
-    ].join(" ");
-  }
-  const phiO = (Math.asin(c / (outer - c)) * 180) / Math.PI;
-  const phiI = (Math.asin(c / (inner + c)) * 180) / Math.PI;
-  const largeO = span - 2 * phiO > 180 ? 1 : 0;
-  const largeI = span - 2 * phiI > 180 ? 1 : 0;
-  // Where each corner meets the radial cut, measured along it.
-  const edgeO = Math.sqrt((outer - c) ** 2 - c * c);
-  const edgeI = Math.sqrt((inner + c) ** 2 - c * c);
+  // can carry, and the two ends share it in proportion to what they ask —
+  // so a square end hands its whole half to the round one instead of
+  // capping it at a share it no longer needs.
+  const asked = Math.max(0, cornerFromR) + Math.max(0, cornerToR);
+  const fit = (share: number) => {
+    const s = Math.sin((share * Math.PI) / 180);
+    return (s * outer) / (1 + s);
+  };
+  const clamp = (want: number) =>
+    want <= 0 || asked <= 0
+      ? 0
+      : Math.min(want, width / 2, fit((span * want) / asked));
+  const cF = clamp(cornerFromR) > 0.05 ? clamp(cornerFromR) : 0;
+  const cT = clamp(cornerToR) > 0.05 ? clamp(cornerToR) : 0;
+  // Each corner's inset, in degrees on its rim, and where it meets the
+  // radial cut. A square end insets nothing and lands on the rim itself.
+  const phi = (c: number, rad: number, sign: number) =>
+    c > 0 ? (Math.asin(c / (rad + sign * c)) * 180) / Math.PI : 0;
+  const edge = (c: number, rad: number, sign: number) =>
+    c > 0 ? Math.sqrt((rad + sign * c) ** 2 - c * c) : rad;
+  const phiOF = phi(cF, outer, -1);
+  const phiOT = phi(cT, outer, -1);
+  const phiIF = phi(cF, inner, +1);
+  const phiIT = phi(cT, inner, +1);
+  const largeO = span - phiOF - phiOT > 180 ? 1 : 0;
+  const largeI = span - phiIF - phiIT > 180 ? 1 : 0;
+  const arc = (c: number, target: string) =>
+    c > 0 ? [`A ${c} ${c} 0 0 1 ${target}`] : [];
   return [
-    `M ${pt(outer, fromDeg + phiO)}`,
-    `A ${outer} ${outer} 0 ${largeO} 1 ${pt(outer, toDeg - phiO)}`,
-    `A ${c} ${c} 0 0 1 ${pt(edgeO, toDeg)}`,
-    `L ${pt(edgeI, toDeg)}`,
-    `A ${c} ${c} 0 0 1 ${pt(inner, toDeg - phiI)}`,
-    `A ${inner} ${inner} 0 ${largeI} 0 ${pt(inner, fromDeg + phiI)}`,
-    `A ${c} ${c} 0 0 1 ${pt(edgeI, fromDeg)}`,
-    `L ${pt(edgeO, fromDeg)}`,
-    `A ${c} ${c} 0 0 1 ${pt(outer, fromDeg + phiO)}`,
+    `M ${pt(outer, fromDeg + phiOF)}`,
+    `A ${outer} ${outer} 0 ${largeO} 1 ${pt(outer, toDeg - phiOT)}`,
+    ...arc(cT, pt(edge(cT, outer, -1), toDeg)),
+    `L ${pt(edge(cT, inner, +1), toDeg)}`,
+    ...arc(cT, pt(inner, toDeg - phiIT)),
+    `A ${inner} ${inner} 0 ${largeI} 0 ${pt(inner, fromDeg + phiIF)}`,
+    ...arc(cF, pt(edge(cF, inner, +1), fromDeg)),
+    `L ${pt(edge(cF, outer, -1), fromDeg)}`,
+    ...arc(cF, pt(outer, fromDeg + phiOF)),
     "Z",
   ].join(" ");
 }
@@ -176,8 +189,9 @@ function RideGauge({
           />
           {Math.abs(axFrac) > 0.01 && (
             // Acceleration fills the bottom-right (compass angles below
-            // 180), braking the bottom-left — the segment helper wants
-            // from < to, so the sides pick their own argument order.
+            // 180) in blue, braking the bottom-left in orange — the segment
+            // helper wants from < to, so the sides pick their own argument
+            // order.
             <path
               d={ringSegmentPath(
                 RING.cx,
@@ -186,8 +200,13 @@ function RideGauge({
                 RING_W,
                 axFrac > 0 ? 180 - axFrac * BAND.half : 180,
                 axFrac > 0 ? 180 : 180 - axFrac * BAND.half,
+                // Round on the travelling end, square where the fill meets
+                // the zero tick: a rounded corner there reads as a gap
+                // between the bar and the origin it grows out of.
+                axFrac > 0 ? CAP_RADIUS : 0,
+                axFrac > 0 ? 0 : CAP_RADIUS,
               )}
-              fill={BLUE}
+              fill={axFrac > 0 ? BLUE : ORANGE}
             />
           )}
           {/* The zero tick, standing taller than the band — the origin has
