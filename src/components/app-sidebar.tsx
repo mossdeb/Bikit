@@ -40,7 +40,20 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col bg-sidebar py-6 text-sidebar-foreground transition-[width] duration-150 sm:flex",
+        // The whole rail rides the window instead of the page: `sticky` with
+        // a viewport-tall box, so the mark, the nav and the collapse button
+        // are all where they were left whatever the page's length. It was the
+        // page's height before, and on the session screen that put both ends
+        // of the rail out of reach — the nav above the fold only until you
+        // scrolled, the toggle below it from the start.
+        //
+        // One mechanism for the three: the nav's `flex-1` already pins the
+        // button to the rail's foot, and with the rail as tall as the window
+        // that foot IS the window's.
+        //
+        // `overflow-y-auto` for the day the nav outgrows a short window; it
+        // shows no scrollbar while it fits.
+        "sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto bg-sidebar py-6 text-sidebar-foreground transition-[width] duration-150 sm:flex",
         expanded ? "w-[232px] items-stretch px-4" : "w-[84px] items-center px-0"
       )}
     >
@@ -92,7 +105,10 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
         onClick={toggle}
         title={expanded ? nav.collapseMenu : nav.expandMenu}
         className={cn(
-          "flex h-11 items-center gap-3 rounded-2xl text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground",
+          // No sticky of its own: the rail above is the viewport's height, so
+          // the `flex-1` on the nav already leaves this sitting on the
+          // window's floor.
+          "flex h-11 shrink-0 items-center gap-3 rounded-2xl text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground",
           expanded ? "justify-start px-3.5" : "w-11 justify-center"
         )}
       >
