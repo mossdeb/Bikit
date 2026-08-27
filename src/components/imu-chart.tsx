@@ -29,13 +29,19 @@ const STRIP_PAINT_ORDER: Record<ImuEvent["kind"], number> = {
   impact: 4,
 };
 
-/** How tall the event-name tabs hang from the plot's top edge, px.
+/** How tall the event-name tabs are, px.
  *
  * One number for two things that must agree: the tabs are pinned to it, and
  * the impact arrows start just under it. Left to itself the tab measured
  * 16.5px — `py-0.5` around 10px/tight text — and the arrows sat at 2px,
  * which put them straight through any tab they shared an instant with. */
 const EVENT_TAB_H = 17;
+
+/** The gap between the plot's top edge and the tabs, px. They used to hang
+ * from that edge — square on top, rounded below; now they float clear of it,
+ * rounded on the four corners. Everything that has to clear a tab measures
+ * from `EVENT_TAB_TOP + EVENT_TAB_H`, never from the height alone. */
+const EVENT_TAB_TOP = 4;
 
 /** Envelope buckets across the visible window. ~2 points per bucket keeps the
  * polyline near 800 points whatever the recording length; below ~2 samples
@@ -552,12 +558,12 @@ export function ImuChart({
                 aria-hidden
                 // Below the tab strip, not inside it: an impact falling within
                 // a rough patch put its arrow straight through the word
-                // "Acidentado" — three of them, in the demo. The tabs hang
-                // from the top edge and the arrows now start where they end.
+                // "Acidentado" — three of them, in the demo. The arrows start
+                // where the tabs end, gap included.
                 className="pointer-events-none absolute -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
                 style={{
                   left: `${((event.timeMs - w0) / span) * 100}%`,
-                  top: EVENT_TAB_H + 2,
+                  top: EVENT_TAB_TOP + EVENT_TAB_H + 2,
                 }}
               >
                 ▼
@@ -570,11 +576,15 @@ export function ImuChart({
             <span
               key={i}
               aria-hidden
-              // Hung from the plot's top edge: square where it meets the
-              // edge, rounded only where it leaves it — a tab, not a floating
-              // chip.
-              className="pointer-events-none absolute top-0 flex -translate-x-1/2 items-center rounded-b-[6px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
-              style={{ left: `${((mid - w0) / span) * 100}%`, height: EVENT_TAB_H }}
+              // A chip clear of the plot's top edge: 5px on the four corners
+              // and a gap above it, so it reads as laid over the trace rather
+              // than hung from the frame.
+              className="pointer-events-none absolute flex -translate-x-1/2 items-center rounded-[5px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+              style={{
+                left: `${((mid - w0) / span) * 100}%`,
+                top: EVENT_TAB_TOP,
+                height: EVENT_TAB_H,
+              }}
             >
               {eventShortLabel(event)}
             </span>
