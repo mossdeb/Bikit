@@ -494,10 +494,17 @@ export function ImuChart({
               key={i}
               aria-hidden
               className={cn(
-                "absolute inset-y-0",
+                // `imu-event-band` is the hatch, in globals.css: the tint
+                // says where by being darker, the surface says it by being
+                // another material. The class carries no colour, so the two
+                // kinds keep their own and share the texture.
+                "imu-event-band absolute inset-y-0",
                 event.kind === "jump" || event.kind === "drop"
                   ? "bg-primary/20"
-                  : "bg-muted-foreground/8",
+                  : // Lighter than it was (8%) now that the hatch carries the
+                    // signal: with a surface on top, the tint only has to
+                    // separate the stretch from the card, not announce it.
+                    "bg-muted-foreground/6",
               )}
               style={{ left: `${left}%`, width: `${width}%` }}
             />

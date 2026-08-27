@@ -375,6 +375,34 @@ body.imu-lab-texture [data-app-shell] {
   );
 }
 
+/* The hatch over an event's stretch in the session plot. The band's flat
+   tint says "something is happening here" only by being slightly darker
+   than the card, which at 8% is a shade you have to look for; the lines
+   give it a surface, and a surface is seen rather than compared.
+   Texture and not a stronger tint: the stretch sits BEHIND the trace, and
+   anything dark enough to be read at a glance starts competing with the
+   signal drawn on top of it.
+   Painted as a background-image over the band's own background-color, so
+   one rule serves the grey stretches and the mint one alike — the colour
+   stays with the event kind, the surface is common to all of them. */
+.imu-event-band {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--foreground) 7%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+}
+/* Dark carries less, the lab texture's reason exactly: the mix is made
+   from --foreground, near-black in one theme and near-white in the other,
+   so the same number moves the line in opposite directions. */
+.dark .imu-event-band {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--foreground) 5%, transparent) 0 1px,
+    transparent 1px 6px
+  );
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;
