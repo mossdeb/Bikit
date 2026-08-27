@@ -48,6 +48,13 @@ const EVENT_TAB_TOP = 4;
  * per bucket the raw samples are drawn as they are. */
 const BUCKETS = 400;
 
+/** The pan scrollbar under the chart — built 2026-08-27 to test panning a
+ * zoomed window by hand, then shelved BY REQUEST once the real bug turned out
+ * to be the per-window y scale (fixed in seriesRanges): kept off, not deleted,
+ * in case it earns its place later. Flip to true and the whole thing is back —
+ * everything it owns is gated on this one constant. */
+const PAN_BAR_ENABLED = false;
+
 export interface ImuChartSeries {
   id: string;
   label: string;
@@ -131,6 +138,14 @@ export function ImuChart({
     startSpan: number;
     anchorMs: number;
   } | null>(null);
+  /** The pan scrollbar's drag — shelved with the bar, see PAN_BAR_ENABLED. */
+  const panBarDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startFrom: number;
+    trackWidth: number;
+  } | null>(null);
+  const [panBarActive, setPanBarActive] = useState(false);
 
   const [w0, w1] = windowMs;
   const span = Math.max(1, w1 - w0);
@@ -769,6 +784,102 @@ export function ImuChart({
           </span>
         )}
       </div>
+
+      {/* The pan scrollbar — shelved, see PAN_BAR_ENABLED. Only while
+          zoomed, like any scrollbar: at full width there is nowhere to pan.
+          The track is the WHOLE recording, the thumb is the visible window —
+          dragging it pans, pressing outside it jumps the window there and
+          keeps dragging. */}
+      {PAN_BAR_ENABLED && span < fullSpan - 1 && (
+        <div
+          className="relative mx-5 mt-2 h-4 cursor-pointer touch-none sm:mx-6"
+          onPointerDown={(event) => {
+            if (
+              !event.isPrimary ||
+              (event.pointerType === "mouse" && event.button !== 0)
+            )
+              return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            if (rect.width === 0) return;
+            event.preventDefault();
+            const frac = Math.min(
+              1,
+              Math.max(0, (event.clientX - rect.left) / rect.width),
+            );
+            const pressedMs = fullMs[0] + frac * fullSpan;
+            let startFrom = w0;
+            if (pressedMs < w0 || pressedMs > w1) {
+              // Pressed the track, not the thumb: centre the window there,
+              // then the drag continues from that new footing.
+              startFrom = Math.min(
+                Math.max(pressedMs - span / 2, fullMs[0]),
+                fullMs[1] - span,
+              );
+              onWindowChange([startFrom, startFrom + span]);
+            }
+            panBarDragRef.current = {
+              pointerId: event.pointerId,
+              startX: event.clientX,
+              startFrom,
+              trackWidth: rect.width,
+            };
+            setPanBarActive(true);
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+              // No capture: moves still arrive while over the bar.
+            }
+          }}
+          onPointerMove={(event) => {
+            const drag = panBarDragRef.current;
+            if (!drag || drag.pointerId !== event.pointerId) return;
+            // A move with no button held means the release was missed — end
+            // the drag instead of trailing the hover (the preview pane's
+            // spurious-pointer rule).
+            if (event.pointerType === "mouse" && event.buttons === 0) {
+              panBarDragRef.current = null;
+              setPanBarActive(false);
+              return;
+            }
+            const shift =
+              ((event.clientX - drag.startX) / drag.trackWidth) * fullSpan;
+            const from = Math.min(
+              Math.max(drag.startFrom + shift, fullMs[0]),
+              fullMs[1] - span,
+            );
+            onWindowChange([from, from + span]);
+          }}
+          onPointerUp={(event) => {
+            if (panBarDragRef.current?.pointerId === event.pointerId) {
+              panBarDragRef.current = null;
+              setPanBarActive(false);
+            }
+          }}
+          onPointerCancel={(event) => {
+            if (panBarDragRef.current?.pointerId === event.pointerId) {
+              panBarDragRef.current = null;
+              setPanBarActive(false);
+            }
+          }}
+        >
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted"
+          />
+          <span
+            aria-hidden
+            className={cn(
+              "absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full transition-colors",
+              panBarActive ? "bg-foreground" : "bg-muted-foreground/50",
+            )}
+            style={{
+              left: `${((w0 - fullMs[0]) / fullSpan) * 100}%`,
+              // A floor so a deep zoom still leaves something to grab.
+              width: `${Math.max((span / fullSpan) * 100, 3)}%`,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
