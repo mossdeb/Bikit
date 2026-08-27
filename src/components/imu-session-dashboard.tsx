@@ -518,11 +518,19 @@ export function ImuSessionDashboard({
           — which the box already shows. The mark and the word label the
           name; the name itself is the one part that can run long, so it is
           the one that truncates (`min-w-0`, or a flex item refuses to). */}
-      <div className="flex items-center gap-2 px-5 pb-4 sm:px-[15px] sm:pt-[15px]">
-        {/* 1.875 in the file paints 1.5px on the page: the art is drawn in a
-            25-wide viewBox and shown at 20px, so the number is the page's
-            weight divided back through that ratio. */}
-        <ImuRiderGlyph className="h-auto w-5 shrink-0 text-foreground [&_path]:[stroke-width:1.875]" />
+      <div className="flex items-center gap-3 px-5 pb-4 sm:px-[15px] sm:pt-[15px]">
+        {/* The mark on a plate of its own, and the plate is what makes it
+            read as an avatar's slot rather than as one more icon in a row of
+            icons. `--muted` and not a tint of the mark: this names a person,
+            and the lab's colours all mean something about the riding. The
+            glyph is solid here — at 24px on a plate, a 1.5px outline reads as
+            a hollow shape rather than as a silhouette. */}
+        <span
+          aria-hidden
+          className="flex size-11 shrink-0 items-center justify-center rounded-md bg-muted"
+        >
+          <ImuRiderGlyph solid className="h-auto w-6 text-foreground" />
+        </span>
         {/* The word above the name, not beside it: it is a label for what
             follows, and side by side the two read as one phrase. Both lines
             are `leading-tight` and carry no margin between them — at this
@@ -535,10 +543,10 @@ export function ImuSessionDashboard({
           </p>
           {riderName && (
             // Pulled up 4px: the two boxes already touch, so what is left
-            // between them is half-leading — the name's own 16px type
-            // carries ~4px of air above its caps inside a 20px line box.
-            // Only a negative margin reaches that; there is no gap to zero.
-            <p className="-mt-1 truncate text-base leading-tight">
+            // between them is half-leading — the name's own type carries
+            // ~4px of air above its caps inside its line box. Only a
+            // negative margin reaches that; there is no gap to zero.
+            <p className="-mt-1 truncate text-lg leading-tight font-semibold">
               {riderName}
             </p>
           )}
