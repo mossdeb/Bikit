@@ -2610,25 +2610,33 @@ function EventCard({
             </div>
           )}
 
-          {/* The plain figures as one ruled box — the résumé's idiom, and
-              for its reason: the rules are `gap-px` over a background rather
+          {/* The plain figures in one ruled box, each group centred in its
+              cell — the session résumé's idiom, and for its reason: the
+              rules are `gap-px` letting the box's own colour through rather
               than borders on the cells, because a border would have to know
-              which cell ends each row, and this grid breaks differently at
-              every width. `auto-fit` so three fit a wide card and two a
-              narrow one, with the box's own overflow-hidden giving the cells
-              the corners. */}
+              which cell ends each row, and this box breaks differently at
+              every width — the first cell of a second row would carry a line
+              against nothing.
+
+              WRAPPING FLEX AND NOT A GRID, and that is the whole trick: a
+              grid keeps its columns on the last row whether or not there are
+              cells to put in them, so four figures over three columns left
+              two empty tracks — and an empty track over a `bg-border` box is
+              a grey slab, which is exactly what it looked like. Flex has no
+              phantom cells: the last row holds only what is in it, and the
+              one that is left stretches to the width. `basis-[120px]` with
+              grow is what decides how many share a row. */}
           {plain.length > 0 && (
             <div
               className={cn(
-                "grid gap-px overflow-hidden rounded-[12px] border border-border bg-border",
-                "[grid-template-columns:repeat(auto-fit,minmax(120px,1fr))]",
+                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border",
                 compared.length > 0 && "mt-4",
               )}
             >
               {plain.map((metric) => (
                 <div
                   key={metric.label}
-                  className="flex items-center gap-2.5 bg-card px-3.5 py-3"
+                  className="flex flex-1 basis-[120px] items-center justify-center gap-2.5 bg-card px-3.5 py-3"
                 >
                   {/* All or none: see EventMetric.Icon. */}
                   {allPlainMarked && metric.Icon && (
