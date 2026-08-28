@@ -1433,7 +1433,10 @@ export function ImuSessionAnalysis({
                 // At the row's far end, apart from the zoom cluster it shares a line
                 // with: the three buttons act on the window, this one only dresses
                 // the cursor's reading.
-                className="ml-auto flex h-8 cursor-pointer items-center gap-2 text-xs font-medium"
+                // The word in the quiet ink: the switch beside it is the part
+                // that says on/off, and a foreground label pulled this to the
+                // same weight as the axis figures around it.
+                className="ml-auto flex h-8 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
               >
                 Valores
                 <span

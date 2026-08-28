@@ -347,7 +347,8 @@ export function ImuChart({
   // The rule and its time pill snap to the nearest sample — the pointer's
   // continuous position read 24251.x ms while the details panel read the
   // sample at 24250, and two clocks for one cursor is a bug report waiting.
-  const cursorIndex = cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : null;
+  const cursorIndex =
+    cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : null;
   const snappedCursorMs = cursorIndex != null ? tMs[cursorIndex] : null;
   const cursorPercent =
     snappedCursorMs != null && snappedCursorMs >= w0 && snappedCursorMs <= w1
@@ -713,8 +714,9 @@ export function ImuChart({
             And only the series the hand is NEAR (Grafana's manner, asked
             for): a pill answers the line under the pointer, not every line
             on the plot — hold the hand on the trace you are reading and the
-            others stay quiet. The reach is generous (32px) because a scrub
-            follows the time axis, not the wiggle of the line. */}
+            others stay quiet. The reach is generous — 48px, raised from 32
+            after trying it — because a scrub follows the time axis, not the
+            wiggle of the line, so the hand is rarely ON the trace. */}
         {showValues &&
           cursorPercent != null &&
           cursorIndex != null &&
@@ -727,7 +729,7 @@ export function ImuChart({
               const range = p.max - p.min || 1;
               const traceFrac =
                 (H - PAD_Y - ((value - p.min) / range) * (H - PAD_Y * 2)) / H;
-              if (Math.abs(traceFrac - pointerYFrac) * 350 > 32) return [];
+              if (Math.abs(traceFrac - pointerYFrac) * 350 > 48) return [];
               return [{ id: p.id, color: p.color, value }];
             });
             if (near.length === 0) return null;
