@@ -72,7 +72,9 @@ import {
   StatClockIcon,
   StatImpactIcon,
   StatJumpIcon,
+  StatLeanAngleIcon,
   StatMetricIcon,
+  StatRadiusIcon,
   StatStopwatchIcon,
   StatTurnIcon,
 } from "@/components/imu-stat-icons";
@@ -278,6 +280,18 @@ interface EventMetric {
   /** Unit set apart from the figure, the way the app's totals read. */
   unit?: string;
   /**
+   * The figure's mark, for the ones that HAVE supplied art — set here and
+   * not guessed from the label in the card, so a renamed metric cannot end
+   * up wearing someone else's glyph.
+   *
+   * Only the plain figures use it (the box at the card's foot); a metric
+   * carrying an "agora" comparison is drawn big, where a mark would compete
+   * with the number. And the box shows marks only when EVERY figure in it
+   * has one — one lonely glyph in a row of three reads as two of them
+   * having lost theirs.
+   */
+  Icon?: ComponentType<{ className?: string }>;
+  /**
    * The same quantity at the cursor's instant, when it has one — printed
    * beside the event's figure as "agora …", so the two can be compared at a
    * glance. A card's headline numbers describe the whole event and so do not
@@ -340,6 +354,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     label: "Duração",
     value: ((toMs - fromMs) / 1000).toFixed(1),
     unit: "s",
+    Icon: StatStopwatchIcon,
   });
   /**
    * The instant's own reading of a channel — the printed value, signed and
@@ -395,6 +410,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
             label: "Raio (est.)",
             value: `~${Math.round(vMean / omega)}`,
             unit: "m",
+            Icon: StatRadiusIcon,
           });
           metrics.push({
             label: "Inclinação teórica",
@@ -402,6 +418,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
               (Math.atan((vMean * omega) / 9.81) * 180) / Math.PI,
             )}`,
             unit: "°",
+            Icon: StatLeanAngleIcon,
           });
         }
       }
@@ -2479,6 +2496,9 @@ function EventCard({
   metrics: EventMetric[];
   className?: string;
 }) {
+  const compared = metrics.filter((m) => m.now != null || m.progress != null);
+  const plain = metrics.filter((m) => m.now == null && m.progress == null);
+  const allPlainMarked = plain.every((m) => m.Icon);
   return (
     <div
       className={cn(
@@ -2525,7 +2545,7 @@ function EventCard({
           // much of the ride was a jump, say — when it is the detector's own
           // certainty that this IS a jump.
           <span className="shrink-0 text-sm text-muted-foreground">
-            Confiança ·{" "}
+            Confiança{" "}
             <span className="tabular-nums">
               {Math.round(confidence * 100)}%
             </span>
@@ -2533,47 +2553,105 @@ function EventCard({
         )}
       </div>
 
-      {/* Two columns on a phone, three from sm: a metric carrying its "agora"
-          comparison needs the width, and three of those on 375px wrapped
-          every figure onto its own line. */}
+      {/* The figures, split the way the data already splits them: the ones
+          that carry an "agora" comparison are the event's own peaks — they
+          get the room, the big figure and the bar — and the rest are single
+          facts, which go in a ruled box at the foot.
+
+          It is not a new flag: a metric HAS a comparison when the cursor can
+          sit inside the quantity it describes, and those are exactly the
+          ones worth watching move. */}
       {metrics.length > 0 && (
-        <div className="mt-[22px] grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
-          {metrics.map((metric) => (
-            <div key={metric.label}>
-              <p className="text-xs text-muted-foreground">{metric.label}</p>
-              <p className="mt-0.5 font-medium tabular-nums">
-                {metric.value}
-                {metric.unit && (
-                  // Degrees and "/100" ride against the figure; word-like
-                  // units (G, s, G RMS) take the space they are owed.
-                  <span className="text-sm text-muted-foreground">
-                    {/^[°/]/.test(metric.unit) ? "" : " "}
-                    {metric.unit}
-                  </span>
-                )}
-                {metric.now && (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {" · agora "}
-                    {metric.now}
-                  </span>
-                )}
-              </p>
-              {/* How far the instant is along the event's own peak. Not a
-                  health or Ride Load bar — this one fills from empty and its
-                  full end is this event's maximum, nothing global. */}
-              {metric.progress != null && (
-                <span
-                  aria-hidden
-                  className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-muted"
-                >
-                  <span
-                    className="block h-full rounded-full bg-foreground transition-[width] duration-100"
-                    style={{ width: `${metric.progress * 100}%` }}
-                  />
-                </span>
-              )}
+        <div className="mt-4 border-t border-border pt-4">
+          {compared.length > 0 && (
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+              {compared.map((metric) => (
+                <div key={metric.label}>
+                  <p className="text-sm text-muted-foreground">
+                    {metric.label}
+                  </p>
+                  <div className="mt-1 flex items-center gap-3">
+                    <p className="shrink-0 text-[22px] leading-none font-semibold tabular-nums">
+                      {metric.value}
+                      {metric.unit && (
+                        // Degrees and "/100" ride against the figure;
+                        // word-like units (G, s, G RMS) take their space.
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {/^[°/]/.test(metric.unit) ? "" : " "}
+                          {metric.unit}
+                        </span>
+                      )}
+                    </p>
+                    <div className="min-w-0 flex-1">
+                      {metric.now && (
+                        <p className="truncate text-sm text-muted-foreground tabular-nums">
+                          Agora {metric.now}
+                        </p>
+                      )}
+                      {/* How far the instant is along the event's own peak.
+                          Not a health or Ride Load bar — this one fills from
+                          empty and its full end is this event's maximum,
+                          nothing global. */}
+                      {metric.progress != null && (
+                        <span
+                          aria-hidden
+                          className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                        >
+                          <span
+                            className="block h-full rounded-full bg-foreground transition-[width] duration-100"
+                            style={{ width: `${metric.progress * 100}%` }}
+                          />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* The plain figures as one ruled box — the résumé's idiom, and
+              for its reason: the rules are `gap-px` over a background rather
+              than borders on the cells, because a border would have to know
+              which cell ends each row, and this grid breaks differently at
+              every width. `auto-fit` so three fit a wide card and two a
+              narrow one, with the box's own overflow-hidden giving the cells
+              the corners. */}
+          {plain.length > 0 && (
+            <div
+              className={cn(
+                "grid gap-px overflow-hidden rounded-[12px] border border-border bg-border",
+                "[grid-template-columns:repeat(auto-fit,minmax(120px,1fr))]",
+                compared.length > 0 && "mt-4",
+              )}
+            >
+              {plain.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="flex items-center gap-2.5 bg-card px-3.5 py-3"
+                >
+                  {/* All or none: see EventMetric.Icon. */}
+                  {allPlainMarked && metric.Icon && (
+                    <metric.Icon className="size-5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="leading-tight font-semibold tabular-nums">
+                      {metric.value}
+                      {metric.unit && (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {/^[°/]/.test(metric.unit) ? "" : " "}
+                          {metric.unit}
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {metric.label}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

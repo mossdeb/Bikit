@@ -220,3 +220,94 @@ export function StatStopwatchIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/**
+ * Raio (est.) — a slope with the centre of the arc marked, supplied art.
+ *
+ * The stroke follows this file's rule and not the source's: 1.65 in a 22-wide
+ * viewBox paints 1.5px at the 20px these are drawn at (1.5 × 22/20). The file
+ * carries 0.85, which would have painted 0.77 — half the weight of the marks
+ * beside it.
+ */
+export function StatRadiusIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 22 22"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden
+    >
+      <path
+        d="M0.421875 21.5769H21.5757"
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M0.421875 21.2044L8.11418 0.423096"
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11.9612 21.5769C11.9612 16.5645 8.89668 12.2678 4.53906 10.4581"
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M16.1335 11.2209C16.9687 11.2209 17.6458 10.5438 17.6458 9.70854C17.6458 8.87328 16.9687 8.19617 16.1335 8.19617C15.2982 8.19617 14.6211 8.87328 14.6211 9.70854C14.6211 10.5438 15.2982 11.2209 16.1335 11.2209Z"
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Inclinação teórica — an upright over a ground line with the lean arc
+ * dashed in, supplied art.
+ *
+ * 1.94 in a 25.93-wide viewBox for the same 1.5px (1.5 × 25.93/20); the file
+ * carries 1.21. The dash pattern is scaled with it, or the dots would have
+ * kept the source's spacing against a thicker stroke and read as a dotted
+ * line rather than a dashed arc.
+ */
+export function StatLeanAngleIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 26 22"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden
+    >
+      <path
+        d="M0.605469 21.3957H25.3258"
+        stroke="currentColor"
+        strokeWidth="1.94"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.5977 18.0791L12.5977 1.0791"
+        stroke="currentColor"
+        strokeWidth="1.94"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M23.2026 21.3957C23.2026 15.7404 18.618 11.1558 12.9626 11.1558C7.30725 11.1558 2.72266 15.7404 2.72266 21.3957"
+        stroke="currentColor"
+        strokeWidth="1.94"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+        strokeDasharray="1.94 5.82"
+      />
+    </svg>
+  );
+}
