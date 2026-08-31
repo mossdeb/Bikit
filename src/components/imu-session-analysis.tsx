@@ -2499,6 +2499,13 @@ function EventCard({
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
   const allPlainMarked = plain.every((m) => m.Icon);
+  /**
+   * The titleless card's single figure, printed in its head. Guarded on the
+   * count and not just on the title: the card is built with exactly one
+   * metric today, and if a second ever arrives the body should take them
+   * rather than the head quietly dropping it.
+   */
+  const soleFigure = title == null && metrics.length === 1 ? metrics[0] : null;
   return (
     <div
       className={cn(
@@ -2507,11 +2514,25 @@ function EventCard({
         // it would let the lab's dot texture run straight through the
         // figures. On a phone the surface under it is still opaque white, so
         // this costs nothing there.
-        "rounded-[12px] border border-border bg-card px-4 py-3.5",
+        // 20px all round — the metric cards' `p-5`, and the same number on
+        // every side for the same reason: the two kinds of card stand side
+        // by side in the reading, so their contents have to start on the same
+        // line. At 16 on the sides the event's mark sat 4px left of the
+        // channel's dot and its head 4px above, which reads as one card
+        // hanging off the other rather than as two in a row.
+        "rounded-[12px] border border-border bg-card p-5",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div
+        className={cn(
+          "flex justify-between gap-3",
+          // The titleless card is one line — mark, time, figure — so its two
+          // ends centre against each other. A named event has two lines on
+          // the left and its confidence belongs beside the first of them.
+          title ? "items-start" : "items-center",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sidebar text-white">
             <Icon className="size-5" />
@@ -2551,6 +2572,24 @@ function EventCard({
             </span>
           </span>
         )}
+        {/* The titleless card's figure rides the head's far end instead of
+            going down into a box of its own. An instant no event covers
+            carries ONE number, and a ruled box around a single cell is a
+            container drawn for nothing — the row is the card. No label
+            either: the reading panel beside it names the channel, and here
+            "Força G" under a lone 1.05 would say what the whole card is
+            about twice. */}
+        {title == null && soleFigure && (
+          <p className="shrink-0 leading-tight font-semibold tabular-nums">
+            {soleFigure.value}
+            {soleFigure.unit && (
+              <span className="text-sm font-normal text-muted-foreground">
+                {/^[°/]/.test(soleFigure.unit) ? "" : " "}
+                {soleFigure.unit}
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       {/* The figures, split the way the data already splits them: the ones
@@ -2561,7 +2600,7 @@ function EventCard({
           It is not a new flag: a metric HAS a comparison when the cursor can
           sit inside the quantity it describes, and those are exactly the
           ones worth watching move. */}
-      {metrics.length > 0 && (
+      {metrics.length > 0 && soleFigure == null && (
         <div className="mt-4 border-t border-border pt-4">
           {compared.length > 0 && (
             <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -2629,7 +2668,15 @@ function EventCard({
           {plain.length > 0 && (
             <div
               className={cn(
-                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border",
+                // `bg-clip-padding` and it matters: a background reaches the
+                // BORDER box by default, so the box's `--border` fill was
+                // sitting under the `--border` border — two coats of the same
+                // 9% ink, and the outline came out at 213 where the résumé's
+                // same-token outline paints 233. Same class, different colour,
+                // which is the translucent-ink trap this project already has
+                // written down. Clipped to the padding box, the outline paints
+                // over the card's white and the two boxes match.
+                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border bg-clip-padding",
                 compared.length > 0 && "mt-4",
               )}
             >
