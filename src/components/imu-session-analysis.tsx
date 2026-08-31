@@ -273,6 +273,14 @@ const COL_GAP = 22;
  * generates what it can read literally, so the two have to move together. */
 const READ_MIN_W = 320;
 
+/** How narrow a half may be dragged while it holds nothing but its outline,
+ * px. A half with cards keeps a card's width; one with nothing to show has
+ * no reason to, and giving it back is the whole point of turning a side off.
+ *
+ * Not zero: the outline still has to read as a box with a sentence in it,
+ * and the handle needs something left to grab. */
+const READ_MIN_W_EMPTY = 200;
+
 /** One labelled figure in an event's card. */
 interface EventMetric {
   label: string;
@@ -910,13 +918,54 @@ export function ImuSessionAnalysis({
         ? tMs[dashIndex] / data.durationMs
         : 0;
 
+  /**
+   * Re-fit the dragged split to the floors that are ABOUT to apply.
+   *
+   * A half that holds only its outline may be dragged down to 200px; one that
+   * holds cards may not go under 320. So a split left at 200 while the
+   * metrics were off is illegal the moment they come back — and the card
+   * inside, which cannot be laid out under 320, would spill out of the panel.
+   * Turning a side back on therefore has to bring the edge with it.
+   *
+   * Called from the switches and not from an effect on their state: a
+   * `setState` in an effect body is an ESLint error in this project, and the
+   * switch is where the fact actually changes — the same shape `toggleDash`
+   * uses for the map's width.
+   *
+   * Nothing to do at rest: `null` means halves, and halves are legal at any
+   * width the row can be.
+   */
+  function refitRead(nextMetricsEmpty: boolean, nextEventsOn: boolean) {
+    const grid = readGridRef.current;
+    if (!grid || readWidth == null) return;
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+    const minLeft = nextMetricsEmpty ? READ_MIN_W_EMPTY : READ_MIN_W;
+    const minRight = nextEventsOn ? READ_MIN_W : READ_MIN_W_EMPTY;
+    const maxLeft = Math.max(
+      minLeft,
+      grid.getBoundingClientRect().width - gap - minRight,
+    );
+    setReadWidth(Math.min(maxLeft, Math.max(minLeft, readWidth)));
+  }
+
   function toggleSeries(id: SeriesId) {
-    setActiveSeries((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(activeSeries);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    // Read through the SAME filter the panel does: a series that is on but
+    // not available in this recording (speed without GPS) leaves the half as
+    // empty as no series at all.
+    refitRead(
+      availableSeriesDefs.every((def) => !next.has(def.id)),
+      eventsOn,
+    );
+    setActiveSeries(next);
+  }
+
+  function toggleEvents() {
+    const next = !eventsOn;
+    refitRead(activeSeriesDefs.length === 0, next);
+    setEventsOn(next);
   }
 
   function toggleKind(kind: string) {
@@ -1014,6 +1063,17 @@ export function ImuSessionAnalysis({
     }
   }
 
+  /** How narrow the channels' half may be dragged: a card's worth while it
+   * holds cards, the outline's width while it holds only the outline — which
+   * is what lets the events take the rest when the metrics are all off. The
+   * events' own floor never moves: that half always holds a card. */
+  const readMinLeft =
+    activeSeriesDefs.length === 0 ? READ_MIN_W_EMPTY : READ_MIN_W;
+  /** The same rule on the other side: with the events hidden that half holds
+   * only its outline, so it stops reserving a card's width and the channels
+   * can take the rest. */
+  const readMinRight = eventsOn ? READ_MIN_W : READ_MIN_W_EMPTY;
+
   /** The far end the channels' half may be dragged to: everything the row
    * has, less the channel between the halves and the floor the events keep.
    * Read from the DOM rather than tracked, for the reason the map's twin
@@ -1024,8 +1084,8 @@ export function ImuSessionAnalysis({
     if (!grid) return READ_MIN_W;
     const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
     return Math.max(
-      READ_MIN_W,
-      grid.getBoundingClientRect().width - gap - READ_MIN_W,
+      readMinLeft,
+      grid.getBoundingClientRect().width - gap - readMinRight,
     );
   }
 
@@ -1035,7 +1095,7 @@ export function ImuSessionAnalysis({
   function currentReadWidth(): number {
     if (readWidth != null) return readWidth;
     const left = readLeftRef.current?.getBoundingClientRect().width;
-    return left && left > 0 ? left : READ_MIN_W;
+    return left && left > 0 ? left : readMinLeft;
   }
 
   function startReadResize(event: React.PointerEvent<HTMLElement>) {
@@ -1070,7 +1130,7 @@ export function ImuSessionAnalysis({
     // The handle rides the halves' shared edge, and the channels are on the
     // left: dragging right gives them exactly what the pointer travelled.
     const next = drag.startW + (event.clientX - drag.startX);
-    setReadWidth(Math.min(drag.maxW, Math.max(READ_MIN_W, next)));
+    setReadWidth(Math.min(drag.maxW, Math.max(readMinLeft, next)));
   }
 
   function endReadResize(event: React.PointerEvent<HTMLElement>) {
@@ -1175,7 +1235,7 @@ export function ImuSessionAnalysis({
           key: "events-master",
           label: "Mostrar eventos",
           checked: eventsOn,
-          onToggle: () => setEventsOn((v) => !v),
+          onToggle: toggleEvents,
         },
         ...EVENT_KIND_DEFS.map((def) => ({
           key: def.kind,
@@ -1927,11 +1987,20 @@ export function ImuSessionAnalysis({
               <div
                 className={cn(
                   "mt-5 lg:relative lg:mt-0",
-                  // The same `auto-fill` the channels use, against the same
+                  // The same `auto-fit` the channels use, against the same
                   // floor: a half wide enough for two event cards side by
                   // side gets them, and the cards themselves never had to
                   // know about it.
-                  "lg:grid lg:grid-cols-[repeat(auto-fit,minmax(max(320px,(100%_-_11px)/2),1fr))] lg:items-start lg:gap-[11px]",
+                  //
+                  // Only while there ARE cards. That floor is 320px — a
+                  // card's width — and a track cannot go under it, so with
+                  // the events hidden the outline was held at 320 inside a
+                  // half the handle had taken down to 200 and spilled 120px
+                  // out of the card. Nothing to lay out, no layout: the
+                  // outline is then the half's only child and simply fills
+                  // it.
+                  eventsOn &&
+                    "lg:grid lg:grid-cols-[repeat(auto-fit,minmax(max(320px,(100%_-_11px)/2),1fr))] lg:items-start lg:gap-[11px]",
                 )}
               >
                 {!eventsOn && (
@@ -1999,7 +2068,7 @@ export function ImuSessionAnalysis({
                   aria-valuenow={
                     readWidth != null ? Math.round(readWidth) : undefined
                   }
-                  aria-valuemin={READ_MIN_W}
+                  aria-valuemin={readMinLeft}
                   onPointerDown={startReadResize}
                   onPointerMove={moveReadResize}
                   onPointerUp={endReadResize}
@@ -2017,7 +2086,7 @@ export function ImuSessionAnalysis({
                       );
                     else if (event.key === "ArrowLeft")
                       setReadWidth(
-                        Math.max(READ_MIN_W, currentReadWidth() - 24),
+                        Math.max(readMinLeft, currentReadWidth() - 24),
                       );
                     else return;
                     event.preventDefault();
@@ -2305,7 +2374,13 @@ const GAUGE_BOX = "h-5 min-w-10 max-w-56 flex-1";
  */
 function ReadingPlaceholder({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[128px] items-center justify-center rounded-[12px] border border-dashed border-input px-5 text-center text-sm text-muted-foreground">
+    // Fills its half, whatever the reader has left it — the width is not
+    // this box's to decide. It was pinned at 200 for a while, and the pin was
+    // what made an empty half look like a hole: with the handle able to take
+    // that half down to 200px (READ_MIN_W_EMPTY), the outline can simply
+    // follow it and the same 200 stops being written in two places to mean
+    // two different things.
+    <div className="flex min-h-[128px] w-full items-center justify-center rounded-[12px] border border-dashed border-input px-5 text-center text-sm text-muted-foreground">
       {children}
     </div>
   );
