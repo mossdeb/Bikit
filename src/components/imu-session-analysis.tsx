@@ -50,6 +50,7 @@ import {
   gForceOf,
   gpsDistance,
   gpsMeanSpeed,
+  gpsPeakSpeed,
   gpsSpeedAt,
   impactEnergy,
   impactSeverityIndex,
@@ -410,6 +411,27 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       // not what it spiked. Skipped below 1 °/s, where a "curve" is a
       // straight and the division makes up kilometres.
       if (gps) {
+        // The pace through the corner, in the same module the two G-figures
+        // wear: the fastest the curve was carried, with the reading under the
+        // cursor beside it and a bar past it.
+        //
+        // Hand-built and not `nowOf`, which indexes a channel on the IMU
+        // timeline — speed is not one of those. It is read off the GPS track
+        // at the cursor's INSTANT, `tMs[cursorIndex]`, which is the same
+        // moment by a different route.
+        const vMax = gpsPeakSpeed(gps, event.startMs, event.endMs);
+        const vNow =
+          cursorIndex >= 0 ? gpsSpeedAt(gps, tMs[cursorIndex]) : null;
+        if (vMax != null)
+          metrics.push({
+            label: "Velocidade máx",
+            value: Math.round(vMax * 3.6).toString(),
+            unit: "km/h",
+            ...(vNow != null && {
+              now: `${Math.round(vNow * 3.6)} km/h`,
+              progress: vMax > 0 ? Math.min(1, vNow / vMax) : 0,
+            }),
+          });
         const vMean = gpsMeanSpeed(gps, event.startMs, event.endMs);
         const omegaDeg = windowMeanAbs(tMs, gz, event.startMs, event.endMs);
         if (vMean != null && omegaDeg != null && omegaDeg > 1) {
@@ -429,6 +451,24 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
             Icon: StatLeanAngleIcon,
           });
         }
+        // What the corner did to the pace: the speed it was entered and left
+        // with, read off the GPS series at the event's own instants, the way
+        // the braking card does — so the two events answer the same question
+        // in the same words.
+        //
+        // A plain fact and not a module like the peak above: an "agora" rides
+        // beside a PEAK, and entry→exit is not one — it is two ends of the
+        // same pass, and there is no instant for the cursor to sit at inside
+        // it. So it goes in the box at the foot with the other single facts.
+        const vIn = gpsSpeedAt(gps, event.startMs);
+        const vOut = gpsSpeedAt(gps, event.endMs);
+        if (vIn != null && vOut != null)
+          metrics.push({
+            label: "Entrada → Saída",
+            value: `${Math.round(vIn * 3.6)} → ${Math.round(vOut * 3.6)}`,
+            unit: "km/h",
+            Icon: StatGaugeIcon,
+          });
       }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -2595,7 +2635,13 @@ function EventCard({
         // line. At 16 on the sides the event's mark sat 4px left of the
         // channel's dot and its head 4px above, which reads as one card
         // hanging off the other rather than as two in a row.
-        "rounded-[12px] border border-border bg-card p-5",
+        // `@container` so the peaks below can count their columns against
+        // THIS card's width and not the window's. The card's width is not a
+        // function of the viewport any more: the reading's split is dragged
+        // by hand and each half breaks into two, so the same window shows
+        // this card at 768px or at 330. A `sm:` there was answering a
+        // question nobody asked.
+        "@container rounded-[12px] border border-border bg-card p-5",
         className,
       )}
     >
@@ -2678,7 +2724,28 @@ function EventCard({
       {metrics.length > 0 && soleFigure == null && (
         <div className="mt-4 border-t border-border pt-4">
           {compared.length > 0 && (
-            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <div
+              className={cn(
+                // As many columns as the CARD can hold: three where there is
+                // room for three, two in a half-width card, one on a phone.
+                // Measured against the card and not the window, which is why
+                // the card above declares `@container`.
+                //
+                // 200px is the floor a module needs — the 22px figure, the
+                // "agora" reading beside it, and enough left over for the bar
+                // to read as a bar rather than as a dash.
+                //
+                // `auto-fit` while there are peaks to spread (the empty
+                // tracks collapse, so two peaks take half each instead of
+                // sitting in a third of the row), `auto-fill` for a lone one,
+                // where keeping the empty tracks is exactly what stops its
+                // bar from running the card's whole width.
+                "grid gap-x-6 gap-y-4",
+                compared.length === 1
+                  ? "grid-cols-[repeat(auto-fill,minmax(200px,1fr))]"
+                  : "grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+              )}
+            >
               {compared.map((metric) => (
                 <div key={metric.label}>
                   <p className="text-sm text-muted-foreground">
@@ -2698,7 +2765,12 @@ function EventCard({
                     </p>
                     <div className="min-w-0 flex-1">
                       {metric.now && (
-                        <p className="truncate text-sm text-muted-foreground tabular-nums">
+                        // Full ink and not the muted grey the labels wear:
+                        // this is a live reading, the one thing on the card
+                        // that changes as the cursor moves, and at 14px in
+                        // grey it was the faintest thing in the module while
+                        // being the only one worth watching.
+                        <p className="truncate text-sm tabular-nums">
                           Agora {metric.now}
                         </p>
                       )}
@@ -2752,7 +2824,14 @@ function EventCard({
                 // written down. Clipped to the padding box, the outline paints
                 // over the card's white and the two boxes match.
                 "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border bg-clip-padding",
-                compared.length > 0 && "mt-4",
+                // 20px under the peaks and not the `mt-4` it was: the bars
+                // are solid ink running the full width of their module, so
+                // the same 16px that reads as air under a line of text reads
+                // as a seam when a black bar is what sits above it. It is
+                // also the card's own padding, which puts the same distance
+                // between the box and the peaks as between the box and the
+                // card's edge.
+                compared.length > 0 && "mt-5",
               )}
             >
               {plain.map((metric) => (

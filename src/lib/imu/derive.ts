@@ -444,6 +444,34 @@ export function gpsMeanSpeed(
 }
 
 /**
+ * Highest ground speed across a window, m/s — the peak beside the mean above.
+ *
+ * The fixes inside the window plus the interpolated ends, and not a scan of
+ * the IMU timeline: the receiver samples at 1 Hz where the IMU runs at 100,
+ * so resampling first would only interpolate the same fixes into ninety-nine
+ * copies of themselves and could never surface a value the track does not
+ * hold. The ends matter because a short window may enclose no fix at all.
+ */
+export function gpsPeakSpeed(
+  gps: GpsChannels,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (toMs < fromMs) return null;
+  const gT = gps.tMs;
+  if (gT.length === 0) return null;
+  let peak = Math.max(
+    gpsValueAt(gT, gps.speedMps, fromMs)!,
+    gpsValueAt(gT, gps.speedMps, toMs)!,
+  );
+  for (let i = 0; i < gT.length; i++) {
+    if (gT[i] > fromMs && gT[i] < toMs && gps.speedMps[i] > peak)
+      peak = gps.speedMps[i];
+  }
+  return Number.isFinite(peak) ? peak : null;
+}
+
+/**
  * Distance travelled across a window, metres. The receiver's own cumulative
  * distance when the file carries it (interpolated at both ends); otherwise
  * the mean speed times the duration — same integral, one step removed.
@@ -540,7 +568,8 @@ export function pitchSeries(
   for (let i = 1; i < n; i++) {
     const dtMs = tMs[i] - tMs[i - 1];
     const alpha = tauMs / (tauMs + dtMs);
-    pitch = alpha * (pitch + gy[i] * (dtMs / 1000)) + (1 - alpha) * accPitchAt(i);
+    pitch =
+      alpha * (pitch + gy[i] * (dtMs / 1000)) + (1 - alpha) * accPitchAt(i);
     out[i] = pitch;
   }
   return out;
