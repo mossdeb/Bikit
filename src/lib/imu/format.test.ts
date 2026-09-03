@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { parseImuFile } from "./format";
 
 function sample(t: number, overrides: Record<string, number> = {}) {
-  return { t_ms: t, ax_g: 0.01, ay_g: -0.02, az_g: 1.0, gx_dps: 0.5, gy_dps: -0.5, gz_dps: 1.2, g_force: 1.0002, ...overrides };
+  return {
+    t_ms: t,
+    ax_g: 0.01,
+    ay_g: -0.02,
+    az_g: 1.0,
+    gx_dps: 0.5,
+    gy_dps: -0.5,
+    gz_dps: 1.2,
+    g_force: 1.0002,
+    ...overrides,
+  };
 }
 
 function gpsSample(t: number, overrides: Record<string, unknown> = {}) {
@@ -25,11 +35,28 @@ function demoFile(overrides: Record<string, unknown> = {}) {
   return {
     format: "bikit_imu_session",
     version: 1,
-    session: { session_id: "s1", duration_ms: 30, sample_rate_hz: 100, sample_count: 4 },
+    session: {
+      session_id: "s1",
+      duration_ms: 30,
+      sample_rate_hz: 100,
+      sample_count: 4,
+    },
     events: [
-      { type: "curve", direction: "left", start_ms: 0, end_ms: 20, confidence: 0.94 },
+      {
+        type: "curve",
+        direction: "left",
+        start_ms: 0,
+        end_ms: 20,
+        confidence: 0.94,
+      },
       { type: "impact", time_ms: 10, severity: "hard", confidence: 0.96 },
-      { type: "jump", takeoff_ms: 5, landing_ms: 25, airtime_ms: 20, confidence: 0.98 },
+      {
+        type: "jump",
+        takeoff_ms: 5,
+        landing_ms: 25,
+        airtime_ms: 20,
+        confidence: 0.98,
+      },
       { type: "rough_section", start_ms: 0, end_ms: 30, confidence: 0.9 },
       { type: "braking", start_ms: 20, end_ms: 30, confidence: 0.89 },
     ],
@@ -76,7 +103,9 @@ describe("parseImuFile", () => {
   });
 
   it("rejects time running backwards", () => {
-    const result = parseImuFile(demoFile({ samples: [sample(0), sample(20), sample(10)] }));
+    const result = parseImuFile(
+      demoFile({ samples: [sample(0), sample(20), sample(10)] }),
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -106,7 +135,9 @@ describe("parseImuFile", () => {
 
   it("parses a drop as its own kind, shaped like a jump", () => {
     const file = demoFile({
-      events: [{ type: "drop", takeoff_ms: 100, landing_ms: 900, confidence: 0.9 }],
+      events: [
+        { type: "drop", takeoff_ms: 100, landing_ms: 900, confidence: 0.9 },
+      ],
     });
     const result = parseImuFile(file);
     expect(result.ok).toBe(true);
@@ -119,7 +150,9 @@ describe("parseImuFile", () => {
   });
 
   it("derives a jump's airtime from takeoff and landing when absent", () => {
-    const file = demoFile({ events: [{ type: "jump", takeoff_ms: 5, landing_ms: 25 }] });
+    const file = demoFile({
+      events: [{ type: "jump", takeoff_ms: 5, landing_ms: 25 }],
+    });
     const result = parseImuFile(file);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -137,7 +170,11 @@ describe("parseImuFile", () => {
   });
 
   it("parses gps_samples into typed channels, doubles for the coordinates", () => {
-    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(0), gpsSample(100, { ground_speed_mps: 9.0 })] }));
+    const result = parseImuFile(
+      demoFile({
+        gps_samples: [gpsSample(0), gpsSample(100, { ground_speed_mps: 9.0 })],
+      }),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const gps = result.session.gps;
@@ -153,7 +190,13 @@ describe("parseImuFile", () => {
 
   it("skips a gps sample without a valid fix — a tunnel, not corruption", () => {
     const result = parseImuFile(
-      demoFile({ gps_samples: [gpsSample(0), gpsSample(100, { fix_valid: false }), gpsSample(200)] }),
+      demoFile({
+        gps_samples: [
+          gpsSample(0),
+          gpsSample(100, { fix_valid: false }),
+          gpsSample(200),
+        ],
+      }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -161,7 +204,9 @@ describe("parseImuFile", () => {
   });
 
   it("reads gps as null when every fix is invalid, instead of an empty track", () => {
-    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(0, { fix_valid: false })] }));
+    const result = parseImuFile(
+      demoFile({ gps_samples: [gpsSample(0, { fix_valid: false })] }),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.session.gps).toBeNull();
@@ -177,7 +222,9 @@ describe("parseImuFile", () => {
   });
 
   it("rejects gps time running backwards", () => {
-    const result = parseImuFile(demoFile({ gps_samples: [gpsSample(100), gpsSample(0)] }));
+    const result = parseImuFile(
+      demoFile({ gps_samples: [gpsSample(100), gpsSample(0)] }),
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -191,6 +238,89 @@ describe("parseImuFile", () => {
     if (!result.ok) return;
     expect(Number.isNaN(result.session.gps!.headingDeg[0])).toBe(true);
     expect(Number.isNaN(result.session.gps!.distanceM[0])).toBe(true);
+  });
+
+  // The XIAO exporter's spelling of the same block (bikit_mac_exporter v5).
+  function gnssSample(t: number, overrides: Record<string, unknown> = {}) {
+    return {
+      t_ms: t,
+      latitude: 37.0163977,
+      longitude: -7.9313235,
+      altitude_m: 52.2,
+      speed_m_s: 0.25,
+      speed_kmh: 0.9,
+      heading_deg: null,
+      hdop: 2.64,
+      satellites: 12,
+      fix_quality: 2,
+      valid: { position: true, altitude: true, speed: true, heading: false },
+      ...overrides,
+    };
+  }
+
+  it("reads the exporter's gnss_samples dialect into the same channels", () => {
+    const result = parseImuFile(
+      demoFile({
+        gnss_samples: [
+          gnssSample(91),
+          gnssSample(1091, {
+            speed_m_s: 8.5,
+            heading_deg: 41.93,
+            valid: {
+              position: true,
+              altitude: true,
+              speed: true,
+              heading: true,
+            },
+          }),
+        ],
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const gps = result.session.gps;
+    expect(gps).not.toBeNull();
+    expect(Array.from(gps!.tMs)).toEqual([91, 1091]);
+    expect(gps!.latDeg[0]).toBe(37.0163977);
+    expect(gps!.lonDeg[0]).toBe(-7.9313235);
+    expect(gps!.altitudeM[0]).toBeCloseTo(52.2, 5);
+    expect(gps!.speedMps[1]).toBeCloseTo(8.5, 5);
+    // A null heading with the flag down is the documented "omitted"…
+    expect(Number.isNaN(gps!.headingDeg[0])).toBe(true);
+    // …and a real one with the flag up is read.
+    expect(gps!.headingDeg[1]).toBeCloseTo(41.93, 5);
+    // The exporter carries no cumulative distance and hdop is not metres.
+    expect(Number.isNaN(gps!.distanceM[0])).toBe(true);
+    expect(Number.isNaN(gps!.hAccM[0])).toBe(true);
+  });
+
+  it("skips an exporter sample whose position the receiver flags invalid", () => {
+    const result = parseImuFile(
+      demoFile({
+        gnss_samples: [
+          gnssSample(0),
+          gnssSample(1000, {
+            valid: {
+              position: false,
+              altitude: true,
+              speed: true,
+              heading: false,
+            },
+          }),
+          gnssSample(2000),
+        ],
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Array.from(result.session.gps!.tMs)).toEqual([0, 2000]);
+  });
+
+  it("names the key the file used when the gnss block is not a list", () => {
+    const result = parseImuFile(demoFile({ gnss_samples: { t_ms: 0 } }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('"gnss_samples"');
   });
 
   it("measures the sample rate off the recording when the metadata omits it", () => {

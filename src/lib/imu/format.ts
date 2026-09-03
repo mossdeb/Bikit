@@ -70,10 +70,10 @@ export interface ImuChannels {
 
 /**
  * The GNSS track, when the recording carries one (format v2's
- * `gps_samples`). Its own clock and its own rate — typically 10 Hz against
- * the IMU's 100 — joined to the IMU channels by the shared `t_ms`; the
- * file's synchronization block puts the alignment error at a few ms, well
- * under one IMU sample.
+ * `gps_samples`, or the XIAO exporter's `gnss_samples` — see
+ * parseGpsSamples for the two spellings). Its own clock and its own rate —
+ * 10 Hz in the simulated file, 1 Hz off the real receiver, against the
+ * IMU's 100 to 416 — joined to the IMU channels by the shared `t_ms`.
  */
 export interface GpsChannels {
   /** GPS sample timestamps in ms from session start. Monotonic. */
@@ -219,7 +219,17 @@ const bikitImuV1: ImuParser = {
       }
     }
 
-    const gpsResult = parseGpsSamples(json.gps_samples);
+    // Two spellings of the same block: `gps_samples` is what the simulated
+    // v2 file carried, `gnss_samples` is what the XIAO exporter writes. The
+    // first one present wins; a file with neither is a recording without
+    // a receiver.
+    const gpsKey =
+      json.gps_samples != null
+        ? "gps_samples"
+        : json.gnss_samples != null
+          ? "gnss_samples"
+          : null;
+    const gpsResult = parseGpsSamples(gpsKey ? json[gpsKey] : null, gpsKey);
     if (!gpsResult.ok) return { ok: false, error: gpsResult.error };
 
     const lastT = tMs[n - 1];
@@ -247,23 +257,42 @@ const bikitImuV1: ImuParser = {
 };
 
 /**
- * The `gps_samples` block (format v2). Absent in v1 files — that is not an
- * error, it is a recording without GNSS. When present, the core fields are
+ * The GNSS block (format v2). Absent in v1 files — that is not an error, it
+ * is a recording without a receiver. When present, the core fields are
  * strict the way IMU samples are: a GPS sample missing its time or its
  * coordinates is a corrupt recording, not a variant. Two exceptions:
  *
- * - A sample with `fix_valid: false` is skipped rather than failing the
- *   file — no fix is a tunnel, not corruption, and its coordinates are
- *   whatever the receiver last guessed.
+ * - A sample the receiver itself flags as invalid is skipped rather than
+ *   failing the file — no fix is a tunnel, not corruption, and its
+ *   coordinates are whatever the receiver last guessed.
  * - Heading, cumulative distance and accuracy are optional per sample (NaN
  *   when missing): useful when there, nothing downstream requires them.
+ *
+ * TWO DIALECTS OF THE SAME BLOCK, and this reads both. The simulated v2
+ * file spelled it `gps_samples` with `latitude_deg` / `longitude_deg` /
+ * `altitude_msl_m` / `ground_speed_mps` and one `fix_valid` flag. The XIAO
+ * exporter (bikit_mac_exporter v5, 2026-09) writes `gnss_samples` with
+ * `latitude` / `longitude` / `altitude_m` / `speed_m_s`, a `heading_deg`
+ * that is `null` while the receiver has no heading, an `hdop` instead of
+ * an accuracy in metres, no cumulative distance, and a `valid` object with
+ * one flag per quantity. Each field below tries the simulated name first
+ * and the exporter's second; whichever the file carries is read. One
+ * parser and not two, because the difference is spelling — the data is
+ * the same receiver saying the same things — and a format that forks on
+ * spelling would need every downstream consumer to know which fork it got.
+ *
+ * `hdop` is NOT mapped onto `hAccM`: it is a dimensionless dilution, not
+ * metres, and pretending otherwise would let a future gate on accuracy
+ * compare the two as if they were one scale. Left unread until something
+ * needs it.
  */
 function parseGpsSamples(
   raw: unknown,
+  key: string | null,
 ): { ok: true; gps: GpsChannels | null } | { ok: false; error: string } {
   if (raw == null) return { ok: true, gps: null };
   if (!Array.isArray(raw)) {
-    return { ok: false, error: '"gps_samples" não é uma lista.' };
+    return { ok: false, error: `"${key ?? "gps_samples"}" não é uma lista.` };
   }
 
   const kept: {
@@ -281,13 +310,34 @@ function parseGpsSamples(
     if (!isRecord(s)) {
       return { ok: false, error: `A amostra GPS ${i} não é um objeto.` };
     }
+    // The receiver's own verdict on the fix, in either dialect. The
+    // exporter flags each quantity apart; a sample whose position, altitude
+    // or speed it distrusts is skipped whole, because those three are the
+    // strict core below and a value the receiver itself disowns is not a
+    // reading — it is the last guess. Heading is handled per field: a
+    // receiver standing still has no heading and says so, and that is not
+    // a reason to lose the position.
     if (s.fix_valid === false) continue;
+    const valid = isRecord(s.valid) ? s.valid : null;
+    if (
+      valid &&
+      (valid.position === false ||
+        valid.altitude === false ||
+        valid.speed === false)
+    )
+      continue;
     const t = finiteNumber(s.t_ms);
-    const lat = finiteNumber(s.latitude_deg);
-    const lon = finiteNumber(s.longitude_deg);
-    const alt = finiteNumber(s.altitude_msl_m);
-    const speed = finiteNumber(s.ground_speed_mps);
-    if (t == null || lat == null || lon == null || alt == null || speed == null) {
+    const lat = finiteNumber(s.latitude_deg) ?? finiteNumber(s.latitude);
+    const lon = finiteNumber(s.longitude_deg) ?? finiteNumber(s.longitude);
+    const alt = finiteNumber(s.altitude_msl_m) ?? finiteNumber(s.altitude_m);
+    const speed = finiteNumber(s.ground_speed_mps) ?? finiteNumber(s.speed_m_s);
+    if (
+      t == null ||
+      lat == null ||
+      lon == null ||
+      alt == null ||
+      speed == null
+    ) {
       return {
         ok: false,
         error: `A amostra GPS ${i} tem campos em falta ou não numéricos.`,
@@ -306,7 +356,11 @@ function parseGpsSamples(
       lon,
       alt,
       speed,
-      heading: finiteNumber(s.heading_deg) ?? NaN,
+      // `null` in the exporter's file while there is no heading; the flag
+      // says the same thing. Either way it is NaN here, the documented
+      // "omitted".
+      heading:
+        valid?.heading === false ? NaN : (finiteNumber(s.heading_deg) ?? NaN),
       dist: finiteNumber(s.distance_m) ?? NaN,
       hAcc: finiteNumber(s.horizontal_accuracy_m) ?? NaN,
     });
