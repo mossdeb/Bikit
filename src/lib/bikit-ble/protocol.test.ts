@@ -36,6 +36,9 @@ class FakeLogger implements BikitTransport {
   dropListEnd = false;
   /** Send the INFO_* block newer firmware adds after the first INFO line. */
   extendedInfo = false;
+  /** Delay the block by this much — an ADC read behind INFO_BAT is not
+   * instant, and the block must still be waited for. */
+  slowInfoMs = 0;
 
   private ackOffset = 0;
   private windowEnd = 0;
@@ -67,6 +70,10 @@ class FakeLogger implements BikitTransport {
       for (const h of this.status) h(m);
     });
   }
+  /** For subclasses that fake their own lines. */
+  protected statusListeners() {
+    return [...this.status];
+  }
 
   async writeControl(command: string, mode: ControlWriteMode) {
     this.written.push({ command, mode });
@@ -75,11 +82,15 @@ class FakeLogger implements BikitTransport {
     else if (head === "INFO") {
       this.notify("INFO 1 0.3.11.0-test ABCDEF0123456789");
       if (this.extendedInfo) {
-        this.notify("INFO_BAT 82 3975");
-        this.notify("INFO_GPS FIX 11 95 GOOD 420");
-        this.notify("INFO_SD OK");
-        this.notify("INFO_IMU OK");
-        this.notify("INFO_END");
+        const rest = () => {
+          this.notify("INFO_BAT 82 3975");
+          this.notify("INFO_GPS FIX 11 95 GOOD 420");
+          this.notify("INFO_SD OK");
+          this.notify("INFO_IMU OK");
+          this.notify("INFO_END");
+        };
+        if (this.slowInfoMs > 0) setTimeout(rest, this.slowInfoMs);
+        else rest();
       }
     } else if (head === "SESSIONS") {
       if (this.busy) return this.notify(`BUSY ${this.busy}`);
@@ -316,6 +327,60 @@ describe("BikitDevice — extended INFO", () => {
     });
     expect(info.sd).toBe("OK");
     expect(info.imu).toBe("OK");
+  });
+
+  it("still gets the battery when the block starts late, and reads units off the numbers", async () => {
+    const logger = new FakeLogger();
+    logger.extendedInfo = true;
+    logger.slowInfoMs = 300; // inside the first-line grace — the block wins
+    const device = await BikitDevice.connect(logger);
+    const info = await device.info();
+    expect(info.battery).toEqual({ percent: 82, millivolts: 3975 });
+    expect(info.gps?.state).toBe("FIX");
+  });
+
+  it("reports INFO_BAT NA as a reading that was not available, not as no line", async () => {
+    class NaLogger extends FakeLogger {
+      async writeControl(command: string, mode: ControlWriteMode) {
+        if (command === "INFO") {
+          this.written.push({ command, mode });
+          for (const line of ["INFO 1 fw UID", "INFO_BAT NA", "INFO_END"])
+            queueMicrotask(() => {
+              for (const h of this.statusListeners()) h(line);
+            });
+          return;
+        }
+        return super.writeControl(command, mode);
+      }
+    }
+    const device = await BikitDevice.connect(new NaLogger());
+    const info = await device.info();
+    expect(info.battery).toEqual({ unavailable: true, raw: "NA" });
+  });
+
+  it("tolerates units glued to the values", async () => {
+    class UnitLogger extends FakeLogger {
+      async writeControl(command: string, mode: ControlWriteMode) {
+        if (command === "INFO") {
+          this.written.push({ command, mode });
+          for (const line of [
+            "INFO 1 fw UID",
+            "INFO_BAT 82% 3975mV",
+            "INFO_END",
+          ])
+            queueMicrotask(() => this.emit(line));
+          return;
+        }
+        return super.writeControl(command, mode);
+      }
+      emit(line: string) {
+        // Reach the private status set through the public subscribe path.
+        for (const h of this.statusListeners()) h(line);
+      }
+    }
+    const device = await BikitDevice.connect(new UnitLogger());
+    const info = await device.info();
+    expect(info.battery).toEqual({ percent: 82, millivolts: 3975 });
   });
 });
 

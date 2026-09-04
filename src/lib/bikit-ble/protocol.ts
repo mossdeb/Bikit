@@ -40,8 +40,14 @@ export interface BikitDeviceInfo {
   uid: string;
   /** `INFO_BAT <percent> <millivolts>`. The percentage is an estimate off
    * the LiPo curve; the millivolts are the number to trust while that
-   * estimate is being validated. Null on firmware that predates the line. */
-  battery: { percent: number; millivolts: number } | null;
+   * estimate is being validated. `INFO_BAT NA` — the firmware could not
+   * read the ADC — is `{ unavailable: true }`, so the screen can say "no
+   * reading" instead of showing nothing. Null on firmware that predates
+   * the line. */
+  battery:
+    | { percent: number; millivolts: number }
+    | { unavailable: true; raw: string }
+    | null;
   /** `INFO_GPS <state> <satellites> <hdop×100> <signal> <age_ms>` — the last
    * GGA snapshot the receiver kept, fix or not, answered at once and not
    * waited for. `hdop` is already divided back (95 → 0.95). */
@@ -107,6 +113,9 @@ const LIST_END_GRACE_MS = 1_500;
  * firmware sends before settling for the first alone. Firmware that sends
  * INFO_END never waits this out. */
 const INFO_GRACE_MS = 800;
+/** Once an INFO_* line has shown the block is coming, how much silence
+ * between its lines before giving up on INFO_END and using what came. */
+const INFO_BLOCK_SILENCE_MS = 4_000;
 /** Longer than the device's own give-up (20 retries × 900 ms = 18 s), so
  * its ERROR ACK_TIMEOUT arrives before ours does and the message is its. */
 const TRANSFER_STALL_MS = 30_000;
@@ -325,10 +334,25 @@ export class BikitDevice {
         const value = info;
         if (value) finish(() => resolve(value));
       };
+      // Two waits, because two firmwares. Before any INFO_* line we do not
+      // know which one is talking: a short grace settles for the first line
+      // alone (old firmware). The moment an INFO_* line arrives we know the
+      // block is coming and wait for its INFO_END with a longer silence —
+      // the battery read behind INFO_BAT touches an ADC and may not be
+      // instant, and a line that takes a second must not be the line that
+      // gets dropped.
+      let inBlock = false;
       const armGrace = () => {
         if (grace) clearTimeout(grace);
-        grace = setTimeout(done, INFO_GRACE_MS);
+        grace = setTimeout(
+          done,
+          inBlock ? INFO_BLOCK_SILENCE_MS : INFO_GRACE_MS,
+        );
       };
+      // "82" and "82%" and "3975mV" all read as their number; a firmware
+      // that grows a unit onto the value must not zero the reading.
+      const num = (text: string | undefined) =>
+        text === undefined ? NaN : parseFloat(text);
 
       const onStatus = (m: string) => {
         if (m.startsWith("INFO ")) {
@@ -353,24 +377,31 @@ export class BikitDevice {
           return;
         }
         const parts = m.split(/\s+/);
-        switch (parts[0]) {
+        const key = parts[0]?.toUpperCase();
+        if (!key?.startsWith("INFO_")) return; // not ours
+        inBlock = true;
+        switch (key) {
           case "INFO_BAT": {
-            const percent = Number(parts[1]);
-            const millivolts = Number(parts[2]);
-            if (Number.isFinite(percent) && Number.isFinite(millivolts))
-              info.battery = { percent, millivolts };
+            const percent = num(parts[1]);
+            const millivolts = num(parts[2]);
+            info.battery =
+              Number.isFinite(percent) && Number.isFinite(millivolts)
+                ? { percent, millivolts }
+                : // "NA" (or anything not a number): the line came, the
+                  // reading did not.
+                  { unavailable: true, raw: parts.slice(1).join(" ") };
             armGrace();
             return;
           }
           case "INFO_GPS": {
-            const satellites = Number(parts[2]);
-            const hdopCenti = Number(parts[3]);
-            const ageMs = Number(parts[5]);
+            const satellites = num(parts[2]);
+            const hdopCenti = num(parts[3]);
+            const ageMs = num(parts[5]);
             info.gps = {
-              state: parts[1] ?? "NO_DATA",
+              state: (parts[1] ?? "NO_DATA").toUpperCase(),
               satellites: Number.isFinite(satellites) ? satellites : 0,
               hdop: Number.isFinite(hdopCenti) ? hdopCenti / 100 : NaN,
-              signal: parts[4] ?? "NONE",
+              signal: (parts[4] ?? "NONE").toUpperCase(),
               ageMs: Number.isFinite(ageMs) ? ageMs : NaN,
             };
             armGrace();
@@ -388,7 +419,10 @@ export class BikitDevice {
             done();
             return;
           default:
-            return; // not ours
+            // An INFO_* line this build does not know: part of the block,
+            // so keep waiting for its end, but nothing to read from it.
+            armGrace();
+            return;
         }
       };
       const onDisconnect = () =>

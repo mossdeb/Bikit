@@ -83,6 +83,46 @@ const formatBytes = (n: number) =>
 
 const sessionLabel = (id: number) => `S${String(id).padStart(4, "0")}`;
 
+/**
+ * The receiver's snapshot in one line, saying only what means something in
+ * that state: with a fix, satellites, HDOP, signal and age; without one, the
+ * fields the firmware fills with sentinels (HDOP 9999 → 99.99, signal NONE,
+ * 0 satellites) are left out — "Sem fix · há 1,0 s" is the whole truth.
+ */
+function describeGps(gps: NonNullable<BikitDeviceInfo["gps"]>): string {
+  const parts: string[] = [];
+  parts.push(
+    gps.state === "FIX"
+      ? "Fix"
+      : gps.state === "NO_FIX"
+        ? "Sem fix"
+        : gps.state === "NO_DATA"
+          ? "Sem dados"
+          : gps.state,
+  );
+  if (gps.state === "FIX") {
+    parts.push(`${gps.satellites} sat`);
+    if (Number.isFinite(gps.hdop) && gps.hdop < 50)
+      parts.push(`HDOP ${gps.hdop.toFixed(2)}`);
+    const signal =
+      gps.signal === "GOOD"
+        ? "sinal bom"
+        : gps.signal === "FAIR"
+          ? "sinal médio"
+          : gps.signal === "WEAK"
+            ? "sinal fraco"
+            : gps.signal === "NONE"
+              ? null
+              : gps.signal;
+    if (signal) parts.push(signal);
+  } else if (gps.satellites > 0) {
+    parts.push(`${gps.satellites} sat`);
+  }
+  if (Number.isFinite(gps.ageMs) && gps.state !== "NO_DATA")
+    parts.push(`há ${(gps.ageMs / 1000).toFixed(1)} s`);
+  return parts.join(" · ");
+}
+
 export function BikitDeviceImport({
   userId,
   riderDefault,
@@ -281,7 +321,7 @@ export function BikitDeviceImport({
   const connected = phase.kind !== "idle" && phase.kind !== "connecting";
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {/* Who we are talking to, or how to start. */}
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 text-sm text-muted-foreground">
@@ -332,42 +372,22 @@ export function BikitDeviceImport({
             {info.battery && (
               <>
                 <dt>Bateria</dt>
-                <dd className="text-foreground">
-                  {info.battery.percent}% ·{" "}
-                  {info.battery.millivolts.toLocaleString("pt-PT")} mV
-                </dd>
+                {"unavailable" in info.battery ? (
+                  // The line came but the ADC gave nothing — say so, rather
+                  // than leaving the row out as if the firmware were old.
+                  <dd>sem leitura ({info.battery.raw})</dd>
+                ) : (
+                  <dd className="text-foreground">
+                    {info.battery.percent}% ·{" "}
+                    {info.battery.millivolts.toLocaleString("pt-PT")} mV
+                  </dd>
+                )}
               </>
             )}
             {info.gps && (
               <>
                 <dt>GPS</dt>
-                <dd className="text-foreground">
-                  {info.gps.state === "FIX"
-                    ? "Fix"
-                    : info.gps.state === "NO_FIX"
-                      ? "Sem fix"
-                      : info.gps.state === "NO_DATA"
-                        ? "Sem dados"
-                        : info.gps.state}
-                  {" · "}
-                  {info.gps.satellites} sat
-                  {Number.isFinite(info.gps.hdop) && (
-                    <> · HDOP {info.gps.hdop.toFixed(2)}</>
-                  )}
-                  {" · "}
-                  {info.gps.signal === "GOOD"
-                    ? "sinal bom"
-                    : info.gps.signal === "FAIR"
-                      ? "sinal médio"
-                      : info.gps.signal === "WEAK"
-                        ? "sinal fraco"
-                        : info.gps.signal === "NONE"
-                          ? "sem sinal"
-                          : info.gps.signal}
-                  {Number.isFinite(info.gps.ageMs) && (
-                    <> · há {(info.gps.ageMs / 1000).toFixed(1)} s</>
-                  )}
-                </dd>
+                <dd className="text-foreground">{describeGps(info.gps)}</dd>
               </>
             )}
             {info.sd && (
@@ -568,7 +588,11 @@ export function BikitDeviceImport({
             {showLog ? "Ocultar registo" : `Registo BLE (${logLines.length})`}
           </button>
           {showLog && (
-            <pre className="mt-2 max-h-48 overflow-auto rounded-[8px] bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            // `max-w-full` and the `min-w-0` up the tree: a <pre> with long
+            // lines is the widest thing in the dialog, and a grid/flex item
+            // defaults to min-width auto — without the cap it was the pre
+            // that sized the dialog, not the other way round.
+            <pre className="mt-2 max-h-48 w-full max-w-full overflow-auto rounded-[8px] bg-muted px-3 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
               {logLines
                 .map(
                   (line) =>

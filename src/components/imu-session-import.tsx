@@ -152,7 +152,11 @@ export function ImuSessionImport({
         <Tabs
           value={tab}
           onValueChange={(value) => setTab(value as "device" | "file")}
-          className="gap-4"
+          // `min-w-0` here and on the panels: the dialog is a grid, a grid
+          // item's min-width defaults to its content, and the device tab's
+          // log is a <pre> with long lines — without this the log widened
+          // the whole dialog past its max-width.
+          className="min-w-0 gap-4"
         >
           <TabsList variant="pill" className="w-full border border-border">
             <TabsTrigger value="device" className="flex-1 px-3 py-1.5">
@@ -166,7 +170,7 @@ export function ImuSessionImport({
           <TabsContent
             value="device"
             keepMounted
-            className="data-[hidden]:hidden"
+            className="min-w-0 data-[hidden]:hidden"
           >
             <BikitDeviceImport
               userId={userId}
