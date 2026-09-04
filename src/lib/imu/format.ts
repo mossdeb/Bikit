@@ -9,6 +9,8 @@
  * derived metrics are computed on read (see derive.ts).
  */
 
+import { isBktFile, parseBktFile } from "./bkt";
+
 export type ImuEvent =
   | {
       kind: "curve";
@@ -458,4 +460,28 @@ export function parseImuFile(json: unknown): ImuParseResult {
     };
   }
   return parser.parse(json);
+}
+
+/**
+ * The entry point for a file's bytes — what the import form and the session
+ * page both call. Picks the parser by the first bytes: the logger's `.BKT`
+ * binary by its "BKTL" magic, everything else decoded as text and read as
+ * JSON through the registry above. The two paths end in the same
+ * ImuSessionData, which is the whole point of having a normalization layer.
+ *
+ * A file that is neither says so in one message rather than two — "not
+ * JSON" would be misleading for a binary that merely lost its first bytes.
+ */
+export function parseImuBytes(bytes: ArrayBuffer): ImuParseResult {
+  if (isBktFile(bytes)) return parseBktFile(bytes);
+  let json: unknown;
+  try {
+    json = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return {
+      ok: false,
+      error: "O ficheiro não é JSON válido nem um .BKT do sensor.",
+    };
+  }
+  return parseImuFile(json);
 }

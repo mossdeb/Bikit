@@ -38,7 +38,7 @@ import {
 } from "@/components/imu-event-icons";
 import { createClient } from "@/lib/supabase/client";
 import {
-  parseImuFile,
+  parseImuBytes,
   type GpsChannels,
   type ImuEvent,
   type ImuSessionData,
@@ -741,14 +741,9 @@ export function ImuSessionAnalysis({
         );
         return;
       }
-      let json: unknown;
-      try {
-        json = JSON.parse(await blob.text());
-      } catch {
-        setLoadError("O ficheiro guardado não é JSON válido.");
-        return;
-      }
-      const result = parseImuFile(json);
+      // Bytes, not text — the stored object may be the logger's .BKT binary
+      // as well as JSON; the dispatcher tells them apart by the magic.
+      const result = parseImuBytes(await blob.arrayBuffer());
       if (cancelled) return;
       if (!result.ok) {
         setLoadError(result.error);

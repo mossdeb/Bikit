@@ -17,8 +17,13 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { createClient } from "@/lib/supabase/client";
 import { createImuSession } from "@/lib/actions/imu";
-import { parseImuFile, type ImuSessionData } from "@/lib/imu/format";
-import { sessionSummary, formatSessionTime, type ImuSessionSummary } from "@/lib/imu/derive";
+import { parseImuBytes, type ImuSessionData } from "@/lib/imu/format";
+import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
+import {
+  sessionSummary,
+  formatSessionTime,
+  type ImuSessionSummary,
+} from "@/lib/imu/derive";
 
 interface BikeOption {
   id: string;
@@ -26,7 +31,7 @@ interface BikeOption {
 }
 
 /**
- * Import flow: pick a JSON file, validate and summarize it locally, then —
+ * Import flow: pick a file (.BKT or JSON), validate and summarize it locally, then —
  * only on confirm — upload the untouched file straight to Storage and
  * register the summary row through the server action. Validation happens
  * before a single byte leaves the machine, and every error is written into
@@ -70,20 +75,21 @@ export function ImuSessionImport({
     setError(null);
     setParsed(null);
     if (!file) return;
-    let json: unknown;
-    try {
-      json = JSON.parse(await file.text());
-    } catch {
-      setError("O ficheiro não é JSON válido.");
-      return;
-    }
-    const result = parseImuFile(json);
+    // Bytes and not text: the logger's .BKT is binary, and the dispatcher
+    // sniffs the first four of them to pick the parser.
+    const result = parseImuBytes(await file.arrayBuffer());
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    setParsed({ file, session: result.session, summary: sessionSummary(result.session) });
-    setName(result.session.sessionId ?? file.name.replace(/\.json$/i, ""));
+    setParsed({
+      file,
+      session: result.session,
+      summary: sessionSummary(result.session),
+    });
+    setName(
+      result.session.sessionId ?? file.name.replace(/\.(json|bkt)$/i, ""),
+    );
   }
 
   async function handleImport() {
@@ -92,12 +98,18 @@ export function ImuSessionImport({
     setError(null);
 
     // The raw file goes up as-is — the storage object IS the raw data, and
-    // nothing recorded by the sensor is rewritten on the way in.
-    const storagePath = `${userId}/${crypto.randomUUID()}.json`;
+    // nothing recorded by the sensor is rewritten on the way in. The
+    // extension and content type follow what the parser found, not the
+    // file's own name: a .BKT renamed .json is still a binary.
+    const isBkt = parsed.session.format === BKT_FORMAT;
+    const storagePath = `${userId}/${crypto.randomUUID()}.${isBkt ? "bkt" : "json"}`;
     const supabase = createClient();
     const { error: uploadError } = await supabase.storage
       .from("imu-sessions")
-      .upload(storagePath, parsed.file, { contentType: "application/json", upsert: false });
+      .upload(storagePath, parsed.file, {
+        contentType: isBkt ? BKT_CONTENT_TYPE : "application/json",
+        upsert: false,
+      });
     if (uploadError) {
       setBusy(false);
       setError(`O upload falhou: ${uploadError.message}`);
@@ -140,7 +152,9 @@ export function ImuSessionImport({
         if (!next) reset();
       }}
     >
-      <DialogTrigger className={buttonVariants({ variant: "inverted", size: "sm" })}>
+      <DialogTrigger
+        className={buttonVariants({ variant: "inverted", size: "sm" })}
+      >
         <Plus data-icon="inline-start" />
         Importar sessão
       </DialogTrigger>
@@ -148,7 +162,8 @@ export function ImuSessionImport({
         <DialogHeader>
           <DialogTitle>Importar sessão IMU</DialogTitle>
           <DialogDescription className="mt-1">
-            Um ficheiro JSON gravado pelo sensor. É validado antes de sair daqui.
+            O ficheiro .BKT gravado pelo sensor, ou o JSON exportado. É validado
+            antes de sair daqui.
           </DialogDescription>
         </DialogHeader>
 
@@ -156,7 +171,7 @@ export function ImuSessionImport({
           <input
             ref={fileRef}
             type="file"
-            accept=".json,application/json"
+            accept=".bkt,.BKT,.json,application/json,application/octet-stream"
             className="block w-full text-sm text-muted-foreground file:mr-3 file:h-11 file:cursor-pointer file:rounded-full file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium file:text-secondary-foreground"
             onChange={(event) => handleFile(event.target.files?.[0])}
           />
@@ -166,15 +181,22 @@ export function ImuSessionImport({
               <div className="rounded-[12px] border border-border px-3 py-2.5 text-sm">
                 <p className="font-medium">{parsed.session.format}</p>
                 <p className="mt-0.5 text-muted-foreground">
-                  {formatSessionTime(parsed.summary.durationMs)} · {Math.round(parsed.summary.sampleRateHz)} Hz ·{" "}
-                  <span className="tabular-nums">{parsed.summary.sampleCount.toLocaleString("pt-PT")}</span> amostras ·{" "}
-                  {parsed.summary.eventCount} eventos
+                  {formatSessionTime(parsed.summary.durationMs)} ·{" "}
+                  {Math.round(parsed.summary.sampleRateHz)} Hz ·{" "}
+                  <span className="tabular-nums">
+                    {parsed.summary.sampleCount.toLocaleString("pt-PT")}
+                  </span>{" "}
+                  amostras · {parsed.summary.eventCount} eventos
                 </p>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="imu-name">Nome</Label>
-                <Input id="imu-name" value={name} onChange={(event) => setName(event.target.value)} />
+                <Input
+                  id="imu-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
               </div>
 
               {/* Under the name, because the two are the same question
@@ -194,7 +216,11 @@ export function ImuSessionImport({
 
               <div className="space-y-1.5">
                 <Label htmlFor="imu-bike">Bicicleta (opcional)</Label>
-                <NativeSelect id="imu-bike" value={bikeId} onChange={(event) => setBikeId(event.target.value)}>
+                <NativeSelect
+                  id="imu-bike"
+                  value={bikeId}
+                  onChange={(event) => setBikeId(event.target.value)}
+                >
                   <option value="">Sem bicicleta</option>
                   {bikes.map((bike) => (
                     <option key={bike.id} value={bike.id}>
@@ -209,7 +235,12 @@ export function ImuSessionImport({
           {/* Written on screen, never a toast — the garage rule. */}
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button className="w-full" variant="inverted" disabled={!parsed || !name.trim() || busy} onClick={handleImport}>
+          <Button
+            className="w-full"
+            variant="inverted"
+            disabled={!parsed || !name.trim() || busy}
+            onClick={handleImport}
+          >
             {busy ? "A importar…" : "Importar"}
           </Button>
         </div>
