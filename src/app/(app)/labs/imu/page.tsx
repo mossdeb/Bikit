@@ -29,8 +29,7 @@ export default async function ImuLabPage() {
   // import dialog. The server action falls back to the same value, so the
   // two agree whether or not anyone types in the field.
   const metadata = userData?.claims?.user_metadata as
-    | { full_name?: string }
-    | undefined;
+    { full_name?: string } | undefined;
   const riderDefault = metadata?.full_name?.trim() || email || "";
 
   const [{ data: sessions }, { data: bikes }] = await Promise.all([
@@ -79,8 +78,8 @@ export default async function ImuLabPage() {
       <div className="mt-6 space-y-4 pb-10">
         {(sessions ?? []).length === 0 && (
           <p className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
-            Ainda não há sessões. Importe um ficheiro JSON do sensor para
-            começar.
+            Ainda não há sessões. Ligue o dispositivo ou importe um ficheiro
+            .BKT para começar.
           </p>
         )}
 
