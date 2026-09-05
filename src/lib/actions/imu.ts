@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 
-export type ImuActionResult = { status: "ok" } | { status: "error"; message: string };
+export type ImuActionResult =
+  { status: "ok" } | { status: "error"; message: string };
 
 export interface CreateImuSessionInput {
   name: string;
@@ -32,12 +33,15 @@ export interface CreateImuSessionInput {
  * writes the summary row. Upload first, row second: a failed upload leaves no
  * row, and the inverse failure (orphan file, no row) is harmless.
  */
-export async function createImuSession(input: CreateImuSessionInput): Promise<ImuActionResult> {
+export async function createImuSession(
+  input: CreateImuSessionInput,
+): Promise<ImuActionResult> {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email)) return { status: "error", message: "Sem acesso." };
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: "Sem acesso." };
 
   // The row must point inside the caller's own folder — the folder the
   // storage policies scope every read and write to.
@@ -45,7 +49,8 @@ export async function createImuSession(input: CreateImuSessionInput): Promise<Im
     return { status: "error", message: "Caminho de ficheiro inválido." };
   }
   const name = input.name.trim();
-  if (!name) return { status: "error", message: "A sessão precisa de um nome." };
+  if (!name)
+    return { status: "error", message: "A sessão precisa de um nome." };
 
   // Left blank, the rider is whoever is importing: the overwhelmingly common
   // case is the account's owner recording their own ride, and a blank field
@@ -54,8 +59,7 @@ export async function createImuSession(input: CreateImuSessionInput): Promise<Im
   // form field can always be cleared on the way out. The claims carry
   // user_metadata (it rides in the JWT), so this costs no extra query.
   const metadata = userData?.claims?.user_metadata as
-    | { full_name?: string }
-    | undefined;
+    { full_name?: string } | undefined;
   const riderName =
     input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
   if (
@@ -105,12 +109,15 @@ export async function createImuSession(input: CreateImuSessionInput): Promise<Im
  * error read — the Supabase client returns {data, error} without throwing,
  * and an unread error is a silent partial failure.
  */
-export async function deleteImuSession(sessionId: string): Promise<ImuActionResult> {
+export async function deleteImuSession(
+  sessionId: string,
+): Promise<ImuActionResult> {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email)) return { status: "error", message: "Sem acesso." };
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: "Sem acesso." };
 
   const { data: session } = await supabase
     .from("imu_sessions")
@@ -127,14 +134,84 @@ export async function deleteImuSession(sessionId: string): Promise<ImuActionResu
     .eq("user_id", userId);
   if (rowError) return { status: "error", message: rowError.message };
 
-  const { error: fileError } = await supabase.storage.from("imu-sessions").remove([session.storage_path]);
+  const { error: fileError } = await supabase.storage
+    .from("imu-sessions")
+    .remove([session.storage_path]);
   // The row is gone either way; an undeleted file is an orphan, not a leak —
   // but it is reported rather than swallowed.
   if (fileError) {
     revalidatePath("/labs/imu");
-    return { status: "error", message: `A sessão foi apagada mas o ficheiro ficou: ${fileError.message}` };
+    return {
+      status: "error",
+      message: `A sessão foi apagada mas o ficheiro ficou: ${fileError.message}`,
+    };
   }
 
   revalidatePath("/labs/imu");
+  return { status: "ok" };
+}
+
+/**
+ * The BLE PIN of a BIKIT logger, kept with the account so the laptop and the
+ * phone both open the same device without retyping it. The device asks on
+ * every connection; this only saves the typing. Row per (user, device name),
+ * RLS-scoped — see migration 00042.
+ */
+async function labCaller() {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const userId = userData?.claims?.sub as string | undefined;
+  const email = userData?.claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email)) return null;
+  return { supabase, userId };
+}
+
+export async function getImuDevicePin(
+  deviceName: string,
+): Promise<string | null> {
+  const caller = await labCaller();
+  if (!caller || !deviceName.trim()) return null;
+  const { data } = await caller.supabase
+    .from("imu_device_pins")
+    .select("pin")
+    .eq("user_id", caller.userId)
+    .eq("device_name", deviceName.trim())
+    .maybeSingle();
+  return data?.pin ?? null;
+}
+
+export async function saveImuDevicePin(
+  deviceName: string,
+  pin: string,
+): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (!caller) return { status: "error", message: "Sem acesso." };
+  const name = deviceName.trim();
+  const value = pin.trim();
+  if (!name || !value) return { status: "error", message: "PIN vazio." };
+  const { error } = await caller.supabase.from("imu_device_pins").upsert(
+    {
+      user_id: caller.userId,
+      device_name: name,
+      pin: value,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,device_name" },
+  );
+  if (error) return { status: "error", message: error.message };
+  return { status: "ok" };
+}
+
+export async function forgetImuDevicePin(
+  deviceName: string,
+): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (!caller) return { status: "error", message: "Sem acesso." };
+  const { error } = await caller.supabase
+    .from("imu_device_pins")
+    .delete()
+    .eq("user_id", caller.userId)
+    .eq("device_name", deviceName.trim());
+  if (error) return { status: "error", message: error.message };
   return { status: "ok" };
 }

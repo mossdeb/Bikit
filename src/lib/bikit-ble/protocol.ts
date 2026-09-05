@@ -150,18 +150,26 @@ export function describeDeviceMessage(raw: string): string {
         return "O dispositivo não tem nenhuma transferência em curso.";
       case "UNKNOWN_COMMAND":
         return "O dispositivo não reconheceu o comando — firmware desatualizado?";
+      case "AUTH_REQUIRED":
+        return "O dispositivo pede o PIN antes de continuar.";
       default:
         return `O dispositivo devolveu um erro (${code || raw}).`;
     }
   }
   if (head === "TRANSFER_CANCELLED") return "Transferência cancelada.";
+  if (head === "AUTH_FAIL") return "PIN incorreto.";
   return raw;
 }
 
 const isRefusal = (message: string) =>
   message.startsWith("ERROR ") ||
   message === "ERROR" ||
-  message.startsWith("BUSY");
+  message.startsWith("BUSY") ||
+  message.startsWith("AUTH_FAIL");
+
+/** The device's refusal that means "authenticate first" — the one the UI
+ * answers with the PIN form instead of an error line. */
+export const AUTH_REQUIRED = "ERROR AUTH_REQUIRED";
 
 /** One line of the conversation, for the developer view: what we wrote on
  * CONTROL and what came back on STATUS. DATA packets are not logged — there
@@ -239,9 +247,10 @@ export class BikitDevice {
     for (const handler of [...this.logHandlers]) handler(entry);
   }
 
-  /** Every CONTROL write goes through here so the log sees it. */
+  /** Every CONTROL write goes through here so the log sees it — the PIN
+   * excepted: the log is for pasting, and a secret must not ride in it. */
   private write(command: string, mode: ControlWriteMode): Promise<void> {
-    this.record("out", command);
+    this.record("out", command.startsWith("AUTH ") ? "AUTH ••••" : command);
     return this.transport.writeControl(command, mode);
   }
 
@@ -302,6 +311,26 @@ export class BikitDevice {
     return this.request("PING", (m) => (m === "PONG" ? true : undefined)).then(
       () => undefined,
     );
+  }
+
+  /**
+   * `AUTH <pin>` → `AUTH_OK`, or `AUTH_FAIL` (rejects with "PIN incorreto").
+   *
+   * Authentication is per BLE connection: the device forgets it the moment
+   * the link drops, so every connect() runs this again — a saved PIN saves
+   * the typing, never the step. Before AUTH_OK the device answers only PING
+   * and AUTH; everything else gets `ERROR AUTH_REQUIRED`.
+   *
+   * Resolves "not-required" on firmware that predates the PIN — it answers
+   * `ERROR UNKNOWN_COMMAND` to a command it has never heard of, and that is
+   * a logger with no lock, not a wrong key.
+   */
+  auth(pin: string): Promise<"ok" | "not-required"> {
+    return this.request(`AUTH ${pin.trim()}`, (m) => {
+      if (m === "AUTH_OK") return "ok";
+      if (m === "ERROR UNKNOWN_COMMAND") return "not-required";
+      return undefined;
+    });
   }
 
   /**

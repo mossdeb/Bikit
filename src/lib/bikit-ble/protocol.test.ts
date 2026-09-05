@@ -36,6 +36,10 @@ class FakeLogger implements BikitTransport {
   dropListEnd = false;
   /** Send the INFO_* block newer firmware adds after the first INFO line. */
   extendedInfo = false;
+  /** The device's PIN. Null = a firmware without the lock, which answers
+   * AUTH with ERROR UNKNOWN_COMMAND and everything else at once. */
+  pin: string | null = null;
+  private authed = false;
   /** Delay the block by this much — an ADC read behind INFO_BAT is not
    * instant, and the block must still be waited for. */
   slowInfoMs = 0;
@@ -50,6 +54,8 @@ class FakeLogger implements BikitTransport {
     return Promise.resolve({ name: "BIKIT-TEST" });
   }
   disconnect() {
+    // Authentication is per connection — the device forgets it here.
+    this.authed = false;
     for (const d of this.disconnects) d();
   }
   subscribeStatus(h: (m: string) => void) {
@@ -79,6 +85,15 @@ class FakeLogger implements BikitTransport {
     this.written.push({ command, mode });
     const [head, arg] = command.split(" ");
     if (head === "PING") this.notify("PONG");
+    else if (head === "AUTH") {
+      if (this.pin === null) return this.notify("ERROR UNKNOWN_COMMAND");
+      if (arg === this.pin) {
+        this.authed = true;
+        return this.notify("AUTH_OK");
+      }
+      return this.notify("AUTH_FAIL");
+    } else if (this.pin !== null && !this.authed)
+      this.notify("ERROR AUTH_REQUIRED");
     else if (head === "INFO") {
       this.notify("INFO 1 0.3.11.0-test ABCDEF0123456789");
       if (this.extendedInfo) {
@@ -304,6 +319,49 @@ describe("BikitDevice", () => {
     });
     await expect(pending).rejects.toThrow("caiu");
     expect(device.isConnected).toBe(false);
+  });
+});
+
+describe("BikitDevice — PIN authentication", () => {
+  it("refuses everything but PING before AUTH, and opens up after AUTH_OK", async () => {
+    const logger = new FakeLogger();
+    logger.pin = "1234";
+    logger.sessions = [{ id: 1, size: 4096 }];
+    const device = await BikitDevice.connect(logger);
+    await device.ping(); // allowed before auth
+    await expect(device.info()).rejects.toMatchObject({
+      raw: "ERROR AUTH_REQUIRED",
+    });
+    await expect(device.listSessions()).rejects.toMatchObject({
+      raw: "ERROR AUTH_REQUIRED",
+    });
+    await expect(device.auth("0000")).rejects.toMatchObject({
+      raw: "AUTH_FAIL",
+      message: "PIN incorreto.",
+    });
+    await expect(device.auth("1234")).resolves.toBe("ok");
+    expect((await device.listSessions()).map((s) => s.id)).toEqual([1]);
+  });
+
+  it("treats a firmware without the lock as not requiring a PIN", async () => {
+    const logger = new FakeLogger(); // pin stays null
+    const device = await BikitDevice.connect(logger);
+    await expect(device.auth("1234")).resolves.toBe("not-required");
+    await device.info();
+  });
+
+  it("never writes the PIN into the log", async () => {
+    const logger = new FakeLogger();
+    logger.pin = "1234";
+    const device = await BikitDevice.connect(logger);
+    await device.auth("1234");
+    const out = device.log
+      .filter((l) => l.direction === "out")
+      .map((l) => l.text);
+    expect(out).toContain("AUTH ••••");
+    expect(out.some((t) => t.includes("1234"))).toBe(false);
+    // The wire still carried the real one.
+    expect(logger.written.some((w) => w.command === "AUTH 1234")).toBe(true);
   });
 });
 

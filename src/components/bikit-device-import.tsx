@@ -5,8 +5,16 @@ import { Bluetooth, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
+  forgetDevicePin,
+  loadDevicePin,
+  saveDevicePin,
+} from "@/lib/bikit-ble/pin-store";
+import {
+  AUTH_REQUIRED,
   BikitDevice,
+  BikitDeviceError,
   type BikitDeviceInfo,
   type BikitLogEntry,
   type BikitSessionEntry,
@@ -70,7 +78,11 @@ type Phase =
       session: ImuSessionData;
       summary: ImuSessionSummary;
     }
-  | { kind: "saving"; sessions: BikitSessionEntry[]; sessionId: number };
+  | { kind: "saving"; sessions: BikitSessionEntry[]; sessionId: number }
+  /** Linked, PING answered, and the device wants its PIN before anything
+   * else. `hadSaved`: a remembered PIN was tried and refused. */
+  | { kind: "auth"; hadSaved: boolean }
+  | { kind: "authenticating" };
 
 const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -155,6 +167,12 @@ export function BikitDeviceImport({
   const [logLines, setLogLines] = useState<BikitLogEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [manualId, setManualId] = useState("");
+  const [pin, setPin] = useState("");
+  /** Remember the PIN with the account, for this device. On by default: the
+   * PIN is asked on EVERY connection (the device forgets it when the link
+   * drops), and typing it each time — on the laptop and again on the phone —
+   * would make the lock the thing people remember about the feature. */
+  const [rememberPin, setRememberPin] = useState(true);
   const [name, setName] = useState("");
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
@@ -193,22 +211,101 @@ export function BikitDeviceImport({
         setNotice("O dispositivo desligou-se.");
       });
       await device.ping();
-      setInfo(await device.info());
-      setPhase({ kind: "connected", sessions: null, listing: true });
-      const sessions = await device.listSessions();
-      setPhase({ kind: "connected", sessions, listing: false });
+      await authenticate(device);
     } catch (e) {
-      // Closing the picker is a decision, not a failure.
-      if (!/cancel/i.test(describe(e))) setError(describe(e));
-      if (deviceRef.current && deviceRef.current.isConnected) {
-        // Connected but the list failed: stay connected, so the session can
-        // still be asked for by number and the log can be read.
-        setPhase({ kind: "connected", sessions: null, listing: false });
-      } else {
-        deviceRef.current?.disconnect();
-        deviceRef.current = null;
-        setPhase({ kind: "idle" });
+      failConnect(e);
+    }
+  }
+
+  /**
+   * The lock, per connection. A PIN remembered for this device is tried
+   * first; refused, it is forgotten and asked for again. With none saved,
+   * INFO is tried before asking — a firmware without the lock answers it,
+   * and a firmware with it says AUTH_REQUIRED, which is the cue for the
+   * form. Nothing here assumes a device is still authenticated from last
+   * time: the device forgets at disconnect, so this runs on every connect.
+   */
+  async function authenticate(device: BikitDevice) {
+    setPhase({ kind: "authenticating" });
+    const saved = await loadDevicePin(device.name);
+    if (saved) {
+      try {
+        await device.auth(saved);
+      } catch (e) {
+        if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
+          void forgetDevicePin(device.name);
+          setNotice("O PIN guardado deixou de ser aceite — introduz o atual.");
+          setPhase({ kind: "auth", hadSaved: true });
+          return;
+        }
+        throw e;
       }
+      await afterAuth(device);
+      return;
+    }
+    try {
+      await afterAuth(device);
+    } catch (e) {
+      if (e instanceof BikitDeviceError && e.raw === AUTH_REQUIRED) {
+        setPhase({ kind: "auth", hadSaved: false });
+        return;
+      }
+      throw e;
+    }
+  }
+
+  /** Past the lock: read the device and its card. */
+  async function afterAuth(device: BikitDevice) {
+    setInfo(await device.info());
+    setPhase({ kind: "connected", sessions: null, listing: true });
+    const sessions = await device.listSessions();
+    setPhase({ kind: "connected", sessions, listing: false });
+  }
+
+  async function submitPin() {
+    const device = deviceRef.current;
+    if (!device || !pin.trim()) return;
+    setError(null);
+    setNotice(null);
+    setPhase({ kind: "authenticating" });
+    try {
+      const result = await device.auth(pin);
+      if (result === "ok" && rememberPin)
+        void saveDevicePin(device.name, pin.trim());
+      setPin("");
+      await afterAuth(device);
+    } catch (e) {
+      if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
+        setError("PIN incorreto.");
+        setPhase({ kind: "auth", hadSaved: false });
+        return;
+      }
+      failConnect(e);
+    }
+  }
+
+  /** A command the device refused for want of a PIN — it forgot us (a
+   * reconnect on its side) — is answered with the form, not an error. */
+  function handleCommandError(e: unknown, fallback: () => void) {
+    if (e instanceof BikitDeviceError && e.raw === AUTH_REQUIRED) {
+      setPhase({ kind: "auth", hadSaved: false });
+      return;
+    }
+    setError(describe(e));
+    fallback();
+  }
+
+  function failConnect(e: unknown) {
+    // Closing the picker is a decision, not a failure.
+    if (!/cancel/i.test(describe(e))) setError(describe(e));
+    if (deviceRef.current && deviceRef.current.isConnected) {
+      // Connected but something after the link failed: stay connected, so
+      // the session can still be asked for by number and the log read.
+      setPhase({ kind: "connected", sessions: null, listing: false });
+    } else {
+      deviceRef.current?.disconnect();
+      deviceRef.current = null;
+      setPhase({ kind: "idle" });
     }
   }
 
@@ -229,8 +326,11 @@ export function BikitDeviceImport({
       const sessions = await device.listSessions();
       setPhase({ kind: "connected", sessions, listing: false });
     } catch (e) {
-      setError(describe(e));
-      setPhase((p) => (p.kind === "connected" ? { ...p, listing: false } : p));
+      handleCommandError(e, () =>
+        setPhase((p) =>
+          p.kind === "connected" ? { ...p, listing: false } : p,
+        ),
+      );
     }
   }
 
@@ -285,11 +385,12 @@ export function BikitDeviceImport({
         summary: sessionSummary(parsed.session),
       });
     } catch (e) {
-      setError(describe(e));
-      setPhase(
-        deviceRef.current
-          ? { kind: "connected", sessions, listing: false }
-          : { kind: "idle" },
+      handleCommandError(e, () =>
+        setPhase(
+          deviceRef.current
+            ? { kind: "connected", sessions, listing: false }
+            : { kind: "idle" },
+        ),
       );
     } finally {
       abortRef.current = null;
@@ -416,6 +517,61 @@ export function BikitDeviceImport({
             )}
           </dl>
         )}
+
+      {/* The lock. Asked on every connection, because the device forgets
+          the moment the link drops; remembered here so it is typed once. */}
+      {phase.kind === "auth" && (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitPin();
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="ble-pin">PIN do dispositivo</Label>
+            <Input
+              id="ble-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              placeholder="••••••"
+              value={pin}
+              onChange={(event) => setPin(event.target.value)}
+            />
+          </div>
+          <label
+            htmlFor="ble-remember"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <Checkbox
+              id="ble-remember"
+              checked={rememberPin}
+              onCheckedChange={(checked) => setRememberPin(checked === true)}
+            />
+            Guardar na minha conta — no computador e no telemóvel
+          </label>
+          <Button
+            type="submit"
+            variant="inverted"
+            className="w-full"
+            disabled={!pin.trim()}
+          >
+            Autenticar
+          </Button>
+        </form>
+      )}
+
+      {phase.kind === "authenticating" && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2
+            className="size-4 shrink-0 motion-safe:animate-spin"
+            aria-hidden
+          />
+          A autenticar…
+        </p>
+      )}
 
       {/* The device scans its card twice before the first line comes back,
           which on a full card is seconds of nothing — the spinner is what
