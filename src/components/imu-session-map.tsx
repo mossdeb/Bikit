@@ -22,8 +22,7 @@ import { gpsPositionAt } from "@/lib/imu/derive";
  */
 function trackBearingDeg(gps: GpsChannels): number {
   const m = gps.tMs.length;
-  const midLat =
-    (((gps.latDeg[0] + gps.latDeg[m - 1]) / 2) * Math.PI) / 180;
+  const midLat = (((gps.latDeg[0] + gps.latDeg[m - 1]) / 2) * Math.PI) / 180;
   const dx = (gps.lonDeg[m - 1] - gps.lonDeg[0]) * Math.cos(midLat);
   const dy = gps.latDeg[m - 1] - gps.latDeg[0];
   return (Math.atan2(dx, dy) * (180 / Math.PI) + 360) % 360;
@@ -449,8 +448,7 @@ export function ImuSessionMap({
           // honour is not more zoom, it is a blank screen with a scale.
           maxZoom: 20,
           maxNativeZoom: 19,
-          attribution:
-            "&copy; Esri &mdash; Maxar, Earthstar Geographics",
+          attribution: "&copy; Esri &mdash; Maxar, Earthstar Geographics",
         },
       ).addTo(map);
 
@@ -461,8 +459,7 @@ export function ImuSessionMap({
       // in both app themes, like every mark on the satellite. Set here
       // rather than as a Tailwind arbitrary variant, which the build
       // failed to generate for a Leaflet-owned class.
-      map.getPane("tilePane")!.style.filter =
-        "brightness(0.62) saturate(0.65)";
+      map.getPane("tilePane")!.style.filter = "brightness(0.62) saturate(0.65)";
 
       const track: [number, number][] = [];
       for (let i = 0; i < gps.tMs.length; i++) {
@@ -537,13 +534,8 @@ export function ImuSessionMap({
       // project a due-north step and read its screen angle. Whatever sign
       // convention the plugin uses, the arrow follows the map it drew.
       const p0 = map.latLngToContainerPoint(track[0]);
-      const p1 = map.latLngToContainerPoint([
-        track[0][0] + 0.001,
-        track[0][1],
-      ]);
-      setNorthDeg(
-        (Math.atan2(p1.x - p0.x, p0.y - p1.y) * 180) / Math.PI,
-      );
+      const p1 = map.latLngToContainerPoint([track[0][0] + 0.001, track[0][1]]);
+      setNorthDeg((Math.atan2(p1.x - p0.x, p0.y - p1.y) * 180) / Math.PI);
 
       // A press anywhere on the map is a seek: the nearest fix to the press
       // becomes the cursor's instant. Equirectangular distance — at track
@@ -850,7 +842,10 @@ export function ImuSessionMap({
           address.locality ??
           address.town;
         const area =
-          address.city ?? address.municipality ?? address.town ?? address.county;
+          address.city ??
+          address.municipality ??
+          address.town ??
+          address.county;
         const label = [place, area === place ? null : area]
           .filter(Boolean)
           .join(", ");
@@ -971,26 +966,24 @@ export function ImuSessionMap({
     // and the north badge float over it, unrotated.
     // `imu-map` is the hook the credits' styling hangs off (globals.css):
     // a Leaflet-owned class cannot be reached from a Tailwind variant here.
-    <div className={cn("imu-map relative overflow-hidden bg-sidebar", className)}>
+    <div
+      className={cn("imu-map relative overflow-hidden bg-sidebar", className)}
+    >
       <div
         ref={containerRef}
         aria-label="Percurso da sessão no mapa"
-        // Deaf to the pointer on a phone, where this is a thumbnail and not
-        // a map you work: drag, pinch and tap-to-seek all die here, and the
-        // finger that lands on it scrolls the page instead of being eaten
-        // by a 104px box. The handlers stay attached — Leaflet simply never
-        // hears them — so the same instance is a full map again from `sm`
-        // with nothing to re-initialise.
-        className="pointer-events-none absolute inset-0 sm:pointer-events-auto"
+        // Interactive at every width — drag, pinch, tap-to-seek. It was deaf
+        // to the pointer on a phone while it was a 104px thumbnail
+        // (2026-08-26 to 09-05); a full card is a map you work, and a finger
+        // that wants the page scrolls from outside it.
+        className="absolute inset-0"
       />
       {/* The map's own controls, in the app's vocabulary instead of the
           library's stylesheet: a white capsule that steps the zoom, and a
           crosshair disc that reframes the whole route — the map's "Repor
-          zoom". Fixed colours, like every mark on the satellite.
-          Gone below `sm`: there the map is a thumbnail with no interaction
-          to control, and three discs would be most of the picture. */}
+          zoom". Fixed colours, like every mark on the satellite. */}
       {ready && (
-        <div className="absolute top-2 left-2 z-[1100] hidden flex-col items-start gap-1.5 sm:flex">
+        <div className="absolute top-2 left-2 z-[1100] flex flex-col items-start gap-1.5">
           <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
             <button
               type="button"
@@ -1042,7 +1035,7 @@ export function ImuSessionMap({
       {northDeg != null && (
         <span
           aria-hidden
-          className="pointer-events-none absolute top-2 right-2 z-[1100] hidden size-7 flex-col items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm sm:flex"
+          className="pointer-events-none absolute top-2 right-2 z-[1100] flex size-7 flex-col items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm"
         >
           <ArrowUp
             className="size-3"
@@ -1060,7 +1053,7 @@ export function ImuSessionMap({
         <span
           // Capped and clipped: a place name is written by whoever mapped
           // it and can run long, and the north badge owns the corner above.
-          className="pointer-events-none absolute right-2 z-[1100] hidden max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white sm:block"
+          className="pointer-events-none absolute right-2 z-[1100] block max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white"
           // A shadow and not a plate: the imagery is dark-treated, so the
           // word only needs enough separation to survive a pale patch of
           // ground. Inline because the offset is computed and the shadow is

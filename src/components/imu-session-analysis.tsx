@@ -47,6 +47,9 @@ import {
   altitudeMSeries,
   eventsAt,
   formatSessionTime,
+  alignSessionToBike,
+  applyMountingYaw,
+  estimateMountingYaw,
   gForceOf,
   gpsDistance,
   gpsMeanSpeed,
@@ -273,6 +276,10 @@ const COL_GAP = 22;
  * The threshold is spelled again in the grid classes below — Tailwind only
  * generates what it can read literally, so the two have to move together. */
 const READ_MIN_W = 320;
+/** Below this the ride's vote on "forward" is shown but not applied: a
+ * rotation by a guess would move the braking figure onto the wrong axis
+ * with more authority than the guess deserves. */
+const MOUNTING_YAW_MIN_CONFIDENCE = 0.5;
 
 /** How narrow a half may be dragged while it holds nothing but its outline,
  * px. A half with cards keeps a card's width; one with nothing to show has
@@ -749,7 +756,19 @@ export function ImuSessionAnalysis({
         setLoadError(result.error);
         return;
       }
-      setData(result.session);
+      // Read in the bike's frame when the file says how the sensor was
+      // mounted (gravity on +Z), then find "forward" from the ride itself
+      // when the GPS can say and the vote is confident; the file itself
+      // stays as recorded. Below the bar the estimate is kept on the
+      // session — for the badge to say "not enough to tell" — but the
+      // channels are left un-rotated rather than rotated by a guess.
+      const aligned = alignSessionToBike(result.session);
+      const mounting = estimateMountingYaw(aligned);
+      setData(
+        mounting && mounting.confidence >= MOUNTING_YAW_MIN_CONFIDENCE
+          ? applyMountingYaw(aligned, mounting)
+          : { ...aligned, mounting },
+      );
     })();
     return () => {
       cancelled = true;
@@ -1291,6 +1310,7 @@ export function ImuSessionAnalysis({
   // under it, so switching one off is scrolling saved.
   const panelToggles = (
     <>
+      <MountingBadge session={data} />
       <PanelToggle label="Rider" on={dashOn} onToggle={toggleDash} />
       {hasGps && (
         <PanelToggle
@@ -1636,24 +1656,15 @@ export function ImuSessionAnalysis({
           // `//` and not `{/* */}`: this div is the whole of a `&&`
           // expression, and a JSX comment there is a second child where only
           // one is allowed. That trap has now bitten seven times.
-          // A thumbnail on the phone, a card everywhere else. The full-width
-          // band was 280px of satellite between the plot and its reading,
-          // and it made the map the subject of a screen whose subject is the
-          // numbers — you scrolled past a picture to reach them.
-          //
-          // 104px square, held to the right, and lifted by a negative top
-          // margin so it rides over the plot's bottom corner. The small
-          // negative bottom margin is what lets the reading's top rule pass
-          // BEHIND it instead of stopping at it: the tile contributes
-          // 104−36−8 = 60px of flow, and draws over both neighbours because
-          // `relative` puts it above two siblings that are not positioned.
-          //
-          // The 36 is measured, not chosen: the plot's axis line — the two
-          // times and "envelope ~75 ms" — ends exactly 40px above the card's
-          // foot, so a taller lift covered the word. What it does cover is
-          // the right half of the zoom row, which is empty even with "Repor
-          // zoom" showing.
-          <div className="relative isolate order-2 -mt-9 -mb-2 ml-auto h-[104px] w-[104px] min-w-0 sm:mt-4 sm:mb-0 sm:ml-0 sm:h-auto sm:w-auto lg:order-3 lg:mt-0">
+          // A card at every width, under the plot on a phone and beside it
+          // from `lg`. It was a 104px thumbnail on the phone for a week
+          // (2026-08-26 to 09-05), inert and lifted over the plot's corner,
+          // on the argument that the map made itself the subject of a
+          // screen about numbers. The first rides on a real bike said the
+          // opposite: a map you cannot read or touch is a picture, and the
+          // rider wanted to see where the curve was. So it is a map again —
+          // 280px tall, interactive, credited — and the reading follows it.
+          <div className="relative isolate order-2 mt-4 min-w-0 lg:order-3 lg:mt-0">
             <ImuSessionMap
               gps={data.gps}
               events={
@@ -1672,11 +1683,9 @@ export function ImuSessionAnalysis({
               // and needs no help; in the dark one it is #1c1c1c against
               // #17181b, the same vanishing edge every other card had.
               className={cn(
-                // The rules that ran the band's full width are gone with the
-                // band: a 104px tile is an object with corners, not a strip
-                // of page, so it takes a radius instead. From `sm` it is the
-                // card it always was.
-                "h-full rounded-[14px] sm:h-[280px] sm:rounded-lg lg:h-full",
+                // A card with the card radius at every width; from `lg` it
+                // fills the column beside the plot.
+                "h-[280px] rounded-lg lg:h-full",
                 DARK_CARD_HAIRLINE_SM,
               )}
             />
@@ -2246,6 +2255,67 @@ function SessionCards({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * In what frame the reading is: the sensor's, or the bike's. One quiet line
+ * beside the panel switches, because it changes what every lean, pitch and
+ * braking figure on the page means.
+ *
+ * Three states, in the words the rider needs: "Sensor" when the file has
+ * no calibration; "Bicicleta" when gravity is on +Z; and, when the ride
+ * could also say where forward is, the angle the sensor sits at and how
+ * sure the vote was. A ride without GPS, or without enough accelerating
+ * and braking to vote, says so instead of pretending. An inverted lateral
+ * check is a warning, not a badge: it means the axes do not behave as a
+ * right-handed sensor's should, and nothing on the page should be trusted
+ * until the firmware says why.
+ */
+function MountingBadge({ session }: { session: ImuSessionData }) {
+  const { aligned, mounting } = session;
+  if (!aligned) {
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        title="O ficheiro não traz calibração — os ângulos são os do sensor, não os da bicicleta."
+      >
+        Referencial: sensor
+      </span>
+    );
+  }
+  const pct = mounting ? Math.round(mounting.confidence * 100) : 0;
+  const yaw = mounting ? Math.round(mounting.yawDeg) : 0;
+  let text: string;
+  let title: string;
+  let warn = false;
+  if (!mounting) {
+    text = "Bicicleta · frente por definir";
+    title =
+      "Gravidade alinhada pela calibração. Sem GPS, ou sem acelerações e travagens suficientes, para descobrir a frente.";
+  } else if (mounting.applied) {
+    text = `Bicicleta · frente a ${yaw}° do sensor (${pct}%)`;
+    title = `A frente foi encontrada em ${mounting.intervals} intervalos de aceleração e travagem do GPS; confiança ${pct}%.`;
+  } else {
+    text = `Bicicleta · frente incerta (${pct}%)`;
+    title = `A volta votou ${yaw}° com ${pct}% de confiança em ${mounting.intervals} intervalos — pouco para rodar os eixos. A frente fica a do sensor.`;
+  }
+  if (mounting && mounting.headingCheck === "inverted") {
+    warn = true;
+    text += " · eixos invertidos";
+    title +=
+      " ⚠ Nas curvas, o giroscópio e a aceleração lateral contradizem o rumo do GPS — os eixos do sensor não são os de um sensor destro. Verificar o firmware antes de confiar no lean.";
+  }
+  return (
+    <span
+      className={cn(
+        "text-xs tabular-nums",
+        warn ? "text-destructive" : "text-muted-foreground",
+      )}
+      title={title}
+    >
+      {text}
+    </span>
   );
 }
 

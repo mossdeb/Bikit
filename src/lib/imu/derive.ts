@@ -6,7 +6,12 @@
  * here (and a filter entry in the chart) — the stored file does not change.
  */
 
-import type { GpsChannels, ImuEvent, ImuSessionData } from "./format";
+import type {
+  GpsChannels,
+  ImuEvent,
+  ImuSessionData,
+  MountingYaw,
+} from "./format";
 import { lowerBoundIndex, upperBoundIndex } from "./downsample";
 
 /**
@@ -441,6 +446,311 @@ export function gpsMeanSpeed(
     area += ((nodesV[i - 1] + nodesV[i]) / 2) * (nodesT[i] - nodesT[i - 1]);
   }
   return area / (toMs - fromMs);
+}
+
+/**
+ * The session expressed in the BIKE's frame, from the calibration the file
+ * carries: gyro bias subtracted, and accelerometer and gyro rotated so that
+ * the gravity the logger measured with the bike upright and level lands on
+ * +Z. After this, lean is the bike's lean and pitch the bike's pitch, not
+ * the sensor's mounting angle plus the bike's; and the gyro reads zero at
+ * rest instead of its bias, so the complementary filters stop drifting by
+ * it. On the first real logger the mounting was tilted ~7.6° and ~6°, and
+ * the Y gyro sat at −2.35 °/s — both of which had been read as the bike.
+ *
+ * Returns the SAME session when there is nothing to apply (no calibration,
+ * or already aligned), and a new one otherwise: fresh typed arrays, the
+ * originals untouched — the stored file is never rewritten, and neither
+ * is the in-memory copy of it. `aligned: true` marks the result so the
+ * screen can say so and nobody applies it twice.
+ *
+ * The rotation is the minimal one taking the gravity reference to +Z
+ * (Rodrigues, axis = g × ẑ). Gravity fixes two degrees of freedom; the
+ * rotation about the vertical — which way the bike points — is left as is,
+ * because nothing in the snapshot can say. `gForce` is passed through: it
+ * is a norm, and a rotation does not change norms.
+ */
+export function alignSessionToBike(session: ImuSessionData): ImuSessionData {
+  const cal = session.calibration;
+  if (!cal || session.aligned) return session;
+
+  const [gxRef, gyRef, gzRef] = cal.gravityRefG;
+  const norm = Math.hypot(gxRef, gyRef, gzRef);
+  if (!(norm > 0)) return session;
+  const g = [gxRef / norm, gyRef / norm, gzRef / norm];
+
+  // Rotation taking g to t = (0, 0, 1): axis k = g × t, sin θ = |k|,
+  // cos θ = g · t. R = I + [k]× sinθ + [k]×² (1 − cosθ), with k unit.
+  const kx = g[1]; // g × ẑ = (gy, −gx, 0)
+  const ky = -g[0];
+  const s = Math.hypot(kx, ky);
+  const c = g[2];
+  let R: number[][];
+  if (s < 1e-9) {
+    // Already on the axis: identity when pointing up; a half turn about X
+    // when mounted upside down.
+    R =
+      c > 0
+        ? [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+          ]
+        : [
+            [1, 0, 0],
+            [0, -1, 0],
+            [0, 0, -1],
+          ];
+  } else {
+    const ux = kx / s;
+    const uy = ky / s;
+    const uz = 0;
+    const t = 1 - c;
+    R = [
+      [c + ux * ux * t, ux * uy * t - uz * s, ux * uz * t + uy * s],
+      [uy * ux * t + uz * s, c + uy * uy * t, uy * uz * t - ux * s],
+      [uz * ux * t - uy * s, uz * uy * t + ux * s, c + uz * uz * t],
+    ];
+  }
+
+  const { tMs, ax, ay, az, gx, gy, gz, gForce } = session.channels;
+  const n = tMs.length;
+  const oax = new Float32Array(n);
+  const oay = new Float32Array(n);
+  const oaz = new Float32Array(n);
+  const ogx = new Float32Array(n);
+  const ogy = new Float32Array(n);
+  const ogz = new Float32Array(n);
+  const [bx, by, bz] = cal.gyroBiasDps;
+  for (let i = 0; i < n; i++) {
+    const x = ax[i];
+    const y = ay[i];
+    const z = az[i];
+    oax[i] = R[0][0] * x + R[0][1] * y + R[0][2] * z;
+    oay[i] = R[1][0] * x + R[1][1] * y + R[1][2] * z;
+    oaz[i] = R[2][0] * x + R[2][1] * y + R[2][2] * z;
+    const wx = gx[i] - bx;
+    const wy = gy[i] - by;
+    const wz = gz[i] - bz;
+    ogx[i] = R[0][0] * wx + R[0][1] * wy + R[0][2] * wz;
+    ogy[i] = R[1][0] * wx + R[1][1] * wy + R[1][2] * wz;
+    ogz[i] = R[2][0] * wx + R[2][1] * wy + R[2][2] * wz;
+  }
+
+  return {
+    ...session,
+    channels: {
+      tMs,
+      ax: oax,
+      ay: oay,
+      az: oaz,
+      gx: ogx,
+      gy: ogy,
+      gz: ogz,
+      gForce,
+    },
+    aligned: true,
+  };
+}
+
+/** GPS intervals shorter than this are trusted for a speed derivative;
+ * longer gaps (a tunnel, a dropped fix) are skipped. */
+const YAW_MAX_INTERVAL_MS = 2_500;
+/** Speed changes below this (m/s²) are noise, not the bike accelerating or
+ * braking, and do not vote. 0.3 m/s² ≈ 0.03 g — a gentle brake is 2. */
+const YAW_MIN_ACCEL_MPS2 = 0.3;
+/** Heading rate below this (°/s) is not a turn. */
+const YAW_MIN_TURN_DPS = 4;
+const YAW_MIN_INTERVALS = 8;
+const G_MPS2 = 9.81;
+
+/**
+ * Where is "forward"? The calibration fixed "down"; this fixes the rotation
+ * about it, from the ride: when the GPS speed rises the bike is
+ * accelerating and the accelerometer's horizontal component points forward,
+ * when it falls the bike is braking and it points back. Across a ride that
+ * is dozens of votes, and the direction that explains them best is the
+ * bike's X axis.
+ *
+ * The unit vector f that best explains the votes is the one maximising
+ * Σ a_gps · (a_h · f) over the GPS intervals with a real speed change —
+ * the signed, weighted vector sum of the horizontal accelerations — and
+ * ψ = atan2 of it. Confidence is the correlation between predicted and
+ * measured, tempered so that few intervals cannot claim certainty.
+ *
+ * Then the check that costs nothing: with +Z up and +X forward, +Y is the
+ * bike's LEFT (right-handed), so in a turn to the right — GPS heading
+ * increasing — the yaw gyro must read negative and the centripetal
+ * acceleration must sit on −Y. If the ride's turns consistently say the
+ * opposite, the sensor's axes are not the right-handed set this assumes,
+ * and the result says "inverted" instead of quietly mirroring the bike.
+ *
+ * Needs the session ALIGNED first (gravity on +Z), GPS, and a ride that
+ * accelerates and brakes; a bench test or a flat cruise returns null.
+ */
+export function estimateMountingYaw(
+  session: ImuSessionData,
+): MountingYaw | null {
+  const gps = session.gps;
+  if (!gps || gps.tMs.length < 2 || !session.aligned) return null;
+  const { tMs, ax, ay, gz } = session.channels;
+  if (tMs.length === 0) return null;
+
+  let sxa = 0;
+  let sya = 0;
+  const votes: { hx: number; hy: number; a: number }[] = [];
+  // For the lateral check: per turning interval, the yaw rate the GPS saw
+  // and what the gyro and the lateral acceleration said.
+  const turns: {
+    gpsRate: number;
+    gyro: number;
+    lateralX: number;
+    lateralY: number;
+  }[] = [];
+
+  for (let k = 0; k + 1 < gps.tMs.length; k++) {
+    const t0 = gps.tMs[k];
+    const t1 = gps.tMs[k + 1];
+    const dt = (t1 - t0) / 1000;
+    if (!(dt > 0) || t1 - t0 > YAW_MAX_INTERVAL_MS) continue;
+    const i0 = lowerBoundIndex(tMs, t0);
+    const i1 = lowerBoundIndex(tMs, t1);
+    if (i1 <= i0) continue;
+    let hx = 0;
+    let hy = 0;
+    let wz = 0;
+    for (let i = i0; i < i1; i++) {
+      hx += ax[i];
+      hy += ay[i];
+      wz += gz[i];
+    }
+    const count = i1 - i0;
+    hx = (hx / count) * G_MPS2;
+    hy = (hy / count) * G_MPS2;
+    wz /= count;
+
+    const aGps = (gps.speedMps[k + 1] - gps.speedMps[k]) / dt;
+    if (Math.abs(aGps) >= YAW_MIN_ACCEL_MPS2) {
+      votes.push({ hx, hy, a: aGps });
+      sxa += hx * aGps;
+      sya += hy * aGps;
+    }
+
+    const h0 = gps.headingDeg[k];
+    const h1 = gps.headingDeg[k + 1];
+    if (Number.isFinite(h0) && Number.isFinite(h1)) {
+      let dh = h1 - h0;
+      if (dh > 180) dh -= 360;
+      if (dh < -180) dh += 360;
+      const gpsRate = dh / dt; // °/s, positive = turning right (compass)
+      if (Math.abs(gpsRate) >= YAW_MIN_TURN_DPS)
+        turns.push({ gpsRate, gyro: wz, lateralX: hx, lateralY: hy });
+    }
+  }
+
+  if (votes.length < YAW_MIN_INTERVALS) return null;
+  // The direction that best explains the GPS accelerations is the unit f
+  // maximising Σ aᵢ (hᵢ · f): the vector sum of the horizontal
+  // accelerations, each signed and weighted by the GPS acceleration it came
+  // with. Not a least-squares fit for (cos ψ, sin ψ) — that system is
+  // singular in exactly the clean case, every vote on one line.
+  const norm = Math.hypot(sxa, sya);
+  if (!(norm > 0)) return null;
+  const fx = sxa / norm;
+  const fy = sya / norm;
+
+  // How well does the forward projection explain the GPS accelerations?
+  let mp = 0;
+  let ma = 0;
+  for (const v of votes) {
+    mp += v.hx * fx + v.hy * fy;
+    ma += v.a;
+  }
+  mp /= votes.length;
+  ma /= votes.length;
+  let cov = 0;
+  let vp = 0;
+  let va = 0;
+  for (const v of votes) {
+    const p = v.hx * fx + v.hy * fy - mp;
+    const a = v.a - ma;
+    cov += p * a;
+    vp += p * p;
+    va += a * a;
+  }
+  const corr = vp > 0 && va > 0 ? cov / Math.sqrt(vp * va) : 0;
+  // Few intervals cannot claim certainty: scale by n/(n+8).
+  const confidence = Math.max(0, corr) * (votes.length / (votes.length + 8));
+
+  // f is where FORWARD sits in the sensor's frame, at φ = atan2(fy, fx).
+  // The sensor's X therefore sits at −φ from forward — that is the mounting
+  // yaw as declared, and rotating the channels by it puts forward on +X.
+  const yawDeg = (-Math.atan2(fy, fx) * 180) / Math.PI;
+
+  // Lateral check, in the frame with forward on +X: rotate each turn's
+  // lateral acceleration and compare signs with the GPS heading rate.
+  let headingCheck: MountingYaw["headingCheck"] = "insufficient";
+  if (turns.length >= 3) {
+    let agree = 0;
+    let disagree = 0;
+    for (const t of turns) {
+      // Lateral (bike +Y = left) after removing the yaw.
+      const lat = -t.lateralX * fy + t.lateralY * fx;
+      // Right turn (gpsRate > 0): gyro about +Z negative, centripetal on −Y.
+      const gyroOk = Math.sign(t.gyro) === -Math.sign(t.gpsRate);
+      const latOk = Math.sign(lat) === -Math.sign(t.gpsRate);
+      if (gyroOk && latOk) agree++;
+      else if (!gyroOk && !latOk) disagree++;
+      // Mixed verdicts (one axis says yes, the other no) do not vote.
+    }
+    if (agree + disagree >= 3)
+      headingCheck = agree >= disagree ? "ok" : "inverted";
+  }
+
+  return {
+    yawDeg,
+    confidence,
+    intervals: votes.length,
+    headingCheck,
+    applied: false,
+  };
+}
+
+/**
+ * Rotates the horizontal channels about +Z so the bike's forward lands on
+ * +X and its left on +Y. Same contract as alignSessionToBike: the
+ * same session back when there is nothing to do, fresh arrays otherwise,
+ * the originals untouched, `mounting.applied` set so it runs once. Z and
+ * the norms are unchanged — a rotation about Z moves nothing off the
+ * horizontal plane.
+ */
+export function applyMountingYaw(
+  session: ImuSessionData,
+  mounting: MountingYaw | null,
+): ImuSessionData {
+  if (!mounting || mounting.applied) return session;
+  // yawDeg is where the sensor's X sits from forward; rotating BY it brings
+  // forward onto +X (see estimateMountingYaw).
+  const psi = (mounting.yawDeg * Math.PI) / 180;
+  const c = Math.cos(psi);
+  const s = Math.sin(psi);
+  const { tMs, ax, ay, az, gx, gy, gz, gForce } = session.channels;
+  const n = tMs.length;
+  const oax = new Float32Array(n);
+  const oay = new Float32Array(n);
+  const ogx = new Float32Array(n);
+  const ogy = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    oax[i] = c * ax[i] - s * ay[i];
+    oay[i] = s * ax[i] + c * ay[i];
+    ogx[i] = c * gx[i] - s * gy[i];
+    ogy[i] = s * gx[i] + c * gy[i];
+  }
+  return {
+    ...session,
+    channels: { tMs, ax: oax, ay: oay, az, gx: ogx, gy: ogy, gz, gForce },
+    mounting: { ...mounting, applied: true },
+  };
 }
 
 /**

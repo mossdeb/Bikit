@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { GpsChannels, ImuSessionData } from "./format";
 import {
   IMPACT_SEVERITY_REF_ENERGY,
+  alignSessionToBike,
   altitudeMSeries,
+  applyMountingYaw,
+  estimateMountingYaw,
   eventsAt,
   formatSessionTime,
   gForceOf,
@@ -43,9 +46,206 @@ function session(overrides: Partial<ImuSessionData> = {}): ImuSessionData {
     },
     gps: null,
     events: [],
+    calibration: null,
+    aligned: false,
+    mounting: null,
     ...overrides,
   };
 }
+
+describe("estimateMountingYaw / applyMountingYaw", () => {
+  /**
+   * A ride the maths can be checked against: the bike accelerates, cruises,
+   * brakes, and takes a right-hand turn, all with the bike's forward on +X.
+   * The sensor is mounted rotated by `yaw` about the vertical, so what it
+   * records is that motion rotated the other way. GPS at 1 Hz, IMU at 100.
+   */
+  function ride(yawDeg: number, withGps = true) {
+    const rate = 100;
+    const seconds = 40;
+    const n = seconds * rate;
+    const tMs = new Float64Array(n);
+    // Bike-frame truth per second: forward accel (m/s²) and heading (deg).
+    // Accelerate, cruise, brake — but not to a stop: the turn that follows
+    // needs speed, or there is no centripetal acceleration to check.
+    const fwdAt = (s: number) =>
+      s < 10 ? 1.5 : s < 20 ? 0 : s < 26 ? -1.5 : 0;
+    const speedAt = (s: number) => {
+      let v = 0;
+      for (let k = 0; k < s; k++) v = Math.max(0, v + fwdAt(k));
+      return v;
+    };
+    const headingAt = (s: number) =>
+      s >= 28 && s < 36 ? (s - 28) * 11 : s >= 36 ? 88 : 0;
+    const yawRateAt = (s: number) => (s >= 28 && s < 36 ? 11 : 0); // deg/s, turning right
+    const psi = (yawDeg * Math.PI) / 180;
+    const ax = new Float32Array(n);
+    const ay = new Float32Array(n);
+    const az = new Float32Array(n);
+    const gx = new Float32Array(n);
+    const gy = new Float32Array(n);
+    const gz = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = Math.floor(i / rate);
+      tMs[i] = (i / rate) * 1000;
+      // Bike frame: forward accel on +X (in g); in a right turn the
+      // centripetal acceleration points RIGHT, i.e. −Y in a frame where
+      // +Y is left; the yaw rate about +Z (up) is negative for a right turn.
+      const v = speedAt(s);
+      const omega = (yawRateAt(s) * Math.PI) / 180;
+      const bx = fwdAt(s) / 9.81;
+      const by = -(v * omega) / 9.81;
+      const bz = 1;
+      // Sensor frame = bike frame rotated by −yaw about Z.
+      ax[i] = bx * Math.cos(psi) + by * Math.sin(psi);
+      ay[i] = -bx * Math.sin(psi) + by * Math.cos(psi);
+      az[i] = bz;
+      gz[i] = -yawRateAt(s);
+    }
+    const gpsN = seconds;
+    const gps: GpsChannels = {
+      tMs: new Float64Array(Array.from({ length: gpsN }, (_, s) => s * 1000)),
+      latDeg: new Float64Array(gpsN).fill(37),
+      lonDeg: new Float64Array(gpsN).fill(-7),
+      altitudeM: new Float32Array(gpsN),
+      speedMps: new Float32Array(
+        Array.from({ length: gpsN }, (_, s) => speedAt(s)),
+      ),
+      headingDeg: new Float32Array(
+        Array.from({ length: gpsN }, (_, s) => headingAt(s)),
+      ),
+      distanceM: new Float32Array(gpsN).fill(NaN),
+      hAccM: new Float32Array(gpsN).fill(NaN),
+    };
+    return session({
+      sampleRateHz: rate,
+      sampleCount: n,
+      durationMs: seconds * 1000,
+      channels: { tMs, ax, ay, az, gx, gy, gz, gForce: null },
+      gps: withGps ? gps : null,
+      aligned: true,
+    });
+  }
+
+  it("recovers the mounting yaw from GPS speed changes and confirms the lateral axis by heading", () => {
+    for (const yaw of [0, 37, -120, 175]) {
+      const s = ride(yaw);
+      const m = estimateMountingYaw(s);
+      expect(m, `yaw ${yaw}`).not.toBeNull();
+      const diff = ((m!.yawDeg - yaw + 540) % 360) - 180;
+      expect(Math.abs(diff), `yaw ${yaw} → ${m!.yawDeg}`).toBeLessThan(1);
+      // Perfect correlation, tempered by the count: 16 votes → 16/24 ≈ 0.67.
+      // A real ride has hundreds and climbs towards 1; forty seconds cannot
+      // claim more than "moderate", which is the point of the tempering.
+      expect(m!.confidence).toBeGreaterThan(0.6);
+      expect(m!.confidence).toBeLessThan(0.75);
+      expect(m!.headingCheck).toBe("ok");
+      // Applied, the forward acceleration sits on +X and the turn's lateral on −Y.
+      const a = applyMountingYaw(s, m!);
+      const braking = 22 * 100; // inside the braking phase
+      expect(a.channels.ax[braking]).toBeCloseTo(-1.5 / 9.81, 3);
+      expect(a.channels.ay[braking]).toBeCloseTo(0, 3);
+      const turning = 32 * 100;
+      expect(a.channels.ay[turning]).toBeLessThan(0);
+      expect(a.mounting?.applied).toBe(true);
+    }
+  });
+
+  it("gives up without GPS, and on a ride that never accelerates", () => {
+    expect(estimateMountingYaw(ride(37, false))).toBeNull();
+    const flat = ride(37);
+    flat.channels.ax.fill(0);
+    flat.channels.ay.fill(0);
+    flat.gps!.speedMps.fill(5);
+    expect(estimateMountingYaw(flat)).toBeNull();
+  });
+
+  it("flags a left-handed sensor as inverted rather than rotating it", () => {
+    const s = ride(20);
+    // Mirror the lateral axis: the turn now reads as if to the left.
+    for (let i = 0; i < s.channels.ay.length; i++) {
+      s.channels.ay[i] = -s.channels.ay[i];
+      s.channels.gz[i] = -s.channels.gz[i];
+    }
+    const m = estimateMountingYaw(s);
+    expect(m).not.toBeNull();
+    expect(m!.headingCheck).toBe("inverted");
+  });
+});
+
+describe("alignSessionToBike", () => {
+  it("is the identity without a calibration", () => {
+    const s = session();
+    expect(alignSessionToBike(s)).toBe(s);
+  });
+
+  it("rotates a tilted mounting so rest gravity lands on +Z and subtracts the gyro bias", () => {
+    // Sensor mounted tilted: at rest it reads gravity along (0.133, 0.106, 1),
+    // the first real logger's snapshot. The gyro sits at a bias.
+    const gRef: [number, number, number] = [0.133, 0.106, 1.0];
+    const bias: [number, number, number] = [1.26, -2.35, 0.14];
+    const s = session({
+      channels: {
+        tMs: new Float64Array([0, 10]),
+        ax: new Float32Array([gRef[0], gRef[0]]),
+        ay: new Float32Array([gRef[1], gRef[1]]),
+        az: new Float32Array([gRef[2], gRef[2]]),
+        gx: new Float32Array([bias[0], bias[0] + 10]),
+        gy: new Float32Array([bias[1], bias[1]]),
+        gz: new Float32Array([bias[2], bias[2]]),
+        gForce: null,
+      },
+      calibration: {
+        gravityRefG: gRef,
+        gyroBiasDps: bias,
+        gravityMagnitudeG: Math.hypot(...gRef),
+        accelStddevG: 0.002,
+        gyroStddevDps: 0.18,
+        sampleCount: 832,
+        calibrationCount: 6,
+      },
+    });
+    const a = alignSessionToBike(s);
+    expect(a).not.toBe(s);
+    expect(a.aligned).toBe(true);
+    // Rest gravity is now straight down the bike's Z, norm preserved.
+    expect(a.channels.ax[0]).toBeCloseTo(0, 5);
+    expect(a.channels.ay[0]).toBeCloseTo(0, 5);
+    expect(a.channels.az[0]).toBeCloseTo(Math.hypot(...gRef), 5);
+    // Lean and pitch read zero for a level bike.
+    expect(Math.atan2(a.channels.ay[0], a.channels.az[0])).toBeCloseTo(0, 5);
+    // The gyro at rest reads zero; a real rotation survives (rotated).
+    expect(a.channels.gx[0]).toBeCloseTo(0, 5);
+    expect(a.channels.gy[0]).toBeCloseTo(0, 5);
+    expect(a.channels.gz[0]).toBeCloseTo(0, 5);
+    expect(
+      Math.hypot(a.channels.gx[1], a.channels.gy[1], a.channels.gz[1]),
+    ).toBeCloseTo(10, 4);
+    // The originals were not touched.
+    expect(s.channels.ax[0]).toBeCloseTo(gRef[0], 6);
+    expect(s.channels.gy[0]).toBeCloseTo(bias[1], 6);
+    // Applying twice is a no-op.
+    expect(alignSessionToBike(a)).toBe(a);
+  });
+
+  it("leaves an already-upright mounting alone except for the bias", () => {
+    const s = session({
+      calibration: {
+        gravityRefG: [0, 0, 1],
+        gyroBiasDps: [0.5, 0, 0],
+        gravityMagnitudeG: 1,
+        accelStddevG: 0,
+        gyroStddevDps: 0,
+        sampleCount: 1,
+        calibrationCount: 1,
+      },
+    });
+    const a = alignSessionToBike(s);
+    expect(Array.from(a.channels.ax)).toEqual(Array.from(s.channels.ax));
+    expect(Array.from(a.channels.az)).toEqual(Array.from(s.channels.az));
+    expect(a.channels.gx[0]).toBeCloseTo(-0.5, 6);
+  });
+});
 
 /** A straight-line GPS track: one fix per 100 ms, speeds 2 → 4 m/s. */
 function gpsTrack(): GpsChannels {

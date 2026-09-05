@@ -98,6 +98,30 @@ export interface GpsChannels {
   hAccM: Float32Array;
 }
 
+/**
+ * The logger's calibration snapshot, taken with the bike upright, level and
+ * still (button held ≥3 s) and copied into every session recorded after it.
+ *
+ * `gravityRefG` is where "down" is in the SENSOR's frame — which is the
+ * same as saying how the sensor is mounted on the bike. `gyroBiasDps` is
+ * what each gyro axis reads at rest. Between them they let the app express
+ * the channels in the bike's frame (alignSessionToBike in derive.ts): lean
+ * and pitch become the bike's, not the sensor's, and the gyro stops
+ * drifting by its bias.
+ *
+ * Gravity fixes two of three degrees of freedom. Which way is "forward" —
+ * the rotation about the vertical — it cannot say, and is left as is.
+ */
+export interface ImuCalibration {
+  gravityRefG: [number, number, number];
+  gyroBiasDps: [number, number, number];
+  gravityMagnitudeG: number;
+  accelStddevG: number;
+  gyroStddevDps: number;
+  sampleCount: number;
+  calibrationCount: number;
+}
+
 export interface ImuSessionData {
   /** Which parser produced this — travels to the DB row for provenance. */
   format: string;
@@ -111,6 +135,43 @@ export interface ImuSessionData {
    * only when this does. */
   gps: GpsChannels | null;
   events: ImuEvent[];
+  /** The mounting calibration the file carries, or null when it carries
+   * none (v1 files, or a logger never calibrated). */
+  calibration: ImuCalibration | null;
+  /** True once alignSessionToBike has expressed the channels in the bike's
+   * frame. The parsers always produce false: they hand over the sensor's
+   * frame, which is what the file recorded. */
+  aligned: boolean;
+  /** Where "forward" was found, when the ride could say — see
+   * estimateMountingYaw in derive.ts. Null from the parsers, and null when
+   * the session had no GPS or too little motion to tell. */
+  mounting: MountingYaw | null;
+}
+
+/**
+ * The third degree of freedom the calibration cannot fix: the rotation
+ * about the vertical that puts the bike's forward on +X. Found from the
+ * ride itself — the accelerometer's horizontal component agrees with the
+ * GPS speed's derivative when the bike accelerates and brakes — and
+ * checked against the GPS heading's turns.
+ */
+export interface MountingYaw {
+  /** Degrees the sensor's X axis sits from the bike's forward, measured
+   * about +Z (counter-clockwise from above). Applied as the inverse. */
+  yawDeg: number;
+  /** 0–1: how well the rotated forward acceleration explains the GPS
+   * speed changes (correlation), tempered by how many intervals there were. */
+  confidence: number;
+  /** GPS intervals with enough speed change to count. */
+  intervals: number;
+  /** The independent check on the lateral axis: in turns, the yaw gyro and
+   * the lateral acceleration must agree with the GPS heading's direction.
+   * "ok" when they do, "inverted" when they consistently do not — a sign
+   * the sensor's axes are not the right-handed set the maths assumes —
+   * and "insufficient" when the ride had no turns to tell. */
+  headingCheck: "ok" | "inverted" | "insufficient";
+  /** True once applyMountingYaw has rotated the channels by -yawDeg. */
+  applied: boolean;
 }
 
 export type ImuParseResult =
@@ -253,10 +314,46 @@ const bikitImuV1: ImuParser = {
         channels: { tMs, ax, ay, az, gx, gy, gz, gForce },
         gps: gpsResult.gps,
         events,
+        calibration: parseJsonCalibration(json.calibration),
+        aligned: false,
+        mounting: null,
       },
     };
   },
 };
+
+/**
+ * The exporter's `calibration` block — the same CAL1 snapshot the binary
+ * carries, as JSON: `gravity_reference_g: {x,y,z}`, `gyro_bias_dps:
+ * {x,y,z}`, and the quality figures. `available: false` (or no block at
+ * all) is a logger never calibrated; a block with a non-finite number is
+ * dropped whole rather than half-applied.
+ */
+function parseJsonCalibration(raw: unknown): ImuCalibration | null {
+  if (!isRecord(raw) || raw.available !== true) return null;
+  const g = isRecord(raw.gravity_reference_g) ? raw.gravity_reference_g : null;
+  const b = isRecord(raw.gyro_bias_dps) ? raw.gyro_bias_dps : null;
+  if (!g || !b) return null;
+  const vec = (r: Record<string, unknown>): [number, number, number] | null => {
+    const x = finiteNumber(r.x);
+    const y = finiteNumber(r.y);
+    const z = finiteNumber(r.z);
+    return x != null && y != null && z != null ? [x, y, z] : null;
+  };
+  const gravityRefG = vec(g);
+  const gyroBiasDps = vec(b);
+  if (!gravityRefG || !gyroBiasDps) return null;
+  return {
+    gravityRefG,
+    gyroBiasDps,
+    gravityMagnitudeG:
+      finiteNumber(raw.gravity_magnitude_g) ?? Math.hypot(...gravityRefG),
+    accelStddevG: finiteNumber(raw.accel_stddev_g) ?? NaN,
+    gyroStddevDps: finiteNumber(raw.gyro_stddev_dps) ?? NaN,
+    sampleCount: finiteNumber(raw.sample_count) ?? 0,
+    calibrationCount: finiteNumber(raw.calibration_count) ?? 0,
+  };
+}
 
 /**
  * The GNSS block (format v2). Absent in v1 files — that is not an error, it

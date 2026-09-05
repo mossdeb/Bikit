@@ -320,34 +320,11 @@
 .imu-map .leaflet-container .leaflet-control-attribution a {
   color: rgba(255, 255, 255, 0.62);
 }
-/* ⚠️ The credit comes off the phone's thumbnail, and that is a decision and
-   not a detail: the imagery and the place names are served on the condition
-   that they are credited. At ~104px the line wraps to four and covers most
-   of the picture, so what was there was unreadable rather than credited.
-   The full map from `sm` up still carries it. If this ever has to be put
-   back on a phone, the place for it is a line of text under the tile, not
-   inside it. Written as a media query because a Tailwind variant cannot
-   reach a class Leaflet owns. */
-@media (max-width: 39.999rem) {
-  .imu-map .leaflet-container .leaflet-control-attribution {
-    display: none;
-  }
-  /* Two points off both tracks on the thumbnail. The 3 and 5 they carry are
-     drawn for a map hundreds of pixels wide; in a 104px box the same line is
-     proportionally three times as thick and the ride reads as a fat stroke
-     rather than a path. The 2px gap between the two survives, which is what
-     keeps the chart's window telling itself apart from the dimmed whole
-     where they run one on top of the other.
-     Written here and not passed as a weight because these are painted by
-     Leaflet, which has no breakpoints — and CSS beats the `stroke-width`
-     presentation attribute it writes. */
-  .imu-map .imu-track-base {
-    stroke-width: 1;
-  }
-  .imu-map .imu-track-slice {
-    stroke-width: 3;
-  }
-}
+/* The credits show at every width again (2026-09-05). While the phone had a
+   104px thumbnail (2026-08-26 to 09-05) they were hidden there, with the
+   open question of how to credit a picture too small to carry a line of
+   text; a full card carries it the way the desktop map always did, and the
+   thinner strokes the thumbnail needed went with it. */
 
 /* The IMU lab's own texture: a dot grid over the app's background, nowhere
    else in the app (class toggled by ImuLabTexture, which mounts with the

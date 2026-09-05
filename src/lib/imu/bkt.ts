@@ -40,7 +40,7 @@
  * correct drift; on the files seen so far it is itself nominal.
  */
 
-import type { GpsChannels, ImuParseResult } from "./format";
+import type { GpsChannels, ImuCalibration, ImuParseResult } from "./format";
 
 export const BKT_FORMAT = "bikit_bkt";
 /** What the upload declares. The bucket's allow-list has it (migration
@@ -198,8 +198,9 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     return fail("O cabeçalho não traz as escalas dos sensores.");
 
   // Calibration: validated when the header says it is there, because a bad
-  // snapshot is a sign the header region itself is damaged. Not consumed
-  // yet — the day the app applies bias correction, this is where it reads.
+  // snapshot is a sign the header region itself is damaged — and read, for
+  // alignSessionToBike to express the channels in the bike's frame.
+  let calibration: ImuCalibration | null = null;
   if (h.flags & FLAG_CALIBRATION) {
     if (bytes.byteLength < CAL_OFFSET + CAL_SIZE)
       return fail("O bloco de calibração está truncado.");
@@ -208,6 +209,22 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     const storedCalCrc = view.getUint32(CAL_OFFSET + 52, true);
     if (crc32(u8.subarray(CAL_OFFSET, CAL_OFFSET + 52)) !== storedCalCrc)
       return fail("O CRC da calibração não bate certo — ficheiro corrompido.");
+    // CAL1 layout (`<4sB3x9fIII`): magic, version, pad, then nine floats —
+    // gravity reference xyz, gyro bias xyz, gravity magnitude, accel and
+    // gyro stddev — then sample_count, calibration_count, crc32.
+    const f = (i: number) => view.getFloat32(CAL_OFFSET + 8 + i * 4, true);
+    const values = Array.from({ length: 9 }, (_, i) => f(i));
+    if (values.every(Number.isFinite)) {
+      calibration = {
+        gravityRefG: [values[0], values[1], values[2]],
+        gyroBiasDps: [values[3], values[4], values[5]],
+        gravityMagnitudeG: values[6],
+        accelStddevG: values[7],
+        gyroStddevDps: values[8],
+        sampleCount: view.getUint32(CAL_OFFSET + 44, true),
+        calibrationCount: view.getUint32(CAL_OFFSET + 48, true),
+      };
+    }
   }
 
   const expectedSize = BLOCK_SIZE + h.totalBlocks * BLOCK_SIZE;
@@ -411,6 +428,9 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       // The logger detects nothing yet. Same as the exporter's JSON, which
       // carries no `events` either.
       events: [],
+      calibration,
+      aligned: false,
+      mounting: null,
     },
   };
 }
