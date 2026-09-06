@@ -31,21 +31,29 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+      "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
     .single();
   if (!session) notFound();
 
-  // Every bike, not just the one on the session: the settings dialog lets
-  // the rider pick another. The session's own is looked up in the same
-  // list rather than fetched a second time.
-  const { data: bikes } = await supabase
-    .from("bikes")
-    .select("id, name, type")
-    .eq("user_id", userId)
-    .order("name");
+  // Every bike and every group, not just the session's own: the settings
+  // dialog lets the rider pick another of each. The session's bike is
+  // looked up in the same list rather than fetched a second time.
+  const [{ data: bikes }, { data: groups }] = await Promise.all([
+    supabase
+      .from("bikes")
+      .select("id, name, type")
+      .eq("user_id", userId)
+      .order("name"),
+    supabase
+      .from("imu_session_groups")
+      .select("id, name, day")
+      .eq("user_id", userId)
+      .order("day", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
   const bike = session.bike_id
     ? ((bikes ?? []).find((b) => b.id === session.bike_id) ?? null)
     : null;
@@ -101,6 +109,8 @@ export default async function ImuSessionPage({
                 riderName={session.rider_name}
                 bikeId={session.bike_id}
                 bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
+                groupId={session.group_id}
+                groups={groups ?? []}
                 riderDefault={riderDefault}
               />
             </div>

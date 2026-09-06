@@ -18,12 +18,17 @@ import {
   type BikeOption,
 } from "@/components/imu-session-details-fields";
 import { deleteImuSession, updateImuSession } from "@/lib/actions/imu";
+import {
+  groupFormValid,
+  groupRefFromForm,
+  type ImuGroupOption,
+} from "@/lib/imu/groups";
 
 /**
  * The session's settings, behind the three dots in the identity card's
- * corner: the name, the rider and the bike — the same three fields the
- * import dialog asks for, because they are the same three facts, and a
- * fact typed wrong at import should be fixable without importing again.
+ * corner: the name, the rider, the bike and the group — the same fields
+ * the import dialog asks for, because they are the same facts, and a fact
+ * typed wrong at import should be fixable without importing again.
  * Deleting lives here too, at the foot and behind its own confirmation:
  * it is a setting of this session, and the list's trash can is a long
  * way from the page you are looking at.
@@ -36,6 +41,8 @@ export function ImuSessionSettings({
   riderName,
   bikeId,
   bikes,
+  groupId,
+  groups,
   riderDefault,
 }: {
   sessionId: string;
@@ -43,6 +50,9 @@ export function ImuSessionSettings({
   riderName: string | null;
   bikeId: string | null;
   bikes: BikeOption[];
+  groupId: string | null;
+  /** The account's groups, newest first. */
+  groups: ImuGroupOption[];
   /** The account's own name — what a blank rider becomes on save. */
   riderDefault: string;
 }) {
@@ -51,6 +61,8 @@ export function ImuSessionSettings({
   const [draftName, setDraftName] = useState(name);
   const [draftRider, setDraftRider] = useState(riderName ?? "");
   const [draftBike, setDraftBike] = useState(bikeId ?? "");
+  const [draftGroup, setDraftGroup] = useState(groupId ?? "");
+  const [newGroupName, setNewGroupName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +70,8 @@ export function ImuSessionSettings({
     setDraftName(name);
     setDraftRider(riderName ?? "");
     setDraftBike(bikeId ?? "");
+    setDraftGroup(groupId ?? "");
+    setNewGroupName("");
     setBusy(false);
     setError(null);
   }
@@ -65,10 +79,13 @@ export function ImuSessionSettings({
   const dirty =
     draftName.trim() !== name ||
     (draftRider.trim() || null) !== (riderName ?? null) ||
-    (draftBike || null) !== (bikeId ?? null);
+    (draftBike || null) !== (bikeId ?? null) ||
+    (draftGroup || null) !== (groupId ?? null);
+  const valid =
+    draftName.trim().length > 0 && groupFormValid(draftGroup, newGroupName);
 
   async function save() {
-    if (busy || !draftName.trim()) return;
+    if (busy || !valid) return;
     setBusy(true);
     setError(null);
     const result = await updateImuSession({
@@ -76,6 +93,7 @@ export function ImuSessionSettings({
       name: draftName,
       riderName: draftRider,
       bikeId: draftBike || null,
+      group: groupRefFromForm(draftGroup, newGroupName),
     });
     if (result.status === "error") {
       setBusy(false);
@@ -105,8 +123,8 @@ export function ImuSessionSettings({
         <DialogHeader>
           <DialogTitle>Definições da sessão</DialogTitle>
           <DialogDescription className="mt-1">
-            O nome, quem pedalou e que bicicleta levou o sensor. A gravação em
-            si não muda.
+            O nome, quem pedalou, que bicicleta levou o sensor e a que grupo
+            pertence. A gravação em si não muda.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,6 +145,11 @@ export function ImuSessionSettings({
             bikeId={draftBike}
             onBikeIdChange={setDraftBike}
             bikes={bikes}
+            groups={groups}
+            groupId={draftGroup}
+            onGroupIdChange={setDraftGroup}
+            newGroupName={newGroupName}
+            onNewGroupNameChange={setNewGroupName}
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -135,7 +158,7 @@ export function ImuSessionSettings({
             type="submit"
             className="w-full"
             variant="inverted"
-            disabled={busy || !dirty || !draftName.trim()}
+            disabled={busy || !dirty || !valid}
           >
             {busy ? "A guardar…" : "Guardar"}
           </Button>

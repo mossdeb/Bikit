@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import type { ImuSessionGroupRef } from "@/lib/imu/groups";
 
 export type ImuActionResult =
   { status: "ok" } | { status: "error"; message: string };
@@ -12,6 +13,9 @@ export interface CreateImuSessionInput {
   /** Who rode it. Blank falls back to the account's own name — see below. */
   riderName: string | null;
   bikeId: string | null;
+  /** The group it lands in: an existing one, a new one by name and local
+   * day, or none. See resolveGroup. */
+  group: ImuSessionGroupRef;
   /** Where the browser already uploaded the file: {user_id}/{uuid}.json. */
   storagePath: string;
   format: string;
@@ -81,9 +85,13 @@ export async function createImuSession(
     if (!bike) return { status: "error", message: "Bicicleta não encontrada." };
   }
 
+  const group = await resolveGroup(supabase, userId, input.group);
+  if (group.status === "error") return group;
+
   const { error } = await supabase.from("imu_sessions").insert({
     user_id: userId,
     bike_id: input.bikeId,
+    group_id: group.id,
     name,
     rider_name: riderName,
     storage_path: input.storagePath,
@@ -98,6 +106,91 @@ export async function createImuSession(
     impact_count: input.impactCount,
     airtime_ms: Math.round(input.airtimeMs),
   });
+  if (error) return { status: "error", message: error.message };
+
+  revalidatePath("/labs/imu");
+  return { status: "ok" };
+}
+
+/**
+ * Which group a new session joins. An id is checked to be the caller's; a
+ * name and day either find the group that already has them (the unique key,
+ * so two imports typing the same name on the same day meet in one group) or
+ * create it. The day comes from the browser and is only checked for shape —
+ * the server's clock does not know what day it is where the rider stands.
+ */
+async function resolveGroup(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  ref: ImuSessionGroupRef,
+): Promise<
+  { status: "ok"; id: string | null } | { status: "error"; message: string }
+> {
+  if (!ref) return { status: "ok", id: null };
+
+  if ("id" in ref) {
+    const { data } = await supabase
+      .from("imu_session_groups")
+      .select("id")
+      .eq("id", ref.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!data) return { status: "error", message: "Grupo não encontrado." };
+    return { status: "ok", id: data.id };
+  }
+
+  const name = ref.name.trim();
+  if (!name) return { status: "error", message: "O grupo precisa de um nome." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ref.day))
+    return { status: "error", message: "Dia do grupo inválido." };
+
+  const { data: existing } = await supabase
+    .from("imu_session_groups")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", name)
+    .eq("day", ref.day)
+    .maybeSingle();
+  if (existing) return { status: "ok", id: existing.id };
+
+  const { data: created, error } = await supabase
+    .from("imu_session_groups")
+    .insert({ user_id: userId, name, day: ref.day })
+    .select("id")
+    .single();
+  if (error || !created)
+    return {
+      status: "error",
+      message: error?.message ?? "Não foi possível criar o grupo.",
+    };
+  return { status: "ok", id: created.id };
+}
+
+/**
+ * Deletes an EMPTY group. Groups are never swept when their last session
+ * goes — the rider decides — and a group with sessions refuses: the
+ * sessions would be orphaned silently, and "move them first" is the honest
+ * answer.
+ */
+export async function deleteImuSessionGroup(
+  groupId: string,
+): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (!caller) return { status: "error", message: "Sem acesso." };
+
+  const { count } = await caller.supabase
+    .from("imu_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("group_id", groupId)
+    .eq("user_id", caller.userId);
+  if (count && count > 0)
+    return { status: "error", message: "O grupo ainda tem sessões." };
+
+  const { error } = await caller.supabase
+    .from("imu_session_groups")
+    .delete()
+    .eq("id", groupId)
+    .eq("user_id", caller.userId);
   if (error) return { status: "error", message: error.message };
 
   revalidatePath("/labs/imu");
@@ -164,6 +257,8 @@ export async function updateImuSession(input: {
   name: string;
   riderName: string | null;
   bikeId: string | null;
+  /** Same shape as at import: an existing group, a new one, or none. */
+  group: ImuSessionGroupRef;
 }): Promise<ImuActionResult> {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
@@ -190,11 +285,19 @@ export async function updateImuSession(input: {
     if (!bike) return { status: "error", message: "Bicicleta não encontrada." };
   }
 
+  const group = await resolveGroup(supabase, userId, input.group);
+  if (group.status === "error") return group;
+
   // Scoped to the owner as well as the id: RLS would refuse anyway, but an
   // update that matched nothing would otherwise report success.
   const { data, error } = await supabase
     .from("imu_sessions")
-    .update({ name, rider_name: riderName, bike_id: input.bikeId })
+    .update({
+      name,
+      rider_name: riderName,
+      bike_id: input.bikeId,
+      group_id: group.id,
+    })
     .eq("id", input.sessionId)
     .eq("user_id", userId)
     .select("id")

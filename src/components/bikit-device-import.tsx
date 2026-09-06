@@ -32,6 +32,12 @@ import {
 } from "@/lib/imu/derive";
 import { uploadAndRegisterImuSession } from "@/lib/imu/import-session";
 import {
+  defaultGroupId,
+  groupFormValid,
+  groupRefFromForm,
+  type ImuGroupOption,
+} from "@/lib/imu/groups";
+import {
   ImuSessionDetailsFields,
   type BikeOption,
 } from "@/components/imu-session-details-fields";
@@ -139,11 +145,14 @@ export function BikitDeviceImport({
   userId,
   riderDefault,
   bikes,
+  groups,
   onImported,
 }: {
   userId: string;
   riderDefault: string;
   bikes: BikeOption[];
+  /** The account's groups, newest first; today's most recent is preselected. */
+  groups: ImuGroupOption[];
   /** The session is in Storage and registered; the dialog decides what next. */
   onImported: () => void;
 }) {
@@ -176,6 +185,8 @@ export function BikitDeviceImport({
   const [name, setName] = useState("");
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
+  const [groupId, setGroupId] = useState(() => defaultGroupId(groups));
+  const [newGroupName, setNewGroupName] = useState("");
   const deviceRef = useRef<BikitDevice | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -376,6 +387,8 @@ export function BikitDeviceImport({
       setName(parsed.session.sessionId ?? sessionLabel(entry.id));
       setRider(riderDefault);
       setBikeId("");
+      setGroupId(defaultGroupId(groups));
+      setNewGroupName("");
       setPhase({
         kind: "ready",
         sessions,
@@ -410,6 +423,7 @@ export function BikitDeviceImport({
       name,
       riderName: rider,
       bikeId: bikeId || null,
+      group: groupRefFromForm(groupId, newGroupName),
     });
     if (!outcome.ok) {
       setError(outcome.error);
@@ -702,6 +716,11 @@ export function BikitDeviceImport({
             bikeId={bikeId}
             onBikeIdChange={setBikeId}
             bikes={bikes}
+            groups={groups}
+            groupId={groupId}
+            onGroupIdChange={setGroupId}
+            newGroupName={newGroupName}
+            onNewGroupNameChange={setNewGroupName}
           />
           <div className="flex gap-2">
             <Button
@@ -721,7 +740,11 @@ export function BikitDeviceImport({
             <Button
               variant="inverted"
               className="flex-1"
-              disabled={phase.kind === "saving" || !name.trim()}
+              disabled={
+                phase.kind === "saving" ||
+                !name.trim() ||
+                !groupFormValid(groupId, newGroupName)
+              }
               onClick={save}
             >
               {phase.kind === "saving" ? "A importar…" : "Importar"}

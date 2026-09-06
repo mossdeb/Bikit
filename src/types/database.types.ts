@@ -382,6 +382,30 @@ export type Database = {
         }
         Relationships: []
       }
+      imu_session_groups: {
+        Row: {
+          created_at: string
+          day: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       imu_sessions: {
         Row: {
           airtime_ms: number
@@ -391,6 +415,7 @@ export type Database = {
           duration_ms: number
           event_count: number
           format: string
+          group_id: string | null
           id: string
           impact_count: number
           jump_count: number
@@ -410,6 +435,7 @@ export type Database = {
           duration_ms: number
           event_count?: number
           format: string
+          group_id?: string | null
           id?: string
           impact_count?: number
           jump_count?: number
@@ -429,6 +455,7 @@ export type Database = {
           duration_ms?: number
           event_count?: number
           format?: string
+          group_id?: string | null
           id?: string
           impact_count?: number
           jump_count?: number
@@ -446,6 +473,13 @@ export type Database = {
             columns: ["bike_id"]
             isOneToOne: false
             referencedRelation: "bikes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imu_sessions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "imu_session_groups"
             referencedColumns: ["id"]
           },
         ]

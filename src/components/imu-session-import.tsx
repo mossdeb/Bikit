@@ -25,6 +25,12 @@ import {
   type BikeOption,
 } from "@/components/imu-session-details-fields";
 import { BikitDeviceImport } from "@/components/bikit-device-import";
+import {
+  defaultGroupId,
+  groupFormValid,
+  groupRefFromForm,
+  type ImuGroupOption,
+} from "@/lib/imu/groups";
 
 /**
  * The one door for sessions, with two ways through it: the logger over
@@ -44,10 +50,13 @@ import { BikitDeviceImport } from "@/components/bikit-device-import";
 export function ImuSessionImport({
   userId,
   bikes,
+  groups,
   riderDefault,
 }: {
   userId: string;
   bikes: BikeOption[];
+  /** The account's groups, newest first; today's most recent is preselected. */
+  groups: ImuGroupOption[];
   /** The account's own name, offered as the rider before anyone types. */
   riderDefault: string;
 }) {
@@ -65,6 +74,8 @@ export function ImuSessionImport({
   const [name, setName] = useState("");
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
+  const [groupId, setGroupId] = useState(() => defaultGroupId(groups));
+  const [newGroupName, setNewGroupName] = useState("");
 
   function reset() {
     setParsed(null);
@@ -73,6 +84,8 @@ export function ImuSessionImport({
     setName("");
     setRider(riderDefault);
     setBikeId("");
+    setGroupId(defaultGroupId(groups));
+    setNewGroupName("");
     setTab("device");
   }
 
@@ -117,6 +130,7 @@ export function ImuSessionImport({
       name,
       riderName: rider,
       bikeId: bikeId || null,
+      group: groupRefFromForm(groupId, newGroupName),
     });
     if (!outcome.ok) {
       setBusy(false);
@@ -176,6 +190,7 @@ export function ImuSessionImport({
               userId={userId}
               riderDefault={riderDefault}
               bikes={bikes}
+              groups={groups}
               onImported={finish}
             />
           </TabsContent>
@@ -213,6 +228,11 @@ export function ImuSessionImport({
                     bikeId={bikeId}
                     onBikeIdChange={setBikeId}
                     bikes={bikes}
+                    groups={groups}
+                    groupId={groupId}
+                    onGroupIdChange={setGroupId}
+                    newGroupName={newGroupName}
+                    onNewGroupNameChange={setNewGroupName}
                   />
                 </>
               )}
@@ -223,7 +243,12 @@ export function ImuSessionImport({
               <Button
                 className="w-full"
                 variant="inverted"
-                disabled={!parsed || !name.trim() || busy}
+                disabled={
+                  !parsed ||
+                  !name.trim() ||
+                  !groupFormValid(groupId, newGroupName) ||
+                  busy
+                }
                 onClick={handleImport}
               >
                 {busy ? "A importar…" : "Importar"}

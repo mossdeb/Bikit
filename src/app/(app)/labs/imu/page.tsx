@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import { formatSessionTime } from "@/lib/imu/derive";
+import { formatGroupDay } from "@/lib/imu/groups";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
 import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
+import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 
 /**
@@ -32,24 +34,110 @@ export default async function ImuLabPage() {
     { full_name?: string } | undefined;
   const riderDefault = metadata?.full_name?.trim() || email || "";
 
-  const [{ data: sessions }, { data: bikes }] = await Promise.all([
-    supabase
-      .from("imu_sessions")
-      .select(
-        // No counts: the card stopped printing them, and a column selected
-        // for nobody is a query that grows without a reader.
-        "id, name, rider_name, bike_id, created_at, duration_ms, sample_rate_hz, sample_count",
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("bikes")
-      .select("id, name, type")
-      .eq("user_id", userId)
-      .order("name"),
-  ]);
+  const [{ data: sessions }, { data: bikes }, { data: groups }] =
+    await Promise.all([
+      supabase
+        .from("imu_sessions")
+        .select(
+          // No counts: the card stopped printing them, and a column selected
+          // for nobody is a query that grows without a reader.
+          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count",
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("bikes")
+        .select("id, name, type")
+        .eq("user_id", userId)
+        .order("name"),
+      // Newest outing first — the order the list shows them in and the order
+      // the import dialog offers them, so "today's" is the first match.
+      supabase
+        .from("imu_session_groups")
+        .select("id, name, day, created_at")
+        .eq("user_id", userId)
+        .order("day", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
 
   const bikeById = new Map((bikes ?? []).map((bike) => [bike.id, bike]));
+  type SessionRow = NonNullable<typeof sessions>[number];
+
+  // Sessions under their group, in the groups' order; the rest — imported
+  // before groups existed, or deliberately left out — fold under "Sem grupo"
+  // at the end. With no groups at all the list is flat, as it always was: a
+  // lone "Sem grupo" header over everything would be a label for nothing.
+  const groupIds = new Set((groups ?? []).map((g) => g.id));
+  const byGroup = new Map<string, SessionRow[]>();
+  const ungrouped: SessionRow[] = [];
+  for (const session of sessions ?? []) {
+    if (session.group_id && groupIds.has(session.group_id)) {
+      const list = byGroup.get(session.group_id) ?? [];
+      list.push(session);
+      byGroup.set(session.group_id, list);
+    } else {
+      ungrouped.push(session);
+    }
+  }
+
+  function SessionCard({ session }: { session: SessionRow }) {
+    const bike = session.bike_id ? bikeById.get(session.bike_id) : undefined;
+    const BikeGlyph = bike?.type
+      ? BIKE_TYPE_ICON[bike.type as BikeType]
+      : undefined;
+    return (
+      <div
+        className={cn(
+          "relative rounded-lg bg-card p-5",
+          DARK_CARD_HAIRLINE,
+          CLICKABLE_CARD_HOVER,
+        )}
+      >
+        <Link
+          href={`/labs/imu/${session.id}`}
+          className="absolute inset-0 rounded-lg outline-none"
+          aria-label={session.name}
+        />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {BikeGlyph && (
+            <BikeGlyph
+              className="h-5 w-7 shrink-0 text-foreground"
+              aria-hidden
+            />
+          )}
+          <span>{bike?.name ?? "Sem bicicleta"}</span>
+          {/* Who rode it, beside what carried the sensor: two facts of the
+              same kind, and the list is where sessions are told apart from
+              each other. */}
+          {session.rider_name && (
+            <span className="truncate">· {session.rider_name}</span>
+          )}
+        </div>
+        <p className="mt-1 font-display text-xl leading-tight font-bold">
+          {session.name}
+        </p>
+        <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
+          <p>
+            {formatDate(session.created_at)} ·{" "}
+            {Math.round(session.sample_rate_hz)} Hz ·{" "}
+            <span className="tabular-nums">
+              {session.sample_count.toLocaleString("pt-PT")}
+            </span>{" "}
+            amostras
+          </p>
+          <p className="shrink-0 tabular-nums">
+            {formatSessionTime(session.duration_ms)}
+          </p>
+        </div>
+        {/* Above the covering link, so the trash can is clickable. */}
+        <div className="absolute top-3 right-3 z-10">
+          <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
+        </div>
+      </div>
+    );
+  }
+
+  const hasGroups = (groups ?? []).length > 0;
 
   return (
     // 15px of side margin on a phone, the same exception the session page
@@ -71,80 +159,55 @@ export default async function ImuLabPage() {
         <ImuSessionImport
           userId={userId}
           bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
+          groups={(groups ?? []).map(({ id, name, day }) => ({
+            id,
+            name,
+            day,
+          }))}
           riderDefault={riderDefault}
         />
       </div>
 
-      <div className="mt-6 space-y-4 pb-10">
-        {(sessions ?? []).length === 0 && (
+      <div className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-4")}>
+        {(sessions ?? []).length === 0 && !hasGroups && (
           <p className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
             Ainda não há sessões. Ligue o dispositivo ou importe um ficheiro
             .BKT para começar.
           </p>
         )}
 
-        {(sessions ?? []).map((session) => {
-          const bike = session.bike_id
-            ? bikeById.get(session.bike_id)
-            : undefined;
-          const BikeGlyph = bike?.type
-            ? BIKE_TYPE_ICON[bike.type as BikeType]
-            : undefined;
-          return (
-            <div
-              key={session.id}
-              className={cn(
-                "relative rounded-lg bg-card p-5",
-                DARK_CARD_HAIRLINE,
-                CLICKABLE_CARD_HOVER,
-              )}
-            >
-              <Link
-                href={`/labs/imu/${session.id}`}
-                className="absolute inset-0 rounded-lg outline-none"
-                aria-label={session.name}
-              />
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {BikeGlyph && (
-                  <BikeGlyph
-                    className="h-5 w-7 shrink-0 text-foreground"
-                    aria-hidden
-                  />
-                )}
-                <span>{bike?.name ?? "Sem bicicleta"}</span>
-                {/* Who rode it, beside what carried the sensor: two facts of
-                    the same kind, and the list is where sessions are told
-                    apart from each other. */}
-                {session.rider_name && (
-                  <span className="truncate">· {session.rider_name}</span>
-                )}
-              </div>
-              <p className="mt-1 font-display text-xl leading-tight font-bold">
-                {session.name}
-              </p>
-              <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
-                <p>
-                  {formatDate(session.created_at)} ·{" "}
-                  {Math.round(session.sample_rate_hz)} Hz ·{" "}
-                  <span className="tabular-nums">
-                    {session.sample_count.toLocaleString("pt-PT")}
-                  </span>{" "}
-                  amostras
-                </p>
-                <p className="shrink-0 tabular-nums">
-                  {formatSessionTime(session.duration_ms)}
-                </p>
-              </div>
-              {/* Above the covering link, so the trash can is clickable. */}
-              <div className="absolute top-3 right-3 z-10">
-                <ImuSessionDeleteButton
-                  sessionId={session.id}
-                  name={session.name}
-                />
-              </div>
-            </div>
-          );
-        })}
+        {hasGroups
+          ? (groups ?? []).map((group) => {
+              const list = byGroup.get(group.id) ?? [];
+              return (
+                <ImuSessionGroupSection
+                  key={group.id}
+                  storageKey={group.id}
+                  title={`Grupo · ${group.name} · ${formatGroupDay(group.day)}`}
+                  count={list.length}
+                  deletableGroup={{ id: group.id, name: group.name }}
+                >
+                  {list.map((session) => (
+                    <SessionCard key={session.id} session={session} />
+                  ))}
+                </ImuSessionGroupSection>
+              );
+            })
+          : ungrouped.map((session) => (
+              <SessionCard key={session.id} session={session} />
+            ))}
+
+        {hasGroups && ungrouped.length > 0 && (
+          <ImuSessionGroupSection
+            storageKey="ungrouped"
+            title="Sem grupo"
+            count={ungrouped.length}
+          >
+            {ungrouped.map((session) => (
+              <SessionCard key={session.id} session={session} />
+            ))}
+          </ImuSessionGroupSection>
+        )}
       </div>
     </div>
   );
