@@ -10,6 +10,7 @@
  */
 
 import { isBktFile, parseBktFile } from "./bkt";
+import { realignImuWords } from "./realign";
 
 export type ImuEvent =
   | {
@@ -151,12 +152,47 @@ export interface ImuSessionData {
    * The channels are compact (only what was recorded) and `tMs` jumps
    * across each gap. Absent from JSON files and from older recordings. */
   imuGaps?: ImuTimelineGap[];
+  /** The sensor's raw-count scales, when the file states them (the .BKT
+   * header does). realign.ts needs them to move a word between an accel
+   * and a gyro role; absent, the LSM6DS3TR-C defaults apply. */
+  sensorScales?: ImuSensorScales;
+  /** What realignImuWords found and did — see realign.ts. Absent when the
+   * session was too short to judge. */
+  realignment?: ImuRealignment;
 }
 
 export interface ImuTimelineGap {
   /** Session time where the recording stops, ms. */
   atMs: number;
   durationMs: number;
+}
+
+export interface ImuSensorScales {
+  accelGPerLsb: number;
+  gyroDpsPerLsb: number;
+}
+
+export interface ImuRealignSegment {
+  fromMs: number;
+  toMs: number;
+  /** Rotation of the six-word frame the segment arrived with: stored word
+   * j held channel (j + k) mod 6. 0 is a segment that was fine. */
+  k: number;
+}
+
+export interface ImuRealignment {
+  windowMs: number;
+  windows: number;
+  /** Windows whose rotation could be told apart with confidence. */
+  decided: number;
+  /** Time whose words had to be rotated back, ms. */
+  rotatedMs: number;
+  /** Time that still does not look like physics after the repair, ms — the
+   * rotation changed faster than a window can follow (firmware V11_3 files
+   * do this) and those stretches are not to be trusted. */
+  unresolvedMs: number;
+  totalMs: number;
+  segments: ImuRealignSegment[];
 }
 
 /**
@@ -581,7 +617,16 @@ export function parseImuFile(json: unknown): ImuParseResult {
  * JSON" would be misleading for a binary that merely lost its first bytes.
  */
 export function parseImuBytes(bytes: ArrayBuffer): ImuParseResult {
-  if (isBktFile(bytes)) return parseBktFile(bytes);
+  // Both paths end in realignImuWords: the logger's firmware (through
+  // V11, at least) writes stretches with the six words of a frame rotated,
+  // and the exporter's JSON is made from the same .BKT — so the repair
+  // belongs to reading the recording, whichever wrapper it came in.
+  const result = isBktFile(bytes) ? parseBktFile(bytes) : parseJsonBytes(bytes);
+  if (!result.ok) return result;
+  return { ok: true, session: realignImuWords(result.session) };
+}
+
+function parseJsonBytes(bytes: ArrayBuffer): ImuParseResult {
   let json: unknown;
   try {
     json = JSON.parse(new TextDecoder().decode(bytes));

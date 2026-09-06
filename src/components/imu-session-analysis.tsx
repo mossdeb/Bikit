@@ -1310,6 +1310,7 @@ export function ImuSessionAnalysis({
   // under it, so switching one off is scrolling saved.
   const panelToggles = (
     <>
+      <RealignmentBadge session={data} />
       <MountingBadge session={data} />
       <PanelToggle label="Rider" on={dashOn} onToggle={toggleDash} />
       {hasGps && (
@@ -2278,6 +2279,31 @@ function SessionCards({
  * right-handed sensor's should, and nothing on the page should be trusted
  * until the firmware says why.
  */
+/**
+ * Says when the file arrived with its frames rotated and the reader had to
+ * put the words back (realign.ts). A warning colour on purpose: the numbers
+ * on the page are now believed, not read, and the firmware still has the
+ * fault. Nothing when the file was clean.
+ */
+function RealignmentBadge({ session }: { session: ImuSessionData }) {
+  const r = session.realignment;
+  if (!r || (r.rotatedMs <= 0 && r.unresolvedMs <= 0)) return null;
+  const pct = Math.round((r.rotatedMs / r.totalMs) * 100);
+  const lost = Math.round((r.unresolvedMs / r.totalMs) * 100);
+  const stretches = r.segments.filter((s) => s.k !== 0).length;
+  let text = `IMU realinhado · ${pct}% do tempo`;
+  let title = `O logger gravou ${stretches} troço${stretches === 1 ? "" : "s"} com as seis palavras de cada amostra rodadas — giroscópio nos canais do acelerómetro e vice-versa. A app pô-las no sítio pela física (1 g no acelerómetro, quase nada no giroscópio, em janelas de ${Math.round(r.windowMs / 100) / 10} s). Em andamento forte a correção é aproximada.`;
+  if (lost >= 5) {
+    text += ` · ${lost}% irrecuperável`;
+    title += ` ⚠ Em ${lost}% do tempo a rotação muda mais depressa do que uma janela consegue seguir e a correção não pegou: esses troços não são de confiança, nem os máximos que saem deles.`;
+  }
+  return (
+    <span className="text-xs text-destructive tabular-nums" title={title}>
+      {text}
+    </span>
+  );
+}
+
 function MountingBadge({ session }: { session: ImuSessionData }) {
   const { aligned, mounting } = session;
   if (!aligned) {

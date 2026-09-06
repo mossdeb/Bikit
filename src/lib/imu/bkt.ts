@@ -464,6 +464,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       aligned: false,
       mounting: null,
       imuGaps,
+      sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
     },
   };
 }
