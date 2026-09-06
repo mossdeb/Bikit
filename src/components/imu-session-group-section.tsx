@@ -88,13 +88,21 @@ export function ImuSessionGroupSection({
             {title}
           </span>
           {count > 0 && (
-            <ChevronUp
-              className={cn(
-                "size-5 shrink-0 text-foreground transition-transform duration-300 motion-reduce:transition-none",
-                !open && "rotate-180",
-              )}
-              aria-hidden
-            />
+            <span className="flex shrink-0 items-center gap-3">
+              {/* How many are folded under this line — the one fact a
+                  closed group would otherwise hide. Muted, tabular, and
+                  in the mockup's brackets. */}
+              <span className="text-base font-normal text-muted-foreground tabular-nums">
+                ({count})
+              </span>
+              <ChevronUp
+                className={cn(
+                  "size-5 text-foreground transition-transform duration-300 motion-reduce:transition-none",
+                  !open && "rotate-180",
+                )}
+                aria-hidden
+              />
+            </span>
           )}
         </button>
         {deletableGroup && count === 0 && (
