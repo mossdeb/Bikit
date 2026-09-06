@@ -7,6 +7,7 @@ import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
+import { ImuSessionSettings } from "@/components/imu-session-settings";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -37,16 +38,25 @@ export default async function ImuSessionPage({
     .single();
   if (!session) notFound();
 
-  const { data: bike } = session.bike_id
-    ? await supabase
-        .from("bikes")
-        .select("name, type")
-        .eq("id", session.bike_id)
-        .single()
-    : { data: null };
+  // Every bike, not just the one on the session: the settings dialog lets
+  // the rider pick another. The session's own is looked up in the same
+  // list rather than fetched a second time.
+  const { data: bikes } = await supabase
+    .from("bikes")
+    .select("id, name, type")
+    .eq("user_id", userId)
+    .order("name");
+  const bike = session.bike_id
+    ? ((bikes ?? []).find((b) => b.id === session.bike_id) ?? null)
+    : null;
   const BikeGlyph = bike?.type
     ? BIKE_TYPE_ICON[bike.type as BikeType]
     : undefined;
+  // What a blank rider becomes on save — the same fallback the import and
+  // the update action use, so the dialog's placeholder tells the truth.
+  const metadata = userData?.claims?.user_metadata as
+    { full_name?: string } | undefined;
+  const riderDefault = metadata?.full_name?.trim() || email || "";
 
   return (
     // 15px of side margin on a phone instead of the app's 20: the plot inside
@@ -76,7 +86,24 @@ export default async function ImuSessionPage({
           // and the padding evens out. A `//` comment and not `{/* */}`: this
           // is the value of a prop, so the braces are already a JS expression
           // and a JSX comment here breaks the parse.
-          <div className="px-5 pt-5 pb-12 sm:px-6 2xl:py-6 2xl:pr-0">
+          <div className="relative px-5 pt-5 pb-12 sm:px-6 2xl:static 2xl:py-6 2xl:pr-0">
+            {/* The session's settings — name, rider, bike, and deleting —
+                behind three dots in the card's top-right corner. Below `2xl`
+                this block IS the card's width, so it is what the corner is
+                measured from; from `2xl` it becomes a column beside the
+                tiles, goes `static`, and the corner is the card's own
+                (`relative` in SessionCards) — tucked in tighter there, where
+                the card is short and the tiles sit close to the top. */}
+            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 2xl:top-2 2xl:right-2">
+              <ImuSessionSettings
+                sessionId={session.id}
+                name={session.name}
+                riderName={session.rider_name}
+                bikeId={session.bike_id}
+                bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
+                riderDefault={riderDefault}
+              />
+            </div>
             {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
                 number here is the number of pixels painted. */}

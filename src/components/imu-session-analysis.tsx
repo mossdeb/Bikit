@@ -2217,7 +2217,13 @@ function SessionCards({
           // landed on #f5f5f5 against a #efefef page and stopped drawing its
           // own edge. White on the page reads on its own, which is the rule
           // the rest of the app keeps.
-          "rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6",
+          // `relative`: the header's settings button is absolutely placed,
+          // and from `2xl` — where the header is a column beside the tiles —
+          // it measures its corner from this card, not from the column. The
+          // `2xl:pr-12` is that button's lane: the tiles reach 24px short of
+          // the card's edge, and the button, 40px wide 8px in, would land on
+          // the last tile's top corner without it.
+          "relative rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6 2xl:pr-12",
           DARK_CARD_HAIRLINE,
         )}
       >

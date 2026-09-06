@@ -152,6 +152,62 @@ export async function deleteImuSession(
 }
 
 /**
+ * Renames a session, or changes whose ride it was and which bike carried
+ * the sensor — the three facts the import dialog asked for, editable after
+ * the fact. Nothing about the recording itself moves: the file, the
+ * summary figures and the storage path are what they were. The rider
+ * falls back the way the import does (blank → the account's own name),
+ * so clearing the field never costs a session its rider.
+ */
+export async function updateImuSession(input: {
+  sessionId: string;
+  name: string;
+  riderName: string | null;
+  bikeId: string | null;
+}): Promise<ImuActionResult> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const userId = userData?.claims?.sub as string | undefined;
+  const email = userData?.claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: "Sem acesso." };
+
+  const name = input.name.trim();
+  if (!name)
+    return { status: "error", message: "A sessão precisa de um nome." };
+  const metadata = userData?.claims?.user_metadata as
+    { full_name?: string } | undefined;
+  const riderName =
+    input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
+
+  if (input.bikeId) {
+    const { data: bike } = await supabase
+      .from("bikes")
+      .select("id")
+      .eq("id", input.bikeId)
+      .eq("user_id", userId)
+      .single();
+    if (!bike) return { status: "error", message: "Bicicleta não encontrada." };
+  }
+
+  // Scoped to the owner as well as the id: RLS would refuse anyway, but an
+  // update that matched nothing would otherwise report success.
+  const { data, error } = await supabase
+    .from("imu_sessions")
+    .update({ name, rider_name: riderName, bike_id: input.bikeId })
+    .eq("id", input.sessionId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { status: "error", message: error.message };
+  if (!data) return { status: "error", message: "Sessão não encontrada." };
+
+  revalidatePath("/labs/imu");
+  revalidatePath(`/labs/imu/${input.sessionId}`);
+  return { status: "ok" };
+}
+
+/**
  * The BLE PIN of a BIKIT logger, kept with the account so the laptop and the
  * phone both open the same device without retyping it. The device asks on
  * every connection; this only saves the typing. Row per (user, device name),
