@@ -146,6 +146,17 @@ export interface ImuSessionData {
    * estimateMountingYaw in derive.ts. Null from the parsers, and null when
    * the session had no GPS or too little motion to tell. */
   mounting: MountingYaw | null;
+  /** Stretches where the logger recorded nothing — a FIFO reset after an
+   * overrun, since firmware V11 — as the .BKT block index reports them.
+   * The channels are compact (only what was recorded) and `tMs` jumps
+   * across each gap. Absent from JSON files and from older recordings. */
+  imuGaps?: ImuTimelineGap[];
+}
+
+export interface ImuTimelineGap {
+  /** Session time where the recording stops, ms. */
+  atMs: number;
+  durationMs: number;
 }
 
 /**

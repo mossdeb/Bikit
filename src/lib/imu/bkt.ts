@@ -23,24 +23,33 @@
  *                         without the odometer)
  *
  * Strict where the JSON parser is strict, and for the same reason: a bad
- * CRC, a block out of sequence or a file shorter than its header declares is
- * a corrupt recording, not a variant, and the sample index would have a hole
- * in it. Every recusal names the block, written on screen like the rest.
+ * CRC, a block out of sequence, an index that goes backwards or a file
+ * shorter than its header declares is a corrupt recording, not a variant.
+ * Every recusal names the block, written on screen like the rest.
  *
- * Two places this is deliberately LESS strict than the exporter:
+ * Three places this is deliberately LESS strict than the exporter:
  * - A header with the GNSS flag set but no GNSS samples is accepted, as a
  *   recording without a fix (`gps: null`). The exporter fails it; a ride
  *   under trees that never got a fix is still a ride.
  * - A GNSS sample the receiver flags invalid is skipped, not failed — the
  *   same tunnel rule the JSON path has.
+ * - A forward jump in the IMU block index is a GAP, not a hole: since
+ *   firmware V11 the index is a nominal timeline that a FIFO reset moves
+ *   forward by what was lost, so the samples after it keep their real
+ *   place in time. Gaps are reported in `imuGaps`.
  *
- * Sample time is the nominal one, `index ÷ rate`, the same the exporter
- * writes into its JSON — so a session imported either way reads the same.
- * The per-block `stream_time_us` is read and checked but not yet used to
- * correct drift; on the files seen so far it is itself nominal.
+ * Sample time is `origin + index ÷ rate`, with the index the block's
+ * `first_sample_index` and the origin from the first block's
+ * `stream_time_us` — nominal (so 0) in every firmware so far, and the hook
+ * for a firmware that stamps when the first sample really landed.
  */
 
-import type { GpsChannels, ImuCalibration, ImuParseResult } from "./format";
+import type {
+  GpsChannels,
+  ImuCalibration,
+  ImuParseResult,
+  ImuTimelineGap,
+} from "./format";
 
 export const BKT_FORMAT = "bikit_bkt";
 /** What the upload declares. The bucket's allow-list has it (migration
@@ -152,6 +161,10 @@ interface BlockHeader {
   firstSampleIndex: number;
   sampleCount: number;
   sampleSize: number;
+  /** The logger's clock at the block's first sample, µs. Nominal
+   * (index / rate) in every firmware so far; a firmware that stamps the
+   * real clock here moves the IMU timeline's origin — see the loop. */
+  streamTimeUs: number;
   payloadCrc: number;
 }
 
@@ -164,7 +177,7 @@ function readBlockHeader(view: DataView, offset: number): BlockHeader {
     firstSampleIndex: view.getUint32(offset + 12, true),
     sampleCount: view.getUint16(offset + 16, true),
     sampleSize: view.getUint16(offset + 18, true),
-    // offset + 20: stream_time_us (u64) — read when drift correction lands.
+    streamTimeUs: Number(view.getBigUint64(offset + 20, true)),
     payloadCrc: view.getUint32(offset + 28, true),
   };
 }
@@ -259,9 +272,22 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     dist: number;
   }[] = [];
 
+  // `first_sample_index` is the logger's NOMINAL TIMELINE, not a count of
+  // stored samples: since firmware V11 a FIFO reset moves it forward by the
+  // samples that were lost, so a jump between blocks is a recorded gap and
+  // not corruption. Time comes from that index; the arrays stay compact
+  // (only what is in the file), so `imuWritten` and `nextImuIndex` differ
+  // by the samples that never made it.
   let nextImuIndex = 0;
   let nextGnssIndex = 0;
   let imuWritten = 0;
+  // Where the IMU timeline starts, from the first block's clock stamp. Every
+  // firmware so far stamps the nominal index / rate, which makes this 0; a
+  // firmware that stamps the real clock (the first sample lands ~270 ms
+  // after the session starts) shifts the whole IMU timeline to match the
+  // GNSS clock without a format change.
+  let originMs = 0;
+  const imuGaps: ImuTimelineGap[] = [];
 
   for (let b = 0; b < h.totalBlocks; b++) {
     const off = BLOCK_SIZE + b * BLOCK_SIZE;
@@ -311,18 +337,24 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       );
 
     if (stream === "IMU") {
-      if (bh.firstSampleIndex !== nextImuIndex)
-        return fail(
-          `O bloco ${b} (IMU) deixa um buraco no índice das amostras.`,
-        );
-      if (nextImuIndex + bh.sampleCount > n)
+      // Backwards or overlapping is still corruption; forwards is a gap.
+      if (bh.firstSampleIndex < nextImuIndex)
+        return fail(`O bloco ${b} (IMU) volta atrás no índice das amostras.`);
+      if (imuWritten + bh.sampleCount > n)
         return fail(
           "Os blocos trazem mais amostras IMU do que o cabeçalho declara.",
         );
+      if (imuWritten === 0)
+        originMs = bh.streamTimeUs / 1000 - bh.firstSampleIndex * periodMs;
+      if (bh.firstSampleIndex > nextImuIndex && imuWritten > 0)
+        imuGaps.push({
+          atMs: originMs + nextImuIndex * periodMs,
+          durationMs: (bh.firstSampleIndex - nextImuIndex) * periodMs,
+        });
       for (let i = 0; i < bh.sampleCount; i++) {
         const s = payloadStart + i * IMU_SAMPLE_SIZE;
-        const idx = nextImuIndex + i;
-        tMs[idx] = idx * periodMs;
+        const idx = imuWritten + i;
+        tMs[idx] = originMs + (bh.firstSampleIndex + i) * periodMs;
         ax[idx] = view.getInt16(s, true) * accelScale;
         ay[idx] = view.getInt16(s + 2, true) * accelScale;
         az[idx] = view.getInt16(s + 4, true) * accelScale;
@@ -330,7 +362,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
         gy[idx] = view.getInt16(s + 8, true) * gyroScale;
         gz[idx] = view.getInt16(s + 10, true) * gyroScale;
       }
-      nextImuIndex += bh.sampleCount;
+      nextImuIndex = bh.firstSampleIndex + bh.sampleCount;
       imuWritten += bh.sampleCount;
     } else {
       if (bh.firstSampleIndex !== nextGnssIndex)
@@ -431,6 +463,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       calibration,
       aligned: false,
       mounting: null,
+      imuGaps,
     },
   };
 }

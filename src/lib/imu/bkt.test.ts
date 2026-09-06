@@ -18,6 +18,11 @@ const GYRO_SCALE_MDPS = 70;
 interface ImuBlock {
   type: 1;
   samples: [number, number, number, number, number, number][];
+  /** Timeline samples the logger lost before this block (a FIFO reset):
+   * advances first_sample_index without adding samples, as V11 does. */
+  skipBefore?: number;
+  /** The block's stream_time_us stamp; nominal index / rate when absent. */
+  streamTimeUs?: number;
 }
 interface GnssSample {
   t: number;
@@ -111,8 +116,15 @@ function buildBkt(
     const size = b.type === 1 ? 12 : b.size;
     view.setUint16(off + 16, b.samples.length, true);
     view.setUint16(off + 18, size, true);
-    view.setBigUint64(off + 20, BigInt(0), true);
     if (b.type === 1) {
+      imuIndex += b.skipBefore ?? 0;
+      view.setBigUint64(
+        off + 20,
+        BigInt(
+          b.streamTimeUs ?? Math.round((imuIndex * 1_000_000_000) / RATE_MHZ),
+        ),
+        true,
+      );
       view.setUint32(off + 12, imuIndex, true);
       b.samples.forEach((s, i) => {
         const p = off + 32 + i * 12;
@@ -120,6 +132,7 @@ function buildBkt(
       });
       imuIndex += b.samples.length;
     } else {
+      view.setBigUint64(off + 20, BigInt(0), true);
       view.setUint32(off + 12, gnssIndex, true);
       b.samples.forEach((s, i) => {
         const p = off + 32 + i * size;
@@ -204,6 +217,52 @@ describe("parseBktFile", () => {
     expect(s.channels.gForce).toBeNull();
     expect(s.events).toEqual([]);
     expect(s.gps).toBeNull();
+  });
+
+  it("accepts a timeline gap between blocks and times the samples past it", () => {
+    // Firmware V11: a FIFO reset lost 200 nominal samples; the next block's
+    // first_sample_index jumps by them and the file holds 20 samples.
+    const result = parseBktFile(
+      buildBkt([imuBlock(10), { ...imuBlock(10), skipBefore: 200 }]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const s = result.session;
+    const period = 1000 / 416;
+    expect(s.sampleCount).toBe(20);
+    expect(s.channels.tMs.length).toBe(20);
+    expect(s.channels.tMs[9]).toBeCloseTo(9 * period, 6);
+    expect(s.channels.tMs[10]).toBeCloseTo(210 * period, 6);
+    expect(s.imuGaps).toHaveLength(1);
+    expect(s.imuGaps![0].atMs).toBeCloseTo(10 * period, 6);
+    expect(s.imuGaps![0].durationMs).toBeCloseTo(200 * period, 6);
+  });
+
+  it("moves the IMU origin by the first block's clock stamp", () => {
+    // A firmware that stamps the real clock: the first sample landed 274 ms
+    // after the session started. Every sample time shifts by it.
+    const result = parseBktFile(
+      buildBkt([{ ...imuBlock(10), streamTimeUs: 274_000 }, imuBlock(10)]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.session.channels.tMs[0]).toBeCloseTo(274, 6);
+    expect(result.session.channels.tMs[10]).toBeCloseTo(
+      274 + 10 * (1000 / 416),
+      6,
+    );
+    expect(result.session.imuGaps).toEqual([]);
+  });
+
+  it("still rejects an index that goes backwards", () => {
+    const bytes = buildBkt([imuBlock(10), imuBlock(10)]);
+    // Rewrite the second block's first_sample_index to 5 and refresh nothing
+    // else: the index is not under the payload CRC.
+    new DataView(bytes).setUint32(BLOCK * 2 + 12, 5, true);
+    const result = parseBktFile(bytes);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/volta atrás/);
   });
 
   it("decodes 36-byte GNSS records into the same channels the JSON path fills", () => {
