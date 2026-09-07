@@ -76,6 +76,9 @@ const GNSS_SAMPLE_SIZES = new Set([32, 36]);
 const BLOCK_TYPE_IMU = 1;
 const BLOCK_TYPE_GNSS = 2;
 const FLAG_CALIBRATION = 0x1;
+/** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
+ * clock stamps before they wrap. */
+const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
 const CAL_OFFSET = 64;
 const CAL_SIZE = 56;
 
@@ -329,6 +332,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   // For the per-block time base below.
   let lastImuEndMs = -Infinity;
   let lastBlockPeriodMs = 0;
+  let stampWrapMs = 0;
 
   for (let b = 0; b < h.totalBlocks; b++) {
     const off = BLOCK_SIZE + b * BLOCK_SIZE;
@@ -403,12 +407,21 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       // the cadence of the one before it.
       let blockStartMs = originMs + bh.firstSampleIndex * periodMs;
       let blockPeriodMs = periodMs;
-      const stampMs = bh.streamTimeUs / 1000;
+      // V13 stamps come from a 24-bit RTC counter at 32768 Hz and wrap
+      // every 512 s; a stamp that lands far behind the block before it has
+      // wrapped, and takes the turns the stream has made so far.
+      let stampMs = bh.streamTimeUs / 1000 + stampWrapMs;
+      while (Number.isFinite(lastImuEndMs) && stampMs < lastImuEndMs - 1000) {
+        stampWrapMs += RTC_WRAP_MS;
+        stampMs += RTC_WRAP_MS;
+      }
       if (stampMs >= lastImuEndMs - periodMs) {
         const next = nextImuStamp(view, h.totalBlocks, b);
         if (next) {
+          let nextStampMs = next.stampMs + stampWrapMs;
+          if (nextStampMs < stampMs) nextStampMs += RTC_WRAP_MS;
           const p =
-            (next.stampMs - stampMs) /
+            (nextStampMs - stampMs) /
             (next.firstSampleIndex - bh.firstSampleIndex);
           if (p > periodMs * 0.9 && p < periodMs * 1.1) {
             blockStartMs = stampMs;

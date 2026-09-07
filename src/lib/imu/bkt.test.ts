@@ -287,6 +287,26 @@ describe("parseBktFile", () => {
     expect(t[677] - t[676]).toBeCloseTo(806.15 / 338, 4);
   });
 
+  it("unwraps V13 clock stamps, which turn over every 512 s", () => {
+    // Real times 511.6 s, 512.406 s, 513.212 s; the RTC counter wrapped
+    // between the first two blocks, so the stored stamps drop to 0.406 s.
+    const result = parseBktFile(
+      buildBkt([
+        { ...imuBlock(338), streamTimeUs: 511_600_000 },
+        { ...imuBlock(338), streamTimeUs: 406_150 },
+        { ...imuBlock(100), streamTimeUs: 1_212_300 },
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const t = result.session.channels.tMs;
+    expect(t[0]).toBeCloseTo(511_600, 3);
+    expect(t[338]).toBeCloseTo(512_406.15, 3);
+    expect(t[676]).toBeCloseTo(513_212.3, 3);
+    expect(t[338] - t[337]).toBeCloseTo(806.15 / 338, 3);
+    for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThan(t[i - 1]);
+  });
+
   it("moves the IMU origin by the first block's clock stamp", () => {
     // A firmware that stamps the real clock: the first sample landed 274 ms
     // after the session started. Every sample time shifts by it.
