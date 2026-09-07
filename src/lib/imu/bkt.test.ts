@@ -43,6 +43,9 @@ interface GnssBlock {
 function buildBkt(
   blocks: (ImuBlock | GnssBlock)[],
   overrides: {
+    /** "BKT1" builds firmware V13's header: CRC over all 64 bytes with the
+     * CRC field zeroed. Default is the exporter-era "BKTL". */
+    magic?: "BKTL" | "BKT1";
     sessionId?: number;
     durationMs?: number;
     totalImuSamples?: number;
@@ -64,9 +67,10 @@ function buildBkt(
     for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
   };
 
-  put(0, "BKTL");
+  const magic = overrides.magic ?? "BKTL";
+  put(0, magic);
   view.setUint8(4, 1);
-  view.setUint8(5, 2);
+  view.setUint8(5, magic === "BKT1" ? 0 : 2);
   view.setUint16(6, 64, true);
   const cal = overrides.calibration ?? true;
   view.setUint32(8, (cal ? 1 : 0) | 2, true);
@@ -84,7 +88,9 @@ function buildBkt(
   view.setUint32(48, imuTotal, true);
   view.setUint32(52, total, true);
   view.setUint32(56, overrides.durationMs ?? 10_131, true);
-  const headerCrc = crc32(u8.subarray(0, 60));
+  // With the CRC field still zero, the V13 CRC is simply over the 64 bytes.
+  const headerCrc =
+    magic === "BKT1" ? crc32(u8.subarray(0, 64)) : crc32(u8.subarray(0, 60));
   view.setUint32(
     60,
     overrides.breakHeaderCrc ? headerCrc ^ 1 : headerCrc,
@@ -219,6 +225,26 @@ describe("parseBktFile", () => {
     expect(s.gps).toBeNull();
   });
 
+  it('reads firmware V13\'s "BKT1" header, whose CRC covers all 64 bytes', () => {
+    const bytes = buildBkt([imuBlock(10)], {
+      magic: "BKT1",
+      calibration: false,
+    });
+    expect(isBktFile(bytes)).toBe(true);
+    const result = parseBktFile(bytes);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.session.sampleCount).toBe(10);
+    expect(result.session.calibration).toBeNull();
+    // The legacy 60-byte CRC would not have matched: a broken one still fails.
+    const broken = buildBkt([imuBlock(10)], {
+      magic: "BKT1",
+      calibration: false,
+      breakHeaderCrc: true,
+    });
+    expect(parseBktFile(broken).ok).toBe(false);
+  });
+
   it("accepts a timeline gap between blocks and times the samples past it", () => {
     // Firmware V11: a FIFO reset lost 200 nominal samples; the next block's
     // first_sample_index jumps by them and the file holds 20 samples.
@@ -231,11 +257,34 @@ describe("parseBktFile", () => {
     const period = 1000 / 416;
     expect(s.sampleCount).toBe(20);
     expect(s.channels.tMs.length).toBe(20);
-    expect(s.channels.tMs[9]).toBeCloseTo(9 * period, 6);
-    expect(s.channels.tMs[10]).toBeCloseTo(210 * period, 6);
+    // Three decimals: the builder stamps blocks to the microsecond, and the
+    // per-block period derived from those stamps carries that rounding.
+    expect(s.channels.tMs[9]).toBeCloseTo(9 * period, 3);
+    expect(s.channels.tMs[10]).toBeCloseTo(210 * period, 3);
     expect(s.imuGaps).toHaveLength(1);
     expect(s.imuGaps![0].atMs).toBeCloseTo(10 * period, 6);
     expect(s.imuGaps![0].durationMs).toBeCloseTo(200 * period, 6);
+  });
+
+  it("times the samples by the blocks' real clock stamps when the firmware stamps them", () => {
+    // Firmware V13: 338 samples per block and the sensor really running at
+    // ~419 Hz, so consecutive stamps are 806.15 ms apart, not 812.5.
+    const result = parseBktFile(
+      buildBkt([
+        { ...imuBlock(338), streamTimeUs: 1_648 },
+        { ...imuBlock(338), streamTimeUs: 807_800 },
+        { ...imuBlock(100), streamTimeUs: 1_613_950 },
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const t = result.session.channels.tMs;
+    expect(t[0]).toBeCloseTo(1.648, 3);
+    expect(t[338]).toBeCloseTo(807.8, 3);
+    expect(t[1] - t[0]).toBeCloseTo(806.152 / 338, 4);
+    // The last block keeps the cadence of the one before it.
+    expect(t[676]).toBeCloseTo(1613.95, 3);
+    expect(t[677] - t[676]).toBeCloseTo(806.15 / 338, 4);
   });
 
   it("moves the IMU origin by the first block's clock stamp", () => {

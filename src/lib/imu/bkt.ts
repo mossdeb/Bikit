@@ -15,7 +15,9 @@
  * Layout (all little-endian), mirrored from `bikit_export.py`, which is the
  * reference implementation until the firmware ships a written spec:
  *
- *   [0, 64)      session header  "BKTL"  — CRC32 over its first 60 bytes
+ *   [0, 64)      session header  "BKTL" (CRC32 over its first 60 bytes) or
+ *                                "BKT1" (firmware V13: CRC32 over all 64,
+ *                                with the CRC field itself as zero)
  *   [64, 120)    calibration     "CAL1"  — only when header flag bit 0 is set
  *   [4096, …)    blocks of 4096 bytes, each: 32-byte header "BLK1" + payload
  *                type 1 = IMU, 12-byte samples (six int16)
@@ -56,7 +58,14 @@ export const BKT_FORMAT = "bikit_bkt";
  * 00041); the JSON path keeps `application/json`. */
 export const BKT_CONTENT_TYPE = "application/octet-stream";
 
-const MAGIC = "BKTL";
+/** Two generations of the session header, told apart by their magic.
+ * "BKTL" is the exporter-era layout (firmware through V11), CRC over the
+ * first 60 bytes. "BKT1" is firmware V13's: same 64-byte field layout, but
+ * the CRC covers all 64 bytes with the CRC field itself read as zero — and
+ * the block clock stamps are the logger's real clock, not the nominal
+ * index ÷ rate. Blocks are identical between the two. */
+const MAGIC_LEGACY = "BKTL";
+const MAGIC_V1 = "BKT1";
 const BLOCK_MAGIC = "BLK1";
 const CAL_MAGIC = "CAL1";
 const SESSION_HEADER_SIZE = 64;
@@ -81,7 +90,8 @@ const GNSS_ODOMETER = 0x10;
  * to pick this parser over the JSON one before decoding anything. */
 export function isBktFile(bytes: ArrayBuffer): boolean {
   if (bytes.byteLength < 4) return false;
-  return ascii(new DataView(bytes), 0, 4) === MAGIC;
+  const magic = ascii(new DataView(bytes), 0, 4);
+  return magic === MAGIC_LEGACY || magic === MAGIC_V1;
 }
 
 /**
@@ -184,14 +194,42 @@ function readBlockHeader(view: DataView, offset: number): BlockHeader {
 
 const fail = (error: string): ImuParseResult => ({ ok: false, error });
 
+/** The clock stamp and index of the next IMU block after `b`, or null when
+ * `b` is the last one. Only headers are read; the main loop validates. */
+function nextImuStamp(
+  view: DataView,
+  totalBlocks: number,
+  b: number,
+): { stampMs: number; firstSampleIndex: number } | null {
+  for (let j = b + 1; j < totalBlocks; j++) {
+    const off = BLOCK_SIZE + j * BLOCK_SIZE;
+    if (off + BLOCK_HEADER_SIZE > view.byteLength) return null;
+    if (view.getUint8(off + 4) !== BLOCK_TYPE_IMU) continue;
+    return {
+      stampMs: Number(view.getBigUint64(off + 20, true)) / 1000,
+      firstSampleIndex: view.getUint32(off + 12, true),
+    };
+  }
+  return null;
+}
+
+/** The header CRC the way each generation computes it — see the magics. */
+function headerCrc(u8: Uint8Array, magic: string): number {
+  if (magic === MAGIC_LEGACY) return crc32(u8.subarray(0, 60));
+  const copy = u8.slice(0, SESSION_HEADER_SIZE);
+  copy.fill(0, 60, 64);
+  return crc32(copy);
+}
+
 export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   if (bytes.byteLength < SESSION_HEADER_SIZE) {
     return fail("O ficheiro é mais pequeno do que o cabeçalho de 64 bytes.");
   }
   const view = new DataView(bytes);
   const u8 = new Uint8Array(bytes);
-  if (ascii(view, 0, 4) !== MAGIC) {
-    return fail('O ficheiro não começa pela assinatura "BKTL".');
+  const magic = ascii(view, 0, 4);
+  if (magic !== MAGIC_LEGACY && magic !== MAGIC_V1) {
+    return fail('O ficheiro não começa pela assinatura "BKTL" nem "BKT1".');
   }
   const h = readHeader(view);
 
@@ -203,7 +241,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     return fail(
       `Amostras IMU com tamanho inesperado (${h.imuSampleSize} bytes).`,
     );
-  if (crc32(u8.subarray(0, 60)) !== h.storedCrc)
+  if (headerCrc(u8, magic) !== h.storedCrc)
     return fail("O CRC do cabeçalho não bate certo — ficheiro corrompido.");
   if (h.imuRateMHz === 0)
     return fail("O cabeçalho declara uma taxa de amostragem de zero.");
@@ -288,6 +326,9 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   // GNSS clock without a format change.
   let originMs = 0;
   const imuGaps: ImuTimelineGap[] = [];
+  // For the per-block time base below.
+  let lastImuEndMs = -Infinity;
+  let lastBlockPeriodMs = 0;
 
   for (let b = 0; b < h.totalBlocks; b++) {
     const off = BLOCK_SIZE + b * BLOCK_SIZE;
@@ -351,10 +392,39 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
           atMs: originMs + nextImuIndex * periodMs,
           durationMs: (bh.firstSampleIndex - nextImuIndex) * periodMs,
         });
+      // Where this block starts and how fast it runs. The block's clock
+      // stamp is the truth when the firmware stamps the real clock (V13:
+      // the sensor runs at 411–419 Hz, not the header's 416, and the stamps
+      // say so); the nominal index ÷ rate is the fallback when the stamp
+      // is nominal itself (older firmware, where the two agree anyway) or
+      // does not follow the block before it. A block's own period comes
+      // from the distance to the next IMU block's stamp, so the time base
+      // is the sensor's real cadence, block by block; the last block keeps
+      // the cadence of the one before it.
+      let blockStartMs = originMs + bh.firstSampleIndex * periodMs;
+      let blockPeriodMs = periodMs;
+      const stampMs = bh.streamTimeUs / 1000;
+      if (stampMs >= lastImuEndMs - periodMs) {
+        const next = nextImuStamp(view, h.totalBlocks, b);
+        if (next) {
+          const p =
+            (next.stampMs - stampMs) /
+            (next.firstSampleIndex - bh.firstSampleIndex);
+          if (p > periodMs * 0.9 && p < periodMs * 1.1) {
+            blockStartMs = stampMs;
+            blockPeriodMs = p;
+          }
+        } else if (lastBlockPeriodMs > 0) {
+          blockStartMs = stampMs;
+          blockPeriodMs = lastBlockPeriodMs;
+        }
+      }
+      lastBlockPeriodMs = blockPeriodMs;
+      lastImuEndMs = blockStartMs + bh.sampleCount * blockPeriodMs;
       for (let i = 0; i < bh.sampleCount; i++) {
         const s = payloadStart + i * IMU_SAMPLE_SIZE;
         const idx = imuWritten + i;
-        tMs[idx] = originMs + (bh.firstSampleIndex + i) * periodMs;
+        tMs[idx] = blockStartMs + i * blockPeriodMs;
         ax[idx] = view.getInt16(s, true) * accelScale;
         ay[idx] = view.getInt16(s + 2, true) * accelScale;
         az[idx] = view.getInt16(s + 4, true) * accelScale;
@@ -449,7 +519,10 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       format: BKT_FORMAT,
       // "S0007", the way the logger names the file on the card — and the
       // name the import form will suggest.
-      sessionId: `S${String(h.sessionId).padStart(4, "0")}`,
+      // The way the logger names the file on the card — "S0007" through
+      // firmware V11, "R0006" from V13 — and the name the import form will
+      // suggest.
+      sessionId: `${magic === MAGIC_V1 ? "R" : "S"}${String(h.sessionId).padStart(4, "0")}`,
       durationMs: h.durationMs > 0 ? h.durationMs : lastT,
       sampleRateHz: h.imuRateMHz / 1000,
       sampleCount: n,
