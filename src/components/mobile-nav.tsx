@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_NAV_ITEMS } from "@/lib/nav-items";
@@ -38,33 +39,37 @@ export function MobileNav({
       {MOBILE_NAV_ITEMS.map(({ href, labelKey, icon: Icon, iconClassName }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
-          <Link
-            key={href}
-            href={href}
-            aria-label={nav[labelKey]}
-            className={cn(
-              "flex items-center justify-center py-3.5",
-              active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
+          <Fragment key={href}>
+            {/* The lab's entry stands before the settings, with the places
+                you go to and not with the place you configure; the settings
+                keep the last slot they have always had. */}
+            {showLab && href === "/settings" && (
+              <Link
+                href="/labs/imu"
+                aria-label="IMU"
+                className={cn(
+                  "flex items-center justify-center py-3.5",
+                  pathname.startsWith("/labs/imu")
+                    ? "text-sidebar-primary"
+                    : "text-sidebar-foreground/60",
+                )}
+              >
+                <ImuChartGlyph className="size-7" />
+              </Link>
             )}
-          >
-            <Icon className={iconClassName} />
-          </Link>
+            <Link
+              href={href}
+              aria-label={nav[labelKey]}
+              className={cn(
+                "flex items-center justify-center py-3.5",
+                active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
+              )}
+            >
+              <Icon className={iconClassName} />
+            </Link>
+          </Fragment>
         );
       })}
-      {showLab && (
-        <Link
-          href="/labs/imu"
-          aria-label="IMU"
-          className={cn(
-            "flex items-center justify-center py-3.5",
-            pathname.startsWith("/labs/imu")
-              ? "text-sidebar-primary"
-              : "text-sidebar-foreground/60",
-          )}
-        >
-          <ImuChartGlyph className="size-7" />
-        </Link>
-      )}
     </nav>
   );
 }
