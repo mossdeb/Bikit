@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ellipsis, Trash2 } from "lucide-react";
+import { Download, Ellipsis, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,6 +45,7 @@ export function ImuSessionSettings({
   groupId,
   groups,
   riderDefault,
+  storagePath,
 }: {
   sessionId: string;
   name: string;
@@ -51,6 +53,8 @@ export function ImuSessionSettings({
   bikeId: string | null;
   bikes: BikeOption[];
   groupId: string | null;
+  /** Where the recording sits in the imu-sessions bucket, for the download. */
+  storagePath: string;
   /** The account's groups, newest first. */
   groups: ImuGroupOption[];
   /** The account's own name — what a blank rider becomes on save. */
@@ -74,6 +78,39 @@ export function ImuSessionSettings({
     setNewGroupName("");
     setBusy(false);
     setError(null);
+  }
+
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  // ".bkt" or ".json": what the parser found on import, kept in the path.
+  const fileExtension = storagePath.split(".").pop()?.toLowerCase() ?? "bkt";
+
+  async function download() {
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    const supabase = createClient();
+    const { data, error: downloadFailure } = await supabase.storage
+      .from("imu-sessions")
+      .download(storagePath);
+    setDownloading(false);
+    if (downloadFailure || !data) {
+      setDownloadError(
+        `Não foi possível obter o ficheiro: ${downloadFailure?.message ?? "sem resposta do Storage"}.`,
+      );
+      return;
+    }
+    // The session's name as the file name, minus what a file system rejects.
+    const safeName = name.replace(/[\\/:*?"<>|]+/g, "_").trim() || "sessao";
+    const url = URL.createObjectURL(data);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${safeName}.${fileExtension}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Revoked after the click has been handed to the browser.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   const dirty =
@@ -124,7 +161,8 @@ export function ImuSessionSettings({
           <DialogTitle>Definições da sessão</DialogTitle>
           <DialogDescription className="mt-1">
             O nome, quem pedalou, que bicicleta levou o sensor e a que grupo
-            pertence. A gravação em si não muda.
+            pertence. A gravação em si não muda, e pode ser descarregada tal
+            como foi guardada.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,6 +201,30 @@ export function ImuSessionSettings({
             {busy ? "A guardar…" : "Guardar"}
           </Button>
         </form>
+
+        {/* The recording itself, as it was stored — the .BKT the logger
+            wrote, or the exporter's JSON — straight from Storage, where RLS
+            already limits it to the owner. Fetched into a blob and handed to
+            the browser as a download named after the session; a signed URL
+            would also work, but would put the file's address in the page. */}
+        <div className="border-t border-border pt-4">
+          <button
+            type="button"
+            disabled={downloading}
+            onClick={download}
+            className="flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            <Download className="size-4" />
+            {downloading
+              ? "A preparar…"
+              : `Descarregar ficheiro (${fileExtension.toUpperCase()})`}
+          </button>
+          {downloadError && (
+            <p className="mt-2 text-center text-sm text-destructive">
+              {downloadError}
+            </p>
+          )}
+        </div>
 
         {/* The danger zone, under a rule, with its own confirmation. On
             success the page under this dialog no longer exists, so the

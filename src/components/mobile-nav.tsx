@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_NAV_ITEMS } from "@/lib/nav-items";
+import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { cn } from "@/lib/utils";
 import { isFullscreenFormRoute } from "@/lib/fullscreen-form-routes";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
-export function MobileNav({ nav }: { nav: Dictionary["nav"] }) {
+export function MobileNav({
+  nav,
+  showLab = false,
+}: {
+  nav: Dictionary["nav"];
+  /** The owner's IMU lab entry — see AppSidebar. */
+  showLab?: boolean;
+}) {
   const pathname = usePathname();
 
   // The create forms take over the whole screen — no nav competing with
@@ -43,6 +51,20 @@ export function MobileNav({ nav }: { nav: Dictionary["nav"] }) {
           </Link>
         );
       })}
+      {showLab && (
+        <Link
+          href="/labs/imu"
+          aria-label="IMU"
+          className={cn(
+            "flex items-center justify-center py-3.5",
+            pathname.startsWith("/labs/imu")
+              ? "text-sidebar-primary"
+              : "text-sidebar-foreground/60",
+          )}
+        >
+          <ImuChartGlyph className="size-7" />
+        </Link>
+      )}
     </nav>
   );
 }

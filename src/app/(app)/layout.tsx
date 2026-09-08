@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
+import { hasLabAccess } from "@/lib/lab-access";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 import { HeaderLogo } from "@/components/header-logo";
@@ -24,6 +25,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const dict = getDictionary(localeFromMetadata(user.user_metadata));
+  // The IMU lab's entry in both navs, for the owner's account only — the
+  // same gate the lab's pages apply (they 404 for anyone else).
+  const showLab = hasLabAccess(user.email as string | undefined);
 
   return (
     <ToastProvider>
@@ -32,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           to reach exactly it (see globals.css). No rule matches it
           anywhere else. */}
       <div data-app-shell className="flex min-h-dvh bg-background">
-        <AppSidebar nav={dict.nav} />
+        <AppSidebar nav={dict.nav} showLab={showLab} />
         {/* The app's widest measure, raised from 1440 to 1600 on 2026-08-25.
             It governs every authenticated page, not just the lab that asked
             for it: past this width the surplus becomes equal margins. The
@@ -51,7 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </AppHeader>
           <AppMain>{children}</AppMain>
         </div>
-        <MobileNav nav={dict.nav} />
+        <MobileNav nav={dict.nav} showLab={showLab} />
       </div>
       <Toaster />
     </ToastProvider>

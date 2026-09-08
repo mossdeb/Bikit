@@ -118,6 +118,7 @@ export default async function ImuSessionPage({
                 groupId={session.group_id}
                 groups={groups ?? []}
                 riderDefault={riderDefault}
+                storagePath={session.storage_path}
               />
             </div>
             {/* stroke-width pinned in CSS, the bike-created screen's trick.

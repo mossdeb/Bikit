@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { BikitLockup, LogoMark } from "@/components/logo";
+import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -22,7 +23,16 @@ function useMounted() {
   );
 }
 
-export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
+export function AppSidebar({
+  nav,
+  showLab = false,
+}: {
+  nav: Dictionary["nav"];
+  /** Whether this account may reach the IMU lab (hasLabAccess, decided on
+   * the server). The entry is a literal "IMU" and not a dictionary key: the
+   * lab is untranslated on purpose, and a key would promise a feature. */
+  showLab?: boolean;
+}) {
   const pathname = usePathname();
   const mounted = useMounted();
   const [override, setOverride] = useState<boolean | null>(null);
@@ -98,6 +108,24 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
             </Link>
           );
         })}
+        {/* The lab's door, for the owner only. Same shape as the entries
+            above; the glyph is the lab's own chart mark. */}
+        {showLab && (
+          <Link
+            href="/labs/imu"
+            aria-label="IMU"
+            className={cn(
+              "flex h-11 items-center gap-3 rounded-[12px] text-sm font-semibold transition-colors",
+              expanded ? "justify-start px-3.5" : "w-11 justify-center",
+              isLab
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            )}
+          >
+            <ImuChartGlyph className="size-5 shrink-0" />
+            {expanded && <span>IMU</span>}
+          </Link>
+        )}
       </nav>
 
       <button
