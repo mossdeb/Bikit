@@ -259,6 +259,12 @@ const DASH_SPEED_HEADROOM_KMH = 20;
  * stored — a framing choice, like the zoom window. */
 const MAP_DEFAULT_W = 300;
 const MAP_MIN_W = 220;
+/** The map card's height below `lg`, where it is stacked under the plot and
+ * the edge that moves is its bottom. 280 is the card as it has been; 160
+ * still shows a track; 640 is a phone screen's worth. */
+const MAP_DEFAULT_H = 280;
+const MAP_MIN_H = 160;
+const MAP_MAX_H = 640;
 /** What the chart may never be squeezed below — the plot is the one thing
  * this page exists to show, so the map is the side that gives. */
 const CHART_MIN_W = 420;
@@ -700,6 +706,16 @@ export function ImuSessionAnalysis({
    * chart/map edge. The value rides a custom property because the grid only
    * exists from `lg` up, and an inline style cannot carry a breakpoint. */
   const [mapWidth, setMapWidth] = useState(MAP_DEFAULT_W);
+  /** The map card's height on a phone — dragged by the grip under the map.
+   * Same custom-property route as the width: the height applies below
+   * `lg` only, where the map is stacked, and from `lg` it fills the row. */
+  const [mapHeight, setMapHeight] = useState(MAP_DEFAULT_H);
+  const [heightActive, setHeightActive] = useState(false);
+  const heightDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startH: number;
+  } | null>(null);
   /** Held true through a drag, so the handle stays in its grabbed colour
    * while the pointer wanders off it — a drag keeps the pointer captured,
    * and the bar going grey mid-gesture would say the grip had been lost. */
@@ -1134,6 +1150,49 @@ export function ImuSessionAnalysis({
     if (splitDragRef.current?.pointerId === event.pointerId) {
       splitDragRef.current = null;
       setSplitActive(false);
+    }
+  }
+
+  // The phone's grip, under the map: the same drag contract as the split
+  // handle — a deliberate primary press, pointer capture, a missed release
+  // ends the drag — with the travel read vertically. Dragging down grows
+  // the map by what the thumb travelled.
+  function startMapHeightResize(event: React.PointerEvent<HTMLElement>) {
+    if (
+      !event.isPrimary ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    )
+      return;
+    event.preventDefault();
+    heightDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startH: mapHeight,
+    };
+    setHeightActive(true);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // No capture: moves still arrive while over the grip.
+    }
+  }
+
+  function moveMapHeightResize(event: React.PointerEvent<HTMLElement>) {
+    const drag = heightDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      heightDragRef.current = null;
+      setHeightActive(false);
+      return;
+    }
+    const next = drag.startH + (event.clientY - drag.startY);
+    setMapHeight(Math.min(MAP_MAX_H, Math.max(MAP_MIN_H, next)));
+  }
+
+  function endMapHeightResize(event: React.PointerEvent<HTMLElement>) {
+    if (heightDragRef.current?.pointerId === event.pointerId) {
+      heightDragRef.current = null;
+      setHeightActive(false);
     }
   }
 
@@ -1685,7 +1744,10 @@ export function ImuSessionAnalysis({
           // opposite: a map you cannot read or touch is a picture, and the
           // rider wanted to see where the curve was. So it is a map again —
           // 280px tall, interactive, credited — and the reading follows it.
-          <div className="relative isolate order-2 mt-4 min-w-0 lg:order-3 lg:mt-0">
+          <div
+            className="relative isolate order-2 mt-4 min-w-0 lg:order-3 lg:mt-0"
+            style={{ "--imu-map-h": `${mapHeight}px` } as React.CSSProperties}
+          >
             <ImuSessionMap
               gps={data.gps}
               events={
@@ -1704,9 +1766,10 @@ export function ImuSessionAnalysis({
               // and needs no help; in the dark one it is #1c1c1c against
               // #17181b, the same vanishing edge every other card had.
               className={cn(
-                // A card with the card radius at every width; from `lg` it
+                // A card with the card radius at every width — as tall as
+                // the grip under it says, 280px until dragged; from `lg` it
                 // fills the column beside the plot.
-                "h-[280px] rounded-lg lg:h-full",
+                "h-[var(--imu-map-h)] rounded-lg lg:h-full",
                 DARK_CARD_HAIRLINE_SM,
               )}
             />
@@ -1769,6 +1832,43 @@ export function ImuSessionAnalysis({
                   splitActive || splitHover
                     ? "bg-foreground"
                     : "bg-muted-foreground/40",
+                )}
+              />
+            </button>
+            {/* The phone's grip: under the map, where its bottom edge is
+                the one that moves. Full width so a thumb finds it, 32px
+                tall, and the same 4px bar as the split handle — a short one,
+                lying down. A separator by role with the arrows moving the
+                edge the way they point and a double tap restoring 280px.
+                `lg:hidden`, the mirror of the split handle's `lg:flex`. */}
+            <button
+              type="button"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Redimensionar a altura do mapa"
+              aria-valuenow={Math.round(mapHeight)}
+              aria-valuemin={MAP_MIN_H}
+              aria-valuemax={MAP_MAX_H}
+              onPointerDown={startMapHeightResize}
+              onPointerMove={moveMapHeightResize}
+              onPointerUp={endMapHeightResize}
+              onPointerCancel={endMapHeightResize}
+              onDoubleClick={() => setMapHeight(MAP_DEFAULT_H)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown")
+                  setMapHeight((h) => Math.min(MAP_MAX_H, h + 24));
+                else if (event.key === "ArrowUp")
+                  setMapHeight((h) => Math.max(MAP_MIN_H, h - 24));
+                else return;
+                event.preventDefault();
+              }}
+              className="flex h-8 w-full cursor-ns-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:hidden"
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "h-1 w-12 rounded-full transition-colors",
+                  heightActive ? "bg-foreground" : "bg-muted-foreground/40",
                 )}
               />
             </button>
