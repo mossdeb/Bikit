@@ -37,10 +37,13 @@ import {
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
 import { createClient } from "@/lib/supabase/client";
+import { ImuOrientationShare } from "@/components/imu-orientation-share";
+import type { ImuGroupOption } from "@/lib/imu/groups";
 import {
   parseImuBytes,
   type GpsChannels,
   type ImuEvent,
+  type ImuMountOrientation,
   type ImuSessionData,
 } from "@/lib/imu/format";
 import {
@@ -48,6 +51,7 @@ import {
   eventsAt,
   formatSessionTime,
   alignSessionToBike,
+  alignSessionWithOrientation,
   applyMountingYaw,
   estimateMountingYaw,
   gForceOf,
@@ -655,8 +659,19 @@ export function ImuSessionAnalysis({
   storagePath,
   riderName,
   header,
+  mountOrientation = null,
+  groups = [],
+  sessionName = "",
+  sessionGroupId = null,
 }: {
   storagePath: string;
+  /** An orientation copied from another session (setGroupMountOrientation),
+   * used when the file carries none of its own. */
+  mountOrientation?: ImuMountOrientation | null;
+  /** The account's groups, for lending this session's orientation. */
+  groups?: ImuGroupOption[];
+  sessionName?: string;
+  sessionGroupId?: string | null;
   /** Who rode this recording, as recorded on import. It titles the
    * dashboard — the instruments are that person's ride, not a panel with a
    * generic name. Null on sessions imported before the field existed, and
@@ -756,10 +771,24 @@ export function ImuSessionAnalysis({
         setLoadError(result.error);
         return;
       }
-      // Read in the bike's frame when the file says how the sensor was
-      // mounted (gravity on +Z), then find "forward" from the ride itself
-      // when the GPS can say and the vote is confident; the file itself
-      // stays as recorded. Below the bar the estimate is kept on the
+      // A file that carries the logger's full orientation (V13.5's two-step
+      // calibration) — or a session lent one from another recording with
+      // the sensor in the same place — is read in the bike's frame
+      // outright: up, front and left are all known, and nothing is
+      // estimated from the ride. The file's own record wins over the copy.
+      const parsed = result.session.orientation
+        ? result.session
+        : mountOrientation
+          ? { ...result.session, orientation: mountOrientation }
+          : result.session;
+      if (parsed.orientation) {
+        setData(alignSessionWithOrientation(parsed));
+        return;
+      }
+      // Otherwise: in the bike's frame when the file says how the sensor
+      // was mounted (gravity on +Z), then find "forward" from the ride
+      // itself when the GPS can say and the vote is confident; the file
+      // itself stays as recorded. Below the bar the estimate is kept on the
       // session — for the badge to say "not enough to tell" — but the
       // channels are left un-rotated rather than rotated by a guess.
       const aligned = alignSessionToBike(result.session);
@@ -773,7 +802,7 @@ export function ImuSessionAnalysis({
     return () => {
       cancelled = true;
     };
-  }, [storagePath]);
+  }, [storagePath, mountOrientation]);
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
   const gForce = useMemo(() => (data ? gForceOf(data) : null), [data]);
@@ -1312,6 +1341,15 @@ export function ImuSessionAnalysis({
     <>
       <RealignmentBadge session={data} />
       <MountingBadge session={data} />
+      {/* Only a measured orientation is lent onwards — never a copy. */}
+      {data.orientation && !data.orientation.inheritedFrom && (
+        <ImuOrientationShare
+          orientation={data.orientation}
+          groups={groups}
+          sourceName={sessionName || data.sessionId || "sessão"}
+          defaultGroupId={sessionGroupId}
+        />
+      )}
       <PanelToggle label="Rider" on={dashOn} onToggle={toggleDash} />
       {hasGps && (
         <PanelToggle
@@ -2325,6 +2363,14 @@ function MountingBadge({ session }: { session: ImuSessionData }) {
     text = "Bicicleta · frente por definir";
     title =
       "Gravidade alinhada pela calibração. Sem GPS, ou sem acelerações e travagens suficientes, para descobrir a frente.";
+  } else if (mounting.source === "logger") {
+    const from = session.orientation?.inheritedFrom;
+    text = from
+      ? `Bicicleta · orientação de ${from} (${pct}%)`
+      : `Bicicleta · frente pelo logger (${pct}%)`;
+    title = `Calibração em dois passos no logger: parado para a gravidade, a andar a direito para a frente, com ${mounting.intervals} votos de aceleração e travagem do GPS e ${pct}% de confiança. O sensor está a ${yaw}° da frente. Eixos: X frente, Y esquerda, Z cima.`;
+    if (from)
+      title += ` Esta sessão não trazia orientação própria: usa a de "${from}", por o sensor ter estado na mesma posição.`;
   } else if (mounting.applied) {
     text = `Bicicleta · frente a ${yaw}° do sensor (${pct}%)`;
     title = `A frente foi encontrada em ${mounting.intervals} intervalos de aceleração e travagem do GPS; confiança ${pct}%.`;

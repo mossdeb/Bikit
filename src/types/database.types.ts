@@ -420,6 +420,7 @@ export type Database = {
           impact_count: number
           jump_count: number
           max_g: number | null
+          mount_orientation: Json | null
           name: string
           rider_name: string | null
           sample_count: number
@@ -440,6 +441,7 @@ export type Database = {
           impact_count?: number
           jump_count?: number
           max_g?: number | null
+          mount_orientation?: Json | null
           name: string
           rider_name?: string | null
           sample_count: number
@@ -460,6 +462,7 @@ export type Database = {
           impact_count?: number
           jump_count?: number
           max_g?: number | null
+          mount_orientation?: Json | null
           name?: string
           rider_name?: string | null
           sample_count?: number

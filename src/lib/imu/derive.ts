@@ -553,6 +553,95 @@ export function alignSessionToBike(session: ImuSessionData): ImuSessionData {
   };
 }
 
+/**
+ * The bike's frame straight from the logger's two-step calibration
+ * (firmware V13.5, the ORI1 record): up from standing still, front from
+ * GPS speed-change votes while riding straight, left = up × front. All
+ * three degrees of freedom are known, so this replaces alignSessionToBike
+ * AND estimateMountingYaw/applyMountingYaw in one step: x = front · v,
+ * y = left · v, z = up · v, for the accelerometer and — after the
+ * calibration's bias is taken out — the gyro. Same contract as the other
+ * alignment: the same session back when there is nothing to do, fresh
+ * arrays otherwise, `aligned` set, and a `mounting` whose source says the
+ * logger found forward, with the logger's own confidence and vote count.
+ */
+export function alignSessionWithOrientation(
+  session: ImuSessionData,
+): ImuSessionData {
+  const ori = session.orientation;
+  if (!ori || session.aligned) return session;
+  const { up: u, front: f, left: l } = ori;
+  const [bx, by, bz] = session.calibration?.gyroBiasDps ?? [0, 0, 0];
+
+  const { tMs, ax, ay, az, gx, gy, gz, gForce } = session.channels;
+  const n = tMs.length;
+  const oax = new Float32Array(n);
+  const oay = new Float32Array(n);
+  const oaz = new Float32Array(n);
+  const ogx = new Float32Array(n);
+  const ogy = new Float32Array(n);
+  const ogz = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = ax[i];
+    const y = ay[i];
+    const z = az[i];
+    oax[i] = f[0] * x + f[1] * y + f[2] * z;
+    oay[i] = l[0] * x + l[1] * y + l[2] * z;
+    oaz[i] = u[0] * x + u[1] * y + u[2] * z;
+    const wx = gx[i] - bx;
+    const wy = gy[i] - by;
+    const wz = gz[i] - bz;
+    ogx[i] = f[0] * wx + f[1] * wy + f[2] * wz;
+    ogy[i] = l[0] * wx + l[1] * wy + l[2] * wz;
+    ogz[i] = u[0] * wx + u[1] * wy + u[2] * wz;
+  }
+
+  // For the badge, the same figure estimateMountingYaw reports: where the
+  // sensor's X sits from forward, about the vertical. Sensor X projected
+  // onto the plane normal to `up`, then the signed angle from it to front.
+  const d = u[0];
+  let px = 1 - d * u[0];
+  let py = -d * u[1];
+  let pz = -d * u[2];
+  const pn = Math.hypot(px, py, pz);
+  let yawDeg = 0;
+  if (pn > 1e-6) {
+    px /= pn;
+    py /= pn;
+    pz /= pn;
+    const cos = px * f[0] + py * f[1] + pz * f[2];
+    // up × p is p turned +90° about up; its dot with front is sin.
+    const cx = u[1] * pz - u[2] * py;
+    const cy = u[2] * px - u[0] * pz;
+    const cz = u[0] * py - u[1] * px;
+    const sin = cx * f[0] + cy * f[1] + cz * f[2];
+    yawDeg = (-Math.atan2(sin, cos) * 180) / Math.PI;
+  }
+
+  return {
+    ...session,
+    channels: {
+      tMs,
+      ax: oax,
+      ay: oay,
+      az: oaz,
+      gx: ogx,
+      gy: ogy,
+      gz: ogz,
+      gForce,
+    },
+    aligned: true,
+    mounting: {
+      yawDeg,
+      confidence: ori.confidence,
+      intervals: ori.voteCount,
+      headingCheck: "ok",
+      applied: true,
+      source: "logger",
+    },
+  };
+}
+
 /** GPS intervals shorter than this are trusted for a speed derivative;
  * longer gaps (a tunnel, a dropped fix) are skipped. */
 const YAW_MAX_INTERVAL_MS = 2_500;

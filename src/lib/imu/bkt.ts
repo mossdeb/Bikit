@@ -19,6 +19,9 @@
  *                                "BKT1" (firmware V13: CRC32 over all 64,
  *                                with the CRC field itself as zero)
  *   [64, 120)    calibration     "CAL1"  — only when header flag bit 0 is set
+ *   [128, 188)   orientation     "ORI1"  — BKT1 with flag bit 0, firmware
+ *                                V13.5+: the bike's up/front/left in the
+ *                                sensor's frame (the two-step calibration)
  *   [4096, …)    blocks of 4096 bytes, each: 32-byte header "BLK1" + payload
  *                type 1 = IMU, 12-byte samples (six int16)
  *                type 2 = GNSS, 36-byte samples (or 32 in older firmware,
@@ -49,6 +52,7 @@
 import type {
   GpsChannels,
   ImuCalibration,
+  ImuMountOrientation,
   ImuParseResult,
   ImuTimelineGap,
 } from "./format";
@@ -76,6 +80,10 @@ const GNSS_SAMPLE_SIZES = new Set([32, 36]);
 const BLOCK_TYPE_IMU = 1;
 const BLOCK_TYPE_GNSS = 2;
 const FLAG_CALIBRATION = 0x1;
+/** Firmware V13.5's mounting orientation record, right after CAL1. */
+const ORI_MAGIC = "ORI1";
+const ORI_OFFSET = 128;
+const ORI_SIZE = 60;
 /** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
  * clock stamps before they wrap. */
 const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
@@ -218,9 +226,22 @@ function nextImuStamp(
 
 /** The header CRC the way each generation computes it — see the magics. */
 function headerCrc(u8: Uint8Array, magic: string): number {
-  if (magic === MAGIC_LEGACY) return crc32(u8.subarray(0, 60));
-  const copy = u8.slice(0, SESSION_HEADER_SIZE);
-  copy.fill(0, 60, 64);
+  return recordCrc(u8, 0, SESSION_HEADER_SIZE, magic);
+}
+
+/** The CRC of a fixed-size record whose last four bytes are the CRC: the
+ * legacy generation covers the bytes before the field, BKT1 covers the
+ * whole record with the field read as zero. */
+function recordCrc(
+  u8: Uint8Array,
+  offset: number,
+  size: number,
+  magic: string,
+): number {
+  if (magic === MAGIC_LEGACY)
+    return crc32(u8.subarray(offset, offset + size - 4));
+  const copy = u8.slice(offset, offset + size);
+  copy.fill(0, size - 4, size);
   return crc32(copy);
 }
 
@@ -261,7 +282,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     if (ascii(view, CAL_OFFSET, 4) !== CAL_MAGIC)
       return fail('O bloco de calibração não começa por "CAL1".');
     const storedCalCrc = view.getUint32(CAL_OFFSET + 52, true);
-    if (crc32(u8.subarray(CAL_OFFSET, CAL_OFFSET + 52)) !== storedCalCrc)
+    if (recordCrc(u8, CAL_OFFSET, CAL_SIZE, magic) !== storedCalCrc)
       return fail("O CRC da calibração não bate certo — ficheiro corrompido.");
     // CAL1 layout (`<4sB3x9fIII`): magic, version, pad, then nine floats —
     // gravity reference xyz, gyro bias xyz, gravity magnitude, accel and
@@ -279,6 +300,50 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
         calibrationCount: view.getUint32(CAL_OFFSET + 48, true),
       };
     }
+  }
+
+  // The mounting orientation, firmware V13.5's second calibration step:
+  // written right after CAL1 and only by the BKT1 generation. Its absence
+  // is a file from before the step existed, not a fault; its presence with
+  // a bad CRC is. The three vectors are read as given and checked to be
+  // unit and near-orthogonal, because everything downstream rotates by
+  // them and a rotation by a skewed frame would distort every figure.
+  let orientation: ImuMountOrientation | undefined;
+  if (
+    magic === MAGIC_V1 &&
+    h.flags & FLAG_CALIBRATION &&
+    bytes.byteLength >= ORI_OFFSET + ORI_SIZE &&
+    ascii(view, ORI_OFFSET, 4) === ORI_MAGIC
+  ) {
+    const storedOriCrc = view.getUint32(ORI_OFFSET + 56, true);
+    if (recordCrc(u8, ORI_OFFSET, ORI_SIZE, magic) !== storedOriCrc)
+      return fail("O CRC da orientação não bate certo — ficheiro corrompido.");
+    const f = (i: number) => view.getFloat32(ORI_OFFSET + 8 + i * 4, true);
+    const v = Array.from({ length: 10 }, (_, i) => f(i));
+    const up: [number, number, number] = [v[0], v[1], v[2]];
+    const front: [number, number, number] = [v[3], v[4], v[5]];
+    const left: [number, number, number] = [v[6], v[7], v[8]];
+    const unit = (a: number[]) => Math.abs(Math.hypot(...a) - 1) < 0.01;
+    const dot = (a: number[], b: number[]) =>
+      a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    if (
+      !v.every(Number.isFinite) ||
+      !unit(up) ||
+      !unit(front) ||
+      !unit(left) ||
+      Math.abs(dot(up, front)) > 0.02 ||
+      Math.abs(dot(up, left)) > 0.02 ||
+      Math.abs(dot(front, left)) > 0.02
+    )
+      return fail("A orientação do logger não é um referencial ortonormal.");
+    orientation = {
+      up,
+      front,
+      left,
+      confidence: v[9],
+      voteCount: view.getUint16(ORI_OFFSET + 48, true),
+      calibrationCount: view.getUint32(ORI_OFFSET + 52, true),
+    };
   }
 
   const expectedSize = BLOCK_SIZE + h.totalBlocks * BLOCK_SIZE;
@@ -551,6 +616,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       mounting: null,
       imuGaps,
       sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
+      orientation,
     },
   };
 }

@@ -50,6 +50,9 @@ function buildBkt(
     durationMs?: number;
     totalImuSamples?: number;
     calibration?: boolean;
+    /** Write firmware V13.5's ORI1 record after CAL1 (BKT1 only). */
+    orientation?: boolean;
+    breakOrientationCrc?: boolean;
     breakHeaderCrc?: boolean;
     breakBlockCrc?: number;
     breakSequence?: number;
@@ -104,7 +107,46 @@ function buildBkt(
     floats.forEach((f, i) => view.setFloat32(72 + i * 4, f, true));
     view.setUint32(108, 2000, true);
     view.setUint32(112, 3, true);
-    view.setUint32(116, crc32(u8.subarray(64, 116)), true);
+    // Legacy: CRC over the 52 bytes before the field. BKT1: over all 56
+    // with the field zero — which it still is at this point.
+    view.setUint32(
+      116,
+      magic === "BKT1"
+        ? crc32(u8.subarray(64, 120))
+        : crc32(u8.subarray(64, 116)),
+      true,
+    );
+  }
+
+  if (overrides.orientation) {
+    // A right-handed frame: up is the calibration's gravity direction,
+    // front a unit vector normal to it, left = up × front.
+    put(128, "ORI1");
+    view.setUint8(132, 1);
+    const up = [0.31, -0.13, 0.94];
+    const un = Math.hypot(...up);
+    const u = up.map((x) => x / un);
+    const f0 = [1, 0, 0];
+    const d = f0[0] * u[0];
+    let f = [f0[0] - d * u[0], -d * u[1], -d * u[2]];
+    const fn = Math.hypot(...f);
+    f = f.map((x) => x / fn);
+    const l = [
+      u[1] * f[2] - u[2] * f[1],
+      u[2] * f[0] - u[0] * f[2],
+      u[0] * f[1] - u[1] * f[0],
+    ];
+    [...u, ...f, ...l, 0.716].forEach((x, i) =>
+      view.setFloat32(136 + i * 4, x, true),
+    );
+    view.setUint16(176, 6, true);
+    view.setUint32(180, 1, true);
+    const oriCrc = crc32(u8.subarray(128, 188));
+    view.setUint32(
+      184,
+      overrides.breakOrientationCrc ? oriCrc ^ 1 : oriCrc,
+      true,
+    );
   }
 
   let imuIndex = 0;
@@ -264,6 +306,43 @@ describe("parseBktFile", () => {
     expect(s.imuGaps).toHaveLength(1);
     expect(s.imuGaps![0].atMs).toBeCloseTo(10 * period, 6);
     expect(s.imuGaps![0].durationMs).toBeCloseTo(200 * period, 6);
+  });
+
+  it("reads firmware V13.5's ORI1 orientation after a BKT1 calibration", () => {
+    const result = parseBktFile(
+      buildBkt([imuBlock(10)], { magic: "BKT1", orientation: true }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const s = result.session;
+    expect(s.calibration).not.toBeNull();
+    const o = s.orientation!;
+    expect(o.confidence).toBeCloseTo(0.716, 5);
+    expect(o.voteCount).toBe(6);
+    expect(o.calibrationCount).toBe(1);
+    // up is the calibration's gravity direction; the frame is orthonormal.
+    const g = s.calibration!.gravityRefG;
+    const gn = Math.hypot(...g);
+    expect(o.up[0]).toBeCloseTo(g[0] / gn, 5);
+    expect(o.up[2]).toBeCloseTo(g[2] / gn, 5);
+    const dot = (a: number[], b: number[]) =>
+      a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    expect(dot(o.up, o.front)).toBeCloseTo(0, 5);
+    expect(dot(o.front, o.left)).toBeCloseTo(0, 5);
+    expect(Math.hypot(...o.left)).toBeCloseTo(1, 5);
+    // A legacy file has no such record and says nothing about it.
+    const legacy = parseBktFile(buildBkt([imuBlock(10)]));
+    expect(legacy.ok && legacy.session.orientation).toBeUndefined();
+    // A damaged record is a corrupt file, not a missing feature.
+    const broken = parseBktFile(
+      buildBkt([imuBlock(10)], {
+        magic: "BKT1",
+        orientation: true,
+        breakOrientationCrc: true,
+      }),
+    );
+    expect(broken.ok).toBe(false);
+    if (!broken.ok) expect(broken.error).toMatch(/orientação/);
   });
 
   it("times the samples by the blocks' real clock stamps when the firmware stamps them", () => {

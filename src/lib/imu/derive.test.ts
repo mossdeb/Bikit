@@ -3,6 +3,7 @@ import type { GpsChannels, ImuSessionData } from "./format";
 import {
   IMPACT_SEVERITY_REF_ENERGY,
   alignSessionToBike,
+  alignSessionWithOrientation,
   altitudeMSeries,
   applyMountingYaw,
   estimateMountingYaw,
@@ -170,6 +171,79 @@ describe("estimateMountingYaw / applyMountingYaw", () => {
     const m = estimateMountingYaw(s);
     expect(m).not.toBeNull();
     expect(m!.headingCheck).toBe("inverted");
+  });
+});
+
+describe("alignSessionWithOrientation", () => {
+  // The logger's frame: up along the real logger's gravity, front chosen
+  // normal to it, left = up × front. A sensor reading of 1 g along up plus
+  // 0.3 g along front must come out as bike (0.3, 0, 1).
+  const up = [-0.057, -0.853, 0.519];
+  const un = Math.hypot(...up);
+  const u = up.map((x) => x / un) as [number, number, number];
+  const raw = [0.294, -0.511, -0.808];
+  const d = raw[0] * u[0] + raw[1] * u[1] + raw[2] * u[2];
+  const fr = raw.map((x, i) => x - d * u[i]);
+  const fn = Math.hypot(...fr);
+  const f = fr.map((x) => x / fn) as [number, number, number];
+  const l: [number, number, number] = [
+    u[1] * f[2] - u[2] * f[1],
+    u[2] * f[0] - u[0] * f[2],
+    u[0] * f[1] - u[1] * f[0],
+  ];
+
+  it("puts the channels in the bike's frame from the ORI1 vectors and reports the logger as the source", () => {
+    const n = 4;
+    const s = session({
+      channels: {
+        tMs: new Float64Array([0, 10, 20, 30]),
+        ax: new Float32Array(n).fill(u[0] + 0.3 * f[0]),
+        ay: new Float32Array(n).fill(u[1] + 0.3 * f[1]),
+        az: new Float32Array(n).fill(u[2] + 0.3 * f[2]),
+        // A yaw rate about the bike's up, plus the calibration's bias.
+        gx: new Float32Array(n).fill(20 * u[0] + 1.2),
+        gy: new Float32Array(n).fill(20 * u[1] - 2.5),
+        gz: new Float32Array(n).fill(20 * u[2] + 0.07),
+        gForce: null,
+      },
+      calibration: {
+        gravityRefG: [up[0], up[1], up[2]],
+        gyroBiasDps: [1.2, -2.5, 0.07],
+        gravityMagnitudeG: 1,
+        accelStddevG: 0.002,
+        gyroStddevDps: 0.1,
+        sampleCount: 832,
+        calibrationCount: 1,
+      },
+      orientation: {
+        up: u,
+        front: f,
+        left: l,
+        confidence: 0.716,
+        voteCount: 6,
+        calibrationCount: 1,
+      },
+    });
+    const out = alignSessionWithOrientation(s);
+    expect(out).not.toBe(s);
+    expect(out.aligned).toBe(true);
+    expect(out.channels.ax[0]).toBeCloseTo(0.3, 4);
+    expect(out.channels.ay[0]).toBeCloseTo(0, 4);
+    expect(out.channels.az[0]).toBeCloseTo(1, 4);
+    expect(out.channels.gx[0]).toBeCloseTo(0, 3);
+    expect(out.channels.gy[0]).toBeCloseTo(0, 3);
+    expect(out.channels.gz[0]).toBeCloseTo(20, 3);
+    expect(out.mounting).toMatchObject({
+      source: "logger",
+      applied: true,
+      confidence: 0.716,
+      intervals: 6,
+      headingCheck: "ok",
+    });
+    // Nothing to do twice, and nothing to do without the record.
+    expect(alignSessionWithOrientation(out)).toBe(out);
+    const bare = session();
+    expect(alignSessionWithOrientation(bare)).toBe(bare);
   });
 });
 

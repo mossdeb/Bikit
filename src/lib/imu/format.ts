@@ -159,6 +159,29 @@ export interface ImuSessionData {
   /** What realignImuWords found and did — see realign.ts. Absent when the
    * session was too short to judge. */
   realignment?: ImuRealignment;
+  /** The logger's full mounting orientation (firmware V13.5's two-step
+   * calibration, the ORI1 record): where the bike's up, front and left
+   * point in the sensor's frame. With it, alignSessionWithOrientation
+   * puts the channels in the bike's frame outright and nothing has to be
+   * estimated from the ride. Absent on files without it. */
+  orientation?: ImuMountOrientation;
+}
+
+export interface ImuMountOrientation {
+  /** Unit vectors in the SENSOR's frame. `up` is the calibration's gravity
+   * direction; `front` came from GPS speed-change votes while riding
+   * straight; `left` = up × front, so (front, left, up) is right-handed. */
+  up: [number, number, number];
+  front: [number, number, number];
+  left: [number, number, number];
+  /** 0–1, the logger's own figure for how well the votes agreed. */
+  confidence: number;
+  voteCount: number;
+  calibrationCount: number;
+  /** Set when the orientation was not in this file but copied from another
+   * session's (the sensor in the same place on the bike) — the name of
+   * that session. See setGroupMountOrientation. */
+  inheritedFrom?: string;
 }
 
 export interface ImuTimelineGap {
@@ -219,6 +242,10 @@ export interface MountingYaw {
   headingCheck: "ok" | "inverted" | "insufficient";
   /** True once applyMountingYaw has rotated the channels by -yawDeg. */
   applied: boolean;
+  /** Who found forward: the ride's GPS votes here in the app (absent, the
+   * default), or the logger's own two-step calibration ("logger"), which
+   * the file carries as an ORI1 record and the app applies as given. */
+  source?: "gps" | "logger";
 }
 
 export type ImuParseResult =

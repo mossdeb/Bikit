@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
+import type { ImuMountOrientation } from "@/lib/imu/format";
 
 export type ImuActionResult =
   { status: "ok" } | { status: "error"; message: string };
@@ -308,6 +309,75 @@ export async function updateImuSession(input: {
   revalidatePath("/labs/imu");
   revalidatePath(`/labs/imu/${input.sessionId}`);
   return { status: "ok" };
+}
+
+export type ImuOrientationShareResult =
+  { status: "ok"; updated: number } | { status: "error"; message: string };
+
+/**
+ * Copies one session's mounting orientation (the logger's two-step
+ * calibration) onto every session of a group. For recordings made before
+ * the calibration existed, with the sensor in the same place on the bike:
+ * the rider knows that, the files cannot. Stored per session, so a group
+ * can later mix; a file that carries its own ORI1 always wins on read. The
+ * values are checked for shape and for being a frame — three unit vectors,
+ * near-orthogonal — because everything on the page will rotate by them.
+ */
+export async function setGroupMountOrientation(input: {
+  groupId: string;
+  orientation: ImuMountOrientation;
+  /** The session the orientation came from, kept as provenance. */
+  sourceName: string;
+}): Promise<ImuOrientationShareResult> {
+  const caller = await labCaller();
+  if (!caller) return { status: "error", message: "Sem acesso." };
+
+  const o = input.orientation;
+  const vec = (v: unknown): v is [number, number, number] =>
+    Array.isArray(v) &&
+    v.length === 3 &&
+    v.every((x) => typeof x === "number" && Number.isFinite(x)) &&
+    Math.abs(Math.hypot(v[0], v[1], v[2]) - 1) < 0.01;
+  const dot = (a: number[], b: number[]) =>
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  if (
+    !vec(o.up) ||
+    !vec(o.front) ||
+    !vec(o.left) ||
+    Math.abs(dot(o.up, o.front)) > 0.02 ||
+    Math.abs(dot(o.up, o.left)) > 0.02 ||
+    Math.abs(dot(o.front, o.left)) > 0.02 ||
+    !(o.confidence >= 0 && o.confidence <= 1)
+  )
+    return { status: "error", message: "Orientação inválida." };
+
+  const { data: group } = await caller.supabase
+    .from("imu_session_groups")
+    .select("id")
+    .eq("id", input.groupId)
+    .eq("user_id", caller.userId)
+    .maybeSingle();
+  if (!group) return { status: "error", message: "Grupo não encontrado." };
+
+  const stored = {
+    up: o.up,
+    front: o.front,
+    left: o.left,
+    confidence: o.confidence,
+    voteCount: Math.round(o.voteCount),
+    calibrationCount: Math.round(o.calibrationCount),
+    inheritedFrom: input.sourceName.trim().slice(0, 120),
+  };
+  const { data, error } = await caller.supabase
+    .from("imu_sessions")
+    .update({ mount_orientation: stored })
+    .eq("group_id", input.groupId)
+    .eq("user_id", caller.userId)
+    .select("id");
+  if (error) return { status: "error", message: error.message };
+
+  revalidatePath("/labs/imu");
+  return { status: "ok", updated: data?.length ?? 0 };
 }
 
 /**

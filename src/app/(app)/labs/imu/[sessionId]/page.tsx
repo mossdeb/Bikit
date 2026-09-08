@@ -8,6 +8,7 @@ import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionSettings } from "@/components/imu-session-settings";
+import type { ImuMountOrientation } from "@/lib/imu/format";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -31,7 +32,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -87,6 +88,14 @@ export default async function ImuSessionPage({
       <ImuSessionAnalysis
         storagePath={session.storage_path}
         riderName={session.rider_name}
+        // An orientation lent by another session, when this file has none
+        // of its own; the shape is what setGroupMountOrientation stored.
+        mountOrientation={
+          session.mount_orientation as unknown as ImuMountOrientation | null
+        }
+        groups={groups ?? []}
+        sessionName={session.name}
+        sessionGroupId={session.group_id}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more
