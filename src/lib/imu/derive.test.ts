@@ -163,14 +163,54 @@ describe("estimateMountingYaw / applyMountingYaw", () => {
 
   it("flags a left-handed sensor as inverted rather than rotating it", () => {
     const s = ride(20);
-    // Mirror the lateral axis: the turn now reads as if to the left.
-    for (let i = 0; i < s.channels.ay.length; i++) {
-      s.channels.ay[i] = -s.channels.ay[i];
+    // Mirror the yaw gyro: the turn now reads as if to the left. The
+    // lateral acceleration is left alone — a bike leans, so it says
+    // nothing either way, and the check no longer reads it.
+    for (let i = 0; i < s.channels.gz.length; i++) {
       s.channels.gz[i] = -s.channels.gz[i];
     }
     const m = estimateMountingYaw(s);
     expect(m).not.toBeNull();
     expect(m!.headingCheck).toBe("inverted");
+  });
+
+  it("is not swayed by a fix stamped milliseconds after the one before it", () => {
+    // The logger stamps a fix when it parses it, so a backlog drained at
+    // once yields two fixes 3 ms apart. A 2 m/s step over 3 ms is a bogus
+    // 667 m/s²; before the interval guard, one such vote outweighed a ride.
+    const clean = ride(37);
+    const g = clean.gps!;
+    const at = 5; // insert after the fix at 5 s, mid-acceleration
+    const n = g.tMs.length + 1;
+    const ins = <T extends Float64Array | Float32Array>(
+      arr: T,
+      value: number,
+    ): T => {
+      const out = new (arr.constructor as new (len: number) => T)(n);
+      for (let i = 0, j = 0; i < n; i++) {
+        if (i === at + 1) out[i] = value;
+        else out[i] = arr[j++];
+      }
+      return out;
+    };
+    // Its horizontal acceleration points sideways, where nothing else does.
+    const dirty = session({
+      ...clean,
+      gps: {
+        tMs: ins(g.tMs, g.tMs[at] + 3),
+        latDeg: ins(g.latDeg, 37),
+        lonDeg: ins(g.lonDeg, -7),
+        altitudeM: ins(g.altitudeM, 0),
+        speedMps: ins(g.speedMps, g.speedMps[at] + 2),
+        headingDeg: ins(g.headingDeg, g.headingDeg[at]),
+        distanceM: ins(g.distanceM, NaN),
+        hAccM: ins(g.hAccM, NaN),
+      },
+    });
+    const m = estimateMountingYaw(dirty)!;
+    const diff = ((m.yawDeg - 37 + 540) % 360) - 180;
+    expect(Math.abs(diff)).toBeLessThan(1);
+    expect(m.confidence).toBeGreaterThan(0.6);
   });
 });
 

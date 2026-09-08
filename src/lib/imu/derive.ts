@@ -645,11 +645,23 @@ export function alignSessionWithOrientation(
 /** GPS intervals shorter than this are trusted for a speed derivative;
  * longer gaps (a tunnel, a dropped fix) are skipped. */
 const YAW_MAX_INTERVAL_MS = 2_500;
+/** …and shorter than this are not intervals at all. The logger stamps a
+ * fix when it PARSES it, so two fixes drained from a backlog land 3 ms
+ * apart: a 2 km/h difference over 3 ms reads as 177 m/s², and one such
+ * "vote" outweighs a whole ride (R0026, 2026-09-08: 7° at 70 % with it,
+ * 97° at 52 % without). Half a second is well under the receiver's 1 Hz. */
+const YAW_MIN_INTERVAL_MS = 500;
 /** Speed changes below this (m/s²) are noise, not the bike accelerating or
  * braking, and do not vote. 0.3 m/s² ≈ 0.03 g — a gentle brake is 2. */
 const YAW_MIN_ACCEL_MPS2 = 0.3;
+/** …and above this they are clipped before voting, so that a GPS glitch
+ * the interval guard did not catch can still only count as one hard brake. */
+const YAW_MAX_VOTE_MPS2 = 1.5;
 /** Heading rate below this (°/s) is not a turn. */
 const YAW_MIN_TURN_DPS = 4;
+/** A turn only checks the axes when the gyro also saw it turning; a heading
+ * rate with a still gyro is GPS noise, not evidence either way. */
+const YAW_MIN_GYRO_DPS = 5;
 const YAW_MIN_INTERVALS = 8;
 const G_MPS2 = 9.81;
 
@@ -667,12 +679,16 @@ const G_MPS2 = 9.81;
  * ψ = atan2 of it. Confidence is the correlation between predicted and
  * measured, tempered so that few intervals cannot claim certainty.
  *
- * Then the check that costs nothing: with +Z up and +X forward, +Y is the
- * bike's LEFT (right-handed), so in a turn to the right — GPS heading
- * increasing — the yaw gyro must read negative and the centripetal
- * acceleration must sit on −Y. If the ride's turns consistently say the
- * opposite, the sensor's axes are not the right-handed set this assumes,
- * and the result says "inverted" instead of quietly mirroring the bike.
+ * Then the check that costs nothing: with +Z up, a turn to the right — GPS
+ * heading increasing — must read as a NEGATIVE yaw rate on the gyro. If
+ * the ride's turns consistently say the opposite, the sensor's axes are
+ * not the right-handed set this assumes, and the result says "inverted"
+ * instead of quietly mirroring the bike. The gyro alone decides: the
+ * centripetal acceleration was checked too until 2026-09-08, on the
+ * assumption it sits on −Y in a right turn — but a bicycle LEANS into the
+ * turn, the resultant of gravity and centripetal lines up with its own
+ * vertical, and the lateral channel is left with road camber and noise
+ * (6 of 20 turns "right" on R0026, against 17 of 20 for the gyro).
  *
  * Needs the session ALIGNED first (gravity on +Z), GPS, and a ride that
  * accelerates and brakes; a bench test or a flat cruise returns null.
@@ -688,20 +704,16 @@ export function estimateMountingYaw(
   let sxa = 0;
   let sya = 0;
   const votes: { hx: number; hy: number; a: number }[] = [];
-  // For the lateral check: per turning interval, the yaw rate the GPS saw
-  // and what the gyro and the lateral acceleration said.
-  const turns: {
-    gpsRate: number;
-    gyro: number;
-    lateralX: number;
-    lateralY: number;
-  }[] = [];
+  // For the axis check: per turning interval, the yaw rate the GPS saw and
+  // the yaw rate the gyro saw.
+  const turns: { gpsRate: number; gyro: number }[] = [];
 
   for (let k = 0; k + 1 < gps.tMs.length; k++) {
     const t0 = gps.tMs[k];
     const t1 = gps.tMs[k + 1];
     const dt = (t1 - t0) / 1000;
-    if (!(dt > 0) || t1 - t0 > YAW_MAX_INTERVAL_MS) continue;
+    if (t1 - t0 < YAW_MIN_INTERVAL_MS || t1 - t0 > YAW_MAX_INTERVAL_MS)
+      continue;
     const i0 = lowerBoundIndex(tMs, t0);
     const i1 = lowerBoundIndex(tMs, t1);
     if (i1 <= i0) continue;
@@ -720,9 +732,12 @@ export function estimateMountingYaw(
 
     const aGps = (gps.speedMps[k + 1] - gps.speedMps[k]) / dt;
     if (Math.abs(aGps) >= YAW_MIN_ACCEL_MPS2) {
-      votes.push({ hx, hy, a: aGps });
-      sxa += hx * aGps;
-      sya += hy * aGps;
+      // Clipped, not dropped: a hard brake is still a vote for "backwards",
+      // it just cannot be a louder one than any other.
+      const a = Math.sign(aGps) * Math.min(Math.abs(aGps), YAW_MAX_VOTE_MPS2);
+      votes.push({ hx, hy, a });
+      sxa += hx * a;
+      sya += hy * a;
     }
 
     const h0 = gps.headingDeg[k];
@@ -732,8 +747,11 @@ export function estimateMountingYaw(
       if (dh > 180) dh -= 360;
       if (dh < -180) dh += 360;
       const gpsRate = dh / dt; // °/s, positive = turning right (compass)
-      if (Math.abs(gpsRate) >= YAW_MIN_TURN_DPS)
-        turns.push({ gpsRate, gyro: wz, lateralX: hx, lateralY: hy });
+      if (
+        Math.abs(gpsRate) >= YAW_MIN_TURN_DPS &&
+        Math.abs(wz) >= YAW_MIN_GYRO_DPS
+      )
+        turns.push({ gpsRate, gyro: wz });
     }
   }
 
@@ -776,24 +794,18 @@ export function estimateMountingYaw(
   // yaw as declared, and rotating the channels by it puts forward on +X.
   const yawDeg = (-Math.atan2(fy, fx) * 180) / Math.PI;
 
-  // Lateral check, in the frame with forward on +X: rotate each turn's
-  // lateral acceleration and compare signs with the GPS heading rate.
+  // Axis check: in each turn the gyro's yaw rate must run against the
+  // compass heading rate (right turn = heading up = gyro negative). Three
+  // quarters agreeing is a right-handed sensor; a quarter or fewer is a
+  // mirrored one; in between, the ride did not say.
   let headingCheck: MountingYaw["headingCheck"] = "insufficient";
   if (turns.length >= 3) {
     let agree = 0;
-    let disagree = 0;
-    for (const t of turns) {
-      // Lateral (bike +Y = left) after removing the yaw.
-      const lat = -t.lateralX * fy + t.lateralY * fx;
-      // Right turn (gpsRate > 0): gyro about +Z negative, centripetal on −Y.
-      const gyroOk = Math.sign(t.gyro) === -Math.sign(t.gpsRate);
-      const latOk = Math.sign(lat) === -Math.sign(t.gpsRate);
-      if (gyroOk && latOk) agree++;
-      else if (!gyroOk && !latOk) disagree++;
-      // Mixed verdicts (one axis says yes, the other no) do not vote.
-    }
-    if (agree + disagree >= 3)
-      headingCheck = agree >= disagree ? "ok" : "inverted";
+    for (const t of turns)
+      if (Math.sign(t.gyro) === -Math.sign(t.gpsRate)) agree++;
+    const ratio = agree / turns.length;
+    if (ratio >= 0.75) headingCheck = "ok";
+    else if (ratio <= 0.25) headingCheck = "inverted";
   }
 
   return {

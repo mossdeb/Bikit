@@ -2464,7 +2464,7 @@ function MountingBadge({ session }: { session: ImuSessionData }) {
     warn = true;
     text += " · eixos invertidos";
     title +=
-      " ⚠ Nas curvas, o giroscópio e a aceleração lateral contradizem o rumo do GPS — os eixos do sensor não são os de um sensor destro. Verificar o firmware antes de confiar no lean.";
+      " ⚠ Nas curvas, o giroscópio de guinada roda contra o rumo do GPS — os eixos do sensor não são os de um sensor destro. Verificar o firmware antes de confiar no lean.";
   }
   return (
     <span
