@@ -93,9 +93,6 @@ export default async function ImuSessionPage({
         mountOrientation={
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
-        groups={groups ?? []}
-        sessionName={session.name}
-        sessionGroupId={session.group_id}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more

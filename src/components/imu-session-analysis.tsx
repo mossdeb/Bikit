@@ -37,8 +37,6 @@ import {
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
 import { createClient } from "@/lib/supabase/client";
-import { ImuOrientationShare } from "@/components/imu-orientation-share";
-import type { ImuGroupOption } from "@/lib/imu/groups";
 import {
   parseImuBytes,
   type GpsChannels,
@@ -660,18 +658,11 @@ export function ImuSessionAnalysis({
   riderName,
   header,
   mountOrientation = null,
-  groups = [],
-  sessionName = "",
-  sessionGroupId = null,
 }: {
   storagePath: string;
   /** An orientation copied from another session (setGroupMountOrientation),
    * used when the file carries none of its own. */
   mountOrientation?: ImuMountOrientation | null;
-  /** The account's groups, for lending this session's orientation. */
-  groups?: ImuGroupOption[];
-  sessionName?: string;
-  sessionGroupId?: string | null;
   /** Who rode this recording, as recorded on import. It titles the
    * dashboard — the instruments are that person's ride, not a panel with a
    * generic name. Null on sessions imported before the field existed, and
@@ -1341,15 +1332,6 @@ export function ImuSessionAnalysis({
     <>
       <RealignmentBadge session={data} />
       <MountingBadge session={data} />
-      {/* Only a measured orientation is lent onwards — never a copy. */}
-      {data.orientation && !data.orientation.inheritedFrom && (
-        <ImuOrientationShare
-          orientation={data.orientation}
-          groups={groups}
-          sourceName={sessionName || data.sessionId || "sessão"}
-          defaultGroupId={sessionGroupId}
-        />
-      )}
       <PanelToggle label="Rider" on={dashOn} onToggle={toggleDash} />
       {hasGps && (
         <PanelToggle
