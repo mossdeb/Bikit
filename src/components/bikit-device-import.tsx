@@ -31,6 +31,8 @@ import {
   type ImuSessionSummary,
 } from "@/lib/imu/derive";
 import { uploadAndRegisterImuSession } from "@/lib/imu/import-session";
+import { alignSession } from "@/lib/imu/derive";
+import { withBikeFrameEvents } from "@/lib/imu/events";
 import {
   defaultGroupId,
   groupFormValid,
@@ -395,7 +397,11 @@ export function BikitDeviceImport({
         sessionId: entry.id,
         bytes,
         session: parsed.session,
-        summary: sessionSummary(parsed.session),
+        // Same summary the page computes: bike's frame, curves and braking
+        // included. The transferred bytes are stored as they came.
+        summary: sessionSummary(
+          withBikeFrameEvents(alignSession(parsed.session)),
+        ),
       });
     } catch (e) {
       handleCommandError(e, () =>

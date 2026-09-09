@@ -9,6 +9,7 @@
 import type {
   GpsChannels,
   ImuEvent,
+  ImuMountOrientation,
   ImuSessionData,
   MountingYaw,
 } from "./format";
@@ -64,7 +65,9 @@ export function sessionSummary(session: ImuSessionData): ImuSessionSummary {
   let roughMs = 0;
   for (const event of session.events) {
     if (event.kind === "curve") curveCount++;
-    else if (event.kind === "jump") {
+    else if (event.kind === "jump" || event.kind === "drop") {
+      // A drop is a flight too: the "Saltos" tile and the airtime count
+      // every time the wheels left the ground, lip or ledge.
       jumpCount++;
       airtimeMs += event.airtimeMs;
     } else if (event.kind === "impact") impactCount++;
@@ -640,6 +643,40 @@ export function alignSessionWithOrientation(
       source: "logger",
     },
   };
+}
+
+/** Below this the GPS vote for "forward" is kept on the session for the
+ * badge to report, but the channels are not rotated by it. */
+export const MOUNTING_YAW_MIN_CONFIDENCE = 0.5;
+
+/**
+ * The whole road from the file's frame to the bike's, in one call, so the
+ * page and the import summary take the same one:
+ *
+ * 1. An orientation — the file's own ORI1, or one lent by another session
+ *    (`inherited`, from the row) — puts the channels in the bike's frame
+ *    outright; nothing is estimated.
+ * 2. Otherwise the calibration puts gravity on +Z, and the ride's GPS votes
+ *    for forward; the vote is applied only when confident, and kept on the
+ *    session either way so the badge can say what it found.
+ * 3. Without a calibration the session is returned as recorded.
+ */
+export function alignSession(
+  session: ImuSessionData,
+  inherited: ImuMountOrientation | null = null,
+): ImuSessionData {
+  const withOrientation = session.orientation
+    ? session
+    : inherited
+      ? { ...session, orientation: inherited }
+      : session;
+  if (withOrientation.orientation)
+    return alignSessionWithOrientation(withOrientation);
+  const aligned = alignSessionToBike(session);
+  const mounting = estimateMountingYaw(aligned);
+  return mounting && mounting.confidence >= MOUNTING_YAW_MIN_CONFIDENCE
+    ? applyMountingYaw(aligned, mounting)
+    : { ...aligned, mounting };
 }
 
 /** GPS intervals shorter than this are trusted for a speed derivative;

@@ -20,6 +20,8 @@ import {
   type ImuSessionSummary,
 } from "@/lib/imu/derive";
 import { uploadAndRegisterImuSession } from "@/lib/imu/import-session";
+import { alignSession } from "@/lib/imu/derive";
+import { withBikeFrameEvents } from "@/lib/imu/events";
 import {
   ImuSessionDetailsFields,
   type BikeOption,
@@ -109,7 +111,12 @@ export function ImuSessionImport({
     setParsed({
       file,
       session: result.session,
-      summary: sessionSummary(result.session),
+      // The summary the row will carry, computed the way the page computes
+      // it: in the bike's frame, with the curves and braking that frame
+      // makes visible. The uploaded bytes stay the file as it came.
+      summary: sessionSummary(
+        withBikeFrameEvents(alignSession(result.session)),
+      ),
     });
     setName(
       result.session.sessionId ?? file.name.replace(/\.(json|bkt)$/i, ""),

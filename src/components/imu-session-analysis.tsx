@@ -37,6 +37,7 @@ import {
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
 import { createClient } from "@/lib/supabase/client";
+import { withBikeFrameEvents } from "@/lib/imu/events";
 import {
   parseImuBytes,
   type GpsChannels,
@@ -48,10 +49,7 @@ import {
   altitudeMSeries,
   eventsAt,
   formatSessionTime,
-  alignSessionToBike,
-  alignSessionWithOrientation,
-  applyMountingYaw,
-  estimateMountingYaw,
+  alignSession,
   gForceOf,
   gpsDistance,
   gpsMeanSpeed,
@@ -287,7 +285,6 @@ const READ_MIN_W = 320;
 /** Below this the ride's vote on "forward" is shown but not applied: a
  * rotation by a guess would move the braking figure onto the wrong axis
  * with more authority than the guess deserves. */
-const MOUNTING_YAW_MIN_CONFIDENCE = 0.5;
 
 /** How narrow a half may be dragged while it holds nothing but its outline,
  * px. A half with cards keeps a card's width; one with nothing to show has
@@ -783,27 +780,12 @@ export function ImuSessionAnalysis({
       // the sensor in the same place — is read in the bike's frame
       // outright: up, front and left are all known, and nothing is
       // estimated from the ride. The file's own record wins over the copy.
-      const parsed = result.session.orientation
-        ? result.session
-        : mountOrientation
-          ? { ...result.session, orientation: mountOrientation }
-          : result.session;
-      if (parsed.orientation) {
-        setData(alignSessionWithOrientation(parsed));
-        return;
-      }
-      // Otherwise: in the bike's frame when the file says how the sensor
-      // was mounted (gravity on +Z), then find "forward" from the ride
-      // itself when the GPS can say and the vote is confident; the file
-      // itself stays as recorded. Below the bar the estimate is kept on the
-      // session — for the badge to say "not enough to tell" — but the
-      // channels are left un-rotated rather than rotated by a guess.
-      const aligned = alignSessionToBike(result.session);
-      const mounting = estimateMountingYaw(aligned);
+      // Otherwise the calibration puts gravity on +Z and the ride's GPS
+      // votes for forward, applied only when confident — see alignSession.
+      // Then the events that need the bike's frame, curves and braking,
+      // are added to the norm-based ones the parser found.
       setData(
-        mounting && mounting.confidence >= MOUNTING_YAW_MIN_CONFIDENCE
-          ? applyMountingYaw(aligned, mounting)
-          : { ...aligned, mounting },
+        withBikeFrameEvents(alignSession(result.session, mountOrientation)),
       );
     })();
     return () => {

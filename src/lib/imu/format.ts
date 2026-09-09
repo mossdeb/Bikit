@@ -11,6 +11,7 @@
 
 import { isBktFile, parseBktFile } from "./bkt";
 import { realignImuWords } from "./realign";
+import { detectImuEvents } from "./events";
 
 export type ImuEvent =
   | {
@@ -650,7 +651,15 @@ export function parseImuBytes(bytes: ArrayBuffer): ImuParseResult {
   // belongs to reading the recording, whichever wrapper it came in.
   const result = isBktFile(bytes) ? parseBktFile(bytes) : parseJsonBytes(bytes);
   if (!result.ok) return result;
-  return { ok: true, session: realignImuWords(result.session) };
+  const realigned = realignImuWords(result.session);
+  // A file that brought its own events (the exporter's JSON, when it did)
+  // keeps them; one that brought none — every .BKT — gets the detector's,
+  // from the realigned words, so the summary at import and the page agree.
+  const session =
+    realigned.events.length > 0
+      ? realigned
+      : { ...realigned, events: detectImuEvents(realigned).events };
+  return { ok: true, session };
 }
 
 function parseJsonBytes(bytes: ArrayBuffer): ImuParseResult {
