@@ -295,6 +295,39 @@ export function ImuChart({
     [events, eventKinds, w0, w1],
   );
 
+  /** The plot's width on screen, px — what decides whether two event tabs
+   * would overlap. Read by an observer, so a resize re-clusters; null until
+   * the first measurement, when the drawing box's width stands in. */
+  const [plotWidth, setPlotWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setPlotWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /** The event tabs, with the ones that would overlap folded into one.
+   *
+   * At six minutes and seventy curves the tabs sat on top of each other and
+   * read as "C C ( ( Cu Cu" (by request, 2026-09-09). Now they are laid out
+   * left to right and any tab that would run into the one before it joins
+   * it: the tab then says "3× Curvas", or "3× Curvas +2" when kinds mix.
+   * Zooming in spreads them out and the tabs come apart on their own.
+   * Impacts are not tabs (they are arrows below) and are left out. */
+  const eventTabs = useMemo(
+    () =>
+      clusterEventTabs(
+        visibleEvents.filter((event) => event.kind !== "impact"),
+        w0,
+        w1,
+        plotWidth ?? W,
+      ),
+    [visibleEvents, w0, w1, plotWidth],
+  );
+
   /**
    * The hand's height over the plot, as a fraction — where the value pills
    * anchor. They used to sit on each trace's intersection, which meant the
@@ -634,45 +667,42 @@ export function ImuChart({
             and its name is not — and the plot's overflow-hidden trims
             whatever reaches the edge. */}
         {visibleEvents.map((event, i) => {
-          if (event.kind === "impact") {
-            return (
-              <span
-                key={i}
-                aria-hidden
-                // Below the tab strip, not inside it: an impact falling within
-                // a rough patch put its arrow straight through the word
-                // "Acidentado" — three of them, in the demo. The arrows start
-                // where the tabs end, gap included.
-                className="pointer-events-none absolute -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
-                style={{
-                  left: `${((event.timeMs - w0) / span) * 100}%`,
-                  top: EVENT_TAB_TOP + EVENT_TAB_H + 2,
-                }}
-              >
-                ▼
-              </span>
-            );
-          }
-          const [from, to] = eventSpan(event);
-          const mid = (Math.max(w0, from) + Math.min(w1, to)) / 2;
+          if (event.kind !== "impact") return null;
           return (
             <span
               key={i}
               aria-hidden
-              // A chip clear of the plot's top edge: 5px on the four corners
-              // and a gap above it, so it reads as laid over the trace rather
-              // than hung from the frame.
-              className="pointer-events-none absolute flex -translate-x-1/2 items-center rounded-[5px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+              // Below the tab strip, not inside it: an impact falling within
+              // a rough patch put its arrow straight through the word
+              // "Acidentado" — three of them, in the demo. The arrows start
+              // where the tabs end, gap included.
+              className="pointer-events-none absolute -translate-x-1/2 text-[9px] leading-none font-semibold text-[#F5533D]"
               style={{
-                left: `${((mid - w0) / span) * 100}%`,
-                top: EVENT_TAB_TOP,
-                height: EVENT_TAB_H,
+                left: `${((event.timeMs - w0) / span) * 100}%`,
+                top: EVENT_TAB_TOP + EVENT_TAB_H + 2,
               }}
             >
-              {eventShortLabel(event)}
+              ▼
             </span>
           );
         })}
+        {eventTabs.map((tab, i) => (
+          <span
+            key={i}
+            aria-hidden
+            // A chip clear of the plot's top edge: 5px on the four corners
+            // and a gap above it, so it reads as laid over the trace rather
+            // than hung from the frame.
+            className="pointer-events-none absolute flex -translate-x-1/2 items-center rounded-[5px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+            style={{
+              left: `${((tab.midMs - w0) / span) * 100}%`,
+              top: EVENT_TAB_TOP,
+              height: EVENT_TAB_H,
+            }}
+          >
+            {tab.label}
+          </span>
+        ))}
 
         {cursorPercent != null && locked && (
           // The padlock rides the line rather than sitting in a corner: it is
@@ -992,6 +1022,130 @@ function eventShortLabel(event: ImuEvent): string {
     case "impact":
       return "Impacto";
   }
+}
+
+/** What a tab says for several events of one kind: "3× Curvas". */
+const EVENT_PLURALS: Record<Exclude<ImuEvent["kind"], "impact">, string> = {
+  curve: "Curvas",
+  jump: "Saltos",
+  drop: "Drops",
+  rough_section: "Acidentados",
+  braking: "Travagens",
+};
+
+/** How wide a tab is for its text, px: `px-1.5` on both sides and about
+ * 5.6px a character at 10px medium. An estimate — measuring seventy spans
+ * on every pan is not worth the exactness, and a tab that is a few pixels
+ * off its neighbour still reads. */
+const TAB_PAD_PX = 12;
+const TAB_CHAR_PX = 5.6;
+/** Daylight between two tabs before they count as apart. */
+const TAB_GAP_PX = 4;
+
+function tabWidthPx(label: string) {
+  return TAB_PAD_PX + label.length * TAB_CHAR_PX;
+}
+
+interface EventTab {
+  midMs: number;
+  label: string;
+}
+
+/**
+ * Lay the event tabs left to right and fold every one that would run into
+ * the tab before it into that tab.
+ *
+ * Greedy and single-pass: a tab is placed at the middle of its event's
+ * visible stretch; when the next one's left edge would land inside the last
+ * tab (plus a gap) the two become one, centred between their extremes, and
+ * that tab is what the one after is checked against. The label's width is
+ * what keeps this from swallowing the whole ride: a tab is named by its
+ * commonest kind and a "+N" for the rest, never by every kind it holds —
+ * the first cut listed them all, grew past 300px and folded a three-minute
+ * run into two tabs. With the label bounded, a cluster's edge stops
+ * advancing once its stretch is wider than its name, and the next event
+ * gets a tab of its own.
+ */
+function clusterEventTabs(
+  events: ImuEvent[],
+  w0: number,
+  w1: number,
+  widthPx: number,
+): EventTab[] {
+  const span = Math.max(1, w1 - w0);
+  const pxPerMs = widthPx / span;
+  const singles = events
+    .map((event) => {
+      const [from, to] = eventSpan(event);
+      return { event, midMs: (Math.max(w0, from) + Math.min(w1, to)) / 2 };
+    })
+    .sort((a, b) => a.midMs - b.midMs);
+
+  const clusters: { members: ImuEvent[]; minMs: number; maxMs: number }[] = [];
+  for (const single of singles) {
+    const last = clusters[clusters.length - 1];
+    if (last) {
+      const lastLabel = clusterLabel(last.members);
+      const lastMid = (last.minMs + last.maxMs) / 2;
+      const lastRight = lastMid * pxPerMs + tabWidthPx(lastLabel) / 2;
+      const left =
+        single.midMs * pxPerMs - tabWidthPx(eventShortLabel(single.event)) / 2;
+      if (left < lastRight + TAB_GAP_PX) {
+        last.members.push(single.event);
+        last.maxMs = single.midMs;
+        continue;
+      }
+    }
+    clusters.push({
+      members: [single.event],
+      minMs: single.midMs,
+      maxMs: single.midMs,
+    });
+  }
+  return clusters.map((cluster) => ({
+    midMs: (cluster.minMs + cluster.maxMs) / 2,
+    label: clusterLabel(cluster.members),
+  }));
+}
+
+/** A tab's name: the event's own for one; "3× Curvas" for several of a
+ * kind; the commonest kind and "+N" for a mix ("3× Curvas +2"). Ties go to
+ * the kind seen first. Curves keep their arrow only while every curve in
+ * the tab turns the same way. */
+function clusterLabel(members: ImuEvent[]): string {
+  if (members.length === 1) return eventShortLabel(members[0]);
+  const counts = new Map<Exclude<ImuEvent["kind"], "impact">, number>();
+  for (const event of members) {
+    if (event.kind === "impact") continue;
+    counts.set(event.kind, (counts.get(event.kind) ?? 0) + 1);
+  }
+  let topKind: Exclude<ImuEvent["kind"], "impact"> | null = null;
+  let topCount = 0;
+  for (const [kind, count] of counts)
+    if (count > topCount) {
+      topKind = kind;
+      topCount = count;
+    }
+  if (topKind == null) return "";
+  let label: string;
+  if (topCount === 1) {
+    label = eventShortLabel(members.find((e) => e.kind === topKind)!);
+  } else {
+    label = `${topCount}× ${EVENT_PLURALS[topKind]}`;
+    if (topKind === "curve") {
+      const dirs = new Set(
+        members
+          .filter(
+            (e): e is Extract<ImuEvent, { kind: "curve" }> =>
+              e.kind === "curve",
+          )
+          .map((e) => e.direction),
+      );
+      if (dirs.size === 1) label += dirs.has("left") ? " ←" : " →";
+    }
+  }
+  const rest = members.length - topCount;
+  return rest > 0 ? `${label} +${rest}` : label;
 }
 
 function eventSpan(event: ImuEvent): [number, number] {

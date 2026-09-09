@@ -218,7 +218,9 @@ const GPS_SERIES_IDS = new Set<SeriesId>(["speed", "altitude"]);
 const EVENT_KIND_DEFS = [
   { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
   { kind: "jump", label: "Saltos", Icon: JumpIcon },
-  { kind: "drop", label: "Drops", Icon: DropIcon },
+  // No "Drops" entry: the detector calls every flight a jump (the pre-load
+  // heuristic mislabelled real jumps on 2026-09-09), and a file that
+  // brings its own drops still draws them — they just have no switch.
   { kind: "impact", label: "Impactos", Icon: Zap },
   { kind: "rough_section", label: "Zonas acidentadas", Icon: RoughSectionIcon },
   { kind: "braking", label: "Travagens", Icon: BrakingIcon },
@@ -683,15 +685,20 @@ export function ImuSessionAnalysis({
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
     new Set(["gforce"]),
   );
-  const [eventsOn, setEventsOn] = useState(true);
   /** The optional panels beside the plot — the dashboard and the map, each
    * behind its own switch on the Telemetria heading row. Per session, like
    * the filters: which panels are up is a way of looking, not a setting. */
   const [dashOn, setDashOn] = useState(true);
   const [mapOn, setMapOn] = useState(true);
+  /** The event kinds drawn on the plot and read in the panel. "Mostrar
+   * eventos" is not a switch of its own but this set's emptiness: unticking
+   * it clears the filters, ticking it fills them, and ticking one kind with
+   * the set empty shows events again with just that kind (by request — a
+   * filter must be reachable directly, not through the master first). */
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
     new Set(EVENT_KIND_DEFS.map((d) => d.kind)),
   );
+  const eventsOn = activeKinds.size > 0;
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
   /** The value pills on the plot, by the cursor's hand. Off by default (by
@@ -1035,18 +1042,23 @@ export function ImuSessionAnalysis({
   }
 
   function toggleEvents() {
-    const next = !eventsOn;
-    refitRead(activeSeriesDefs.length === 0, next);
-    setEventsOn(next);
+    const next = eventsOn
+      ? new Set<string>()
+      : new Set(EVENT_KIND_DEFS.map((d) => d.kind));
+    refitRead(activeSeriesDefs.length === 0, next.size > 0);
+    setActiveKinds(next);
   }
 
   function toggleKind(kind: string) {
-    setActiveKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
+    const next = new Set(activeKinds);
+    if (next.has(kind)) next.delete(kind);
+    else next.add(kind);
+    // The last kind off, or the first one on, is the events half of the
+    // reading panel going away or coming back: the same refit the master
+    // does.
+    if (next.size > 0 !== eventsOn)
+      refitRead(activeSeriesDefs.length === 0, next.size > 0);
+    setActiveKinds(next);
   }
 
   /**
@@ -1356,8 +1368,7 @@ export function ImuSessionAnalysis({
           key: def.kind,
           label: def.label,
           Icon: def.Icon,
-          checked: eventsOn && activeKinds.has(def.kind),
-          disabled: !eventsOn,
+          checked: activeKinds.has(def.kind),
           onToggle: () => toggleKind(def.kind),
         })),
       ]}

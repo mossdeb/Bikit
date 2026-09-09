@@ -109,9 +109,7 @@ describe("detectImuEvents", () => {
       return null;
     });
     const { events } = detectImuEvents(s);
-    // No lip drawn here, so this flight reads as a drop; the bridging is
-    // what is under test.
-    const jumps = events.filter((e) => e.kind === "jump" || e.kind === "drop");
+    const jumps = events.filter((e) => e.kind === "jump");
     const impacts = events.filter((e) => e.kind === "impact");
     expect(jumps).toHaveLength(1);
     expect((jumps[0] as { airtimeMs: number }).airtimeMs).toBeGreaterThan(380);
@@ -219,13 +217,13 @@ describe("detectImuEvents", () => {
     expect(detectBikeFrameEvents(own).map((e) => e.kind)).toEqual(["braking"]);
   });
 
-  it("calls a flight a jump when it was popped off a lip and a drop when it was not", () => {
+  it("calls every flight a jump, with or without a lip before it", () => {
     const s = recording(20, (t) => {
-      // Jump: 2.5 g of load for 0.15 s, then 0.3 s in the air, 4 g landing.
+      // Popped off a lip: 2.5 g of load, then 0.3 s in the air, 4 g landing.
       if (t >= 4.85 && t < 5) return 2.5;
       if (t >= 5 && t < 5.3) return 0.1;
       if (t >= 5.3 && t < 5.35) return 4;
-      // Drop: straight from 1 g into 0.3 s of air, 4 g landing.
+      // Off a ledge: straight from 1 g into 0.3 s of air, 4 g landing.
       if (t >= 12 && t < 12.3) return 0.1;
       if (t >= 12.3 && t < 12.35) return 4;
       return null;
@@ -234,7 +232,7 @@ describe("detectImuEvents", () => {
     const flights = events.filter(
       (e) => e.kind === "jump" || e.kind === "drop",
     );
-    expect(flights.map((e) => e.kind)).toEqual(["jump", "drop"]);
+    expect(flights.map((e) => e.kind)).toEqual(["jump", "jump"]);
   });
 
   it("marks a sustained rough stretch as a section, and not a short burst", () => {

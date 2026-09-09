@@ -9,16 +9,16 @@
  * no orientation at all is detected exactly like one with it. (Curves and
  * braking, which need the bike's frame, are further down.)
  *
- * JUMP and DROP. In the air the sensor is in free fall and the norm
- * collapses to ~0 g, whatever the bike's attitude. A stretch under FALL_G
- * lasting at least MIN_AIRTIME_MS, with a landing after it (a peak over
- * LANDING_G in the LANDING_WINDOW_MS that follow), is flight: takeoff
- * where the norm fell, landing where it came back. Short interruptions
- * inside the fall — a mid-air jolt, a wheel touching — are bridged when
- * under BRIDGE_MS. A JUMP is popped off a lip and the norm loads up past
- * JUMP_PRELOAD_G just before the fall; a DROP rolls off a ledge with no
- * such load. R0050 (2026-09-09, a downhill run) has ten flights, 0.12 to
- * 0.38 s, checked by hand before this existed.
+ * JUMP. In the air the sensor is in free fall and the norm collapses to
+ * ~0 g, whatever the bike's attitude. A stretch under FALL_G lasting at
+ * least MIN_AIRTIME_MS, with a landing after it (a peak over LANDING_G in
+ * the LANDING_WINDOW_MS that follow), is a jump: takeoff where the norm
+ * fell, landing where it came back. Short interruptions inside the fall —
+ * a mid-air jolt, a wheel touching — are bridged when under BRIDGE_MS.
+ * Every flight is a "jump": telling drops from jumps by the pre-load
+ * before takeoff was tried on 2026-09-09 and, on R0050, labelled real
+ * jumps as drops — the rider's word against the heuristic, and the rider
+ * won. R0050 (a downhill run) has eighteen flights, 0.13 to 0.49 s.
  *
  * ROUGH SECTION. The 0.5 s RMS of the norm about 1 g — roughnessSeries,
  * the same figure the page plots — above a threshold for ROUGH_MIN_MS,
@@ -54,12 +54,6 @@ const BRIDGE_MS = 40;
 const LANDING_G = 1.8;
 /** …within this long after the norm comes back. */
 const LANDING_WINDOW_MS = 400;
-
-/** A jump is popped off a lip: the norm loads up in the last third of a
- * second before the fall. A drop rolls off a ledge with no such load, and
- * that — not the fall, which looks the same — is what tells the two apart. */
-const JUMP_PRELOAD_G = 1.5;
-const PRELOAD_WINDOW_MS = 300;
 
 /** Rough ground: the 0.5 s RMS of the norm about 1 g, sustained. The
  * threshold is the larger of an absolute floor — cobbles on a road ride —
@@ -98,8 +92,7 @@ export function detectImuEvents(session: ImuSessionData): ImuEventDetection {
       roughThresholdG: ROUGH_MIN_G,
     };
 
-  // The 0.5 s RMS about 1 g: the rough-section signal, and the ground's
-  // own level against which a jump's pre-load is judged.
+  // The 0.5 s RMS about 1 g: the rough-section signal.
   const rough = roughnessSeries(tMs, g);
 
   // --- Jumps -------------------------------------------------------------
@@ -120,7 +113,7 @@ export function detectImuEvents(session: ImuSessionData): ImuEventDetection {
     i = j;
   }
 
-  const jumps: Extract<ImuEvent, { kind: "jump" | "drop" }>[] = [];
+  const jumps: Extract<ImuEvent, { kind: "jump" }>[] = [];
   for (const fall of falls) {
     const takeoffMs = tMs[fall.from];
     const landingMs = fall.to + 1 < n ? tMs[fall.to + 1] : tMs[fall.to];
@@ -134,25 +127,6 @@ export function detectImuEvents(session: ImuSessionData): ImuEventDetection {
     )
       if (g[k] > landing) landing = g[k];
     if (landing < LANDING_G) continue;
-    // Was there a lip? The load in the moment before the wheels left, read
-    // against how rough the ground already was there: on a rock-strewn
-    // trail every takeoff is preceded by 2 g of something, and only a load
-    // clear of that noise is a pop.
-    let preload = 0;
-    for (
-      let k = fall.from - 1;
-      k >= 0 && takeoffMs - tMs[k] <= PRELOAD_WINDOW_MS;
-      k--
-    )
-      if (g[k] > preload) preload = g[k];
-    // The ground's roughness is read clear of the pre-load window and of
-    // the roughness window's own reach (250 ms each side), so the pop and
-    // the fall do not count against themselves.
-    let before = fall.from - 1;
-    while (before >= 0 && takeoffMs - tMs[before] < PRELOAD_WINDOW_MS + 250)
-      before--;
-    const groundBefore = before >= 0 ? rough[before] : 0;
-    const popG = Math.max(JUMP_PRELOAD_G, 1 + 2 * groundBefore);
     // Half a vote for being a plausible fall at all, the rest for airtime
     // past the minimum and a landing past the minimum.
     const confidence =
@@ -160,7 +134,7 @@ export function detectImuEvents(session: ImuSessionData): ImuEventDetection {
       0.25 * Math.min(1, (airtimeMs - MIN_AIRTIME_MS) / 280) +
       0.25 * Math.min(1, (landing - LANDING_G) / 3);
     jumps.push({
-      kind: preload >= popG ? "jump" : "drop",
+      kind: "jump",
       takeoffMs,
       landingMs,
       airtimeMs,
