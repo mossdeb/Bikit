@@ -309,37 +309,83 @@ export function jerkSeries(
 }
 
 /**
- * Estimated lean (roll) angle in degrees, via a complementary filter: the
- * gyro's roll rate integrated for the fast component, pulled toward the
- * accelerometer's atan2(ay, az) for the slow one, with time constant tauMs.
- * This is sensor fusion's cheapest honest form — NOT integration alone,
- * which drifts without bound.
+ * A channel's mean over a window centred on each sample, by TIME — a gap in
+ * the recording widens nothing — moved along by two pointers. Shared by the
+ * attitude estimates, which are all averages of something over a stretch.
+ */
+function centredMeanSeries(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  windowMs: number,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  const half = windowMs / 2;
+  let lo = 0;
+  let hi = 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    while (hi < n && tMs[hi] <= tMs[i] + half) sum += values[hi++];
+    while (lo < hi && tMs[lo] < tMs[i] - half) sum -= values[lo++];
+    // Empty only on a timeline that runs backwards, which the parsers do
+    // not produce; the previous reading holds rather than a NaN.
+    out[i] = hi > lo ? sum / (hi - lo) : i > 0 ? out[i - 1] : 0;
+  }
+  return out;
+}
+
+/** The window the lean's yaw rate is averaged over, ms. Short: a corner is
+ * a second or two, and the lean has to be in it, not after it. */
+export const LEAN_WINDOW_MS = 500;
+
+/**
+ * Estimated lean angle in degrees, right positive: the balance angle the
+ * bike must hold to turn at the rate it is turning at the speed it is
+ * going, atan(v·ω/g), with v from the GPS and ω the yaw rate about the
+ * bike's up (gz, right turn negative), averaged over LEAN_WINDOW_MS.
  *
- * An ESTIMATE, uncalibrated: strong lateral acceleration mid-curve bends the
- * accelerometer's idea of "down" toward the bike's own vertical, and impacts
- * kick it around. Labeled (est.) everywhere it appears; validation against
- * real recordings is the price of removing that suffix.
+ * It used to be a complementary filter — roll gyro for the fast part, the
+ * accelerometer's atan2(ay, az) for the slow — and it could not see a
+ * corner at all, by physics: a bike leans in a turn precisely so that the
+ * specific force lines up with its own vertical, so mid-corner the
+ * accelerometer reads "upright" and the filter decays to it in half a
+ * second. On R0050 (2026-09-09) the 42 right-hand curves averaged 8.6° by
+ * that estimate and 21° by this one; the 37 left-handers −1.1° and −23°.
+ * What the old one measured was the +0.08 g offset on the lateral axis
+ * (~4°) plus the terrain's noise.
+ *
+ * Without a GPS track, or a frame whose up is known, the fallback is the
+ * accelerometer's average direction over PITCH_WINDOW_MS — the static
+ * tilt of the bike, which on a bike that is not turning is what lean is.
+ *
+ * Still an ESTIMATE, labelled (est.) wherever it appears: it is the lean
+ * of a coordinated turn, and a rider hanging off the inside, or a corner
+ * sliding, leans the bike differently from what the balance says.
  */
 export function leanSeries(
   tMs: Float64Array,
   ay: ArrayLike<number>,
   az: ArrayLike<number>,
-  gx: ArrayLike<number>,
-  tauMs = 500,
+  yawGz: ArrayLike<number> | null,
+  speedKmh: ArrayLike<number> | null,
+  windowMs = LEAN_WINDOW_MS,
 ): Float32Array {
   const n = tMs.length;
   const out = new Float32Array(n);
   if (n === 0) return out;
   const toDeg = 180 / Math.PI;
-  let roll = Math.atan2(ay[0], az[0]) * toDeg;
-  out[0] = roll;
-  for (let i = 1; i < n; i++) {
-    const dtMs = tMs[i] - tMs[i - 1];
-    const accRoll = Math.atan2(ay[i], az[i]) * toDeg;
-    const alpha = tauMs / (tauMs + dtMs);
-    roll = alpha * (roll + gx[i] * (dtMs / 1000)) + (1 - alpha) * accRoll;
-    out[i] = roll;
+  if (yawGz && speedKmh) {
+    const omega = centredMeanSeries(tMs, yawGz, windowMs);
+    for (let i = 0; i < n; i++) {
+      const v = speedKmh[i] / 3.6;
+      const w = (-omega[i] * Math.PI) / 180;
+      out[i] = Math.atan((v * w) / 9.81) * toDeg;
+    }
+    return out;
   }
+  const my = centredMeanSeries(tMs, ay, PITCH_WINDOW_MS);
+  const mz = centredMeanSeries(tMs, az, PITCH_WINDOW_MS);
+  for (let i = 0; i < n; i++) out[i] = Math.atan2(my[i], mz[i]) * toDeg;
   return out;
 }
 
@@ -457,8 +503,8 @@ export function gpsMeanSpeed(
  * the gravity the logger measured with the bike upright and level lands on
  * +Z. After this, lean is the bike's lean and pitch the bike's pitch, not
  * the sensor's mounting angle plus the bike's; and the gyro reads zero at
- * rest instead of its bias, so the complementary filters stop drifting by
- * it. On the first real logger the mounting was tilted ~7.6° and ~6°, and
+ * rest instead of its bias, so nothing integrating it drifts by it. On the
+ * first real logger the mounting was tilted ~7.6° and ~6°, and
  * the Y gyro sat at −2.35 °/s — both of which had been read as the bike.
  *
  * Returns the SAME session when there is nothing to apply (no calibration,
@@ -988,38 +1034,56 @@ export function gpsPositionAt(
   };
 }
 
+/** The window the pitch is averaged over, ms — centred on each sample. */
+export const PITCH_WINDOW_MS = 1500;
+
 /**
- * Estimated pitch angle in degrees — nose up positive — via the same
- * complementary filter as leanSeries, on the other axis: the gyro's pitch
- * rate for the fast component, pulled toward the accelerometer's
- * atan2(-ax, √(ay²+az²)) for the slow one. The same caveats too: braking
- * and acceleration bend the accelerometer's idea of "down" forward and
- * back — which is precisely what the pitch axis measures — so this is an
- * ESTIMATE, labelled (est.) wherever it appears.
+ * Estimated pitch angle in degrees, nose up positive: the direction of the
+ * specific force averaged over PITCH_WINDOW_MS, atan2(ax̄, √(āy²+āz²)) in
+ * the bike's frame (+x forward, +z up). A trend, not an instant, and by
+ * design.
+ *
+ * It used to be a complementary filter like leanSeries — gyro pitch rate
+ * for the fast part, the accelerometer's angle for the slow — with a
+ * half-second constant, and on R0050 (2026-09-09, a downhill run) it
+ * showed 52° with the bike merely rolling: the accelerometer's angle is
+ * noise on rough ground (over 30° in 42 % of samples — a 1 g hit on the
+ * forward axis is 45°, a landing 70°), and half a second is not enough to
+ * average it out. Lengthening the filter made it worse, because the gyro's
+ * pitch axis reads a false −7 °/s while riding rough ground — not bias,
+ * which CAL1 removes and which the still stretch at the run's end
+ * confirms at ~1 °/s, but what looks like vibration rectification in the
+ * MEMS gyro — so five seconds of gyro put the median at −33°. The gyro is
+ * therefore out of this altogether, and the average of the force's
+ * direction over 1.5 s is what is left: on R0050 it runs 0° to 18°,
+ * median 7°, which is the trail's gradient plus the braking.
+ *
+ * The sign was also the other way round. At rest nose-up by θ the forward
+ * axis reads +sin θ (the specific force is minus gravity, and gravity
+ * projects negatively on an axis pointing up), so nose up is ax > 0; the
+ * old atan2(−ax, …) called a descent, and every brake, "empinar".
+ *
+ * Still an ESTIMATE, labelled (est.) wherever it appears: braking and
+ * acceleration bend the force forward and back, which is exactly what this
+ * axis measures, and no averaging separates a 3 s brake from a 3 s dip.
  */
 export function pitchSeries(
   tMs: Float64Array,
   ax: ArrayLike<number>,
   ay: ArrayLike<number>,
   az: ArrayLike<number>,
-  gy: ArrayLike<number>,
-  tauMs = 500,
+  windowMs = PITCH_WINDOW_MS,
 ): Float32Array {
   const n = tMs.length;
   const out = new Float32Array(n);
   if (n === 0) return out;
   const toDeg = 180 / Math.PI;
-  const accPitchAt = (i: number) =>
-    Math.atan2(-ax[i], Math.sqrt(ay[i] * ay[i] + az[i] * az[i])) * toDeg;
-  let pitch = accPitchAt(0);
-  out[0] = pitch;
-  for (let i = 1; i < n; i++) {
-    const dtMs = tMs[i] - tMs[i - 1];
-    const alpha = tauMs / (tauMs + dtMs);
-    pitch =
-      alpha * (pitch + gy[i] * (dtMs / 1000)) + (1 - alpha) * accPitchAt(i);
-    out[i] = pitch;
-  }
+  const mx = centredMeanSeries(tMs, ax, windowMs);
+  const my = centredMeanSeries(tMs, ay, windowMs);
+  const mz = centredMeanSeries(tMs, az, windowMs);
+  for (let i = 0; i < n; i++)
+    out[i] =
+      Math.atan2(mx[i], Math.sqrt(my[i] * my[i] + mz[i] * mz[i])) * toDeg;
   return out;
 }
 

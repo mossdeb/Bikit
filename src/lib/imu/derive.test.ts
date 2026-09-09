@@ -583,15 +583,41 @@ describe("jerkSeries", () => {
 });
 
 describe("leanSeries", () => {
-  it("settles on the accelerometer's angle when the bike is held tilted", () => {
-    // 30°: ay = sin 30° = 0.5, az = cos 30° ≈ 0.866, gyro silent.
+  it("reads a corner's balance angle from speed and yaw rate, right positive", () => {
+    // 36 km/h turning right at 30 °/s (right is a negative yaw rate about
+    // up): atan(10 · 0.5236 / 9.81) = 28.1°. The accelerometer says upright
+    // throughout, as it does in a coordinated turn — and is not asked.
+    const n = 500;
+    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+    const ay = new Float32Array(n);
+    const az = new Float32Array(n).fill(1);
+    const speed = new Float32Array(n).fill(36);
+    const right = leanSeries(t, ay, az, new Float32Array(n).fill(-30), speed);
+    expect(right[250]).toBeCloseTo(28.1, 0);
+    const left = leanSeries(t, ay, az, new Float32Array(n).fill(30), speed);
+    expect(left[250]).toBeCloseTo(-28.1, 0);
+    // Standing still, no turn can lean it.
+    const still = leanSeries(
+      t,
+      ay,
+      az,
+      new Float32Array(n).fill(30),
+      new Float32Array(n),
+    );
+    expect(still[250]).toBeCloseTo(0, 5);
+  });
+
+  it("falls back to the accelerometer's average tilt without GPS or a known up", () => {
+    // 30° to the right: ay = sin 30° = 0.5, az = cos 30°.
     const n = 500;
     const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
     const ay = new Float32Array(n).fill(0.5);
     const az = new Float32Array(n).fill(Math.cos(Math.PI / 6));
-    const gx = new Float32Array(n);
-    const lean = leanSeries(t, ay, az, gx);
-    expect(lean[n - 1]).toBeCloseTo(30, 1);
+    expect(leanSeries(t, ay, az, null, null)[250]).toBeCloseTo(30, 1);
+    expect(leanSeries(t, ay, az, new Float32Array(n), null)[250]).toBeCloseTo(
+      30,
+      1,
+    );
   });
 
   it("reads upright as zero", () => {
@@ -601,19 +627,10 @@ describe("leanSeries", () => {
       t,
       new Float32Array(n),
       new Float32Array(n).fill(1),
-      new Float32Array(n),
+      null,
+      null,
     );
     expect(lean[n - 1]).toBeCloseTo(0, 5);
-  });
-
-  it("follows the gyro on the fast path — a step of rotation moves it before the accelerometer agrees", () => {
-    const n = 20;
-    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
-    const ay = new Float32Array(n); // accelerometer still says upright
-    const az = new Float32Array(n).fill(1);
-    const gx = new Float32Array(n).fill(100); // 100°/s of roll
-    const lean = leanSeries(t, ay, az, gx);
-    expect(lean[n - 1]).toBeGreaterThan(10);
   });
 });
 
@@ -729,16 +746,24 @@ describe("sessionSummary — GPS figures", () => {
 });
 
 describe("pitchSeries", () => {
-  it("settles on the accelerometer's angle when the bike is held nose-up", () => {
-    // 30° nose up: ax = -sin 30° = -0.5, az = cos 30°, gyro silent.
+  it("reads a bike held nose-up as positive, nose-down as negative", () => {
+    // 30° nose up: the specific force is minus gravity, and gravity projects
+    // −sin 30° on an axis pointing up, so ax = +0.5 and az = cos 30°.
     const n = 500;
     const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
-    const ax = new Float32Array(n).fill(-0.5);
+    const ax = new Float32Array(n).fill(0.5);
     const ay = new Float32Array(n);
     const az = new Float32Array(n).fill(Math.cos(Math.PI / 6));
-    const gy = new Float32Array(n);
-    const pitch = pitchSeries(t, ax, ay, az, gy);
-    expect(pitch[n - 1]).toBeCloseTo(30, 1);
+    const up = pitchSeries(t, ax, ay, az);
+    expect(up[n - 1]).toBeCloseTo(30, 1);
+    // A descent (or a brake) leans the force back: nose down.
+    const down = pitchSeries(
+      t,
+      ax.map((v) => -v),
+      ay,
+      az,
+    );
+    expect(down[250]).toBeCloseTo(-30, 1);
   });
 
   it("reads level ground as zero", () => {
@@ -747,9 +772,25 @@ describe("pitchSeries", () => {
     const ax = new Float32Array(n);
     const ay = new Float32Array(n);
     const az = new Float32Array(n).fill(1);
-    const gy = new Float32Array(n);
-    const pitch = pitchSeries(t, ax, ay, az, gy);
+    const pitch = pitchSeries(t, ax, ay, az);
     expect(pitch[n - 1]).toBeCloseTo(0, 5);
+  });
+
+  it("averages a hit away instead of reading it as an angle", () => {
+    // Level ground at 100 Hz, and one 30 ms hit of 3 g on the forward axis:
+    // read alone that is 72°; over the 1.5 s window it is a few degrees.
+    const n = 400;
+    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+    const ax = new Float32Array(n);
+    for (let i = 200; i < 203; i++) ax[i] = 3;
+    const ay = new Float32Array(n);
+    const az = new Float32Array(n).fill(1);
+    const pitch = pitchSeries(t, ax, ay, az);
+    expect(pitch[201]).toBeGreaterThan(0);
+    expect(pitch[201]).toBeLessThan(5);
+    // And the window is centred, so the hit weighs the same before and
+    // after it.
+    expect(pitch[150]).toBeCloseTo(pitch[252], 3);
   });
 });
 

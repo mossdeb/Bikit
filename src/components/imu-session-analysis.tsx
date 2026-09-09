@@ -169,7 +169,7 @@ const SERIES_DEFS = [
     color: "#475569",
     summary: "Inclinação estimada",
     description:
-      "Inclinação estimada — filtro complementar acel+giro, não calibrado",
+      "Inclinação estimada — ângulo de equilíbrio da curva, atan(v·ω/g) com a velocidade do GPS e a guinada do giroscópio; sem GPS, a inclinação média do acelerómetro",
   },
   /** Only offered when the file carries a GPS track — recorded speed,
    * resampled onto the IMU timeline, never integrated from acceleration. */
@@ -367,9 +367,9 @@ interface EventDescription {
  * "0.79 G lateral máx · ~34° lean (est.) · 3.0 s" reads as one long string,
  * where a labelled column says what each number IS before it says how big.
  *
- * The curve's lean is the complementary-filter estimate, and its label — not
- * its value — carries the (est.), so the number stays readable while the
- * caveat stays attached.
+ * The curve's lean is the balance-angle estimate (leanSeries), and its
+ * label — not its value — carries the (est.), so the number stays readable
+ * while the caveat stays attached.
  */
 function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
   const { tMs, ax, ay, gz, g, lean, roughness, gps, cursorIndex } = ctx;
@@ -419,11 +419,12 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         });
       // IMU+GPS fusion: the mean speed through the curve against the mean
       // yaw rate it held. Radius = v/ω; theoretical lean = atan(v·ω/g) —
-      // the balance angle physics asks for at that speed and rate, printed
-      // beside the complementary filter's estimate as its external check.
-      // Means and not peaks: the radius comes from what the curve held,
-      // not what it spiked. Skipped below 1 °/s, where a "curve" is a
-      // straight and the division makes up kilometres.
+      // the balance angle physics asks for at that speed and rate. The
+      // lean series above is the same physics instant by instant, so the
+      // two differ as a peak differs from a mean: what the corner spiked
+      // against what it held. Means and not peaks here: the radius comes
+      // from what the curve held, not what it spiked. Skipped below 1 °/s,
+      // where a "curve" is a straight and the division makes up kilometres.
       if (gps) {
         // The pace through the corner, in the same module the two G-figures
         // wear: the fastest the curve was carried, with the reading under the
@@ -810,6 +811,7 @@ export function ImuSessionAnalysis({
     // inputs, never rewritten. Speed exists only when the file carries a GPS
     // track; every consumer below goes through availableSeriesDefs, which is
     // what keeps a missing entry from ever being read.
+    const speed = data.gps ? speedKmhSeries(tMs, data.gps) : null;
     const values: Partial<Record<SeriesId, ArrayLike<number>>> = {
       gforce: gForce,
       ax,
@@ -820,10 +822,13 @@ export function ImuSessionAnalysis({
       gz,
       roughness: roughnessSeries(tMs, gForce),
       jerk: jerkSeries(tMs, gForce),
-      lean: leanSeries(tMs, ay, az, gx),
+      // The lean needs the yaw rate about the bike's UP, which gz only is
+      // once the frame is aligned; unaligned, or without a track, it falls
+      // back to the accelerometer's tilt.
+      lean: leanSeries(tMs, ay, az, data.aligned ? gz : null, speed),
     };
-    if (data.gps) {
-      values.speed = speedKmhSeries(tMs, data.gps);
+    if (data.gps && speed) {
+      values.speed = speed;
       values.altitude = altitudeMSeries(tMs, data.gps);
     }
     return values as Record<SeriesId, ArrayLike<number>>;
@@ -833,8 +838,8 @@ export function ImuSessionAnalysis({
    * series, so it lives beside seriesValues rather than inside it. */
   const pitchValues = useMemo(() => {
     if (!data) return null;
-    const { tMs, ax, ay, az, gy } = data.channels;
-    return pitchSeries(tMs, ax, ay, az, gy);
+    const { tMs, ax, ay, az } = data.channels;
+    return pitchSeries(tMs, ax, ay, az);
   }, [data]);
 
   /**

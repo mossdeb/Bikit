@@ -19,8 +19,10 @@ import { ImuRiderGlyph } from "@/components/imu-pro-logo";
  * - **Movimento lateral / Empinar e mergulhar** — the two attitude tiles:
  *   the bike seen from behind and from the side, a mint horizon line
  *   rotated by the estimated lean and pitch, the ticked arc art behind.
- *   Both angles are complementary-filter ESTIMATES; the tiles print the
- *   figure alone and leave the caveat to the pill and the event cards.
+ *   Both angles are ESTIMATES (the corner's balance angle, and the average
+ *   direction of the force — see leanSeries and pitchSeries); the tiles
+ *   print the figure alone and leave the caveat to the pill and the event
+ *   cards.
  *
  * The art comes from the supplied SVG set, recolored to currentColor so it
  * survives both themes; the mint and the blue are fixed, the lab's way.
@@ -155,8 +157,7 @@ function RideGauge({
   // Signed fill against the session's own peak — the gauge idiom. Clamped:
   // the peak is by definition the largest magnitude, but a float can kiss
   // past 1 and a band past its own track would be a bug, not a fact.
-  const axFrac =
-    axPeak > 0 ? Math.min(1, Math.max(-1, ax / axPeak)) : 0;
+  const axFrac = axPeak > 0 ? Math.min(1, Math.max(-1, ax / axPeak)) : 0;
 
   return (
     <div className="flex flex-col items-center">
@@ -168,13 +169,27 @@ function RideGauge({
         >
           {/* Ring track and progress. */}
           <path
-            d={ringSegmentPath(RING.cx, RING.cy, RING.r, RING_W, RING.from, RING.from + RING.sweep)}
+            d={ringSegmentPath(
+              RING.cx,
+              RING.cy,
+              RING.r,
+              RING_W,
+              RING.from,
+              RING.from + RING.sweep,
+            )}
             fill="currentColor"
             fillOpacity={0.07}
           />
           {p > 0.005 && (
             <path
-              d={ringSegmentPath(RING.cx, RING.cy, RING.r, RING_W, RING.from, RING.from + RING.sweep * p)}
+              d={ringSegmentPath(
+                RING.cx,
+                RING.cy,
+                RING.r,
+                RING_W,
+                RING.from,
+                RING.from + RING.sweep * p,
+              )}
               fill={MINT}
             />
           )}
@@ -183,7 +198,14 @@ function RideGauge({
               zero standing at the bottom centre, fill growing right for
               acceleration and left for braking. */}
           <path
-            d={ringSegmentPath(RING.cx, RING.cy, RING.r, RING_W, 180 - BAND.half, 180 + BAND.half)}
+            d={ringSegmentPath(
+              RING.cx,
+              RING.cy,
+              RING.r,
+              RING_W,
+              180 - BAND.half,
+              180 + BAND.half,
+            )}
             fill="currentColor"
             fillOpacity={0.07}
           />
@@ -428,7 +450,16 @@ function AttitudeTile({
         <g transform="translate(8 0)">
           <AttitudeDialArt />
         </g>
-        <g transform={`rotate(${(-angleDeg).toFixed(1)} 48 27.5)`}>
+        {/* SVG's rotate is clockwise for a positive angle. Seen from the
+            side with the front to the right, a positive pitch (nose up)
+            lifts the front, which is anticlockwise: the sign flips. Seen
+            from behind, a positive lean (to the right) tips the top to the
+            right, which is clockwise: the sign stands. Before 2026-09-09
+            both tiles flipped, and a right-hand corner drew a bike leaning
+            left. */}
+        <g
+          transform={`rotate(${(bike === "rear" ? angleDeg : -angleDeg).toFixed(1)} 48 27.5)`}
+        >
           <line
             x1={-4}
             y1={27.5}
