@@ -801,6 +801,9 @@ export function ImuSessionAnalysis({
   const eventsOn = activeKinds.size > 0;
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
+  /** Whether the chart has the cursor pinned (its double-click lock). The
+   * chart owns the lock; this is a copy for the map's seek to consult. */
+  const [cursorLocked, setCursorLocked] = useState(false);
   /** The value pills on the plot, by the cursor's hand. Off by default (by
    * request): the reading panel already answers the cursor, and the pills
    * are the opt-in extra for tracing one line closely. */
@@ -1778,6 +1781,7 @@ export function ImuSessionAnalysis({
               fullMs={full}
               cursorMs={cursorMs}
               onCursorChange={setCursorMs}
+              onLockChange={setCursorLocked}
               // A pinch that grows back to the whole recording IS "reset zoom".
               onWindowChange={([from, to]) =>
                 setWindowMs(
@@ -1935,7 +1939,12 @@ export function ImuSessionAnalysis({
               windowMs={win}
               speedOn={activeSeries.has("speed")}
               cursorMs={cursorMs}
-              onSeek={setCursorMs}
+              // A pinned cursor stays pinned: only the plot locks and
+              // unlocks (by request, 2026-09-10), so a tap on the map while
+              // it holds is not a seek.
+              onSeek={(ms) => {
+                if (!cursorLocked) setCursorMs(ms);
+              }}
               title="Mapa"
               // The hairline reaches the map too. Its surface is `--sidebar`
               // rather than `--card` — a fixed dark panel in both themes — so

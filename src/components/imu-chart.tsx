@@ -115,6 +115,7 @@ export function ImuChart({
   cursorMs,
   onCursorChange,
   onWindowChange,
+  onLockChange,
   showValues = true,
 }: {
   tMs: Float64Array;
@@ -127,6 +128,9 @@ export function ImuChart({
   cursorMs: number | null;
   onCursorChange: (ms: number) => void;
   onWindowChange: (windowMs: [number, number]) => void;
+  /** Told whenever the cursor is pinned or released, so the parent can
+   * keep other seeks (the map's) from moving a pinned cursor. */
+  onLockChange?: (locked: boolean) => void;
   /** Value pills where the cursor crosses each trace — toggleable, because
    * with several series on they cost real plot. */
   showValues?: boolean;
@@ -136,7 +140,7 @@ export function ImuChart({
   /**
    * The cursor pinned where it was left, so the details panel can be read
    * without the mouse having to stay perfectly still over the plot — a double
-   * click locks, the next click anywhere lets it follow again.
+   * click locks, the next click on the plot lets it follow again.
    *
    * A double click and not a single one, because a single click already means
    * "read this instant" and scrubbing produces them by the dozen; pinning is
@@ -231,22 +235,16 @@ export function ImuChart({
   }, [w0, w1, span, fullSpan, minSpan, fullMs, onWindowChange]);
 
   /**
-   * "Anywhere else" means anywhere, not just the plot: a press that lands on
-   * the page outside the chart releases the cursor too. Captured on the way
-   * down so it fires before whatever was clicked reacts, and skipped inside
-   * the plot, where the press handler already deals with it.
+   * Only the plot locks and unlocks (by request, 2026-09-10). A press
+   * anywhere else on the page used to release the cursor too — captured on
+   * the document — and a click on the map, which is a seek, undid the lock
+   * the reader had just set. Now the lock holds until the plot itself is
+   * pressed; the parent is told, so a seek from the map can be refused
+   * while it holds.
    */
   useEffect(() => {
-    if (!locked) return;
-    const onDown = (event: PointerEvent) => {
-      const el = plotRef.current;
-      if (el && event.target instanceof Node && el.contains(event.target))
-        return;
-      setLocked(false);
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [locked]);
+    onLockChange?.(locked);
+  }, [locked, onLockChange]);
 
   /**
    * Each series' range over the WHOLE recording — the y scale every window
@@ -482,9 +480,9 @@ export function ImuChart({
             moved: false,
           };
           lastPointerTypeRef.current = event.pointerType;
-          // Pressing anywhere releases a locked cursor, here included. The
-          // two presses of a double click release it and then the dblclick
-          // that follows them pins it again, at the new spot.
+          // Pressing the plot releases a locked cursor. The two presses of
+          // a double click release it and then the dblclick that follows
+          // them pins it again, at the new spot.
           setLocked(false);
           captureYFrac(event.clientY);
           onCursorChange(ms);
