@@ -17,6 +17,8 @@ import {
   Minus,
   Plus,
   Route,
+  TrendingDown,
+  TrendingUp,
   Undo2,
   Zap,
 } from "lucide-react";
@@ -47,7 +49,8 @@ import {
 } from "@/lib/imu/format";
 import {
   altitudeMSeries,
-  eventsAt,
+  EVENT_REACH_MS,
+  eventsNear,
   formatSessionTime,
   alignSession,
   gForceOf,
@@ -63,9 +66,11 @@ import {
   pitchSeries,
   roughnessSeries,
   sessionSummary,
-  speedKmhSeries,
+  curveMomentum,
+  fusedSpeedKmhSeries,
   windowMeanAbs,
   windowPeak,
+  windowRange,
   windowRms,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
@@ -171,15 +176,18 @@ const SERIES_DEFS = [
     description:
       "Inclinação estimada — giroscópio de rolamento, ancorado ao ângulo de equilíbrio da curva atan(v·ω/g) da velocidade do GPS e da guinada; sem GPS, a inclinação média do acelerómetro",
   },
-  /** Only offered when the file carries a GPS track — recorded speed,
-   * resampled onto the IMU timeline, never integrated from acceleration. */
+  /** Only offered when the file carries a GPS track — the recorded speed,
+   * with the forward accelerometer drawing the shape between fixes once the
+   * bike's forward is known (fusedSpeedKmhSeries); a straight line between
+   * fixes until then. */
   {
     id: "speed",
     label: "Velocidade",
     unit: "km/h",
     color: "#65A30D",
     summary: "Velocidade GPS",
-    description: "Velocidade sobre o solo, medida pelo GPS da gravação",
+    description:
+      "Velocidade sobre o solo, medida pelo GPS da gravação; entre fixes, o acelerómetro frontal desenha a forma quando a frente da bicicleta é conhecida",
   },
   /** GPS-only as well: the receiver's own altitude, resampled. */
   {
@@ -348,6 +356,12 @@ interface EventContext {
    * length, curve radius, braking distance, retained speed) exist only
    * with it, and every card degrades to its IMU-only self without. */
   gps: GpsChannels | null;
+  /** The speed series the chart draws, km/h on the IMU timeline — the
+   * momentum figures read it, so card and plot agree to the sample. */
+  speed: ArrayLike<number> | null;
+  /** The session's curves in time order: a corner's momentum window is
+   * bounded by its neighbours, so the card needs to know them. */
+  curves: readonly Extract<ImuEvent, { kind: "curve" }>[];
   cursorIndex: number;
 }
 
@@ -397,6 +411,17 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       progress: peak > 0 ? Math.min(1, Math.abs(v) / peak) : 0,
     };
   };
+  /**
+   * The speed at an instant, m/s — off the chart's own series when there is
+   * one (the fused speed, which dips inside a corner the way the bike did),
+   * and off the receiver's straight line between fixes otherwise. Every
+   * speed a card prints goes through here, so the cards, the plot and the
+   * dashboard never disagree about how fast the bike was going.
+   */
+  const speedAt = (ms: number): number | null => {
+    if (ctx.speed) return ctx.speed[nearestSampleIndex(tMs, ms)] / 3.6;
+    return gps ? gpsSpeedAt(gps, ms) : null;
+  };
 
   switch (event.kind) {
     case "curve": {
@@ -430,23 +455,42 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         // wear: the fastest the curve was carried, with the reading under the
         // cursor beside it and a bar past it.
         //
-        // Hand-built and not `nowOf`, which indexes a channel on the IMU
-        // timeline — speed is not one of those. It is read off the GPS track
-        // at the cursor's INSTANT, `tMs[cursorIndex]`, which is the same
-        // moment by a different route.
-        const vMax = gpsPeakSpeed(gps, event.startMs, event.endMs);
-        const vNow =
-          cursorIndex >= 0 ? gpsSpeedAt(gps, tMs[cursorIndex]) : null;
-        if (vMax != null)
+        // Off the chart's speed series when there is one, like everything
+        // else on the card (by request, 2026-09-10: read off the receiver's
+        // 1 Hz line, the "agora" sat still through a one-second corner
+        // while the plot's own line dipped and the momentum box said 17).
+        //
+        // The bar runs from the corner's SLOWEST to its fastest, not from
+        // zero (by request, 2026-09-10): a bike never nears 0 km/h in a
+        // corner, so a bar from zero sat near full whatever the cursor did
+        // — 15 of 17 read as 89 %. Between 13 and 17 the same instant is
+        // half way, which is where it is. The G and lean bars keep their
+        // zero: a corner does pass through 0 G lateral and 0° at its ends.
+        const gpsMax = gpsPeakSpeed(gps, event.startMs, event.endMs);
+        const range = ctx.speed
+          ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
+          : gpsMax != null
+            ? { min: gpsMax * 3.6, max: gpsMax * 3.6 }
+            : null;
+        const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
+        if (range) {
+          const span = range.max - range.min;
           metrics.push({
-            label: "Velocidade máx",
-            value: Math.round(vMax * 3.6).toString(),
+            label: "Velocidade na curva",
+            value:
+              span >= 0.5
+                ? `${Math.round(range.min)}–${Math.round(range.max)}`
+                : Math.round(range.max).toString(),
             unit: "km/h",
             ...(vNow != null && {
               now: `${Math.round(vNow * 3.6)} km/h`,
-              progress: vMax > 0 ? Math.min(1, vNow / vMax) : 0,
+              progress:
+                span > 0
+                  ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
+                  : 1,
             }),
           });
+        }
         const vMean = gpsMeanSpeed(gps, event.startMs, event.endMs);
         const omegaDeg = windowMeanAbs(tMs, gz, event.startMs, event.endMs);
         if (vMean != null && omegaDeg != null && omegaDeg > 1) {
@@ -466,24 +510,57 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
             Icon: StatLeanAngleIcon,
           });
         }
-        // What the corner did to the pace: the speed it was entered and left
-        // with, read off the GPS series at the event's own instants, the way
-        // the braking card does — so the two events answer the same question
-        // in the same words.
+        // What the corner did to the pace — momentum retention (by request,
+        // 2026-09-10): the peak carried in, the trough at the apex, the peak
+        // carried out, and exit over entry as a percentage. "31 → 19 → 29"
+        // and "31 → 12 → 24" are the same corner ridden very differently,
+        // and no power meter is needed to say which was the better line.
+        // Read off the chart's own speed series, bounded by the neighbouring
+        // corners (curveMomentum), so what the card says is what the plot
+        // shows.
         //
-        // A plain fact and not a module like the peak above: an "agora" rides
-        // beside a PEAK, and entry→exit is not one — it is two ends of the
-        // same pass, and there is no instant for the cursor to sit at inside
-        // it. So it goes in the box at the foot with the other single facts.
-        const vIn = gpsSpeedAt(gps, event.startMs);
-        const vOut = gpsSpeedAt(gps, event.endMs);
-        if (vIn != null && vOut != null)
+        // Plain facts and not modules like the peak above: an "agora" rides
+        // beside a PEAK, and entry→min→exit is not one — it is three
+        // instants of the same pass, and there is no instant for the cursor
+        // to sit at inside it. So they go in the box at the foot.
+        const momentum = ctx.speed
+          ? curveMomentum(
+              tMs,
+              ctx.speed,
+              ctx.curves,
+              ctx.curves.indexOf(event),
+              gps,
+            )
+          : null;
+        if (momentum) {
           metrics.push({
-            label: "Entrada → Saída",
-            value: `${Math.round(vIn * 3.6)} → ${Math.round(vOut * 3.6)}`,
+            label: "Entrada → mín → saída",
+            value: `${Math.round(momentum.entryKmh)} → ${Math.round(momentum.minKmh)} → ${Math.round(momentum.exitKmh)}`,
             unit: "km/h",
             Icon: StatGaugeIcon,
           });
+          // The corrected figure when the track allows it — the hill's free
+          // speed taken out, so a downhill corner is not credited with the
+          // gravity — and the raw exit/entry otherwise. The drop it was
+          // corrected by stands beside it, so the reader can see how much
+          // of the raw ratio was the hill: a "−4 m" next to "88 %" says the
+          // corner was ridden well on a descent, not coasted.
+          metrics.push({
+            label: "Retenção",
+            value: Math.round(
+              100 * (momentum.retentionCorrected ?? momentum.retention),
+            ).toString(),
+            unit: "%",
+            Icon: StatMomentumIcon,
+          });
+          if (momentum.dropM != null && Math.abs(momentum.dropM) >= 0.5)
+            metrics.push({
+              label: "Desnível",
+              value: `${momentum.dropM > 0 ? "−" : "+"}${Math.abs(momentum.dropM).toFixed(1)}`,
+              unit: "m",
+              Icon: StatDropIcon,
+            });
+        }
       }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
@@ -508,7 +585,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       // ballistic horizontal estimate, not track distance: in the air the
       // receiver's own distance barely accumulates.
       if (gps) {
-        const v = gpsSpeedAt(gps, event.takeoffMs);
+        const v = speedAt(event.takeoffMs);
         if (v != null)
           metrics.push({
             label: "Distância",
@@ -586,12 +663,12 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           ...nowOf(ax, "G", decel),
         });
       // Fusion: what the braking actually did — the speed it entered and
-      // left with, and the ground it took to do it. Read off the GPS series
-      // rather than the file's own event fields, so a braking WE detect one
-      // day carries the same figures.
+      // left with, and the ground it took to do it. Read off the speed
+      // series rather than the file's own event fields, so a braking WE
+      // detect one day carries the same figures.
       if (gps) {
-        const v0 = gpsSpeedAt(gps, event.startMs);
-        const v1 = gpsSpeedAt(gps, event.endMs);
+        const v0 = speedAt(event.startMs);
+        const v1 = speedAt(event.endMs);
         if (v0 != null && v1 != null)
           metrics.push({
             label: "Velocidade",
@@ -695,9 +772,14 @@ export function ImuSessionAnalysis({
    * eventos" is not a switch of its own but this set's emptiness: unticking
    * it clears the filters, ticking it fills them, and ticking one kind with
    * the set empty shows events again with just that kind (by request — a
-   * filter must be reachable directly, not through the master first). */
+   * filter must be reachable directly, not through the master first).
+   *
+   * Opens on the curves alone (by request, 2026-09-10): with every kind on,
+   * a downhill run's plot is a wall of eighty tabs and five colours before
+   * the trace has been looked at, and the curves are the events the
+   * momentum work is about. The others are one tick away. */
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
-    new Set(EVENT_KIND_DEFS.map((d) => d.kind)),
+    new Set(["curve"]),
   );
   const eventsOn = activeKinds.size > 0;
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
@@ -811,7 +893,11 @@ export function ImuSessionAnalysis({
     // inputs, never rewritten. Speed exists only when the file carries a GPS
     // track; every consumer below goes through availableSeriesDefs, which is
     // what keeps a missing entry from ever being read.
-    const speed = data.gps ? speedKmhSeries(tMs, data.gps) : null;
+    // The forward axis is only forward once the mounting yaw is applied;
+    // until then the speed is the GPS's own straight line between fixes.
+    const speed = data.gps
+      ? fusedSpeedKmhSeries(tMs, data.mounting?.applied ? ax : null, data.gps)
+      : null;
     const values: Partial<Record<SeriesId, ArrayLike<number>>> = {
       gforce: gForce,
       ax,
@@ -844,6 +930,60 @@ export function ImuSessionAnalysis({
 
   /** The estimated pitch, the dashboard's second attitude — not a chart
    * series, so it lives beside seriesValues rather than inside it. */
+  /** The corners in time order — each one's momentum window is bounded by
+   * its neighbours, so the cards read the list rather than the event. */
+  const sessionCurves = useMemo(
+    () =>
+      data
+        ? data.events.filter(
+            (e): e is Extract<ImuEvent, { kind: "curve" }> =>
+              e.kind === "curve",
+          )
+        : [],
+    [data],
+  );
+
+  /**
+   * How far each event's card reaches past the event itself, in session ms
+   * (by request, 2026-09-10 — scrubbing along an event, the card vanished
+   * the instant the thumb overshot an edge, and the panel flickered between
+   * a card and a blank).
+   *
+   * Every kind gets EVENT_REACH_MS each side and nothing more — a curve's
+   * momentum window was tried as its reach and carried the card over the
+   * straight after the corner, which is not what a margin is for. Past the
+   * reach the panel blanks, as it always did. When several events are
+   * within reach the nearest wins, and one the instant is inside wins
+   * outright (see cursorHits).
+   */
+  const eventReaches = useMemo(() => {
+    const reaches = new Map<ImuEvent, readonly [number, number]>();
+    if (!data) return reaches;
+    for (const event of data.events) {
+      switch (event.kind) {
+        case "jump":
+        case "drop":
+          reaches.set(event, [
+            event.takeoffMs - EVENT_REACH_MS,
+            event.landingMs + EVENT_REACH_MS,
+          ]);
+          break;
+        case "impact":
+          reaches.set(event, [
+            event.timeMs - EVENT_REACH_MS,
+            event.timeMs + EVENT_REACH_MS,
+          ]);
+          break;
+        default:
+          reaches.set(event, [
+            event.startMs - EVENT_REACH_MS,
+            event.endMs + EVENT_REACH_MS,
+          ]);
+      }
+    }
+    return reaches;
+  }, [data]);
+
   const pitchValues = useMemo(() => {
     if (!data) return null;
     const { tMs, ax, ay, az } = data.channels;
@@ -961,12 +1101,29 @@ export function ImuSessionAnalysis({
   // The filters hold here too, not just on the plot: a kind switched off is
   // off everywhere, and a card describing an event the chart is not drawing
   // was the one place the switch did not mean what it says.
-  const cursorEvents = (
-    cursorIndex >= 0 ? eventsAt(data.events, tMs[cursorIndex]) : []
+  //
+  // Within REACH and not only inside: a card stands a little before and
+  // after its event (eventReaches), so a thumb overshooting a corner's edge
+  // does not blank the panel. Events the instant is inside come first, by
+  // kind; the ones it is merely near follow, nearest first.
+  const cursorHits = (
+    cursorIndex >= 0
+      ? eventsNear(
+          data.events,
+          tMs[cursorIndex],
+          (event) => eventReaches.get(event) ?? [0, -1],
+        )
+      : []
   )
-    .filter((event) => eventsOn && activeKinds.has(event.kind))
-    .sort((a, b) => EVENT_PRIORITY[a.kind] - EVENT_PRIORITY[b.kind]);
+    .filter(({ event }) => eventsOn && activeKinds.has(event.kind))
+    .sort((a, b) =>
+      a.offsetMs === 0 && b.offsetMs === 0
+        ? EVENT_PRIORITY[a.event.kind] - EVENT_PRIORITY[b.event.kind]
+        : Math.abs(a.offsetMs) - Math.abs(b.offsetMs),
+    );
+  const cursorEvents = cursorHits.map((hit) => hit.event);
   const primaryEvent = cursorEvents[0] ?? null;
+  const primaryOffsetMs = cursorHits[0]?.offsetMs ?? 0;
   const eventContext: EventContext = {
     tMs,
     ax: data.channels.ax,
@@ -976,6 +1133,8 @@ export function ImuSessionAnalysis({
     lean: seriesValues.lean,
     roughness: seriesValues.roughness,
     gps: data.gps,
+    speed: seriesValues.speed ?? null,
+    curves: sessionCurves,
     cursorIndex,
   };
   const primaryDesc = primaryEvent
@@ -2185,6 +2344,7 @@ export function ImuSessionAnalysis({
                       title={primaryDesc ? primaryDesc.title : null}
                       Icon={primaryDesc ? primaryDesc.Icon : Bike}
                       timeMs={tMs[cursorIndex]}
+                      outsideMs={primaryOffsetMs}
                       confidence={primaryEvent?.confidence ?? null}
                       metrics={
                         primaryDesc
@@ -2199,24 +2359,31 @@ export function ImuSessionAnalysis({
                       }
                     />
 
-                    {/* Anything else covering the same instant — a rough section
+                    {/* Anything else COVERING the same instant — a rough section
                       under an impact, say — gets the same card, one rung
-                      quieter. */}
-                    {cursorEvents.slice(1).map((event, i) => {
-                      const desc = describeEvent(event, eventContext);
-                      return (
-                        <EventCard
-                          key={i}
-                          // Phone rhythm only — at `lg` these are grid items and
-                          // the gap is the grid's.
-                          className="mt-2 lg:mt-0"
-                          title={desc.title}
-                          Icon={desc.Icon}
-                          confidence={event.confidence}
-                          metrics={desc.metrics}
-                        />
-                      );
-                    })}
+                      quieter. Covering, not merely within reach: the reach
+                      is what keeps the headline card standing past its
+                      event's edges, and with two seconds of it a panel that
+                      listed every neighbour showed four corners at once. */}
+                    {cursorHits
+                      .slice(1)
+                      .filter(({ offsetMs }) => offsetMs === 0)
+                      .map(({ event, offsetMs }, i) => {
+                        const desc = describeEvent(event, eventContext);
+                        return (
+                          <EventCard
+                            key={i}
+                            // Phone rhythm only — at `lg` these are grid items and
+                            // the gap is the grid's.
+                            className="mt-2 lg:mt-0"
+                            title={desc.title}
+                            Icon={desc.Icon}
+                            outsideMs={offsetMs}
+                            confidence={event.confidence}
+                            metrics={desc.metrics}
+                          />
+                        );
+                      })}
                   </>
                 )}
 
@@ -2829,6 +2996,7 @@ function EventCard({
   title,
   Icon,
   timeMs,
+  outsideMs = 0,
   confidence,
   metrics,
   className,
@@ -2838,12 +3006,19 @@ function EventCard({
   title: string | null;
   Icon: ComponentType<{ className?: string }>;
   timeMs?: number;
+  /** How far the instant is outside the event's own span, ms — negative
+   * before it, positive after, 0 inside. Outside, the card stands (it is
+   * within the event's reach) but says so, and its live modules dim: the
+   * facts are the event's and hold; the "agora" readings are the instant's
+   * and the instant is not in the event. */
+  outsideMs?: number;
   confidence: number | null;
   metrics: EventMetric[];
   className?: string;
 }) {
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
+  const outside = title != null && outsideMs !== 0;
   const allPlainMarked = plain.every((m) => m.Icon);
   /**
    * The titleless card's single figure, printed in its head. Guarded on the
@@ -2873,6 +3048,13 @@ function EventCard({
         // this card at 768px or at 330. A `sm:` there was answering a
         // question nobody asked.
         "@container rounded-[12px] border border-border bg-card p-5",
+        // Outside the event — within its reach but not inside it — the whole
+        // card dims, facts and readings alike (by request, 2026-09-10;
+        // dimming only the live modules read as two cards in one). Down to
+        // 30 %: the card is a ghost of the event the cursor just left, there
+        // so the panel does not blank and jump, not to be read as if the
+        // cursor were still inside.
+        outside && "opacity-30 transition-opacity",
         className,
       )}
     >
@@ -2908,6 +3090,23 @@ function EventCard({
                   className={cn("shrink-0", title ? "size-3" : "size-4")}
                 />
                 {formatSessionTime(timeMs, true)}
+                {outside && (
+                  // Where the instant stands against the event, in the
+                  // reader's words: "0,4 s antes", "0,8 s depois". One
+                  // decimal — the reach is half a second to a few, and a
+                  // millisecond here would be noise dressed as precision.
+                  <span className="truncate">
+                    {" · "}
+                    {/* Rounded UP to the tenth: 20 ms outside is "0,1 s",
+                        never "0,0 s antes", which contradicts itself. */}
+                    {(Math.ceil(Math.abs(outsideMs) / 100) / 10).toLocaleString(
+                      "pt-PT",
+                      { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                    )}
+                    {" s "}
+                    {outsideMs < 0 ? "antes" : "depois"}
+                  </span>
+                )}
               </p>
             )}
           </div>
@@ -2947,13 +3146,77 @@ function EventCard({
       {/* The figures, split the way the data already splits them: the ones
           that carry an "agora" comparison are the event's own peaks — they
           get the room, the big figure and the bar — and the rest are single
-          facts, which go in a ruled box at the foot.
+          facts, which go in a ruled box.
+
+          The box comes FIRST and the peaks under it (by request,
+          2026-09-10): the facts are what the corner was — radius, entry to
+          exit, retention, duration — and the peaks with their bars are what
+          the cursor is doing inside it right now. The card is read top
+          down: the event, then the instant.
 
           It is not a new flag: a metric HAS a comparison when the cursor can
           sit inside the quantity it describes, and those are exactly the
           ones worth watching move. */}
       {metrics.length > 0 && soleFigure == null && (
         <div className="mt-4 border-t border-border pt-4">
+          {/* The plain figures in one ruled box, each group centred in its
+              cell — the session résumé's idiom, and for its reason: the
+              rules are `gap-px` letting the box's own colour through rather
+              than borders on the cells, because a border would have to know
+              which cell ends each row, and this box breaks differently at
+              every width — the first cell of a second row would carry a line
+              against nothing.
+
+              WRAPPING FLEX AND NOT A GRID, and that is the whole trick: a
+              grid keeps its columns on the last row whether or not there are
+              cells to put in them, so four figures over three columns left
+              two empty tracks — and an empty track over a `bg-border` box is
+              a grey slab, which is exactly what it looked like. Flex has no
+              phantom cells: the last row holds only what is in it, and the
+              one that is left stretches to the width. `basis-[120px]` with
+              grow is what decides how many share a row. */}
+          {plain.length > 0 && (
+            <div
+              className={cn(
+                // `bg-clip-padding` and it matters: a background reaches the
+                // BORDER box by default, so the box's `--border` fill was
+                // sitting under the `--border` border — two coats of the same
+                // 9% ink, and the outline came out at 213 where the résumé's
+                // same-token outline paints 233. Same class, different colour,
+                // which is the translucent-ink trap this project already has
+                // written down. Clipped to the padding box, the outline paints
+                // over the card's white and the two boxes match.
+                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border bg-clip-padding",
+              )}
+            >
+              {plain.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="flex flex-1 basis-[120px] items-center justify-center gap-2.5 bg-card px-3.5 py-3"
+                >
+                  {/* All or none: see EventMetric.Icon. */}
+                  {allPlainMarked && metric.Icon && (
+                    <metric.Icon className="size-5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="leading-tight font-semibold tabular-nums">
+                      {metric.value}
+                      {metric.unit && (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {/^[°/]/.test(metric.unit) ? "" : " "}
+                          {metric.unit}
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {metric.label}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {compared.length > 0 && (
             <div
               className={cn(
@@ -2975,6 +3238,12 @@ function EventCard({
                 compared.length === 1
                   ? "grid-cols-[repeat(auto-fill,minmax(200px,1fr))]"
                   : "grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
+                // 20px under the box and not 16: the box is an outlined
+                // slab, and the same 16px that reads as air under a line of
+                // text reads as a seam under a rule. It is also the card's
+                // own padding, which puts the same distance between the
+                // box and the peaks as between the box and the card's edge.
+                plain.length > 0 && "mt-5",
               )}
             >
               {compared.map((metric) => (
@@ -3005,10 +3274,11 @@ function EventCard({
                           Agora {metric.now}
                         </p>
                       )}
-                      {/* How far the instant is along the event's own peak.
-                          Not a health or Ride Load bar — this one fills from
-                          empty and its full end is this event's maximum,
-                          nothing global. */}
+                      {/* Where the instant sits between the module's floor
+                          and its ceiling — zero and the event's peak for the
+                          G and lean modules, the corner's slowest and fastest
+                          for the speed. Not a health or Ride Load bar: its
+                          ends are this event's own, nothing global. */}
                       {metric.progress != null && (
                         <span
                           aria-hidden
@@ -3021,72 +3291,6 @@ function EventCard({
                         </span>
                       )}
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* The plain figures in one ruled box, each group centred in its
-              cell — the session résumé's idiom, and for its reason: the
-              rules are `gap-px` letting the box's own colour through rather
-              than borders on the cells, because a border would have to know
-              which cell ends each row, and this box breaks differently at
-              every width — the first cell of a second row would carry a line
-              against nothing.
-
-              WRAPPING FLEX AND NOT A GRID, and that is the whole trick: a
-              grid keeps its columns on the last row whether or not there are
-              cells to put in them, so four figures over three columns left
-              two empty tracks — and an empty track over a `bg-border` box is
-              a grey slab, which is exactly what it looked like. Flex has no
-              phantom cells: the last row holds only what is in it, and the
-              one that is left stretches to the width. `basis-[120px]` with
-              grow is what decides how many share a row. */}
-          {plain.length > 0 && (
-            <div
-              className={cn(
-                // `bg-clip-padding` and it matters: a background reaches the
-                // BORDER box by default, so the box's `--border` fill was
-                // sitting under the `--border` border — two coats of the same
-                // 9% ink, and the outline came out at 213 where the résumé's
-                // same-token outline paints 233. Same class, different colour,
-                // which is the translucent-ink trap this project already has
-                // written down. Clipped to the padding box, the outline paints
-                // over the card's white and the two boxes match.
-                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border bg-clip-padding",
-                // 20px under the peaks and not the `mt-4` it was: the bars
-                // are solid ink running the full width of their module, so
-                // the same 16px that reads as air under a line of text reads
-                // as a seam when a black bar is what sits above it. It is
-                // also the card's own padding, which puts the same distance
-                // between the box and the peaks as between the box and the
-                // card's edge.
-                compared.length > 0 && "mt-5",
-              )}
-            >
-              {plain.map((metric) => (
-                <div
-                  key={metric.label}
-                  className="flex flex-1 basis-[120px] items-center justify-center gap-2.5 bg-card px-3.5 py-3"
-                >
-                  {/* All or none: see EventMetric.Icon. */}
-                  {allPlainMarked && metric.Icon && (
-                    <metric.Icon className="size-5 shrink-0 text-muted-foreground" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="leading-tight font-semibold tabular-nums">
-                      {metric.value}
-                      {metric.unit && (
-                        <span className="text-sm font-normal text-muted-foreground">
-                          {/^[°/]/.test(metric.unit) ? "" : " "}
-                          {metric.unit}
-                        </span>
-                      )}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {metric.label}
-                    </p>
                   </div>
                 </div>
               ))}
@@ -3219,6 +3423,17 @@ function StatRouteIcon({ className }: { className?: string }) {
 }
 function StatGaugeIcon({ className }: { className?: string }) {
   return <Gauge strokeWidth={1.5} className={className} />;
+}
+
+/** The corner's retention figure — pace carried out over pace carried in. */
+function StatMomentumIcon({ className }: { className?: string }) {
+  return <TrendingUp strokeWidth={1.5} className={className} />;
+}
+
+/** The height the corner's stretch lost — what the retention was corrected
+ * by. */
+function StatDropIcon({ className }: { className?: string }) {
+  return <TrendingDown strokeWidth={1.5} className={className} />;
 }
 
 /** Metres below a kilometre, kilometres with two decimals above it. */

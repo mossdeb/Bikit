@@ -149,6 +149,62 @@ export function eventsAt(
   });
 }
 
+/** How far past an event's own edges its card still stands, ms — the same
+ * for every kind, and nothing else widens it. 300 ms, by request
+ * (2026-09-10): enough for a thumb's overshoot at an edge, short enough
+ * that past it the panel goes blank the way it always did, rather than
+ * carrying a corner's card over the straight after it. Half a second, two
+ * seconds, and a curve's whole momentum window were all tried first. */
+export const EVENT_REACH_MS = 300;
+
+/** An event within reach of an instant, and where the instant sits: 0
+ * inside the event's own span, negative this many ms before its start,
+ * positive this many ms after its end. */
+export interface EventNear {
+  event: ImuEvent;
+  offsetMs: number;
+}
+
+/** An event's own span — the strict one `eventsAt` tests against. */
+function spanOf(event: ImuEvent): [number, number] {
+  switch (event.kind) {
+    case "impact":
+      return [event.timeMs, event.timeMs];
+    case "jump":
+    case "drop":
+      return [event.takeoffMs, event.landingMs];
+    default:
+      return [event.startMs, event.endMs];
+  }
+}
+
+/**
+ * The events whose REACH covers an instant — the strict span widened by
+ * `reachOf`, which the caller decides per event (by request, 2026-09-10:
+ * scrubbing along a corner, the card vanished the moment the thumb
+ * overshot an edge, and the panel jumped between a card and a blank).
+ * Each comes with how far outside the event's own span the instant is,
+ * so a card can stand but say it is standing a little before or after.
+ */
+export function eventsNear(
+  events: ImuEvent[],
+  timeMs: number,
+  reachOf: (event: ImuEvent) => readonly [number, number],
+): EventNear[] {
+  const out: EventNear[] = [];
+  for (const event of events) {
+    const [from, to] = reachOf(event);
+    if (timeMs < from || timeMs > to) continue;
+    const [start, end] = spanOf(event);
+    out.push({
+      event,
+      offsetMs:
+        timeMs < start ? timeMs - start : timeMs > end ? timeMs - end : 0,
+    });
+  }
+  return out;
+}
+
 /**
  * Largest |value| across [fromMs, toMs] — the "how hard" figure for an
  * event's window: lateral G through a curve, landing G after a jump.
@@ -171,6 +227,32 @@ export function windowPeak(
     if (a > peak) peak = a;
   }
   return peak;
+}
+
+/**
+ * Smallest and largest value across [fromMs, toMs], signed — the two ends a
+ * reading can sit between inside an event: the speed's floor and ceiling
+ * through a corner. Null when the window holds no samples.
+ */
+export function windowRange(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  fromMs: number,
+  toMs: number,
+): { min: number; max: number } | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, toMs));
+  if (i0 > i1 || i0 >= tMs.length) return null;
+  let min = values[i0];
+  let max = values[i0];
+  for (let i = i0 + 1; i <= i1; i++) {
+    const v = values[i];
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
 }
 
 /**
@@ -447,12 +529,292 @@ function resampleGpsSeries(
 }
 
 /** Ground speed on the IMU timeline, km/h. Recorded, not derived: the
- * receiver's Doppler speed resampled, never integrated from acceleration. */
+ * receiver's Doppler speed resampled, never integrated from acceleration.
+ * The line between fixes is straight; for the shape inside a second, see
+ * fusedSpeedKmhSeries. */
 export function speedKmhSeries(
   tMs: Float64Array,
   gps: GpsChannels,
 ): Float32Array {
   return resampleGpsSeries(tMs, gps.tMs, gps.speedMps, 3.6);
+}
+
+/** Two fixes closer than this are one fix stamped twice (the logger
+ * stamps a fix when it parses it, and a drained backlog yields two 3 ms
+ * apart); the second is dropped as an anchor. */
+const FUSED_MIN_FIX_GAP_MS = 200;
+/** A hole in the track longer than this is bridged by a straight line, as
+ * before: the accelerometer's shape over five seconds of no anchor is a
+ * drift, not a profile. */
+const FUSED_MAX_FIX_GAP_MS = 5000;
+/** An IMU gap longer than this contributes no acceleration across it. */
+const FUSED_MAX_SAMPLE_GAP_MS = 100;
+
+/**
+ * Ground speed on the IMU timeline, km/h, with the accelerometer drawing
+ * the shape between the GPS fixes: dead reckoning along the bike's forward
+ * axis, closed at every fix.
+ *
+ * The receiver's speed comes once a second and a corner is over in one or
+ * two; on R0050 (2026-09-10) the median corner held ONE fix, so "the speed
+ * at the apex" was whichever fix fell nearest. Between two fixes (t₀, v₀)
+ * and (t₁, v₁) the forward acceleration is integrated from v₀, and the
+ * residual at t₁ — what the integral missed against v₁, which is the slope's
+ * gravity, the sensor's offset and the fix's own smoothing, all of them
+ * near-constant over a second — is spread back over the interval as a
+ * constant. The curve then passes through both fixes exactly, and inside
+ * the second it dips and rises where the accelerometer says it did.
+ *
+ * Needs the bike's forward, so the caller passes ax only once the mounting
+ * yaw is applied; without it this is speedKmhSeries. Never below zero —
+ * a residual can pull a stop's tail negative by a decimal.
+ */
+export function fusedSpeedKmhSeries(
+  tMs: Float64Array,
+  ax: ArrayLike<number> | null,
+  gps: GpsChannels,
+): Float32Array {
+  const linear = speedKmhSeries(tMs, gps);
+  const n = tMs.length;
+  if (!ax || n === 0 || gps.tMs.length < 2) return linear;
+  // The integral of forward acceleration, m/s, sample by sample.
+  const prefix = new Float64Array(n);
+  for (let i = 1; i < n; i++) {
+    const dtMs = tMs[i] - tMs[i - 1];
+    const dt = dtMs > 0 && dtMs <= FUSED_MAX_SAMPLE_GAP_MS ? dtMs / 1000 : 0;
+    prefix[i] = prefix[i - 1] + ax[i] * 9.81 * dt;
+  }
+  // Anchors: the fixes, de-duplicated.
+  const aT: number[] = [];
+  const aV: number[] = [];
+  for (let k = 0; k < gps.tMs.length; k++) {
+    if (aT.length > 0 && gps.tMs[k] - aT[aT.length - 1] < FUSED_MIN_FIX_GAP_MS)
+      continue;
+    aT.push(gps.tMs[k]);
+    aV.push(gps.speedMps[k]);
+  }
+  const out = new Float32Array(linear);
+  for (let k = 0; k + 1 < aT.length; k++) {
+    const t0 = aT[k];
+    const t1 = aT[k + 1];
+    if (t1 - t0 > FUSED_MAX_FIX_GAP_MS) continue;
+    const i0 = lowerBoundIndex(tMs, t0);
+    const i1 = lowerBoundIndex(tMs, t1) - 1;
+    if (i0 >= n || i1 <= i0) continue;
+    const spanS = (tMs[i1] - tMs[i0]) / 1000;
+    if (spanS <= 0) continue;
+    const integral = prefix[i1] - prefix[i0];
+    const residual = (aV[k + 1] - aV[k] - integral) / spanS;
+    for (let i = i0; i <= i1; i++) {
+      const v =
+        aV[k] +
+        (prefix[i] - prefix[i0]) +
+        residual * ((tMs[i] - tMs[i0]) / 1000);
+      out[i] = Math.max(0, v) * 3.6;
+    }
+  }
+  return out;
+}
+
+/** How far before a corner its entry may be, and after it its exit, ms —
+ * unless the neighbouring corner is nearer, in which case the peak between
+ * the two is the exit of one and the entry of the next. */
+export const MOMENTUM_WINDOW_MS = 4000;
+/** Below this entry speed a corner was walked or rolled from a stop, and
+ * a ratio of it says nothing. */
+export const MOMENTUM_MIN_ENTRY_KMH = 5;
+
+export interface CurveMomentum {
+  /** The peak before the corner, km/h, and when. */
+  entryKmh: number;
+  entryMs: number;
+  /** The trough between entry and the corner's end, km/h, and when. */
+  minKmh: number;
+  minMs: number;
+  /** The peak after the corner, km/h, and when. */
+  exitKmh: number;
+  exitMs: number;
+  /** exit / entry — what the corner left of the pace carried into it,
+   * gravity and all. */
+  retention: number;
+  /** 1 − min / entry — how much was given up at the apex. */
+  apexLoss: number;
+  /** Height lost from entry to exit, m, positive downhill — from the
+   * trail's gradient around the corner, not the fix-to-fix altitude. Null
+   * without a usable track. */
+  dropM: number | null;
+  /** exit / the exit gravity alone would have given: √(entry² + 2·g·drop).
+   * On a descent it takes the free speed out, so 100 % means the corner
+   * cost nothing the hill did not pay back. Null without a track, and null
+   * uphill or on the flat, where there is no free speed to take out and
+   * `retention` already says it all. */
+  retentionCorrected: number | null;
+}
+
+/** The gradient is read over the corner's stretch padded by this on each
+ * side, ms: at 1 Hz a five-second corner is five fixes, and a regression
+ * on five noisy altitudes is a coin toss; on twenty-five it is a slope. */
+const GRADIENT_PAD_MS = 10_000;
+/** Fewer fixes, or less ground, than this and no gradient is claimed. */
+const GRADIENT_MIN_FIXES = 4;
+const GRADIENT_MIN_DISTANCE_M = 20;
+
+/**
+ * The trail's gradient over a window, as height per metre travelled
+ * (negative downhill): a least-squares line through the fixes' altitudes
+ * against the distance the receiver's speed says was covered between them.
+ *
+ * Fix-to-fix altitude is not used directly on purpose. The receiver's
+ * height wanders by metres, and a corner is thirty or forty metres of
+ * trail; three metres of wander over that is the whole kinetic energy at
+ * 30 km/h. Twenty fixes of regression bring the wander down to what a
+ * gradient can carry. Null when the window holds too few fixes or too
+ * little ground.
+ */
+function gpsGradient(
+  gps: GpsChannels,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  const gT = gps.tMs;
+  const m = gT.length;
+  const dist: number[] = [];
+  const alt: number[] = [];
+  let d = 0;
+  let prevIdx = -1;
+  for (let k = 0; k < m; k++) {
+    if (gT[k] < fromMs || gT[k] > toMs) continue;
+    if (!Number.isFinite(gps.altitudeM[k])) continue;
+    if (prevIdx >= 0) {
+      const dt = (gT[k] - gT[prevIdx]) / 1000;
+      d += ((gps.speedMps[k] + gps.speedMps[prevIdx]) / 2) * dt;
+    }
+    dist.push(d);
+    alt.push(gps.altitudeM[k]);
+    prevIdx = k;
+  }
+  const n = dist.length;
+  if (n < GRADIENT_MIN_FIXES || d < GRADIENT_MIN_DISTANCE_M) return null;
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i < n; i++) {
+    sx += dist[i];
+    sy += alt[i];
+  }
+  const mx = sx / n;
+  const my = sy / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (dist[i] - mx) * (alt[i] - my);
+    sxx += (dist[i] - mx) * (dist[i] - mx);
+  }
+  return sxx > 0 ? sxy / sxx : null;
+}
+
+/**
+ * Momentum through a corner: the speed carried in, the least it fell to,
+ * the speed carried out, and the two ratios (by request, 2026-09-10 —
+ * "entrada 31, mínimo 19, saída 29 diz muito mais do que qualquer potência").
+ *
+ * The entry is the speed's peak in the MOMENTUM_WINDOW_MS before the
+ * corner, cut short at the previous corner's end; the exit its peak in the
+ * window after, cut short at the next corner's start. So in a run of
+ * linked corners each stretch of trail belongs to one corner, and the peak
+ * between two is the exit of the first and the entry of the second, which
+ * is what it is. The minimum is read from the entry to the corner's end,
+ * so a brake dragged in before the yaw picked up still counts against it.
+ *
+ * Null when the entry is slower than MOMENTUM_MIN_ENTRY_KMH, or the series
+ * does not cover the corner.
+ *
+ * On a descent the exit often beats the entry — the hill's contribution,
+ * and `retention` keeps it: on R0050 (2026-09-10, a downhill run) the raw
+ * figure averaged 104 % over 79 corners, which ranks the corners of one
+ * run against each other but says nothing about the rider. So, with a
+ * track, the height lost between entry and exit is read from the trail's
+ * gradient (gpsGradient) times the ground covered (the speed integrated),
+ * and `retentionCorrected` compares the exit with the speed the drop alone
+ * would have given: on the flat the two figures are one; on a descent the
+ * corrected one is what the corner cost after the hill paid its share.
+ * Only on a descent: uphill the exit is the rider's legs, not the hill's
+ * arithmetic, and the corrected figure is left null (see below).
+ */
+export function curveMomentum(
+  tMs: Float64Array,
+  speedKmh: ArrayLike<number>,
+  curves: readonly { startMs: number; endMs: number }[],
+  index: number,
+  gps: GpsChannels | null = null,
+): CurveMomentum | null {
+  const curve = curves[index];
+  if (!curve || tMs.length === 0) return null;
+  const prev = index > 0 ? curves[index - 1] : null;
+  const next = index + 1 < curves.length ? curves[index + 1] : null;
+  const entryFrom = Math.max(
+    curve.startMs - MOMENTUM_WINDOW_MS,
+    prev ? prev.endMs : -Infinity,
+  );
+  const exitTo = Math.min(
+    curve.endMs + MOMENTUM_WINDOW_MS,
+    next ? next.startMs : Infinity,
+  );
+  const extreme = (fromMs: number, toMs: number, sign: 1 | -1) => {
+    const i0 = lowerBoundIndex(tMs, Math.min(fromMs, toMs));
+    const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, toMs));
+    if (i0 >= tMs.length || i1 < i0) return null;
+    let best = i0;
+    for (let i = i0; i <= i1; i++)
+      if (sign * speedKmh[i] > sign * speedKmh[best]) best = i;
+    return best;
+  };
+  const entry = extreme(entryFrom, curve.startMs, 1);
+  if (entry == null) return null;
+  const min = extreme(tMs[entry], curve.endMs, -1);
+  const exit = extreme(curve.endMs, exitTo, 1);
+  if (min == null || exit == null) return null;
+  const entryKmh = speedKmh[entry];
+  if (entryKmh < MOMENTUM_MIN_ENTRY_KMH) return null;
+  const minKmh = speedKmh[min];
+  const exitKmh = speedKmh[exit];
+  let dropM: number | null = null;
+  let retentionCorrected: number | null = null;
+  const gradient = gps
+    ? gpsGradient(
+        gps,
+        tMs[entry] - GRADIENT_PAD_MS,
+        tMs[exit] + GRADIENT_PAD_MS,
+      )
+    : null;
+  if (gradient != null) {
+    // Ground covered from entry to exit, from the speed series itself.
+    let distanceM = 0;
+    for (let i = entry + 1; i <= exit; i++)
+      distanceM += ((speedKmh[i] / 3.6) * (tMs[i] - tMs[i - 1])) / 1000;
+    dropM = -gradient * distanceM;
+    // Downhill only. On a rise the free exit is the entry minus what the
+    // climb eats, and a rider pedalling up a road at 17 km/h beats that by
+    // any factor — R0048 (2026-09-10, a road climb) read 500 %. Uphill the
+    // legs are the story and the ratio is left raw; the drop still prints,
+    // signed, so the reader knows which way the ground went.
+    if (dropM > 0) {
+      const entryMps = entryKmh / 3.6;
+      const freeExitMps = Math.sqrt(entryMps * entryMps + 2 * 9.81 * dropM);
+      retentionCorrected = exitKmh / 3.6 / freeExitMps;
+    }
+  }
+  return {
+    entryKmh,
+    entryMs: tMs[entry],
+    minKmh,
+    minMs: tMs[min],
+    exitKmh,
+    exitMs: tMs[exit],
+    retention: exitKmh / entryKmh,
+    apexLoss: 1 - minKmh / entryKmh,
+    dropM,
+    retentionCorrected,
+  };
 }
 
 /** Altitude on the IMU timeline, metres above mean sea level. */

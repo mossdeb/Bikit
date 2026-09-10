@@ -6,8 +6,11 @@ import {
   alignSessionWithOrientation,
   altitudeMSeries,
   applyMountingYaw,
+  curveMomentum,
   estimateMountingYaw,
+  fusedSpeedKmhSeries,
   eventsAt,
+  eventsNear,
   formatSessionTime,
   gForceOf,
   gpsDistance,
@@ -25,6 +28,7 @@ import {
   speedKmhSeries,
   windowMeanAbs,
   windowPeak,
+  windowRange,
   windowRms,
 } from "./derive";
 
@@ -476,6 +480,34 @@ describe("eventsAt", () => {
     expect(eventsAt(events, 5400)).toHaveLength(0);
   });
 
+  it("eventsNear widens each event by its own reach and says how far outside the instant is", () => {
+    const reach = (e: ImuSessionData["events"][number]) =>
+      e.kind === "curve"
+        ? ([e.startMs - 800, e.endMs + 1200] as const)
+        : e.kind === "impact"
+          ? ([e.timeMs - 150, e.timeMs + 150] as const)
+          : e.kind === "jump" || e.kind === "drop"
+            ? ([e.takeoffMs - 500, e.landingMs + 500] as const)
+            : ([e.startMs, e.endMs] as const);
+    // Inside the curve: offset 0. 400 ms before it: −400. 900 ms after:
+    // +900. Past the reach: nothing.
+    expect(eventsNear(events, 1500, reach)).toEqual([
+      { event: events[0], offsetMs: 0 },
+    ]);
+    expect(eventsNear(events, 600, reach)).toEqual([
+      { event: events[0], offsetMs: -400 },
+    ]);
+    expect(eventsNear(events, 2900, reach)).toEqual([
+      { event: events[0], offsetMs: 900 },
+    ]);
+    expect(eventsNear(events, 3500, reach)).toHaveLength(0);
+    // A jump's reach runs half a second past the landing.
+    expect(eventsNear(events, 9000, reach)).toEqual([
+      { event: events[2], offsetMs: 380 },
+    ]);
+    expect(eventsNear(events, 9200, reach)).toHaveLength(0);
+  });
+
   it("treats a jump as spanning takeoff to landing", () => {
     expect(eventsAt(events, 8300)).toHaveLength(1);
   });
@@ -494,6 +526,21 @@ describe("windowPeak", () => {
     expect(windowPeak(t, v, 41, 99)).toBeNull();
     expect(windowPeak(t, v, -20, -1)).toBeNull();
     expect(windowPeak(t, v, 11, 19)).toBeCloseTo(0, 5); // no sample between
+  });
+});
+
+describe("windowRange", () => {
+  const t = new Float64Array([0, 10, 20, 30, 40]);
+  const v = new Float32Array([13, 17, 15, 14, 16]);
+
+  it("reads the signed floor and ceiling inside the window", () => {
+    expect(windowRange(t, v, 0, 40)).toEqual({ min: 13, max: 17 });
+    expect(windowRange(t, v, 20, 40)).toEqual({ min: 14, max: 16 });
+  });
+
+  it("returns null for a window with no samples", () => {
+    expect(windowRange(t, v, 41, 99)).toBeNull();
+    expect(windowRange(t, v, -20, -1)).toBeNull();
   });
 });
 
@@ -700,6 +747,174 @@ describe("speedKmhSeries", () => {
     const out = speedKmhSeries(tMs, gpsTrack());
     expect(out[0]).toBeCloseTo(7.2, 4);
     expect(out[1]).toBeCloseTo(14.4, 4);
+  });
+});
+
+describe("fusedSpeedKmhSeries", () => {
+  /** 100 Hz for `seconds`, fixes every second at the speeds given. */
+  function track(speedsMps: number[]) {
+    const m = speedsMps.length;
+    return {
+      tMs: new Float64Array(Array.from({ length: m }, (_, s) => s * 1000)),
+      latDeg: new Float64Array(m).fill(37),
+      lonDeg: new Float64Array(m).fill(-7),
+      altitudeM: new Float32Array(m),
+      speedMps: new Float32Array(speedsMps),
+      headingDeg: new Float32Array(m),
+      distanceM: new Float32Array(m).fill(NaN),
+      hAccM: new Float32Array(m).fill(NaN),
+    } satisfies GpsChannels;
+  }
+  const n = 300;
+  const tMs = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+
+  it("passes through every fix and draws the dip between two equal ones", () => {
+    // 10 m/s at 0, 1 and 2 s; between 1 and 2 s the bike brakes at −5 m/s²
+    // for 0.4 s and accelerates back at +5 m/s² for 0.4 s. The straight
+    // line says 36 km/h throughout; the accelerometer knows it fell to 8.
+    const ax = new Float32Array(n);
+    for (let i = 100; i < 140; i++) ax[i] = -5 / 9.81;
+    for (let i = 140; i < 180; i++) ax[i] = 5 / 9.81;
+    const v = fusedSpeedKmhSeries(tMs, ax, track([10, 10, 10]));
+    expect(v[0]).toBeCloseTo(36, 0);
+    expect(v[100]).toBeCloseTo(36, 0);
+    expect(v[200]).toBeCloseTo(36, 0);
+    expect(Math.min(...Array.from(v.slice(100, 200)))).toBeCloseTo(28.8, 0);
+    expect(v[140]).toBeCloseTo(28.8, 0);
+  });
+
+  it("spreads a constant bias — a slope's gravity — so the fixes still hold", () => {
+    // A 10 % descent reads −0.98 m/s² on the forward axis the whole time,
+    // yet the GPS says the speed is steady: the residual absorbs it and
+    // the fused speed stays flat.
+    const ax = new Float32Array(n).fill(-0.1);
+    const v = fusedSpeedKmhSeries(tMs, ax, track([8, 8, 8]));
+    for (const i of [0, 50, 100, 150, 250]) expect(v[i]).toBeCloseTo(28.8, 0);
+  });
+
+  it("is the plain resample without a forward axis, and never negative", () => {
+    const plain = fusedSpeedKmhSeries(tMs, null, track([2, 3, 4]));
+    expect(Array.from(plain)).toEqual(
+      Array.from(speedKmhSeries(tMs, track([2, 3, 4]))),
+    );
+    const ax = new Float32Array(n).fill(-1);
+    const v = fusedSpeedKmhSeries(tMs, ax, track([0.5, 0, 0]));
+    for (const x of v) expect(x).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("curveMomentum", () => {
+  // 100 Hz, 20 s. Two corners: one at 5–7 s, one at 12–14 s. The speed
+  // (km/h) peaks at 31 before the first, dips to 19 in it, peaks at 29
+  // between the two, dips to 12 in the second, and climbs to 24 after.
+  const n = 2000;
+  const tMs = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+  const speed = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i / 100;
+    speed[i] =
+      t < 3
+        ? 25
+        : t < 4
+          ? 31
+          : t < 6
+            ? 19
+            : t < 9
+              ? 29
+              : t < 13
+                ? 12
+                : t < 16
+                  ? 24
+                  : 20;
+  }
+  const curves = [
+    { startMs: 5000, endMs: 7000 },
+    { startMs: 12000, endMs: 14000 },
+  ];
+
+  it("reads entry, minimum and exit and the two ratios", () => {
+    const first = curveMomentum(tMs, speed, curves, 0)!;
+    expect(first.entryKmh).toBe(31);
+    expect(first.minKmh).toBe(19);
+    expect(first.exitKmh).toBe(29);
+    expect(first.retention).toBeCloseTo(29 / 31, 3);
+    expect(first.apexLoss).toBeCloseTo(1 - 19 / 31, 3);
+    const second = curveMomentum(tMs, speed, curves, 1)!;
+    expect(second.entryKmh).toBe(29);
+    expect(second.minKmh).toBe(12);
+    expect(second.exitKmh).toBe(24);
+  });
+
+  it("stops the exit window at the next corner and the entry at the previous one", () => {
+    // The 29 between the two is the first's exit AND the second's entry;
+    // the first must not reach the 24 past the second corner, nor the
+    // second reach back to the 31.
+    const close = [
+      { startMs: 5000, endMs: 7000 },
+      { startMs: 8000, endMs: 14000 },
+    ];
+    const first = curveMomentum(tMs, speed, close, 0)!;
+    expect(first.exitKmh).toBe(29);
+    expect(first.exitMs).toBeLessThanOrEqual(8000);
+    const second = curveMomentum(tMs, speed, close, 1)!;
+    expect(second.entryKmh).toBe(29);
+    expect(second.entryMs).toBeGreaterThanOrEqual(7000);
+  });
+
+  it("declines a corner rolled into from near standstill", () => {
+    const crawl = new Float32Array(n).fill(3);
+    expect(curveMomentum(tMs, crawl, curves, 0)).toBeNull();
+  });
+
+  it("takes the hill's free speed out of the corrected retention", () => {
+    // A steady 28.8 km/h (8 m/s) through a corner at 5–7 s, entry and exit
+    // both at 8 m/s: raw retention 100 %. GPS at 1 Hz on a 10 % descent —
+    // 8 m of ground and 0.8 m of height a second, with a metre of wander on
+    // the altitude that the regression must see through.
+    const m = 20;
+    const wander = [0.4, -0.6, 0.9, -0.2, -0.8, 0.5, 0.1, -0.9, 0.7, -0.3];
+    const gps: GpsChannels = {
+      tMs: new Float64Array(Array.from({ length: m }, (_, s) => s * 1000)),
+      latDeg: new Float64Array(m).fill(37),
+      lonDeg: new Float64Array(m).fill(-7),
+      altitudeM: new Float32Array(
+        Array.from({ length: m }, (_, s) => 300 - 0.8 * s + wander[s % 10]),
+      ),
+      speedMps: new Float32Array(m).fill(8),
+      headingDeg: new Float32Array(m),
+      distanceM: new Float32Array(m).fill(NaN),
+      hAccM: new Float32Array(m).fill(NaN),
+    };
+    const steady = new Float32Array(n).fill(28.8);
+    const one = [{ startMs: 5000, endMs: 7000 }];
+    const mo = curveMomentum(tMs, steady, one, 0, gps)!;
+    expect(mo.retention).toBeCloseTo(1, 3);
+    // At a steady speed the peak is the first sample of each window: entry
+    // at 1 s, exit at 7 s — 48 m of ground, 4.8 m of drop, give or take the
+    // wander's leftover.
+    expect(mo.dropM).toBeGreaterThan(4);
+    expect(mo.dropM).toBeLessThan(5.6);
+    // Gravity alone would have made 8 m/s into √(64 + 2·9.81·4.8) ≈ 12.6
+    // m/s; holding 8 is keeping about 64 % of that.
+    expect(mo.retentionCorrected).toBeGreaterThan(0.6);
+    expect(mo.retentionCorrected).toBeLessThan(0.68);
+    // On the flat there is nothing to correct, and uphill the legs decide:
+    // the raw figure stands alone, the drop still signed.
+    const flat = { ...gps, altitudeM: new Float32Array(m).fill(300) };
+    const level = curveMomentum(tMs, steady, one, 0, flat)!;
+    expect(level.dropM).toBeCloseTo(0, 5);
+    expect(level.retentionCorrected).toBeNull();
+    const climb = {
+      ...gps,
+      altitudeM: new Float32Array(
+        Array.from({ length: m }, (_, s) => 300 + 0.8 * s),
+      ),
+    };
+    const rise = curveMomentum(tMs, steady, one, 0, climb)!;
+    expect(rise.dropM).toBeLessThan(-4);
+    expect(rise.retentionCorrected).toBeNull();
+    // And without a track there is no correction to claim.
+    expect(curveMomentum(tMs, steady, one, 0)!.retentionCorrected).toBeNull();
   });
 });
 
