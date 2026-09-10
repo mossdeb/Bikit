@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Camera } from "lucide-react";
+import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import type { ImuSessionData } from "@/lib/imu/format";
@@ -193,7 +193,7 @@ export function ImuReportSnapshots({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2 px-1">
-        <Camera className="size-5 text-foreground" strokeWidth={1.75} />
+        <ImuSnapshotGlyph className="size-5 text-foreground" sizePx={20} />
         <h2 className="font-display text-lg font-semibold">Snapshots</h2>
         <span className="text-sm text-muted-foreground">
           {shown.length === 1

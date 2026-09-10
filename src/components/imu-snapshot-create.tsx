@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera } from "lucide-react";
+import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -96,7 +96,7 @@ export function ImuSnapshotCreate({
         title="Guardar este troço como Snapshot e comparar todas as passagens"
         className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-muted px-3 text-sm font-medium text-foreground transition-colors hover:bg-foreground hover:text-background"
       >
-        <Camera className="size-3.5" />
+        <ImuSnapshotGlyph className="size-3.5" sizePx={14} />
         Snapshot
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

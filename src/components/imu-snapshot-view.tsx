@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Ellipsis, Trash2 } from "lucide-react";
+import { Ellipsis, Trash2 } from "lucide-react";
+import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
@@ -392,7 +393,7 @@ export function ImuSnapshotView({
             corner: the map stops short of it (`sm:mr-12`). */}
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:px-6 sm:py-6">
           <div className="min-w-0 pr-10 sm:pr-0">
-            <Camera className="size-7 text-foreground" strokeWidth={1.5} />
+            <ImuSnapshotGlyph className="size-7 text-foreground" sizePx={28} />
             <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
               Snapshot · {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
             </p>
