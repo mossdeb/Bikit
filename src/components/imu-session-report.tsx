@@ -9,6 +9,11 @@ import { formatSessionTime } from "@/lib/imu/derive";
 import { buildSessionReport, type ReportSection } from "@/lib/imu/report";
 import { useImuSession } from "@/lib/imu/use-imu-session";
 import { ImuClockIcon } from "@/components/imu-event-icons";
+import { ImuReportSnapshots } from "@/components/imu-report-snapshots";
+import type {
+  ImuSnapshotCandidate,
+  ImuSnapshotRow,
+} from "@/components/imu-snapshot-view";
 
 /**
  * The session's report: the recording read as three answers — rider, bike,
@@ -24,11 +29,19 @@ export function ImuSessionReport({
   storagePath,
   mountOrientation = null,
   header,
+  session,
+  snapshots,
+  referenceSessions,
 }: {
   storagePath: string;
   mountOrientation?: ImuMountOrientation | null;
   /** The session's identity, rendered by the page. */
   header: ReactNode;
+  /** This recording as a Snapshot line names it, the Snapshots whose gates
+   * its track comes near, and the sessions their references live in. */
+  session: ImuSnapshotCandidate;
+  snapshots: ImuSnapshotRow[];
+  referenceSessions: Record<string, ImuSnapshotCandidate>;
 }) {
   const { data, error } = useImuSession(storagePath, mountOrientation);
   const report = useMemo(
@@ -55,6 +68,17 @@ export function ImuSessionReport({
           <SectionCard section={report.bike} />
           <SectionCard section={report.trail} />
         </div>
+      )}
+      {/* The Snapshots this recording passes through, under the three
+          cards (by request, 2026-09-10). Draws nothing when it passes none:
+          a heading over an empty list would be a label for nothing. */}
+      {data && snapshots.length > 0 && (
+        <ImuReportSnapshots
+          data={data}
+          session={session}
+          snapshots={snapshots}
+          referenceSessions={referenceSessions}
+        />
       )}
     </div>
   );

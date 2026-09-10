@@ -5,14 +5,29 @@ import { formatDate } from "@/lib/format";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionReport } from "@/components/imu-session-report";
+import type {
+  ImuSnapshotCandidate,
+  ImuSnapshotRow,
+} from "@/components/imu-snapshot-view";
+import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import {
+  isSnapshotDefinition,
+  isTrackIndex,
+  trackIndexMayPass,
+} from "@/lib/imu/snapshot";
 
 /**
  * Lab: one IMU session's report — the recording read as rider, bike and
- * trail. Same gate and the same row as the analysis page; the file itself
- * is downloaded by the client component from Storage, where RLS guards it
- * a second time. The back chevron in the app header returns to the
- * analysis (HeaderBackButton has this route).
+ * trail, and under them the Snapshots it passes through. Same gate and the
+ * same row as the analysis page; the file itself is downloaded by the
+ * client component from Storage, where RLS guards it a second time. The
+ * back chevron in the app header returns to the analysis (HeaderBackButton
+ * has this route).
+ *
+ * The Snapshots handed over are the ones whose gates this track's index
+ * comes near — the file decides which it passes. With them go the
+ * sessions their references live in, for the client to read once.
  */
 export default async function ImuSessionReportPage({
   params,
@@ -26,15 +41,85 @@ export default async function ImuSessionReportPage({
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
 
+  const sessionColumns =
+    "id, name, rider_name, bike_id, group_id, mount_orientation, created_at, sample_rate_hz, sample_count, storage_path, track_index";
   const { data: session } = await supabase
     .from("imu_sessions")
-    .select(
-      "id, name, rider_name, mount_orientation, created_at, sample_rate_hz, sample_count, storage_path",
-    )
+    .select(sessionColumns)
     .eq("id", sessionId)
     .eq("user_id", userId)
     .single();
   if (!session) notFound();
+
+  const [{ data: snapshotRows }, { data: bikes }, { data: groups }] =
+    await Promise.all([
+      supabase
+        .from("imu_snapshots")
+        .select(
+          "id, name, definition, reference_session_id, reference_entry_ms, reference_exit_ms, created_at",
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase.from("bikes").select("id, name").eq("user_id", userId),
+      supabase
+        .from("imu_session_groups")
+        .select("id, name, day")
+        .eq("user_id", userId),
+    ]);
+  const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
+  const groupById = new Map(
+    (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
+  );
+  type SessionRow = NonNullable<typeof session>;
+  const candidateOf = (s: SessionRow): ImuSnapshotCandidate => ({
+    id: s.id,
+    name: s.name,
+    riderName: s.rider_name,
+    bikeId: s.bike_id,
+    bikeName: s.bike_id ? (bikeById.get(s.bike_id) ?? null) : null,
+    groupLabel: s.group_id ? (groupById.get(s.group_id) ?? null) : null,
+    createdAt: s.created_at,
+    storagePath: s.storage_path,
+    mountOrientation:
+      s.mount_orientation as unknown as ImuMountOrientation | null,
+  });
+
+  const index = isTrackIndex(session.track_index) ? session.track_index : null;
+  const snapshots: ImuSnapshotRow[] = (snapshotRows ?? [])
+    .filter(
+      (row) =>
+        isSnapshotDefinition(row.definition) &&
+        (row.reference_session_id === session.id ||
+          (index != null && trackIndexMayPass(index, row.definition))),
+    )
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      // Narrowed by the filter above; the type does not carry it over.
+      definition: row.definition as never,
+      referenceSessionId: row.reference_session_id,
+      referenceEntryMs: row.reference_entry_ms,
+      referenceExitMs: row.reference_exit_ms,
+      createdAt: row.created_at,
+    }));
+
+  // The other sessions the references live in — one query for all.
+  const referenceIds = [
+    ...new Set(
+      snapshots
+        .map((s) => s.referenceSessionId)
+        .filter((id): id is string => id != null && id !== session.id),
+    ),
+  ];
+  const referenceSessions: Record<string, ImuSnapshotCandidate> = {};
+  if (referenceIds.length > 0) {
+    const { data: rows } = await supabase
+      .from("imu_sessions")
+      .select(sessionColumns)
+      .eq("user_id", userId)
+      .in("id", referenceIds);
+    for (const row of rows ?? []) referenceSessions[row.id] = candidateOf(row);
+  }
 
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
@@ -44,6 +129,9 @@ export default async function ImuSessionReportPage({
         mountOrientation={
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
+        session={candidateOf(session)}
+        snapshots={snapshots}
+        referenceSessions={referenceSessions}
         header={
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
