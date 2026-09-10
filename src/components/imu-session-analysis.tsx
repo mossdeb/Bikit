@@ -3208,8 +3208,20 @@ function EventCard({
               two empty tracks — and an empty track over a `bg-border` band
               is a grey slab, which is exactly what it looked like. Flex has
               no phantom cells: the last row holds only what is in it, and
-              the one that is left stretches to the width. `basis-[140px]`
-              with grow is what decides how many share a row. */}
+              the one that is left stretches to the width. How many share a
+              row is a share of the CARD's width — one, two from 512px,
+              three from 768px, and all six on one row from 1240px, the 1px
+              taken off each for the gaps — so a wide
+              card reads 3 + 3 and a full-width one a single row (by
+              request, 2026-09-10: a 140px basis packed four into the first
+              row and two into the second). 1240 is measured: the widest
+              cell — "24 → 18 → 24 km/h" over "Entrada → mín → saída", with
+              its mark and padding — needs ~205px, and six of those is 1230.
+              Measured against the card and not the window: the reading's
+              split is dragged by hand. All three steps are written as
+              `@min-[…]` and not as `@lg`/`@3xl`: Tailwind emits the named
+              ones AFTER an arbitrary one, so at 1282px the 33% rule came
+              later in the sheet and beat the 16% one that also matched. */}
           {plain.length > 0 && (
             <div
               // `bg-clip-padding`, and it is what keeps every rule the same
@@ -3225,14 +3237,19 @@ function EventCard({
               {plain.map((metric) => (
                 <div
                   key={metric.label}
-                  className="flex flex-1 basis-[140px] items-center gap-3 bg-card px-5 py-6"
+                  className="flex grow basis-full items-center gap-3 bg-card px-5 py-6 @min-[512px]:basis-[calc(50%-1px)] @min-[768px]:basis-[calc(33.333%-1px)] @min-[1240px]:basis-[calc(16.666%-1px)]"
                 >
                   {/* All or none: see EventMetric.Icon. */}
                   {allPlainMarked && metric.Icon && (
                     <metric.Icon className="size-5 shrink-0 text-muted-foreground" />
                   )}
-                  <div className="min-w-0">
-                    <p className="leading-tight font-semibold tabular-nums">
+                  {/* No `min-w-0` here, and the figure does not wrap: the
+                      unit stays on the numbers' line — "24 → 18 → 24 km/h"
+                      had been breaking before "km/h" (by request,
+                      2026-09-10) — and the cell grows to fit it, which the
+                      wrapping band absorbs by reflowing the others. */}
+                  <div>
+                    <p className="leading-tight font-semibold whitespace-nowrap tabular-nums">
                       {metric.value}
                       {metric.unit && (
                         <span className="text-sm font-normal text-muted-foreground">
@@ -3241,7 +3258,7 @@ function EventCard({
                         </span>
                       )}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {metric.label}
                     </p>
                   </div>
@@ -3252,10 +3269,10 @@ function EventCard({
 
           {/* The peaks — the modules with an "agora" and a bar — as a second
               band of cells under their own rule, the same idiom as the facts
-              (the supplied layout). Wrapping flex for the same reason: as
-              many per row as the card's width holds, 240px each at least —
-              the 22px figure, the reading beside it, and a bar that reads
-              as a bar — and the last row holds only what is in it. */}
+              (the supplied layout). Wrapping flex for the same reason, and
+              the same shares of the card's width as the facts — one, two
+              from 512px, three from 768px — so the three modules sit on one
+              row wherever the facts do, and a partial last row stretches. */}
           {compared.length > 0 && (
             <div
               // `bg-clip-padding`, and it is what keeps every rule the same
@@ -3271,7 +3288,7 @@ function EventCard({
               {compared.map((metric) => (
                 <div
                   key={metric.label}
-                  className="min-w-0 flex-1 basis-[240px] bg-card px-5 py-7"
+                  className="min-w-0 grow basis-full bg-card px-5 py-7 @min-[512px]:basis-[calc(50%-1px)] @min-[768px]:basis-[calc(33.333%-1px)]"
                 >
                   <p className="text-sm text-muted-foreground">
                     {metric.label}
