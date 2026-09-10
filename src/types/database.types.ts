@@ -406,6 +406,50 @@ export type Database = {
         }
         Relationships: []
       }
+      imu_snapshots: {
+        Row: {
+          created_at: string
+          definition: Json
+          id: string
+          kind: string
+          name: string
+          reference_entry_ms: number
+          reference_exit_ms: number
+          reference_session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          definition: Json
+          id?: string
+          kind: string
+          name: string
+          reference_entry_ms: number
+          reference_exit_ms: number
+          reference_session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          definition?: Json
+          id?: string
+          kind?: string
+          name?: string
+          reference_entry_ms?: number
+          reference_exit_ms?: number
+          reference_session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imu_snapshots_reference_session_id_fkey"
+            columns: ["reference_session_id"]
+            isOneToOne: false
+            referencedRelation: "imu_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imu_sessions: {
         Row: {
           airtime_ms: number

@@ -13,8 +13,8 @@ import { withBikeFrameEvents } from "./events";
 /**
  * A session's file, downloaded from Storage, parsed, and read in the bike's
  * frame with the frame-dependent events added — the one way every page
- * that shows a recording gets it, so the analysis and the report agree to
- * the sample.
+ * that shows a recording gets it, so the analysis, the report and a
+ * Snapshot's passes agree to the sample.
  *
  * A file that carries the logger's full orientation (V13.5's two-step
  * calibration) — or a session lent one from another recording with the
@@ -25,6 +25,33 @@ import { withBikeFrameEvents } from "./events";
  * confident — see alignSession. Then the events that need the bike's frame,
  * curves and braking, are added to the norm-based ones the parser found.
  */
+export async function loadImuSession(
+  storagePath: string,
+  mountOrientation: ImuMountOrientation | null,
+): Promise<
+  { data: ImuSessionData; error: null } | { data: null; error: string }
+> {
+  const supabase = createClient();
+  const { data: blob, error } = await supabase.storage
+    .from("imu-sessions")
+    .download(storagePath);
+  if (error || !blob) {
+    return {
+      data: null,
+      error: `Não foi possível descarregar o ficheiro: ${error?.message ?? "sem resposta"}.`,
+    };
+  }
+  // Bytes, not text — the stored object may be the logger's .BKT binary
+  // as well as JSON; the dispatcher tells them apart by the magic.
+  const result = parseImuBytes(await blob.arrayBuffer());
+  if (!result.ok) return { data: null, error: result.error };
+  return {
+    data: withBikeFrameEvents(alignSession(result.session, mountOrientation)),
+    error: null,
+  };
+}
+
+/** loadImuSession as a hook, for a page that shows one session. */
 export function useImuSession(
   storagePath: string,
   mountOrientation: ImuMountOrientation | null,
@@ -35,28 +62,10 @@ export function useImuSession(
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const { data: blob, error } = await supabase.storage
-        .from("imu-sessions")
-        .download(storagePath);
+      const result = await loadImuSession(storagePath, mountOrientation);
       if (cancelled) return;
-      if (error || !blob) {
-        setError(
-          `Não foi possível descarregar o ficheiro: ${error?.message ?? "sem resposta"}.`,
-        );
-        return;
-      }
-      // Bytes, not text — the stored object may be the logger's .BKT binary
-      // as well as JSON; the dispatcher tells them apart by the magic.
-      const result = parseImuBytes(await blob.arrayBuffer());
-      if (cancelled) return;
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setData(
-        withBikeFrameEvents(alignSession(result.session, mountOrientation)),
-      );
+      if (result.error) setError(result.error);
+      else setData(result.data);
     })();
     return () => {
       cancelled = true;

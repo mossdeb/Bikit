@@ -48,6 +48,13 @@ const MOBILE_BACK_ROUTES: {
     backHref: (m) => `/labs/imu/${m[1]}`,
     alsoDesktop: true,
   },
+  // A Snapshot lives under the session it was made from, and back is that
+  // session's report — where the Snapshot is listed (by request).
+  {
+    re: /^\/labs\/imu\/([^/]+)\/snapshots\/[^/]+$/,
+    backHref: (m) => `/labs/imu/${m[1]}/relatorio`,
+    alsoDesktop: true,
+  },
   {
     re: /^\/bikes\/([^/]+)\/components\/new$/,
     backHref: (m) => `/bikes/${m[1]}`,

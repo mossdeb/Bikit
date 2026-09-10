@@ -44,6 +44,8 @@ import {
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
 import { useImuSession } from "@/lib/imu/use-imu-session";
+import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
+import { ImuSnapshotCreate } from "@/components/imu-snapshot-create";
 import type {
   GpsChannels,
   ImuEvent,
@@ -739,12 +741,15 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
  * downsampling only ever touches what is drawn.
  */
 export function ImuSessionAnalysis({
+  sessionId,
   storagePath,
   riderName,
   header,
   reportHref,
   mountOrientation = null,
 }: {
+  /** The row's id — what a Snapshot made from this recording points at. */
+  sessionId: string;
   storagePath: string;
   /** Where the session's report lives — the résumé's last tile is the way
    * there (by request, 2026-09-10: a pill in the header corner sat on the
@@ -857,6 +862,13 @@ export function ImuSessionAnalysis({
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
   const gForce = useMemo(() => (data ? gForceOf(data) : null), [data]);
+  // The session as a Snapshot reads it — its track and the speed the
+  // figures come from — made once, for the "Snapshot" button on an event's
+  // card to turn that event into gates without rereading the file.
+  const snapshotSession = useMemo(
+    () => (data?.gps ? prepareSnapshotSession(data) : null),
+    [data],
+  );
 
   const seriesValues = useMemo(() => {
     if (!data || !gForce) return null;
@@ -2358,6 +2370,23 @@ export function ImuSessionAnalysis({
                       timeMs={tMs[cursorIndex]}
                       outsideMs={primaryOffsetMs}
                       confidence={primaryEvent?.confidence ?? null}
+                      // "Snapshot" on an event the cursor is INSIDE, when
+                      // the recording has a track to put gates on. Not on
+                      // the ghost card outside the event — that one is a
+                      // neighbour's, and a Snapshot made from it would be
+                      // of a corner the cursor is not in.
+                      action={
+                        snapshotSession &&
+                        primaryEvent &&
+                        primaryOffsetMs === 0 &&
+                        snapshotKindOf(primaryEvent) ? (
+                          <ImuSnapshotCreate
+                            prepared={snapshotSession}
+                            event={primaryEvent}
+                            sessionId={sessionId}
+                          />
+                        ) : undefined
+                      }
                       metrics={
                         primaryDesc
                           ? primaryDesc.metrics
@@ -3025,6 +3054,7 @@ function EventCard({
   confidence,
   metrics,
   className,
+  action,
 }: {
   /** Null for an instant no event covers: the card drops the headline and
    * promotes the time into its place. */
@@ -3040,6 +3070,9 @@ function EventCard({
   confidence: number | null;
   metrics: EventMetric[];
   className?: string;
+  /** A control that acts on the event — the Snapshot button — placed at
+   * the head's far end, before the confidence. */
+  action?: ReactNode;
 }) {
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
@@ -3136,17 +3169,22 @@ function EventCard({
             )}
           </div>
         </div>
-        {confidence != null && (
-          // Named, not just a bare percentage: on its own in the corner of a
-          // card, "98%" reads as a share of something the card is about — how
-          // much of the ride was a jump, say — when it is the detector's own
-          // certainty that this IS a jump.
-          <span className="shrink-0 text-sm text-muted-foreground">
-            Confiança{" "}
-            <span className="tabular-nums">
-              {Math.round(confidence * 100)}%
-            </span>
-          </span>
+        {(action || confidence != null) && (
+          <div className="flex shrink-0 items-center gap-3">
+            {action}
+            {confidence != null && (
+              // Named, not just a bare percentage: on its own in the corner
+              // of a card, "98%" reads as a share of something the card is
+              // about — how much of the ride was a jump, say — when it is
+              // the detector's own certainty that this IS a jump.
+              <span className="text-sm text-muted-foreground">
+                Confiança{" "}
+                <span className="tabular-nums">
+                  {Math.round(confidence * 100)}%
+                </span>
+              </span>
+            )}
+          </div>
         )}
         {/* The titleless card's figure rides the head's far end instead of
             going down into a box of its own. An instant no event covers

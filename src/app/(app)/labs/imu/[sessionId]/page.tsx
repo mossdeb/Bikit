@@ -86,6 +86,7 @@ export default async function ImuSessionPage({
           A server node passed as a prop keeps its own props but does receive
           context, the same arrangement the install invite uses. */}
       <ImuSessionAnalysis
+        sessionId={session.id}
         storagePath={session.storage_path}
         riderName={session.rider_name}
         reportHref={`/labs/imu/${session.id}/relatorio`}

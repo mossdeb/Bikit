@@ -2,7 +2,8 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Crosshair, Minus, Plus } from "lucide-react";
+import { Crosshair, Minus, Plus } from "lucide-react";
+import { ImuMapNorthBadge } from "@/components/imu-map-north-badge";
 import type {
   CircleMarker,
   LatLngBounds,
@@ -1029,20 +1030,9 @@ export function ImuSessionMap({
       )}
 
       {/* Which way north went, since the map no longer promises north-up.
-          Fixed colours like the rest of the lab's map marks — the satellite
-          under it never changes with the theme. The arrow alone rotates;
-          the letter stays upright and readable. */}
+          Above Leaflet's panes (z 1100), like the map's other controls. */}
       {northDeg != null && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute top-2 right-2 z-[1100] flex size-7 flex-col items-center justify-center rounded-full bg-white/90 text-[#1c1c1c] shadow-sm"
-        >
-          <ArrowUp
-            className="size-3"
-            style={{ transform: `rotate(${northDeg}deg)` }}
-          />
-          <span className="text-[9px] leading-none font-semibold">N</span>
-        </span>
+        <ImuMapNorthBadge northDeg={northDeg} className="z-[1100]" />
       )}
 
       {/* The place name, in the bottom-right corner. It rides just above
