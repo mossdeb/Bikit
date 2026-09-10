@@ -88,6 +88,7 @@ export default async function ImuSessionPage({
       <ImuSessionAnalysis
         storagePath={session.storage_path}
         riderName={session.rider_name}
+        reportHref={`/labs/imu/${session.id}/relatorio`}
         // An orientation lent by another session, when this file has none
         // of its own; the shape is what setGroupMountOrientation stored.
         mountOrientation={

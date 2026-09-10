@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +11,7 @@ import {
   Bike,
   Check,
   ChevronDown,
+  FileText,
   Gauge,
   Info,
   Minus,
@@ -23,7 +23,12 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DARK_CARD_HAIRLINE, DARK_CARD_HAIRLINE_SM } from "@/lib/card-styles";
+import Link from "next/link";
+import {
+  CLICKABLE_CARD_HOVER,
+  DARK_CARD_HAIRLINE,
+  DARK_CARD_HAIRLINE_SM,
+} from "@/lib/card-styles";
 import {
   Popover,
   PopoverContent,
@@ -38,21 +43,18 @@ import {
   JumpIcon,
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
-import { createClient } from "@/lib/supabase/client";
-import { withBikeFrameEvents } from "@/lib/imu/events";
-import {
-  parseImuBytes,
-  type GpsChannels,
-  type ImuEvent,
-  type ImuMountOrientation,
-  type ImuSessionData,
+import { useImuSession } from "@/lib/imu/use-imu-session";
+import type {
+  GpsChannels,
+  ImuEvent,
+  ImuMountOrientation,
+  ImuSessionData,
 } from "@/lib/imu/format";
 import {
   altitudeMSeries,
   EVENT_REACH_MS,
   eventsNear,
   formatSessionTime,
-  alignSession,
   gForceOf,
   gpsDistance,
   gpsMeanSpeed,
@@ -740,9 +742,15 @@ export function ImuSessionAnalysis({
   storagePath,
   riderName,
   header,
+  reportHref,
   mountOrientation = null,
 }: {
   storagePath: string;
+  /** Where the session's report lives — the résumé's last tile is the way
+   * there (by request, 2026-09-10: a pill in the header corner sat on the
+   * tiles from `2xl`, and the résumé is where the session's figures are,
+   * so the reading of them belongs at its end). */
+  reportHref: string;
   /** An orientation copied from another session (setGroupMountOrientation),
    * used when the file carries none of its own. */
   mountOrientation?: ImuMountOrientation | null;
@@ -757,8 +765,12 @@ export function ImuSessionAnalysis({
    * here, where both halves are in hand. */
   header: ReactNode;
 }) {
-  const [data, setData] = useState<ImuSessionData | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // The file, downloaded, parsed and read in the bike's frame — the same
+  // hook the report page uses, so the two pages never disagree.
+  const { data, error: loadError } = useImuSession(
+    storagePath,
+    mountOrientation,
+  );
 
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
     new Set(["gforce"]),
@@ -842,46 +854,6 @@ export function ImuSessionAnalysis({
     startW: number;
     maxW: number;
   } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const supabase = createClient();
-      const { data: blob, error } = await supabase.storage
-        .from("imu-sessions")
-        .download(storagePath);
-      if (cancelled) return;
-      if (error || !blob) {
-        setLoadError(
-          `Não foi possível descarregar o ficheiro: ${error?.message ?? "sem resposta"}.`,
-        );
-        return;
-      }
-      // Bytes, not text — the stored object may be the logger's .BKT binary
-      // as well as JSON; the dispatcher tells them apart by the magic.
-      const result = parseImuBytes(await blob.arrayBuffer());
-      if (cancelled) return;
-      if (!result.ok) {
-        setLoadError(result.error);
-        return;
-      }
-      // A file that carries the logger's full orientation (V13.5's two-step
-      // calibration) — or a session lent one from another recording with
-      // the sensor in the same place — is read in the bike's frame
-      // outright: up, front and left are all known, and nothing is
-      // estimated from the ride. The file's own record wins over the copy.
-      // Otherwise the calibration puts gravity on +Z and the ride's GPS
-      // votes for forward, applied only when confident — see alignSession.
-      // Then the events that need the bike's frame, curves and braking,
-      // are added to the norm-based ones the parser found.
-      setData(
-        withBikeFrameEvents(alignSession(result.session, mountOrientation)),
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [storagePath, mountOrientation]);
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
   const gForce = useMemo(() => (data ? gForceOf(data) : null), [data]);
@@ -1610,64 +1582,92 @@ export function ImuSessionAnalysis({
               white. Same token, two intensities. An opaque white plate under
               the grid puts them back on the same backdrop, and with it the
               same colour. */}
-          <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
-            <div
-              className={cn(
-                "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
-                summary.distanceM != null
-                  ? "sm:grid-cols-4 lg:grid-cols-8"
-                  : "sm:grid-cols-6",
-              )}
-            >
-              <Stat
-                Icon={StatClockIcon}
-                label="Duração"
-                value={formatSessionTime(summary.durationMs)}
-              />
-              {/* The ride-level GPS figures ride next to the duration —
+          {/* The figures' plate and the report's tile side by side from `lg`,
+              22px apart — the lab's channel — and stacked below, the same
+              22px between. Two cards and not one grid with a ninth cell
+              (by request, 2026-09-10): the report is a door, not a figure,
+              and as a cell it wore the plate's rules and shared its corners;
+              on its own it gets four corners of its own. */}
+          <div className="flex flex-col gap-[22px] lg:flex-row lg:items-stretch">
+            <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card lg:min-w-0 lg:flex-1">
+              <div
+                className={cn(
+                  "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
+                  summary.distanceM != null
+                    ? "sm:grid-cols-4 lg:grid-cols-8"
+                    : "sm:grid-cols-6",
+                )}
+              >
+                <Stat
+                  Icon={StatClockIcon}
+                  label="Duração"
+                  value={formatSessionTime(summary.durationMs)}
+                />
+                {/* The ride-level GPS figures ride next to the duration —
                   the three answer "how much ride" before the rest answer
                   "how hard". Lucide marks for now; the supplied art set has
                   no distance or speedometer glyph yet. */}
-              {summary.distanceM != null && (
+                {summary.distanceM != null && (
+                  <Stat
+                    Icon={StatRouteIcon}
+                    label="Distância"
+                    value={formatTrackDistance(summary.distanceM)}
+                  />
+                )}
+                {summary.maxSpeedKmh != null && (
+                  <Stat
+                    Icon={StatGaugeIcon}
+                    label="Vel. máx"
+                    value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                  />
+                )}
                 <Stat
-                  Icon={StatRouteIcon}
-                  label="Distância"
-                  value={formatTrackDistance(summary.distanceM)}
+                  Icon={StatMetricIcon}
+                  label="G máx"
+                  value={summary.maxG.toFixed(2)}
                 />
-              )}
-              {summary.maxSpeedKmh != null && (
                 <Stat
-                  Icon={StatGaugeIcon}
-                  label="Vel. máx"
-                  value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                  Icon={StatImpactIcon}
+                  label="Impactos"
+                  value={String(summary.impactCount)}
                 />
-              )}
-              <Stat
-                Icon={StatMetricIcon}
-                label="G máx"
-                value={summary.maxG.toFixed(2)}
-              />
-              <Stat
-                Icon={StatImpactIcon}
-                label="Impactos"
-                value={String(summary.impactCount)}
-              />
-              <Stat
-                Icon={StatTurnIcon}
-                label="Curvas"
-                value={String(summary.curveCount)}
-              />
-              <Stat
-                Icon={StatJumpIcon}
-                label="Saltos"
-                value={String(summary.jumpCount)}
-              />
-              <Stat
-                Icon={StatStopwatchIcon}
-                label="No ar"
-                value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
-              />
+                <Stat
+                  Icon={StatTurnIcon}
+                  label="Curvas"
+                  value={String(summary.curveCount)}
+                />
+                <Stat
+                  Icon={StatJumpIcon}
+                  label="Saltos"
+                  value={String(summary.jumpCount)}
+                />
+                <Stat
+                  Icon={StatStopwatchIcon}
+                  label="No ar"
+                  value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+                />
+              </div>
             </div>
+            {/* The report's own card: the session read as rider, bike and
+              trail. A card from `sm`, like the plate beside it; a plain row
+              on a phone, where the figures are plain rows too. From `lg` it
+              stands beside the plate and stretches to its height. */}
+            <Link
+              href={reportHref}
+              className={cn(
+                "flex items-center gap-2.5 sm:flex-col sm:justify-center sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:bg-card sm:px-6 sm:py-4 sm:text-center lg:shrink-0",
+                CLICKABLE_CARD_HOVER,
+              )}
+            >
+              <FileText
+                strokeWidth={1.5}
+                className="h-5 w-5 shrink-0 text-muted-foreground"
+              />
+              {/* The word alone: the mark says what it opens, and a "Ver"
+                  above it read as a label the figures' tiles have and this
+                  one does not need (by request, 2026-09-10). */}
+              <p className="leading-tight font-semibold">Relatório</p>
+            </Link>
           </div>
         </div>
       }
@@ -2138,8 +2138,16 @@ export function ImuSessionAnalysis({
                   from the first — the rule the Rider panel already carries.
                   Below `lg` they stay plain rows told apart by a rule. */}
               <div ref={readLeftRef} className="min-w-0">
+                {/* The outline stands only where the half does: from `lg`,
+                    where the two halves sit side by side and an empty left
+                    one would otherwise be a hole with the handle floating
+                    in it. Stacked, below `lg`, the event card simply moves
+                    up; a dashed box saying "no metrics" above it was 128px
+                    of nothing to scroll past (by request, 2026-09-10). */}
                 {activeSeriesDefs.length === 0 && (
-                  <ReadingPlaceholder>Sem métricas ligadas</ReadingPlaceholder>
+                  <ReadingPlaceholder className="hidden lg:flex">
+                    Sem métricas ligadas
+                  </ReadingPlaceholder>
                 )}
                 {[
                   {
@@ -2316,7 +2324,11 @@ export function ImuSessionAnalysis({
                   handle that splits the two. */}
               <div
                 className={cn(
-                  "mt-5 lg:relative lg:mt-0",
+                  // No top margin stacked when there is nothing above to
+                  // stand apart from — the metrics half is empty and its
+                  // outline hidden below `lg`.
+                  activeSeriesDefs.length > 0 && "mt-5",
+                  "lg:relative lg:mt-0",
                   // The same `auto-fit` the channels use, against the same
                   // floor: a half wide enough for two event cards side by
                   // side gets them, and the cards themselves never had to
@@ -2810,7 +2822,15 @@ const GAUGE_BOX = "h-5 min-w-10 max-w-56 flex-1";
  * the reader wonder what broke; what it says is what the menu that emptied it
  * says, so the two agree.
  */
-function ReadingPlaceholder({ children }: { children: React.ReactNode }) {
+function ReadingPlaceholder({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  /** Extra classes — the metrics half hides its outline below `lg`. Placed
+   * after the base so a `hidden lg:flex` wins over the `flex`. */
+  className?: string;
+}) {
   return (
     // Fills its half, whatever the reader has left it — the width is not
     // this box's to decide. It was pinned at 200 for a while, and the pin was
@@ -2818,7 +2838,12 @@ function ReadingPlaceholder({ children }: { children: React.ReactNode }) {
     // that half down to 200px (READ_MIN_W_EMPTY), the outline can simply
     // follow it and the same 200 stops being written in two places to mean
     // two different things.
-    <div className="flex min-h-[128px] w-full items-center justify-center rounded-[12px] border border-dashed border-input px-5 text-center text-sm text-muted-foreground">
+    <div
+      className={cn(
+        "flex min-h-[128px] w-full items-center justify-center rounded-[12px] border border-dashed border-input px-5 text-center text-sm text-muted-foreground",
+        className,
+      )}
+    >
       {children}
     </div>
   );

@@ -44,6 +44,11 @@ const MOBILE_BACK_ROUTES: {
     alsoDesktop: true,
   },
   {
+    re: /^\/labs\/imu\/([^/]+)\/relatorio$/,
+    backHref: (m) => `/labs/imu/${m[1]}`,
+    alsoDesktop: true,
+  },
+  {
     re: /^\/bikes\/([^/]+)\/components\/new$/,
     backHref: (m) => `/bikes/${m[1]}`,
   },
