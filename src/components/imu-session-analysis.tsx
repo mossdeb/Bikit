@@ -3065,19 +3065,14 @@ function EventCard({
         // it would let the lab's dot texture run straight through the
         // figures. On a phone the surface under it is still opaque white, so
         // this costs nothing there.
-        // 20px all round — the metric cards' `p-5`, and the same number on
-        // every side for the same reason: the two kinds of card stand side
-        // by side in the reading, so their contents have to start on the same
-        // line. At 16 on the sides the event's mark sat 4px left of the
-        // channel's dot and its head 4px above, which reads as one card
-        // hanging off the other rather than as two in a row.
-        // `@container` so the peaks below can count their columns against
-        // THIS card's width and not the window's. The card's width is not a
-        // function of the viewport any more: the reading's split is dragged
-        // by hand and each half breaks into two, so the same window shows
-        // this card at 768px or at 330. A `sm:` there was answering a
-        // question nobody asked.
-        "@container rounded-[12px] border border-border bg-card p-5",
+        // No padding on the card itself (by request, 2026-09-10 — a layout
+        // was supplied): its three bands — head, facts, readings — are
+        // divided by rules that run edge to edge, the Rider card's idiom,
+        // so each band pays its own padding. 20px on the sides, the metric
+        // cards' `p-5`: the two kinds of card stand side by side in the
+        // reading, so their contents have to start on the same line.
+        // `overflow-hidden` so the bands' rules stop at the rounded corner.
+        "@container overflow-hidden rounded-[12px] border border-border bg-card",
         // Outside the event — within its reach but not inside it — the whole
         // card dims, facts and readings alike (by request, 2026-09-10;
         // dimming only the live modules read as two cards in one). Down to
@@ -3088,15 +3083,19 @@ function EventCard({
         className,
       )}
     >
-      <div
-        className={cn(
-          "flex justify-between gap-3",
-          // The titleless card is one line — mark, time, figure — so its two
-          // ends centre against each other. A named event has two lines on
-          // the left and its confidence belongs beside the first of them.
-          title ? "items-start" : "items-center",
-        )}
-      >
+      {/* The head: mark, name and time on the left; the Snapshot pill and
+          the confidence on the right, centred on the two lines (the
+          supplied layout). Wrapping, so in a narrow card — 305px on a
+          phone — the pill and the confidence drop to a line of their own,
+          right-aligned by `ml-auto`, instead of squeezing the name until
+          the time runs under them.
+
+          `min-h-[90px]`: the head's height WITH the Snapshot pill — 50px of
+          pill and 20 of padding each side — held when the pill is not there
+          (outside the event, only the confidence stays), so the card does
+          not change height as the cursor crosses an event's edge (by
+          request, 2026-09-10). Border-box, so the padding is inside it. */}
+      <div className="flex min-h-[90px] flex-wrap items-center justify-between gap-3 px-5 py-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sidebar text-white">
             <Icon className="size-5" />
@@ -3142,7 +3141,7 @@ function EventCard({
           </div>
         </div>
         {(action || confidence != null) && (
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-3">
             {action}
             {confidence != null && (
               // Named, not just a bare percentage: on its own in the corner
@@ -3193,41 +3192,40 @@ function EventCard({
           sit inside the quantity it describes, and those are exactly the
           ones worth watching move. */}
       {metrics.length > 0 && soleFigure == null && (
-        <div className="mt-4 border-t border-border pt-4">
-          {/* The plain figures in one ruled box, each group centred in its
-              cell — the session résumé's idiom, and for its reason: the
-              rules are `gap-px` letting the box's own colour through rather
-              than borders on the cells, because a border would have to know
-              which cell ends each row, and this box breaks differently at
-              every width — the first cell of a second row would carry a line
-              against nothing.
+        <>
+          {/* The plain figures as one band of cells under a rule, each with
+              its mark beside the figure — the rules run edge to edge (the
+              supplied layout), no box inside the card. The dividers are
+              `gap-px` letting the band's own colour through rather than
+              borders on the cells, because a border would have to know
+              which cell ends each row, and the band breaks differently at
+              every width — the first cell of a second row would carry a
+              line against nothing.
 
               WRAPPING FLEX AND NOT A GRID, and that is the whole trick: a
               grid keeps its columns on the last row whether or not there are
               cells to put in them, so four figures over three columns left
-              two empty tracks — and an empty track over a `bg-border` box is
-              a grey slab, which is exactly what it looked like. Flex has no
-              phantom cells: the last row holds only what is in it, and the
-              one that is left stretches to the width. `basis-[120px]` with
-              grow is what decides how many share a row. */}
+              two empty tracks — and an empty track over a `bg-border` band
+              is a grey slab, which is exactly what it looked like. Flex has
+              no phantom cells: the last row holds only what is in it, and
+              the one that is left stretches to the width. `basis-[140px]`
+              with grow is what decides how many share a row. */}
           {plain.length > 0 && (
             <div
-              className={cn(
-                // `bg-clip-padding` and it matters: a background reaches the
-                // BORDER box by default, so the box's `--border` fill was
-                // sitting under the `--border` border — two coats of the same
-                // 9% ink, and the outline came out at 213 where the résumé's
-                // same-token outline paints 233. Same class, different colour,
-                // which is the translucent-ink trap this project already has
-                // written down. Clipped to the padding box, the outline paints
-                // over the card's white and the two boxes match.
-                "flex flex-wrap gap-px overflow-hidden rounded-[12px] border border-border bg-border bg-clip-padding",
-              )}
+              // `bg-clip-padding`, and it is what keeps every rule the same
+              // weight: a background reaches the BORDER box by default, so
+              // the band's `--border` fill sat under its own `--border`
+              // top rule — two coats of the same 9% ink, and the horizontal
+              // rules came out darker than the vertical ones the gaps paint
+              // in one coat. Clipped to the padding box, the rule paints
+              // over the card's white like the gaps do — the Rider card's
+              // lines, all one weight (by request, 2026-09-10).
+              className="flex flex-wrap gap-px border-t border-border bg-border bg-clip-padding"
             >
               {plain.map((metric) => (
                 <div
                   key={metric.label}
-                  className="flex flex-1 basis-[120px] items-center justify-center gap-2.5 bg-card px-3.5 py-3"
+                  className="flex flex-1 basis-[140px] items-center gap-3 bg-card px-5 py-6"
                 >
                   {/* All or none: see EventMetric.Icon. */}
                   {allPlainMarked && metric.Icon && (
@@ -3252,37 +3250,29 @@ function EventCard({
             </div>
           )}
 
+          {/* The peaks — the modules with an "agora" and a bar — as a second
+              band of cells under their own rule, the same idiom as the facts
+              (the supplied layout). Wrapping flex for the same reason: as
+              many per row as the card's width holds, 240px each at least —
+              the 22px figure, the reading beside it, and a bar that reads
+              as a bar — and the last row holds only what is in it. */}
           {compared.length > 0 && (
             <div
-              className={cn(
-                // As many columns as the CARD can hold: three where there is
-                // room for three, two in a half-width card, one on a phone.
-                // Measured against the card and not the window, which is why
-                // the card above declares `@container`.
-                //
-                // 200px is the floor a module needs — the 22px figure, the
-                // "agora" reading beside it, and enough left over for the bar
-                // to read as a bar rather than as a dash.
-                //
-                // `auto-fit` while there are peaks to spread (the empty
-                // tracks collapse, so two peaks take half each instead of
-                // sitting in a third of the row), `auto-fill` for a lone one,
-                // where keeping the empty tracks is exactly what stops its
-                // bar from running the card's whole width.
-                "grid gap-x-6 gap-y-4",
-                compared.length === 1
-                  ? "grid-cols-[repeat(auto-fill,minmax(200px,1fr))]"
-                  : "grid-cols-[repeat(auto-fit,minmax(200px,1fr))]",
-                // 20px under the box and not 16: the box is an outlined
-                // slab, and the same 16px that reads as air under a line of
-                // text reads as a seam under a rule. It is also the card's
-                // own padding, which puts the same distance between the
-                // box and the peaks as between the box and the card's edge.
-                plain.length > 0 && "mt-5",
-              )}
+              // `bg-clip-padding`, and it is what keeps every rule the same
+              // weight: a background reaches the BORDER box by default, so
+              // the band's `--border` fill sat under its own `--border`
+              // top rule — two coats of the same 9% ink, and the horizontal
+              // rules came out darker than the vertical ones the gaps paint
+              // in one coat. Clipped to the padding box, the rule paints
+              // over the card's white like the gaps do — the Rider card's
+              // lines, all one weight (by request, 2026-09-10).
+              className="flex flex-wrap gap-px border-t border-border bg-border bg-clip-padding"
             >
               {compared.map((metric) => (
-                <div key={metric.label}>
+                <div
+                  key={metric.label}
+                  className="min-w-0 flex-1 basis-[240px] bg-card px-5 py-7"
+                >
                   <p className="text-sm text-muted-foreground">
                     {metric.label}
                   </p>
@@ -3331,7 +3321,7 @@ function EventCard({
               ))}
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

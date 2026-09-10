@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
+import { cn } from "@/lib/utils";
+import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -94,9 +96,15 @@ export function ImuSnapshotCreate({
     >
       <DialogTrigger
         title="Guardar este troço como Snapshot e comparar todas as passagens"
-        className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-muted px-3 text-sm font-medium text-foreground transition-colors hover:bg-foreground hover:text-background"
+        // The report door's pill, on the event's card: outlined, the mark
+        // and the word (the supplied layout, 2026-09-10) — a control, not a
+        // figure, so it wears the page's outline and not a tile's rules.
+        className={cn(
+          "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
+          CLICKABLE_CARD_HOVER,
+        )}
       >
-        <ImuSnapshotGlyph className="size-3.5" sizePx={14} />
+        <ImuSnapshotGlyph className="size-5" sizePx={20} />
         Snapshot
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
