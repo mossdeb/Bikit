@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
+import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
@@ -89,7 +92,6 @@ export default async function ImuSessionPage({
         sessionId={session.id}
         storagePath={session.storage_path}
         riderName={session.rider_name}
-        reportHref={`/labs/imu/${session.id}/relatorio`}
         // An orientation lent by another session, when this file has none
         // of its own; the shape is what setGroupMountOrientation stored.
         mountOrientation={
@@ -123,54 +125,79 @@ export default async function ImuSessionPage({
                 storagePath={session.storage_path}
               />
             </div>
-            {/* stroke-width pinned in CSS, the bike-created screen's trick.
+            {/* The identity and, beside it, the door to the report (by
+                request, 2026-09-10 — it had been a ninth tile, then a card
+                beside the plate): a row from `sm`, the button sat on the
+                block's baseline — the provenance line's foot — and 40px off
+                the words (aligned to the base by request); stacked on a phone. A
+                `min-w-0` column so the provenance keeps wrapping. */}
+            <div className="flex flex-col gap-5 pr-10 sm:flex-row sm:items-end sm:gap-10 2xl:pr-0">
+              <div className="min-w-0">
+                {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
                 number here is the number of pixels painted. */}
-            <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
-            {/* The mark and the name are one unit — the glyph is the
+                <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
+                {/* The mark and the name are one unit — the glyph is the
                 session's badge, not a decoration floating above it — so they
                 close ranks and the two lines of provenance underneath step
                 back. */}
-            <h1 className="mt-2 font-display text-2xl font-semibold">
-              {session.name}
-            </h1>
-            {/* Bike and date on one line: they are the same fact — where
+                <h1 className="mt-2 font-display text-2xl font-semibold">
+                  {session.name}
+                </h1>
+                {/* Bike and date on one line: they are the same fact — where
                 this recording came from — and stacked they read as two
                 claims. The bike carries the weight, the date steps back.
                 No duration here: it is a figure in the résumé right below,
                 and printing it twice made the header a summary of a summary. */}
-            {/* A paragraph and not a flex row: this is one sentence of
+                {/* A paragraph and not a flex row: this is one sentence of
                 provenance and it has to wrap like one. As flex items the name
                 and the tail each claimed a line of their own, and at 375px
                 that broke "YT Decoy" across two. The mark goes inline with
                 the text, aligned to its middle. */}
-            <p className="mt-1.5 text-sm">
-              {BikeGlyph && (
-                // A square box, not the app's h-5 w-7: the art is 101×104 and
-                // `meet` fits it to the height, so a 28px box left ~4px of
-                // empty margin on each side of a 19px drawing.
-                <BikeGlyph
-                  className="mr-2 inline-block h-5 w-5 align-middle text-foreground"
-                  aria-hidden
-                />
-              )}
-              {bike?.name && (
-                <span className="align-middle font-medium">{bike.name}</span>
-              )}
-              {/* The rate and the count sit here rather than in the résumé
+                <p className="mt-1.5 text-sm">
+                  {BikeGlyph && (
+                    // A square box, not the app's h-5 w-7: the art is 101×104 and
+                    // `meet` fits it to the height, so a 28px box left ~4px of
+                    // empty margin on each side of a 19px drawing.
+                    <BikeGlyph
+                      className="mr-2 inline-block h-5 w-5 align-middle text-foreground"
+                      aria-hidden
+                    />
+                  )}
+                  {bike?.name && (
+                    <span className="align-middle font-medium">
+                      {bike.name}
+                    </span>
+                  )}
+                  {/* The rate and the count sit here rather than in the résumé
                   because they describe the file and not the ride — the same
                   trio the session list prints. */}
-              <span className="align-middle text-muted-foreground">
-                {bike?.name ? " · " : ""}
-                {/* The rider leads the provenance tail: whose ride it was
+                  <span className="align-middle text-muted-foreground">
+                    {bike?.name ? " · " : ""}
+                    {/* The rider leads the provenance tail: whose ride it was
                     belongs beside what carried the sensor, ahead of the
                     facts that describe the file rather than the ride. */}
-                {session.rider_name ? `${session.rider_name} · ` : ""}
-                {formatDate(session.created_at)} ·{" "}
-                {Math.round(session.sample_rate_hz)} Hz ·{" "}
-                {session.sample_count.toLocaleString("pt-PT")} amostras
-              </span>
-            </p>
+                    {session.rider_name ? `${session.rider_name} · ` : ""}
+                    {formatDate(session.created_at)} ·{" "}
+                    {Math.round(session.sample_rate_hz)} Hz ·{" "}
+                    {session.sample_count.toLocaleString("pt-PT")} amostras
+                  </span>
+                </p>
+              </div>
+              {/* The report's door: the session's own document mark and the
+                word, in an outlined pill — a control, not a figure, so it
+                wears the page's outline and not a tile's rules. */}
+              <Link
+                href={`/labs/imu/${session.id}/relatorio`}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold sm:self-end",
+                  CLICKABLE_CARD_HOVER,
+                )}
+              >
+                <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
+                Relatório
+              </Link>
+            </div>
           </div>
         }
       />

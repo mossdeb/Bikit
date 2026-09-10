@@ -11,7 +11,6 @@ import {
   Bike,
   Check,
   ChevronDown,
-  FileText,
   Gauge,
   Info,
   Minus,
@@ -23,12 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import {
-  CLICKABLE_CARD_HOVER,
-  DARK_CARD_HAIRLINE,
-  DARK_CARD_HAIRLINE_SM,
-} from "@/lib/card-styles";
+import { DARK_CARD_HAIRLINE, DARK_CARD_HAIRLINE_SM } from "@/lib/card-styles";
 import {
   Popover,
   PopoverContent,
@@ -745,17 +739,11 @@ export function ImuSessionAnalysis({
   storagePath,
   riderName,
   header,
-  reportHref,
   mountOrientation = null,
 }: {
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
   storagePath: string;
-  /** Where the session's report lives — the résumé's last tile is the way
-   * there (by request, 2026-09-10: a pill in the header corner sat on the
-   * tiles from `2xl`, and the résumé is where the session's figures are,
-   * so the reading of them belongs at its end). */
-  reportHref: string;
   /** An orientation copied from another session (setGroupMountOrientation),
    * used when the file carries none of its own. */
   mountOrientation?: ImuMountOrientation | null;
@@ -1597,92 +1585,67 @@ export function ImuSessionAnalysis({
               white. Same token, two intensities. An opaque white plate under
               the grid puts them back on the same backdrop, and with it the
               same colour. */}
-          {/* The figures' plate and the report's tile side by side from `lg`,
-              22px apart — the lab's channel — and stacked below, the same
-              22px between. Two cards and not one grid with a ninth cell
-              (by request, 2026-09-10): the report is a door, not a figure,
-              and as a cell it wore the plate's rules and shared its corners;
-              on its own it gets four corners of its own. */}
-          <div className="flex flex-col gap-[22px] lg:flex-row lg:items-stretch">
-            <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card lg:min-w-0 lg:flex-1">
-              <div
-                className={cn(
-                  "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
-                  summary.distanceM != null
-                    ? "sm:grid-cols-4 lg:grid-cols-8"
-                    : "sm:grid-cols-6",
-                )}
-              >
-                <Stat
-                  Icon={StatClockIcon}
-                  label="Duração"
-                  value={formatSessionTime(summary.durationMs)}
-                />
-                {/* The ride-level GPS figures ride next to the duration —
+          {/* The figures alone: the report's door moved into the identity
+              block, beside the name (by request, 2026-09-10 — it had been a
+              ninth cell, then a card beside the plate). */}
+          <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
+            <div
+              className={cn(
+                "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
+                summary.distanceM != null
+                  ? "sm:grid-cols-4 lg:grid-cols-8"
+                  : "sm:grid-cols-6",
+              )}
+            >
+              <Stat
+                Icon={StatClockIcon}
+                label="Duração"
+                value={formatSessionTime(summary.durationMs)}
+              />
+              {/* The ride-level GPS figures ride next to the duration —
                   the three answer "how much ride" before the rest answer
                   "how hard". Lucide marks for now; the supplied art set has
                   no distance or speedometer glyph yet. */}
-                {summary.distanceM != null && (
-                  <Stat
-                    Icon={StatRouteIcon}
-                    label="Distância"
-                    value={formatTrackDistance(summary.distanceM)}
-                  />
-                )}
-                {summary.maxSpeedKmh != null && (
-                  <Stat
-                    Icon={StatGaugeIcon}
-                    label="Vel. máx"
-                    value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
-                  />
-                )}
+              {summary.distanceM != null && (
                 <Stat
-                  Icon={StatMetricIcon}
-                  label="G máx"
-                  value={summary.maxG.toFixed(2)}
+                  Icon={StatRouteIcon}
+                  label="Distância"
+                  value={formatTrackDistance(summary.distanceM)}
                 />
-                <Stat
-                  Icon={StatImpactIcon}
-                  label="Impactos"
-                  value={String(summary.impactCount)}
-                />
-                <Stat
-                  Icon={StatTurnIcon}
-                  label="Curvas"
-                  value={String(summary.curveCount)}
-                />
-                <Stat
-                  Icon={StatJumpIcon}
-                  label="Saltos"
-                  value={String(summary.jumpCount)}
-                />
-                <Stat
-                  Icon={StatStopwatchIcon}
-                  label="No ar"
-                  value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
-                />
-              </div>
-            </div>
-            {/* The report's own card: the session read as rider, bike and
-              trail. A card from `sm`, like the plate beside it; a plain row
-              on a phone, where the figures are plain rows too. From `lg` it
-              stands beside the plate and stretches to its height. */}
-            <Link
-              href={reportHref}
-              className={cn(
-                "flex items-center gap-2.5 sm:flex-col sm:justify-center sm:gap-1.5 sm:rounded-[14px] sm:border sm:border-border sm:bg-card sm:px-6 sm:py-4 sm:text-center lg:shrink-0",
-                CLICKABLE_CARD_HOVER,
               )}
-            >
-              <FileText
-                strokeWidth={1.5}
-                className="h-5 w-5 shrink-0 text-muted-foreground"
+              {summary.maxSpeedKmh != null && (
+                <Stat
+                  Icon={StatGaugeIcon}
+                  label="Vel. máx"
+                  value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                />
+              )}
+              <Stat
+                Icon={StatMetricIcon}
+                label="G máx"
+                value={summary.maxG.toFixed(2)}
               />
-              {/* The word alone: the mark says what it opens, and a "Ver"
-                  above it read as a label the figures' tiles have and this
-                  one does not need (by request, 2026-09-10). */}
-              <p className="leading-tight font-semibold">Relatório</p>
-            </Link>
+              <Stat
+                Icon={StatImpactIcon}
+                label="Impactos"
+                value={String(summary.impactCount)}
+              />
+              <Stat
+                Icon={StatTurnIcon}
+                label="Curvas"
+                value={String(summary.curveCount)}
+              />
+              <Stat
+                Icon={StatJumpIcon}
+                label="Saltos"
+                value={String(summary.jumpCount)}
+              />
+              <Stat
+                Icon={StatStopwatchIcon}
+                label="No ar"
+                value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+              />
+            </div>
           </div>
         </div>
       }
