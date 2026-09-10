@@ -15,6 +15,7 @@ import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
 import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
+import { buildTrackIndex } from "@/lib/imu/snapshot";
 
 export type ImportOutcome = { ok: true } | { ok: false; error: string };
 
@@ -57,6 +58,9 @@ export async function uploadAndRegisterImuSession(input: {
     jumpCount: summary.jumpCount,
     impactCount: summary.impactCount,
     airtimeMs: summary.airtimeMs,
+    // Where it went, for Snapshots to know which sessions to fetch — built
+    // here because the browser is the one side that has the parsed track.
+    trackIndex: buildTrackIndex(session.gps),
   });
   if (result.status === "error") return { ok: false, error: result.message };
   return { ok: true };

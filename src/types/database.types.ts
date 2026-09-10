@@ -426,6 +426,7 @@ export type Database = {
           sample_count: number
           sample_rate_hz: number
           storage_path: string
+          track_index: Json | null
           user_id: string
         }
         Insert: {
@@ -447,6 +448,7 @@ export type Database = {
           sample_count: number
           sample_rate_hz: number
           storage_path: string
+          track_index?: Json | null
           user_id: string
         }
         Update: {
@@ -468,6 +470,7 @@ export type Database = {
           sample_count?: number
           sample_rate_hz?: number
           storage_path?: string
+          track_index?: Json | null
           user_id?: string
         }
         Relationships: [

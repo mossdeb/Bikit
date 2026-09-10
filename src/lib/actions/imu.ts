@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import { isTrackIndex, type SnapshotTrackIndex } from "@/lib/imu/snapshot";
+import type { Json } from "@/types/database.types";
 
 export type ImuActionResult =
   { status: "ok" } | { status: "error"; message: string };
@@ -29,6 +31,9 @@ export interface CreateImuSessionInput {
   jumpCount: number;
   impactCount: number;
   airtimeMs: number;
+  /** The track's outline and box (buildTrackIndex), for Snapshots to know
+   * which sessions to fetch. Null for a recording without GPS. */
+  trackIndex: SnapshotTrackIndex | null;
 }
 
 /**
@@ -75,6 +80,11 @@ export async function createImuSession(
   ) {
     return { status: "error", message: "Metadados da sessão inválidos." };
   }
+  // A malformed index is refused, not dropped: a session registered without
+  // one would silently never show up in any Snapshot.
+  if (input.trackIndex != null && !isTrackIndex(input.trackIndex)) {
+    return { status: "error", message: "Índice do traçado inválido." };
+  }
 
   if (input.bikeId) {
     const { data: bike } = await supabase
@@ -106,6 +116,9 @@ export async function createImuSession(
     jump_count: input.jumpCount,
     impact_count: input.impactCount,
     airtime_ms: Math.round(input.airtimeMs),
+    // Checked for shape above; the generated Json type has no index
+    // signature for an interface to satisfy.
+    track_index: input.trackIndex as unknown as Json,
   });
   if (error) return { status: "error", message: error.message };
 
