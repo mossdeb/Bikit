@@ -332,6 +332,19 @@
    bg-background — so every card, control and popover stays above it without
    a single z-index. The dots are mixed from the foreground, which is what
    makes the same rule read in both themes. */
+/* No swipe-to-navigate in the lab (by request, 2026-09-10). On a Mac a
+   two-finger horizontal swipe is how the chart's window is panned — and
+   also the browser's own back/forward gesture, which fires when the swipe
+   reaches the edge of what the page can scroll: the page does not scroll
+   sideways, so it fires at once. `overscroll-behavior-x: none` on the
+   viewport is what switches that gesture off (Chrome and Safari 16+). Set
+   on the root element, which is where the viewport takes it from, and on
+   body too, which is where Chrome also looks; both are marked by
+   ImuLabTexture for as long as a lab page is mounted. */
+html.imu-lab-texture,
+html.imu-lab-texture body {
+  overscroll-behavior-x: none;
+}
 body.imu-lab-texture [data-app-shell] {
   background-image: radial-gradient(
     color-mix(in srgb, var(--foreground) 10%, transparent) 1px,
