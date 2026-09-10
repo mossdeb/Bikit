@@ -169,7 +169,7 @@ const SERIES_DEFS = [
     color: "#475569",
     summary: "Inclinação estimada",
     description:
-      "Inclinação estimada — ângulo de equilíbrio da curva, atan(v·ω/g) com a velocidade do GPS e a guinada do giroscópio; sem GPS, a inclinação média do acelerómetro",
+      "Inclinação estimada — giroscópio de rolamento, ancorado ao ângulo de equilíbrio da curva atan(v·ω/g) da velocidade do GPS e da guinada; sem GPS, a inclinação média do acelerómetro",
   },
   /** Only offered when the file carries a GPS track — recorded speed,
    * resampled onto the IMU timeline, never integrated from acceleration. */
@@ -822,10 +822,18 @@ export function ImuSessionAnalysis({
       gz,
       roughness: roughnessSeries(tMs, gForce),
       jerk: jerkSeries(tMs, gForce),
-      // The lean needs the yaw rate about the bike's UP, which gz only is
-      // once the frame is aligned; unaligned, or without a track, it falls
-      // back to the accelerometer's tilt.
-      lean: leanSeries(tMs, ay, az, data.aligned ? gz : null, speed),
+      // The lean needs the roll about the bike's FORWARD and the yaw about
+      // its UP, which gx and gz only are once the frame is aligned;
+      // unaligned, or without a track, it falls back to the accelerometer's
+      // tilt.
+      lean: leanSeries(
+        tMs,
+        ay,
+        az,
+        data.aligned ? gx : null,
+        data.aligned ? gz : null,
+        speed,
+      ),
     };
     if (data.gps && speed) {
       values.speed = speed;

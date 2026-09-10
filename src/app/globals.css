@@ -379,6 +379,28 @@ body.imu-lab-texture [data-app-shell] {
     transparent 1px 6px
   );
 }
+/* The bands' colours, each mixed OPAQUE into the card's surface. They were
+   translucent tints, and where a brake lay inside a curve the two hatches
+   drew over each other into a moiré (by request, 2026-09-10); opaque, the
+   band painted last covers the one beneath, colour and hatch both. The
+   mixes are the same shades the tints produced over the card. Against
+   --card and not a baked hex, so each theme mixes into its own surface. */
+.imu-band-grey {
+  background-color: color-mix(in srgb, var(--card), var(--muted-foreground) 6%);
+}
+.imu-band-jump {
+  background-color: color-mix(in srgb, var(--card), var(--primary) 20%);
+}
+/* Braking in its own straw: a brake and a curve share a stretch of trail
+   often enough that two greys did not tell them apart. Under half strength
+   (full was "much" too strong at a glance), fainter still on dark, where
+   the hex would glare. */
+.imu-band-braking {
+  background-color: color-mix(in srgb, var(--card), #ffeebe 40%);
+}
+.dark .imu-band-braking {
+  background-color: color-mix(in srgb, var(--card), #ffeebe 15%);
+}
 
 @layer utilities {
   .scrollbar-none {

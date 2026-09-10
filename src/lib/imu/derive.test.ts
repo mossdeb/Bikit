@@ -583,53 +583,103 @@ describe("jerkSeries", () => {
 });
 
 describe("leanSeries", () => {
-  it("reads a corner's balance angle from speed and yaw rate, right positive", () => {
+  const n = 500; // 5 s at 100 Hz
+  const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
+  const upright = { ay: new Float32Array(n), az: new Float32Array(n).fill(1) };
+
+  it("settles on a corner's balance angle from speed and yaw rate, right positive", () => {
     // 36 km/h turning right at 30 °/s (right is a negative yaw rate about
-    // up): atan(10 · 0.5236 / 9.81) = 28.1°. The accelerometer says upright
-    // throughout, as it does in a coordinated turn — and is not asked.
-    const n = 500;
-    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
-    const ay = new Float32Array(n);
-    const az = new Float32Array(n).fill(1);
+    // up): atan(10 · 0.5236 / 9.81) = 28.1°. The roll gyro is silent, so the
+    // filter has only the balance angle to go on and reaches it in a few
+    // time constants. The accelerometer says upright throughout, as it
+    // does in a coordinated turn — and is not asked.
     const speed = new Float32Array(n).fill(36);
-    const right = leanSeries(t, ay, az, new Float32Array(n).fill(-30), speed);
-    expect(right[250]).toBeCloseTo(28.1, 0);
-    const left = leanSeries(t, ay, az, new Float32Array(n).fill(30), speed);
-    expect(left[250]).toBeCloseTo(-28.1, 0);
+    const noRoll = new Float32Array(n);
+    const right = leanSeries(
+      t,
+      upright.ay,
+      upright.az,
+      noRoll,
+      new Float32Array(n).fill(-30),
+      speed,
+    );
+    expect(right[n - 1]).toBeCloseTo(28.1, 0);
+    const left = leanSeries(
+      t,
+      upright.ay,
+      upright.az,
+      noRoll,
+      new Float32Array(n).fill(30),
+      speed,
+    );
+    expect(left[n - 1]).toBeCloseTo(-28.1, 0);
     // Standing still, no turn can lean it.
     const still = leanSeries(
       t,
-      ay,
-      az,
+      upright.ay,
+      upright.az,
+      noRoll,
       new Float32Array(n).fill(30),
       new Float32Array(n),
     );
-    expect(still[250]).toBeCloseTo(0, 5);
+    expect(still[n - 1]).toBeCloseTo(0, 5);
+  });
+
+  it("follows the roll gyro at once, and lets a yaw spike without a roll leak only a fraction", () => {
+    const speed = new Float32Array(n).fill(36);
+    // A roll into a corner the gyro sees: 100 °/s for 0.3 s from 1 s. The
+    // lean is 30° the moment the roll stops, whatever the balance angle
+    // says yet.
+    const gx = new Float32Array(n);
+    for (let i = 100; i < 130; i++) gx[i] = 100;
+    const rolled = leanSeries(
+      t,
+      upright.ay,
+      upright.az,
+      gx,
+      new Float32Array(n),
+      speed,
+    );
+    expect(rolled[130]).toBeGreaterThan(25);
+    expect(rolled[130]).toBeLessThan(31);
+    // A yaw spike the roll gyro does not see — a rear stepping out, a
+    // hit: 90 °/s for 0.3 s says 48° of balance angle. With a 1 s constant
+    // a third of a second leaks about a quarter of it.
+    const gz = new Float32Array(n);
+    for (let i = 200; i < 230; i++) gz[i] = -90;
+    const kicked = leanSeries(
+      t,
+      upright.ay,
+      upright.az,
+      new Float32Array(n),
+      gz,
+      speed,
+    );
+    const peak = Math.max(...Array.from(kicked));
+    expect(peak).toBeGreaterThan(8);
+    expect(peak).toBeLessThan(20);
   });
 
   it("falls back to the accelerometer's average tilt without GPS or a known up", () => {
     // 30° to the right: ay = sin 30° = 0.5, az = cos 30°.
-    const n = 500;
-    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
     const ay = new Float32Array(n).fill(0.5);
     const az = new Float32Array(n).fill(Math.cos(Math.PI / 6));
-    expect(leanSeries(t, ay, az, null, null)[250]).toBeCloseTo(30, 1);
-    expect(leanSeries(t, ay, az, new Float32Array(n), null)[250]).toBeCloseTo(
-      30,
-      1,
-    );
+    expect(leanSeries(t, ay, az, null, null, null)[250]).toBeCloseTo(30, 1);
+    // A gyro without a track is no balance angle either.
+    expect(
+      leanSeries(
+        t,
+        ay,
+        az,
+        new Float32Array(n),
+        new Float32Array(n),
+        null,
+      )[250],
+    ).toBeCloseTo(30, 1);
   });
 
   it("reads upright as zero", () => {
-    const n = 100;
-    const t = new Float64Array(Array.from({ length: n }, (_, i) => i * 10));
-    const lean = leanSeries(
-      t,
-      new Float32Array(n),
-      new Float32Array(n).fill(1),
-      null,
-      null,
-    );
+    const lean = leanSeries(t, upright.ay, upright.az, null, null, null);
     expect(lean[n - 1]).toBeCloseTo(0, 5);
   });
 });

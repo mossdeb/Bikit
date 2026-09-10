@@ -18,15 +18,37 @@ const W = 800;
 const H = 260;
 const PAD_Y = 14;
 
-/** Paint order in the event lane: the longest context first, the sharpest
- * last, so an impact tick sits on top of the rough section it happened in. */
-const STRIP_PAINT_ORDER: Record<ImuEvent["kind"], number> = {
+/** Paint order of the events, in the plot's bands and in the lane alike:
+ * the longest context first, the sharpest last, so an impact tick sits on
+ * top of the rough section it happened in — and a brake, which is a second
+ * or two inside a corner more often than not, on top of the curve. The
+ * bands are opaque (see below), so what is on top is what shows. */
+const PAINT_ORDER: Record<ImuEvent["kind"], number> = {
   rough_section: 0,
-  braking: 1,
-  curve: 2,
+  curve: 1,
+  braking: 2,
   jump: 3,
   drop: 3,
   impact: 4,
+};
+
+/** The bands' colours, each mixed OPAQUE into the card's own surface.
+ *
+ * They used to be translucent tints, and where a brake lay inside a curve
+ * the two hatches drew over each other into a moiré (by request,
+ * 2026-09-10). Opaque, the band on top covers the one beneath — colour and
+ * hatch — and the paint order decides what shows. The mix is the same
+ * tint the translucent version produced over the card, so nothing moved
+ * visually except the overlap. The mixes live in globals.css beside the
+ * hatch (`.imu-band-*`), against `--card` so each theme mixes into its own
+ * surface — Tailwind's arbitrary `bg-[color-mix(…)]` does not compile to
+ * a background-color, which is how the first cut shipped transparent. */
+const BAND_BG: Record<Exclude<ImuEvent["kind"], "impact">, string> = {
+  jump: "imu-band-jump",
+  drop: "imu-band-jump",
+  braking: "imu-band-braking",
+  curve: "imu-band-grey",
+  rough_section: "imu-band-grey",
 };
 
 /** How tall the event-name tabs are, px.
@@ -576,44 +598,44 @@ export function ImuChart({
             they no longer carry is their old label — at this width the text
             was truncated to "Acident" and "S", and naming the event is now
             the badge's job and the card's. */}
-        {visibleEvents.map((event, i) => {
-          // Impacts are instants, so they mark the plot as a red rule rather
-          // than a stretch — several close together read as one red zone,
-          // which is exactly what a run of hits is.
-          if (event.kind === "impact") {
+        {[...visibleEvents]
+          .sort((a, b) => PAINT_ORDER[a.kind] - PAINT_ORDER[b.kind])
+          .map((event, i) => {
+            // Impacts are instants, so they mark the plot as a red rule
+            // rather than a stretch — several close together read as one
+            // red zone, which is exactly what a run of hits is.
+            if (event.kind === "impact") {
+              return (
+                <div
+                  key={i}
+                  aria-hidden
+                  className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/30"
+                  style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+                />
+              );
+            }
+            const [from, to] = eventSpan(event);
+            const left = (Math.max(0, from - w0) / span) * 100;
+            const width =
+              ((Math.min(w1, to) - Math.max(w0, from)) / span) * 100;
             return (
               <div
                 key={i}
                 aria-hidden
-                className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-[#F5533D]/30"
-                style={{ left: `${((event.timeMs - w0) / span) * 100}%` }}
+                className={cn(
+                  // `imu-event-band` is the hatch, in globals.css: the tint
+                  // says where by being another colour, the surface says it
+                  // by being another material. The class carries no colour,
+                  // so the kinds keep their own and share the texture; the
+                  // colour is opaque, so the hatch of a band underneath does
+                  // not show through this one's.
+                  "imu-event-band absolute inset-y-0",
+                  BAND_BG[event.kind],
+                )}
+                style={{ left: `${left}%`, width: `${width}%` }}
               />
             );
-          }
-          const [from, to] = eventSpan(event);
-          const left = (Math.max(0, from - w0) / span) * 100;
-          const width = ((Math.min(w1, to) - Math.max(w0, from)) / span) * 100;
-          return (
-            <div
-              key={i}
-              aria-hidden
-              className={cn(
-                // `imu-event-band` is the hatch, in globals.css: the tint
-                // says where by being darker, the surface says it by being
-                // another material. The class carries no colour, so the two
-                // kinds keep their own and share the texture.
-                "imu-event-band absolute inset-y-0",
-                event.kind === "jump" || event.kind === "drop"
-                  ? "bg-primary/20"
-                  : // Lighter than it was (8%) now that the hatch carries the
-                    // signal: with a surface on top, the tint only has to
-                    // separate the stretch from the card, not announce it.
-                    "bg-muted-foreground/6",
-              )}
-              style={{ left: `${left}%`, width: `${width}%` }}
-            />
-          );
-        })}
+          })}
 
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -803,9 +825,11 @@ export function ImuChart({
           Almost monochrome on purpose. The app already carries three colour
           vocabularies that must not blend (health, Ride Load bands, the lab's
           series palette); a fourth — one hue per event kind — would be a
-          legend to memorise. Greys carry intensity instead, and only two
-          kinds earn a colour: what is airborne, and what hit hard. Which
-          event it is comes from the badge on the rule and the card below. */}
+          legend to memorise. Greys carry intensity instead, and only three
+          kinds earn a colour: what is airborne, what hit hard, and — since
+          2026-09-10, by request — braking, in a straw that keeps it apart
+          from the curves it so often shares a stretch with. Which event it
+          is comes from the badge on the rule and the card below. */}
       {events.some((event) => eventKinds.has(event.kind)) && (
         <div
           aria-hidden
@@ -823,10 +847,8 @@ export function ImuChart({
         >
           {[...visibleEvents]
             // Painted widest-context first so a point event lands on top of
-            // the stretch that contains it.
-            .sort(
-              (a, b) => STRIP_PAINT_ORDER[a.kind] - STRIP_PAINT_ORDER[b.kind],
-            )
+            // the stretch that contains it — the plot's order exactly.
+            .sort((a, b) => PAINT_ORDER[a.kind] - PAINT_ORDER[b.kind])
             .map((event, i) => {
               if (event.kind === "impact") {
                 return (
@@ -848,9 +870,13 @@ export function ImuChart({
                     "absolute inset-y-0 rounded-full",
                     event.kind === "jump" || event.kind === "drop"
                       ? "bg-primary"
-                      : event.kind === "rough_section"
-                        ? "bg-foreground/45"
-                        : "bg-foreground/25",
+                      : event.kind === "braking"
+                        ? // The plot band's straw, a shade deeper so it
+                          // holds against the lane's own light grey track.
+                          "bg-[#F7E4AA]"
+                        : event.kind === "rough_section"
+                          ? "bg-foreground/45"
+                          : "bg-foreground/25",
                   )}
                   style={{
                     left: `${left}%`,

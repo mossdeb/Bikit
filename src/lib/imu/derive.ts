@@ -338,48 +338,69 @@ function centredMeanSeries(
  * a second or two, and the lean has to be in it, not after it. */
 export const LEAN_WINDOW_MS = 500;
 
+/** How long the roll gyro is trusted before the balance angle pulls the
+ * lean back to itself, ms. One second: a corner's roll is over in less,
+ * so the gyro carries it whole, and a yaw spike that lasts a third of that
+ * leaks a third of its excess and no more. */
+export const LEAN_TAU_MS = 1000;
+
 /**
- * Estimated lean angle in degrees, right positive: the balance angle the
- * bike must hold to turn at the rate it is turning at the speed it is
- * going, atan(v·ω/g), with v from the GPS and ω the yaw rate about the
- * bike's up (gz, right turn negative), averaged over LEAN_WINDOW_MS.
+ * Estimated lean angle in degrees, right positive: a complementary filter
+ * with the ROLL GYRO (gx, about the bike's forward) for the fast part and
+ * the corner's balance angle for the slow — atan(v·ω/g), v from the GPS,
+ * ω the yaw rate about the bike's up (gz, right turn negative) averaged
+ * over LEAN_WINDOW_MS — with time constant LEAN_TAU_MS.
  *
- * It used to be a complementary filter — roll gyro for the fast part, the
- * accelerometer's atan2(ay, az) for the slow — and it could not see a
- * corner at all, by physics: a bike leans in a turn precisely so that the
- * specific force lines up with its own vertical, so mid-corner the
- * accelerometer reads "upright" and the filter decays to it in half a
- * second. On R0050 (2026-09-09) the 42 right-hand curves averaged 8.6° by
- * that estimate and 21° by this one; the 37 left-handers −1.1° and −23°.
- * What the old one measured was the +0.08 g offset on the lateral axis
- * (~4°) plus the terrain's noise.
+ * Three estimators have stood here. The first was a complementary filter
+ * on the accelerometer's atan2(ay, az), and it could not see a corner at
+ * all, by physics: a bike leans in a turn precisely so that the specific
+ * force lines up with its own vertical, so mid-corner the accelerometer
+ * reads "upright" and the filter decayed to it in half a second — on
+ * R0050 (2026-09-09) it gave −3° to −5° in corners the bike rolled 40°
+ * into. The second was the balance angle alone, and it saw the corners
+ * but over-read every yaw that came without a lean — a rear stepping out,
+ * a berm, a hit that pivots the bike: at 89 s of R0050 it said −51° where
+ * the roll gyro, integrated from the corner's start, said −21°, and over
+ * the run's 79 corners it sat 15° above the measured roll. This one asks
+ * the sensor that measures the lean directly, and uses the balance angle
+ * only to keep it from drifting: the bias against the measured roll falls
+ * to 8°, and the 63 s corner reads 23° against a measured 25° where the
+ * balance angle alone said 45°. What remains is a −2 °/s vibration
+ * offset on the roll axis while riding rough ground, worth 2° to 4° left.
  *
- * Without a GPS track, or a frame whose up is known, the fallback is the
- * accelerometer's average direction over PITCH_WINDOW_MS — the static
- * tilt of the bike, which on a bike that is not turning is what lean is.
+ * Without a GPS track, or a frame whose up is known, there is no balance
+ * angle, and the fallback is the accelerometer's average direction over
+ * PITCH_WINDOW_MS — the static tilt of the bike, which on a bike that is
+ * not turning is what lean is.
  *
- * Still an ESTIMATE, labelled (est.) wherever it appears: it is the lean
- * of a coordinated turn, and a rider hanging off the inside, or a corner
- * sliding, leans the bike differently from what the balance says.
+ * Still an ESTIMATE, labelled (est.) wherever it appears.
  */
 export function leanSeries(
   tMs: Float64Array,
   ay: ArrayLike<number>,
   az: ArrayLike<number>,
+  rollGx: ArrayLike<number> | null,
   yawGz: ArrayLike<number> | null,
   speedKmh: ArrayLike<number> | null,
-  windowMs = LEAN_WINDOW_MS,
+  tauMs = LEAN_TAU_MS,
 ): Float32Array {
   const n = tMs.length;
   const out = new Float32Array(n);
   if (n === 0) return out;
   const toDeg = 180 / Math.PI;
-  if (yawGz && speedKmh) {
-    const omega = centredMeanSeries(tMs, yawGz, windowMs);
-    for (let i = 0; i < n; i++) {
-      const v = speedKmh[i] / 3.6;
-      const w = (-omega[i] * Math.PI) / 180;
-      out[i] = Math.atan((v * w) / 9.81) * toDeg;
+  if (rollGx && yawGz && speedKmh) {
+    const omega = centredMeanSeries(tMs, yawGz, LEAN_WINDOW_MS);
+    const balanceAt = (i: number) =>
+      Math.atan(((speedKmh[i] / 3.6) * ((-omega[i] * Math.PI) / 180)) / 9.81) *
+      toDeg;
+    let lean = balanceAt(0);
+    out[0] = lean;
+    for (let i = 1; i < n; i++) {
+      const dtMs = tMs[i] - tMs[i - 1];
+      const alpha = tauMs / (tauMs + dtMs);
+      lean =
+        alpha * (lean + rollGx[i] * (dtMs / 1000)) + (1 - alpha) * balanceAt(i);
+      out[i] = lean;
     }
     return out;
   }
