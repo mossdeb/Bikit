@@ -669,9 +669,10 @@ const GRADIENT_MIN_DISTANCE_M = 20;
  * trail; three metres of wander over that is the whole kinetic energy at
  * 30 km/h. Twenty fixes of regression bring the wander down to what a
  * gradient can carry. Null when the window holds too few fixes or too
- * little ground.
+ * little ground. Also read by the Snapshot's passes (snapshot.ts), so a
+ * corner's drop is the same figure on its card and in its comparison.
  */
-function gpsGradient(
+export function gpsGradient(
   gps: GpsChannels,
   fromMs: number,
   toMs: number,
