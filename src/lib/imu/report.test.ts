@@ -176,6 +176,7 @@ describe("compareReports", () => {
         tie: 2,
       },
       { label: "Velocidade máx", value: "40" },
+      { label: "Velocidade média", value: "26,4", raw: 26.4, tie: 0.5 },
     ]),
     bike: section("Bike", [
       {
@@ -202,14 +203,21 @@ describe("compareReports", () => {
     const rows = compareReports(report(3.1, 180, 71), report(3.6, 190, 76));
     expect(rows.map((r) => [r.label, r.tone, r.digits])).toEqual([
       ["Retenção nas curvas", "worse", 0],
+      ["Velocidade média", "tie", 1],
       ["Harshness", "better", 1],
       ["Assentamento", "tie", 0],
     ]);
-    expect(rows[1].diff).toBeCloseTo(-0.5);
-    expect(rows[1].previous).toBe("3,6");
+    expect(rows[2].diff).toBeCloseTo(-0.5);
+    expect(rows[2].previous).toBe("3,6");
+    // A metric with no better direction is neutral once past its tie.
+    const faster = report(3.1, 180, 71);
+    faster.rider.metrics[2].raw = 30;
+    expect(compareReports(faster, report(3.6, 190, 76))[1].tone).toBe(
+      "neutral",
+    );
     // A metric only one report has, or one without a number, is left out.
     const partial = report(3.1, 180, 71);
     partial.bike.metrics.pop();
-    expect(compareReports(partial, report(3.6, 190, 76))).toHaveLength(2);
+    expect(compareReports(partial, report(3.6, 190, 76))).toHaveLength(3);
   });
 });

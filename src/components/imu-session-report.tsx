@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { Children, useMemo } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
-import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
+import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
 import {
@@ -116,6 +117,25 @@ export function ImuSessionReport({
                 rows={comparisonRows}
                 error={other.error}
               />
+            )}
+            {/* The door to the whole picture — every run of this bike on
+                this trail, line by line (by request, 2026-09-11). Only
+                with a bike: without one there is no "its runs". */}
+            {session.bikeId && (
+              <Link
+                href={`/labs/imu/${session.id}/afinacoes`}
+                className={cn(
+                  "mt-4 inline-flex items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
+                  CLICKABLE_CARD_HOVER,
+                )}
+              >
+                <SlidersHorizontal
+                  className="size-[18px]"
+                  strokeWidth={2.1}
+                  aria-hidden
+                />
+                Comparar afinações
+              </Link>
             )}
           </SectionCard>
           <SectionCard section={report.trail} />
@@ -317,8 +337,16 @@ function SectionCard({
 
       {children}
 
+      {/* The rule over the caveat separates it from the figures; under a
+          block of its own (the Bike card's comparison and door) the rule
+          is one line too many (by request, 2026-09-11). */}
       {caveat && (
-        <p className="mt-auto border-t border-border pt-4 text-xs leading-snug text-muted-foreground">
+        <p
+          className={cn(
+            "mt-auto pt-4 text-xs leading-snug text-muted-foreground",
+            Children.toArray(children).length === 0 && "border-t border-border",
+          )}
+        >
           {caveat}
         </p>
       )}

@@ -42,8 +42,9 @@ export interface ReportMetric {
   /** One line under the figure saying what it is or how it was read. */
   hint?: string;
   /** The figure as a number, on the metrics another session's report is
-   * compared against (compareReports); with which way is better, and
-   * under what difference two readings are the same. */
+   * compared against (compareReports); with which way is better — none
+   * when neither is — and under what difference two readings are the
+   * same. */
   raw?: number;
   better?: "lower" | "higher";
   tie?: number;
@@ -173,6 +174,8 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
           label: "Velocidade média",
           value: pt(avg, 1),
           unit: "km/h",
+          raw: avg,
+          tie: 0.5,
           hint: "em andamento, acima de 3 km/h",
         });
       if (summary.maxSpeedKmh != null)
@@ -546,6 +549,8 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         label: "Impactos",
         value: rate != null ? pt(rate, 1) : String(impacts.length),
         unit: rate != null ? "por km" : undefined,
+        raw: rate ?? impacts.length,
+        tie: rate != null ? 0.5 : 0,
         hint:
           sev != null
             ? `${impacts.length} no total, severidade média ${Math.round(sev)}/100`
@@ -651,12 +656,14 @@ export interface ReportComparisonRow {
    * figure is printed with. */
   diff: number;
   digits: number;
-  tone: "better" | "worse" | "tie";
+  /** Neutral where the metric has no better direction. */
+  tone: "better" | "worse" | "tie" | "neutral";
 }
 
 /**
  * The metrics both reports carry a number for, each with its difference
- * and a verdict: better, worse, or within the metric's own tie. What the
+ * and a verdict: better, worse, within the metric's own tie, or neutral
+ * where neither direction is better. What the
  * Bike section can say once there IS another pass on the same trail — the
  * comparison its caveat asks for. The order is the current report's.
  */
@@ -677,14 +684,16 @@ export function compareReports(
   const rows: ReportComparisonRow[] = [];
   for (const m of all(current)) {
     const o = before.get(m.label);
-    if (m.raw == null || !m.better || o?.raw == null) continue;
+    if (m.raw == null || o?.raw == null) continue;
     const diff = m.raw - o.raw;
     const tone =
       Math.abs(diff) <= (m.tie ?? 0)
         ? "tie"
-        : (m.better === "lower" ? diff < 0 : diff > 0)
-          ? "better"
-          : "worse";
+        : !m.better
+          ? "neutral"
+          : (m.better === "lower" ? diff < 0 : diff > 0)
+            ? "better"
+            : "worse";
     rows.push({
       label: m.label,
       unit: m.unit,

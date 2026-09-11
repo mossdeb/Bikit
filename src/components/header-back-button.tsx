@@ -55,6 +55,12 @@ const MOBILE_BACK_ROUTES: {
     backHref: (m) => `/labs/imu/${m[1]}/relatorio`,
     alsoDesktop: true,
   },
+  // The setups comparison is reached from the report's Bike card.
+  {
+    re: /^\/labs\/imu\/([^/]+)\/afinacoes$/,
+    backHref: (m) => `/labs/imu/${m[1]}/relatorio`,
+    alsoDesktop: true,
+  },
   {
     re: /^\/bikes\/([^/]+)\/components\/new$/,
     backHref: (m) => `/bikes/${m[1]}`,
