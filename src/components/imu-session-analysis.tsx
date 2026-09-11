@@ -2490,18 +2490,19 @@ const TELEMETRY_GLYPH_CLASS =
   "h-auto w-[20px] shrink-0 text-foreground [&_path]:[stroke-width:2.25]";
 
 /**
- * The marks in an event card's box of facts: full ink and a 2px stroke (by
- * request, 2026-09-11), where the résumé's tiles keep the muted 1.5px.
+ * The marks in an event card's box of facts: full ink where the résumé's
+ * tiles are muted, at the same 1.5px stroke (by request, 2026-09-11 — 2px
+ * was tried the same day and read too heavy against the figures).
  *
- * Two pixels ON THE PAGE, whatever the glyph: the box holds supplied art in
- * 19- to 24-unit viewBoxes and Lucide's 24, each with a stroke tuned to
- * its own box, and one override in units would paint a different width on
- * each. `non-scaling-stroke` makes the width a screen measure, so the same
- * `2px` lands on all of them — and on every element, not just `path`,
- * because Lucide draws circles and lines too.
+ * The width is pinned ON THE PAGE, whatever the glyph: the box holds
+ * supplied art in 19- to 24-unit viewBoxes and Lucide's 24, each with a
+ * stroke tuned to its own box, and one override in units would paint a
+ * different width on each. `non-scaling-stroke` makes the width a screen
+ * measure, so the same 1.5px lands on all of them — and on every element,
+ * not just `path`, because Lucide draws circles and lines too.
  */
 const FACT_ICON_CLASS =
-  "size-5 shrink-0 text-foreground [&_*]:[vector-effect:non-scaling-stroke] [&_*]:[stroke-width:2px]";
+  "size-5 shrink-0 text-foreground [&_*]:[vector-effect:non-scaling-stroke] [&_*]:[stroke-width:1.5px]";
 
 /**
  * The page's shell.
