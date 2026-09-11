@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
 import {
   circuitMode,
@@ -197,9 +198,9 @@ export function ImuSessionSetup({
         />
         Afinação
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Afinação nesta volta</DialogTitle>
+          <DialogTitle className="text-2xl">Afinação nesta volta</DialogTitle>
           <DialogDescription className="mt-1">
             Pressões em psi e cliques contados a partir de fechado. Só o que
             preencheres fica guardado; uma alteração cria uma afinação nova para
@@ -214,80 +215,87 @@ export function ImuSessionSetup({
             void save();
           }}
         >
-          {/* The fork, the bike, the shock — the supplied layout: the mark
-              in a hatched plate between the two dampers, so each block reads
-              as its end of the bike. The plate is a desktop affair; stacked
-              on a phone the two blocks follow each other and the mark would
-              be a picture between forms. */}
-          <div className="grid gap-5 sm:grid-cols-[1fr_auto_1fr]">
-            <DamperBlock
-              block="fork"
-              heading={labels.fork || "Garfo"}
-              draft={draft}
-              set={set}
-              choose={choose}
-            />
-            <div
-              aria-hidden
-              className="imu-event-band hidden w-36 items-center justify-center self-stretch rounded-[14px] bg-muted/40 sm:flex"
-            >
-              {/* Mirrored: the art faces right, and here the fork's block is
-                  on the left — the bike should face its own fork (by
-                  request, 2026-09-11). */}
-              <BikeMark className="h-auto w-20 -scale-x-100 text-foreground" />
+          {/* The supplied layout (2026-09-11, second pass): the suspension
+              on one hatched plate — the fork's card, the bike's mark on the
+              hatching, the shock's card — and the tyres on a plate of their
+              own under it, so the two systems read as two things. The mark
+              is a desktop affair; stacked on a phone the two cards follow
+              each other and it would be a picture between forms. */}
+          <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+              <DamperBlock
+                block="fork"
+                heading={labels.fork || "Garfo"}
+                draft={draft}
+                set={set}
+                choose={choose}
+              />
+              <div
+                aria-hidden
+                className="hidden w-32 items-center justify-center sm:flex lg:w-40"
+              >
+                {/* Mirrored: the art faces right, and here the fork's card is
+                    on the left — the bike should face its own fork (by
+                    request, 2026-09-11). */}
+                <BikeMark className="h-auto w-24 -scale-x-100 text-foreground lg:w-32" />
+              </div>
+              <DamperBlock
+                block="shock"
+                heading={labels.shock || "Amortecedor"}
+                draft={draft}
+                set={set}
+                choose={choose}
+              />
             </div>
-            <DamperBlock
-              block="shock"
-              heading={labels.shock || "Amortecedor"}
-              draft={draft}
-              set={set}
-              choose={choose}
-            />
           </div>
 
-          <div className="border-t border-border pt-5">
-            <p className="font-medium">Pneus</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <NumberField
-                id="setup-tires-front"
-                label={
-                  labels.tireFront
-                    ? `À frente · ${labels.tireFront}`
-                    : "Pressão à frente"
-                }
-                unit="psi"
-                value={draft[tireKey("frontPsi")]}
-                onChange={set(tireKey("frontPsi"))}
-              />
-              <NumberField
-                id="setup-tires-rear"
-                label={
-                  labels.tireRear
-                    ? `Atrás · ${labels.tireRear}`
-                    : "Pressão atrás"
-                }
-                unit="psi"
-                value={draft[tireKey("rearPsi")]}
-                onChange={set(tireKey("rearPsi"))}
-              />
+          <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
+            <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+              <p className="text-lg font-semibold">Pneus</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
+                <NumberField
+                  id="setup-tires-front"
+                  label={
+                    labels.tireFront
+                      ? `À frente · ${labels.tireFront}`
+                      : "Pressão à frente"
+                  }
+                  unit="psi"
+                  value={draft[tireKey("frontPsi")]}
+                  onChange={set(tireKey("frontPsi"))}
+                />
+                <NumberField
+                  id="setup-tires-rear"
+                  label={
+                    labels.tireRear
+                      ? `Atrás · ${labels.tireRear}`
+                      : "Pressão atrás"
+                  }
+                  unit="psi"
+                  value={draft[tireKey("rearPsi")]}
+                  onChange={set(tireKey("rearPsi"))}
+                />
+              </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="setup-note">Nota</Label>
-            <Input
+            <Label htmlFor="setup-note">Notas</Label>
+            <Textarea
               id="setup-note"
               value={draftNote}
-              placeholder="ex.: mais 2 cliques de rebound à frente"
+              placeholder="algo a lembrar desta afinação"
+              className="min-h-24"
               onChange={(e) => setDraftNote(e.target.value)}
             />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          {/* A pill in the middle, not a bar across — the supplied layout. */}
           <Button
             type="submit"
-            className="w-full"
+            className="mx-auto flex w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
             variant="inverted"
             disabled={busy || !dirty}
           >
@@ -324,9 +332,9 @@ function DamperBlock({
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
-        <p className="font-medium">{heading}</p>
+    <div className="space-y-3 rounded-[14px] border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-lg font-semibold">{heading}</p>
         <ModeSwitch
           label={air ? "Ar" : "Mola"}
           checked={air}
