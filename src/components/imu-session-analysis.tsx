@@ -2102,12 +2102,17 @@ export function ImuSessionAnalysis({
                 // chart, the Rider and the map already stand apart by, so the
                 // reading below them reads as the same page and not as a
                 // block with a rhythm of its own.
-                "lg:items-start lg:gap-[22px]",
-                // Both halves always stand, empty or not — an outline where
-                // the cards would be. A half that vanished took the split
-                // with it, and the reader who turned the events off would
-                // find the handle gone along with them.
-                "lg:grid lg:grid-cols-[var(--imu-read-w)_minmax(0,1fr)]",
+                "lg:items-start lg:gap-[22px] lg:grid",
+                // The events' half always stands, empty or not — an outline
+                // where the cards would be, because it carries the handle.
+                // The channels' half does not (by request, 2026-09-11): with
+                // no metric on it folds away, the split and its handle go
+                // with it, and the events take the whole row. An outline
+                // saying "no metrics" beside a full-width card was a column
+                // reserved for nothing.
+                activeSeriesDefs.length > 0
+                  ? "lg:grid-cols-[var(--imu-read-w)_minmax(0,1fr)]"
+                  : "lg:grid-cols-1",
               )}
             >
               {/* Only what the chart is drawing — toggling a pill toggles its
@@ -2121,18 +2126,18 @@ export function ImuSessionAnalysis({
                   reading's own card would draw a second frame a few pixels
                   from the first — the rule the Rider panel already carries.
                   Below `lg` they stay plain rows told apart by a rule. */}
-              <div ref={readLeftRef} className="min-w-0">
-                {/* The outline stands only where the half does: from `lg`,
-                    where the two halves sit side by side and an empty left
-                    one would otherwise be a hole with the handle floating
-                    in it. Stacked, below `lg`, the event card simply moves
-                    up; a dashed box saying "no metrics" above it was 128px
-                    of nothing to scroll past (by request, 2026-09-10). */}
-                {activeSeriesDefs.length === 0 && (
-                  <ReadingPlaceholder className="hidden lg:flex">
-                    Sem métricas ligadas
-                  </ReadingPlaceholder>
+              {/* Gone entirely while no metric is on — not an outline, at
+                  any width: stacked it was 128px of nothing to scroll past
+                  (2026-09-10), side by side it was a column held open for
+                  nothing (2026-09-11). The ref stays on it for the drag,
+                  which cannot start while it is hidden. */}
+              <div
+                ref={readLeftRef}
+                className={cn(
+                  "min-w-0",
+                  activeSeriesDefs.length === 0 && "hidden",
                 )}
+              >
                 {[
                   {
                     key: "raw",
@@ -2309,8 +2314,7 @@ export function ImuSessionAnalysis({
               <div
                 className={cn(
                   // No top margin stacked when there is nothing above to
-                  // stand apart from — the metrics half is empty and its
-                  // outline hidden below `lg`.
+                  // stand apart from — the metrics half is gone.
                   activeSeriesDefs.length > 0 && "mt-5",
                   "lg:relative lg:mt-0",
                   // The same `auto-fit` the channels use, against the same
@@ -2448,7 +2452,11 @@ export function ImuSessionAnalysis({
                   // cards, so it is taken out of the flow with `absolute`;
                   // otherwise it would claim a cell of its own and push one
                   // card off the row.
-                  className="absolute top-1/2 left-0 z-20 hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px] lg:flex"
+                  className={cn(
+                    "absolute top-1/2 left-0 z-20 hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px]",
+                    // No split to move while the channels' half is gone.
+                    activeSeriesDefs.length > 0 && "lg:flex",
+                  )}
                 >
                   <span
                     aria-hidden
@@ -2480,6 +2488,20 @@ export function ImuSessionAnalysis({
  */
 const TELEMETRY_GLYPH_CLASS =
   "h-auto w-[20px] shrink-0 text-foreground [&_path]:[stroke-width:2.25]";
+
+/**
+ * The marks in an event card's box of facts: full ink and a 2px stroke (by
+ * request, 2026-09-11), where the résumé's tiles keep the muted 1.5px.
+ *
+ * Two pixels ON THE PAGE, whatever the glyph: the box holds supplied art in
+ * 19- to 24-unit viewBoxes and Lucide's 24, each with a stroke tuned to
+ * its own box, and one override in units would paint a different width on
+ * each. `non-scaling-stroke` makes the width a screen measure, so the same
+ * `2px` lands on all of them — and on every element, not just `path`,
+ * because Lucide draws circles and lines too.
+ */
+const FACT_ICON_CLASS =
+  "size-5 shrink-0 text-foreground [&_*]:[vector-effect:non-scaling-stroke] [&_*]:[stroke-width:2px]";
 
 /**
  * The page's shell.
@@ -3241,7 +3263,7 @@ function EventCard({
                 >
                   {/* All or none: see EventMetric.Icon. */}
                   {allPlainMarked && metric.Icon && (
-                    <metric.Icon className="size-5 shrink-0 text-muted-foreground" />
+                    <metric.Icon className={FACT_ICON_CLASS} />
                   )}
                   {/* No `min-w-0` here, and the figure does not wrap: the
                       unit stays on the numbers' line — "24 → 18 → 24 km/h"
