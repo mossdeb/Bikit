@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { GpsChannels, ImuSessionData } from "./format";
-import { buildSessionReport } from "./report";
+import {
+  buildSessionReport,
+  compareReports,
+  type SessionReport,
+} from "./report";
 
 /**
  * A ride drawn by hand, in the bike's frame (+X forward, +Z up), 100 Hz for
@@ -143,5 +147,69 @@ describe("buildSessionReport", () => {
     expect(
       report.trail.metrics.find((m) => m.label === "Distância"),
     ).toBeUndefined();
+  });
+});
+
+describe("compareReports", () => {
+  const section = (
+    title: "Rider" | "Bike" | "Trail",
+    metrics: SessionReport["bike"]["metrics"],
+  ): SessionReport["bike"] => ({
+    title,
+    subtitle: "",
+    headline: "",
+    metrics,
+    highlights: null,
+    caveat: null,
+  });
+  const report = (
+    harsh: number,
+    settle: number,
+    retention: number,
+  ): SessionReport => ({
+    rider: section("Rider", [
+      {
+        label: "Retenção nas curvas",
+        value: `${retention} %`,
+        raw: retention,
+        better: "higher",
+        tie: 2,
+      },
+      { label: "Velocidade máx", value: "40" },
+    ]),
+    bike: section("Bike", [
+      {
+        label: "Harshness",
+        value: harsh.toFixed(1).replace(".", ","),
+        unit: "×",
+        raw: harsh,
+        better: "lower",
+        tie: 0.2,
+      },
+      {
+        label: "Assentamento",
+        value: String(settle),
+        unit: "ms",
+        raw: settle,
+        better: "lower",
+        tie: 30,
+      },
+    ]),
+    trail: section("Trail", []),
+  });
+
+  it("sets each numbered metric against the other report's, with a verdict", () => {
+    const rows = compareReports(report(3.1, 180, 71), report(3.6, 190, 76));
+    expect(rows.map((r) => [r.label, r.tone, r.digits])).toEqual([
+      ["Retenção nas curvas", "worse", 0],
+      ["Harshness", "better", 1],
+      ["Assentamento", "tie", 0],
+    ]);
+    expect(rows[1].diff).toBeCloseTo(-0.5);
+    expect(rows[1].previous).toBe("3,6");
+    // A metric only one report has, or one without a number, is left out.
+    const partial = report(3.1, 180, 71);
+    partial.bike.metrics.pop();
+    expect(compareReports(partial, report(3.6, 190, 76))).toHaveLength(2);
   });
 });

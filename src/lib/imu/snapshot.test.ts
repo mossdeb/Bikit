@@ -10,6 +10,7 @@ import {
   prepareSnapshotSession,
   snapshotKindOf,
   snapshotPassMetrics,
+  trackIndexCoverage,
   trackIndexMayPass,
   trackIndexNearGate,
   type SnapshotDefinition,
@@ -452,6 +453,30 @@ describe("the track index", () => {
     expect(trackIndexMayPass(beside, def)).toBe(false);
     expect(trackIndexNearGate(turnsOff, def.entry)).toBe(true);
     expect(trackIndexMayPass(turnsOff, def)).toBe(false);
+  });
+
+  it("says how much of one track another covers", () => {
+    const full = buildTrackIndex(
+      ride({ seconds: 76, speed: () => 8, at: L }).gps,
+    )!;
+    // The first leg only: all of it lies along the L; the L only half
+    // lies along it.
+    const leg = buildTrackIndex(
+      ride({ seconds: 37, speed: () => 8, at: L }).gps,
+    )!;
+    // The same L, a bike's width to the side.
+    const beside = buildTrackIndex(
+      ride({ seconds: 76, speed: () => 8, at: (d) => [L(d)[0], L(d)[1] + 3] })
+        .gps,
+    )!;
+    const elsewhere = buildTrackIndex(
+      ride({ seconds: 76, speed: () => 8, at: (d) => [d, 500] }).gps,
+    )!;
+    expect(trackIndexCoverage(full, full)).toBe(1);
+    expect(trackIndexCoverage(leg, full)).toBe(1);
+    expect(trackIndexCoverage(full, leg)).toBeLessThan(1);
+    expect(trackIndexCoverage(beside, full)).toBe(1);
+    expect(trackIndexCoverage(full, elsewhere)).toBe(0);
   });
 });
 

@@ -41,6 +41,12 @@ export interface ReportMetric {
   unit?: string;
   /** One line under the figure saying what it is or how it was read. */
   hint?: string;
+  /** The figure as a number, on the metrics another session's report is
+   * compared against (compareReports); with which way is better, and
+   * under what difference two readings are the same. */
+  raw?: number;
+  better?: "lower" | "higher";
+  tie?: number;
 }
 
 export interface ReportHighlight {
@@ -203,6 +209,9 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
       metrics.push({
         label: "Retenção nas curvas",
         value: pct(avg),
+        raw: 100 * avg,
+        better: "higher",
+        tie: 2,
         hint: corrected
           ? "saída sobre a saída que a gravidade daria, média das curvas"
           : "saída sobre entrada, média das curvas",
@@ -341,6 +350,9 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
           label: "Harshness",
           value: pt(p99 / rms, 1),
           unit: "×",
+          raw: p99 / rms,
+          better: "lower",
+          tie: 0.2,
           hint: `pico (p99) sobre RMS da força dinâmica${useRough ? " nas zonas acidentadas" : ""}; maior é mais seco`,
         });
     }
@@ -358,6 +370,9 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         label: "Vibração",
         value: pt(rms, 0),
         unit: "G/s",
+        raw: rms,
+        better: "lower",
+        tie: 5,
         hint: `RMS da variação da força${useRough ? " nas zonas acidentadas" : ""}`,
       });
     }
@@ -385,6 +400,9 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         label: "Assentamento",
         value: pt(settleMedian, 0),
         unit: "ms",
+        raw: settleMedian,
+        better: "lower",
+        tie: 30,
         hint: "mediana do tempo até a força voltar abaixo de 1 G após um impacto",
       });
       for (const s of [...settles]
@@ -620,4 +638,62 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
       );
     }
   }
+}
+
+/** One metric of this report set against the same metric of another —
+ * the previous run of this bike on another setup, on the same trail. */
+export interface ReportComparisonRow {
+  label: string;
+  unit?: string;
+  value: string;
+  previous: string;
+  /** This minus the other, in the metric's own unit, and the decimals the
+   * figure is printed with. */
+  diff: number;
+  digits: number;
+  tone: "better" | "worse" | "tie";
+}
+
+/**
+ * The metrics both reports carry a number for, each with its difference
+ * and a verdict: better, worse, or within the metric's own tie. What the
+ * Bike section can say once there IS another pass on the same trail — the
+ * comparison its caveat asks for. The order is the current report's.
+ */
+export function compareReports(
+  current: SessionReport,
+  previous: SessionReport,
+): ReportComparisonRow[] {
+  const all = (r: SessionReport) => [
+    ...r.rider.metrics,
+    ...r.bike.metrics,
+    ...r.trail.metrics,
+  ];
+  const before = new Map(
+    all(previous)
+      .filter((m) => m.raw != null)
+      .map((m) => [m.label, m]),
+  );
+  const rows: ReportComparisonRow[] = [];
+  for (const m of all(current)) {
+    const o = before.get(m.label);
+    if (m.raw == null || !m.better || o?.raw == null) continue;
+    const diff = m.raw - o.raw;
+    const tone =
+      Math.abs(diff) <= (m.tie ?? 0)
+        ? "tie"
+        : (m.better === "lower" ? diff < 0 : diff > 0)
+          ? "better"
+          : "worse";
+    rows.push({
+      label: m.label,
+      unit: m.unit,
+      value: m.value,
+      previous: o.value,
+      diff,
+      digits: (m.value.split(",")[1] ?? "").replace(/\D/g, "").length,
+      tone,
+    });
+  }
+  return rows;
 }

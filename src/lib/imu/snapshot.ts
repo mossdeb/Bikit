@@ -873,3 +873,66 @@ export function findSnapshotTwins<T extends { definition: SnapshotDefinition }>(
       sameGate(s.definition.exit, definition.exit),
   );
 }
+
+/** How far a point of one outline may sit from the other outline's line
+ * and still be "on the same trail", m: the outline's own tolerance twice
+ * over, plus the receiver's wander, plus a line ridden a bike's width to
+ * one side. */
+export const TRACK_COVER_M = 20;
+
+/**
+ * How much of one track the other covers: the fraction of `track`'s
+ * outline points within TRACK_COVER_M of `by`'s outline. 1 when `track`
+ * was ridden entirely along `by` (a lap of a ride that went on further),
+ * 0 in another valley — the box is tried first, so that costs nothing.
+ * Used to find, among a bike's earlier sessions, one on the same trail
+ * for the report to compare setups against.
+ */
+export function trackIndexCoverage(
+  track: SnapshotTrackIndex,
+  by: SnapshotTrackIndex,
+): number {
+  const a = track.outline;
+  const b = by.outline;
+  if (a.length === 0 || b.length < 2) return 0;
+  const lat0 = (track.bounds.minLat + track.bounds.maxLat) / 2;
+  const cosLat = Math.cos(lat0 * RAD);
+  const dLat = TRACK_COVER_M / (EARTH_R * RAD);
+  const dLon = TRACK_COVER_M / (EARTH_R * RAD * cosLat);
+  const bb = by.bounds;
+  if (
+    track.bounds.maxLat < bb.minLat - dLat ||
+    track.bounds.minLat > bb.maxLat + dLat ||
+    track.bounds.maxLon < bb.minLon - dLon ||
+    track.bounds.minLon > bb.maxLon + dLon
+  )
+    return 0;
+  // Both outlines in metres on one plane, `by` as segments.
+  const x = (p: [number, number]) => p[1] * RAD * EARTH_R * cosLat;
+  const y = (p: [number, number]) => p[0] * RAD * EARTH_R;
+  const bx = b.map(x);
+  const byy = b.map(y);
+  let covered = 0;
+  for (const p of a) {
+    const px = x(p);
+    const py = y(p);
+    let near = false;
+    for (let k = 0; k + 1 < b.length && !near; k++) {
+      const dx = bx[k + 1] - bx[k];
+      const dy = byy[k + 1] - byy[k];
+      const len2 = dx * dx + dy * dy;
+      const t =
+        len2 > 0
+          ? Math.min(
+              1,
+              Math.max(0, ((px - bx[k]) * dx + (py - byy[k]) * dy) / len2),
+            )
+          : 0;
+      near =
+        Math.hypot(px - (bx[k] + t * dx), py - (byy[k] + t * dy)) <=
+        TRACK_COVER_M;
+    }
+    if (near) covered++;
+  }
+  return covered / a.length;
+}

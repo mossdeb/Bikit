@@ -51,15 +51,17 @@ export async function loadImuSession(
   };
 }
 
-/** loadImuSession as a hook, for a page that shows one session. */
+/** loadImuSession as a hook, for a page that shows one session. A null
+ * path is "no session": nothing is fetched and both come back null. */
 export function useImuSession(
-  storagePath: string,
+  storagePath: string | null,
   mountOrientation: ImuMountOrientation | null,
 ): { data: ImuSessionData | null; error: string | null } {
   const [data, setData] = useState<ImuSessionData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (storagePath == null) return;
     let cancelled = false;
     (async () => {
       const result = await loadImuSession(storagePath, mountOrientation);

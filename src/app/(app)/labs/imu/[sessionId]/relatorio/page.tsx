@@ -4,14 +4,18 @@ import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
-import { ImuSessionReport } from "@/components/imu-session-report";
+import {
+  ImuSessionReport,
+  type ImuReportSetupComparison,
+} from "@/components/imu-session-report";
 import type {
   ImuSnapshotCandidate,
   ImuSnapshotRow,
 } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
-import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
+import { isSetupValues, setupDiff, type ImuSetupValues } from "@/lib/imu/setup";
+import { pickSetupComparison } from "@/lib/imu/setup-compare";
 import {
   isSnapshotDefinition,
   isTrackIndex,
@@ -57,6 +61,7 @@ export default async function ImuSessionReportPage({
     { data: bikes },
     { data: groups },
     { data: setups },
+    { data: earlierRows },
   ] = await Promise.all([
     supabase
       .from("imu_snapshots")
@@ -76,6 +81,20 @@ export default async function ImuSessionReportPage({
       .from("imu_setups")
       .select("id, values, note")
       .eq("user_id", userId),
+    // The bike's earlier runs that carry a setup — the pool the Bike
+    // section's comparison is picked from (pickSetupComparison). Newest
+    // first; a few dozen covers a season of one bike.
+    session.bike_id
+      ? supabase
+          .from("imu_sessions")
+          .select(sessionColumns)
+          .eq("user_id", userId)
+          .eq("bike_id", session.bike_id)
+          .not("setup_id", "is", null)
+          .lt("created_at", session.created_at)
+          .order("created_at", { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: null }),
   ]);
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
@@ -142,6 +161,25 @@ export default async function ImuSessionReportPage({
     for (const row of rows ?? []) referenceSessions[row.id] = candidateOf(row);
   }
 
+  // The run this one's setup is set against: same bike and rider, another
+  // setup, the same trail. The client reads its file beside this one's.
+  const current = candidateOf(session);
+  const compareOf = (s: SessionRow) => ({
+    ...candidateOf(s),
+    trackIndex: isTrackIndex(s.track_index) ? s.track_index : null,
+  });
+  const { pick, reason } = pickSetupComparison(
+    { ...current, trackIndex: index },
+    (earlierRows ?? []).map(compareOf),
+  );
+  const setupComparison: ImuReportSetupComparison | null =
+    pick && current.setup && pick.setup
+      ? {
+          session: candidateOf(earlierRows!.find((s) => s.id === pick.id)!),
+          changes: setupDiff(pick.setup, current.setup),
+        }
+      : null;
+
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
       <ImuLabTexture />
@@ -150,9 +188,11 @@ export default async function ImuSessionReportPage({
         mountOrientation={
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
-        session={candidateOf(session)}
+        session={current}
         snapshots={snapshots}
         referenceSessions={referenceSessions}
+        setupComparison={setupComparison}
+        setupComparisonNote={reason}
         header={
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
