@@ -99,10 +99,27 @@ export async function createImuSession(
   const group = await resolveGroup(supabase, userId, input.group);
   if (group.status === "error") return group;
 
+  // The bike's latest setup rides along: five descents on one setup are
+  // five sessions pointing at one row, and only a change makes a new one
+  // (see src/lib/imu/setup.ts). Nothing to inherit, nothing linked.
+  let setupId: string | null = null;
+  if (input.bikeId) {
+    const { data: latest } = await supabase
+      .from("imu_setups")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("bike_id", input.bikeId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setupId = latest?.id ?? null;
+  }
+
   const { error } = await supabase.from("imu_sessions").insert({
     user_id: userId,
     bike_id: input.bikeId,
     group_id: group.id,
+    setup_id: setupId,
     name,
     rider_name: riderName,
     storage_path: input.storagePath,

@@ -12,6 +12,15 @@ import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionSettings } from "@/components/imu-session-settings";
 import type { ImuSnapshotTwin } from "@/components/imu-snapshot-create";
+import {
+  ImuSessionSetup,
+  type ImuSetupLabels,
+} from "@/components/imu-session-setup";
+import {
+  isSetupValues,
+  setupSummary,
+  type ImuSetupValues,
+} from "@/lib/imu/setup";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 
@@ -37,7 +46,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, mount_orientation, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -103,6 +112,61 @@ export default async function ImuSessionPage({
   const bike = session.bike_id
     ? ((bikes ?? []).find((b) => b.id === session.bike_id) ?? null)
     : null;
+  // The run's setup (see src/lib/imu/setup.ts) and what the bike calls its
+  // dampers, for the form's headings: the fork and shock components it
+  // has registered, by brand and model when they carry one.
+  const [{ data: setupRow }, { data: dampers }] = await Promise.all([
+    session.setup_id
+      ? supabase
+          .from("imu_setups")
+          .select("values, note")
+          .eq("id", session.setup_id)
+          .eq("user_id", userId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    session.bike_id
+      ? supabase
+          .from("components")
+          .select("category, name, brand, model")
+          .eq("bike_id", session.bike_id)
+          .eq("user_id", userId)
+          .is("retired_at", null)
+          .in("category", [
+            "Front Suspension (Fork)",
+            "Rear Suspension",
+            "Tire",
+          ])
+      : Promise.resolve({ data: null }),
+  ]);
+  const setupValues: ImuSetupValues =
+    setupRow && isSetupValues(setupRow.values) ? setupRow.values : {};
+  const setupNote = setupRow?.note ?? null;
+  const damperLabel = (category: string) => {
+    const c = (dampers ?? []).find((d) => d.category === category);
+    if (!c) return null;
+    const brandModel = [c.brand, c.model].filter(Boolean).join(" ").trim();
+    return brandModel || c.name || null;
+  };
+  // The tyres, front and rear: told apart by a "(front)"/"(rear)" or
+  // "frente"/"trás" in the name when the bike has two, the first one for
+  // both when it has one and says nothing.
+  const tires = (dampers ?? []).filter((d) => d.category === "Tire");
+  const tireLabel = (c: (typeof tires)[number] | undefined) => {
+    if (!c) return null;
+    const brandModel = [c.brand, c.model].filter(Boolean).join(" ").trim();
+    return brandModel || c.name || null;
+  };
+  const isFront = (c: (typeof tires)[number]) =>
+    /front|frente|dianteir/i.test(c.name ?? "");
+  const isRear = (c: (typeof tires)[number]) =>
+    /rear|tr[aá]s|traseir/i.test(c.name ?? "");
+  const setupLabels: ImuSetupLabels = {
+    fork: damperLabel("Front Suspension (Fork)"),
+    shock: damperLabel("Rear Suspension"),
+    tireFront: tireLabel(tires.find(isFront) ?? tires[0]),
+    tireRear: tireLabel(tires.find(isRear) ?? tires[1] ?? tires[0]),
+  };
+  const setupLine = setupSummary(setupValues, setupLabels);
   const BikeGlyph = bike?.type
     ? BIKE_TYPE_ICON[bike.type as BikeType]
     : undefined;
@@ -226,20 +290,36 @@ export default async function ImuSessionPage({
                     {session.sample_count.toLocaleString("pt-PT")} amostras
                   </span>
                 </p>
+                {/* The run's setup in one line under the provenance — the
+                    fork, the shock and the tyres as they were set — or the
+                    absence of one, so the reader knows the door beside it
+                    is worth opening. */}
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {setupLine ?? "Sem afinação registada"}
+                </p>
               </div>
-              {/* The report's door: the session's own document mark and the
-                word, in an outlined pill — a control, not a figure, so it
-                wears the page's outline and not a tile's rules. */}
-              <Link
-                href={`/labs/imu/${session.id}/relatorio`}
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold sm:self-end",
-                  CLICKABLE_CARD_HOVER,
-                )}
-              >
-                <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
-                Relatório
-              </Link>
+              {/* Two doors, side by side: the report, and the run's setup.
+                  Outlined pills — controls, not figures, so they wear the
+                  page's outline and not a tile's rules. */}
+              <div className="flex shrink-0 flex-wrap gap-3 self-start sm:self-end">
+                <ImuSessionSetup
+                  sessionId={session.id}
+                  values={setupValues}
+                  note={setupNote}
+                  labels={setupLabels}
+                  bikeType={(bike?.type as BikeType | undefined) ?? null}
+                />
+                <Link
+                  href={`/labs/imu/${session.id}/relatorio`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold",
+                    CLICKABLE_CARD_HOVER,
+                  )}
+                >
+                  <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
+                  Relatório
+                </Link>
+              </div>
             </div>
           </div>
         }

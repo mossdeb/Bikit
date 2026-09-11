@@ -1,0 +1,167 @@
+import { describe, expect, it } from "vitest";
+import {
+  circuitMode,
+  damperSpring,
+  formatSetupChange,
+  isSetupEmpty,
+  isSetupValues,
+  normalizeSetupValues,
+  setupDiff,
+  setupKey,
+  setupSummary,
+  setupValuesEqual,
+} from "./setup";
+
+describe("setup values", () => {
+  it("accepts the shape and refuses strays", () => {
+    expect(
+      isSetupValues({
+        fork: { pressurePsi: 78, reboundLow: 8 },
+        tires: { frontPsi: 24 },
+      }),
+    ).toBe(true);
+    expect(isSetupValues({})).toBe(true);
+    expect(isSetupValues({ fork: { pressurePsi: "78" } })).toBe(false);
+    expect(isSetupValues({ wheels: { frontPsi: 24 } })).toBe(false);
+    expect(isSetupValues({ fork: { sag: 30 } })).toBe(false);
+    expect(isSetupValues(null)).toBe(false);
+  });
+
+  it("drops the blanks and compares what is left", () => {
+    const a = {
+      fork: { pressurePsi: 78, compressionLow: undefined },
+      shock: {},
+      tires: { frontPsi: 24, rearPsi: 26 },
+    };
+    expect(normalizeSetupValues(a)).toEqual({
+      fork: { pressurePsi: 78 },
+      tires: { frontPsi: 24, rearPsi: 26 },
+    });
+    expect(
+      setupValuesEqual(a, {
+        fork: { pressurePsi: 78 },
+        tires: { frontPsi: 24, rearPsi: 26 },
+      }),
+    ).toBe(true);
+    expect(
+      setupValuesEqual(a, { ...a, tires: { frontPsi: 22, rearPsi: 26 } }),
+    ).toBe(false);
+    expect(isSetupEmpty({ fork: {}, shock: { reboundHigh: undefined } })).toBe(
+      true,
+    );
+    expect(isSetupEmpty(a)).toBe(false);
+  });
+
+  it("writes the header line with the bike's own names and dashes for the half-filled pairs", () => {
+    expect(
+      setupSummary(
+        {
+          fork: {
+            pressurePsi: 78,
+            compressionHigh: 2,
+            compressionLow: 12,
+            reboundLow: 8,
+          },
+          shock: { pressurePsi: 205 },
+          tires: { frontPsi: 24, rearPsi: 26 },
+        },
+        { fork: "Fox 38", shock: null },
+      ),
+    ).toBe(
+      "Fox 38 78 psi · C 12/2 · R 8/– · Amortecedor 205 psi · Pneus 24/26 psi",
+    );
+    expect(setupSummary({ tires: { rearPsi: 26 } })).toBe("Pneus –/26 psi");
+    expect(setupSummary({})).toBeNull();
+  });
+});
+
+describe("air or coil, one dial or two", () => {
+  it("reads the choices, written or implied", () => {
+    expect(damperSpring({ pressurePsi: 80 })).toBe("air");
+    expect(damperSpring({ springRateLbs: 450 })).toBe("coil");
+    expect(damperSpring({ spring: "coil" })).toBe("coil");
+    expect(damperSpring(undefined)).toBe("air");
+    expect(circuitMode({ compression: 8 }, "compression")).toBe("simple");
+    expect(circuitMode({ compressionLow: 8 }, "compression")).toBe("dual");
+    expect(circuitMode({ reboundMode: "simple" }, "rebound")).toBe("simple");
+    expect(circuitMode(undefined, "rebound")).toBe("dual");
+    expect(isSetupValues({ shock: { spring: "coil", rebound: 8 } })).toBe(true);
+    expect(isSetupValues({ shock: { spring: "steel" } })).toBe(false);
+  });
+
+  it("keeps the numbers of the choice taken and drops the others", () => {
+    const coil = {
+      shock: {
+        spring: "coil" as const,
+        pressurePsi: 205,
+        springRateLbs: 450,
+        compressionMode: "simple" as const,
+        compression: 8,
+        compressionLow: 12,
+        reboundHigh: 3,
+      },
+    };
+    expect(normalizeSetupValues(coil)).toEqual({
+      shock: {
+        spring: "coil",
+        springRateLbs: 450,
+        compressionMode: "simple",
+        compression: 8,
+        reboundHigh: 3,
+      },
+    });
+    // The defaults are not written down, so an older setup compares equal.
+    expect(
+      normalizeSetupValues({
+        fork: { spring: "air", pressurePsi: 78, compressionMode: "dual" },
+      }),
+    ).toEqual({ fork: { pressurePsi: 78 } });
+    expect(setupSummary(coil, { shock: "DHX2" })).toBe(
+      "DHX2 450 lbs · C 8 · R –/3",
+    );
+    expect(
+      setupDiff({ fork: { pressurePsi: 78 } }, coil).map(formatSetupChange),
+    ).toEqual([
+      "garfo pressão 78 psi → —",
+      "amort. mola → 450 lbs",
+      "amort. C → 8",
+      "amort. R alta → 3",
+    ]);
+  });
+});
+
+describe("setup differences", () => {
+  const reference = {
+    fork: { pressurePsi: 78, reboundLow: 8 },
+    shock: { reboundLow: 10 },
+    tires: { frontPsi: 24, rearPsi: 26 },
+  };
+
+  it("names every knob that moved, and only those", () => {
+    const changes = setupDiff(reference, {
+      fork: { pressurePsi: 78, reboundLow: 10, compressionLow: 12 },
+      shock: {},
+      tires: { frontPsi: 24, rearPsi: 24 },
+    });
+    expect(changes.map(formatSetupChange)).toEqual([
+      "garfo C baixa → 12",
+      "garfo R baixa +2",
+      "amort. R baixa 10 → —",
+      "pneu tr. −2 psi",
+    ]);
+    expect(setupDiff(reference, reference)).toEqual([]);
+  });
+
+  it("keys the same numbers the same, whatever the blanks", () => {
+    expect(setupKey(reference)).toBe(
+      setupKey({
+        ...reference,
+        shock: { reboundLow: 10, reboundHigh: undefined },
+      }),
+    );
+    expect(setupKey(reference)).not.toBe(
+      setupKey({ ...reference, tires: { frontPsi: 22, rearPsi: 26 } }),
+    );
+    expect(setupKey({})).toBe("||,");
+  });
+});

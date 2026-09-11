@@ -42,6 +42,13 @@ import {
   type SnapshotSession,
 } from "@/lib/imu/snapshot";
 import { ImuSnapshotMiniMap } from "@/components/imu-snapshot-mini-map";
+import {
+  formatSetupChange,
+  setupDiff,
+  setupKey,
+  setupSummary,
+  type ImuSetupValues,
+} from "@/lib/imu/setup";
 
 /**
  * A Snapshot's page: the reference pass pinned at the top, and under it
@@ -67,6 +74,11 @@ export interface ImuSnapshotCandidate {
   createdAt: string;
   storagePath: string;
   mountOrientation: ImuMountOrientation | null;
+  /** The bike's setup on this run (src/lib/imu/setup.ts), null when none
+   * was recorded — so two passes of one corner can say what changed
+   * between them (phase 2 of the setups, 2026-09-11). */
+  setup: ImuSetupValues | null;
+  setupNote: string | null;
 }
 
 export interface ImuSnapshotRow {
@@ -266,7 +278,8 @@ export function ImuSnapshotView({
   );
   const [bikeFilter, setBikeFilter] = useState("");
   const [riderFilter, setRiderFilter] = useState("");
-  const [sort, setSort] = useState<"date" | "time">("date");
+  const [setupFilter, setSetupFilter] = useState("");
+  const [sort, setSort] = useState<"date" | "time" | "setup">("date");
 
   // Every candidate's file, in parallel, each landing as it arrives.
   useEffect(() => {
@@ -348,16 +361,63 @@ export function ImuSnapshotView({
     ...new Set(candidates.map((c) => c.riderName).filter(Boolean)),
   ] as string[];
 
+  // The distinct setups among the passes, lettered A, B, C… — the
+  // reference's first, then by the session's date, so a letter does not
+  // move when a newer session arrives. Two sessions on the same numbers
+  // share a letter whatever row they point at. A pass without a setup has
+  // no letter.
+  const setupLetters = useMemo(() => {
+    const letters = new Map<string, string>();
+    const ordered = [...rows].sort(
+      (a, b) =>
+        Number(b.isReference) - Number(a.isReference) ||
+        a.session.createdAt.localeCompare(b.session.createdAt),
+    );
+    for (const r of ordered) {
+      if (!r.session.setup) continue;
+      const key = setupKey(r.session.setup);
+      if (!letters.has(key))
+        letters.set(key, String.fromCharCode(65 + letters.size));
+    }
+    return letters;
+  }, [rows]);
+  const letterOf = (r: SnapshotPassRow) =>
+    r.session.setup
+      ? (setupLetters.get(setupKey(r.session.setup)) ?? null)
+      : null;
+  const setupGroups = [...setupLetters.entries()].map(([key, letter]) => ({
+    key,
+    letter,
+    summary: setupSummary(
+      rows.find((r) => r.session.setup && setupKey(r.session.setup) === key)!
+        .session.setup!,
+    ),
+  }));
+  const unsetCount = rows.filter((r) => !r.session.setup).length;
+
   const others = rows
     .filter((r) => r !== reference)
     .filter((r) => !bikeFilter || r.session.bikeId === bikeFilter)
     .filter((r) => !riderFilter || r.session.riderName === riderFilter)
-    .sort((a, b) =>
-      sort === "time"
-        ? a.metrics.durationMs - b.metrics.durationMs
-        : b.session.createdAt.localeCompare(a.session.createdAt) ||
-          a.index - b.index,
-    );
+    .filter(
+      (r) =>
+        !setupFilter ||
+        (setupFilter === "none"
+          ? !r.session.setup
+          : (letterOf(r) ?? "") === setupFilter),
+    )
+    .sort((a, b) => {
+      if (sort === "time") return a.metrics.durationMs - b.metrics.durationMs;
+      const byDate =
+        b.session.createdAt.localeCompare(a.session.createdAt) ||
+        a.index - b.index;
+      if (sort !== "setup") return byDate;
+      // Grouped: the reference's setup first, then B, C…, the passes
+      // without one at the end; newest first within a group.
+      const la = letterOf(a) ?? "~";
+      const lb = letterOf(b) ?? "~";
+      return la.localeCompare(lb) || byDate;
+    });
 
   const columns = SNAPSHOT_COLUMNS[snapshot.definition.kind];
   const referenceSession = candidates.find(
@@ -469,15 +529,38 @@ export function ImuSnapshotView({
               ))}
             </NativeSelect>
           )}
+          {setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1 && (
+            <NativeSelect
+              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
+              className="h-11 bg-card text-sm"
+              aria-label="Afinação"
+              value={setupFilter}
+              onChange={(e) => setSetupFilter(e.target.value)}
+            >
+              <option value="">Todas as afinações</option>
+              {setupGroups.map((g) => (
+                <option key={g.letter} value={g.letter}>
+                  Afinação {g.letter}
+                  {g.summary && ` · ${g.summary}`}
+                </option>
+              ))}
+              {unsetCount > 0 && <option value="none">Sem afinação</option>}
+            </NativeSelect>
+          )}
           <NativeSelect
             wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
             className="h-11 bg-card text-sm"
             aria-label="Ordem"
             value={sort}
-            onChange={(e) => setSort(e.target.value as "date" | "time")}
+            onChange={(e) =>
+              setSort(e.target.value as "date" | "time" | "setup")
+            }
           >
             <option value="date">Mais recentes primeiro</option>
             <option value="time">Mais rápidas primeiro</option>
+            {setupGroups.length > 0 && (
+              <option value="setup">Agrupadas por afinação</option>
+            )}
           </NativeSelect>
         </div>
       )}
@@ -506,6 +589,7 @@ export function ImuSnapshotView({
             row={reference}
             reference={null}
             columns={columns}
+            setupLetter={letterOf(reference)}
             pinned
           />
         )}
@@ -515,6 +599,7 @@ export function ImuSnapshotView({
             row={row}
             reference={reference}
             columns={columns}
+            setupLetter={letterOf(row)}
           />
         ))}
         {pending === 0 && rows.length === 0 && (
@@ -548,17 +633,30 @@ export function SnapshotPassLine({
   row,
   reference,
   columns,
+  setupLetter = null,
   pinned = false,
 }: {
   row: SnapshotPassRow;
   /** What the figures are compared with; null on the reference itself. */
   reference: SnapshotPassRow | null;
   columns: Column[];
+  /** The letter of this pass's setup among the Snapshot's (A, B, C…);
+   * null when it has none, or when the caller does not letter them. */
+  setupLetter?: string | null;
   pinned?: boolean;
 }) {
   const { session, metrics } = row;
   const sameSpeed =
     reference != null && reference.metrics.speedSource === metrics.speedSource;
+  // The setup line: what this run was set to, and — against a reference
+  // that has one — the knobs that moved, each in its own chip. Same
+  // numbers as the reference is said in words, so a silent line never
+  // means "unknown".
+  const setupText = session.setup ? setupSummary(session.setup) : null;
+  const setupChanges =
+    reference?.session.setup && session.setup
+      ? setupDiff(reference.session.setup, session.setup)
+      : [];
   return (
     <div
       className={cn(
@@ -595,6 +693,33 @@ export function SnapshotPassLine({
         {session.bikeName && ` · ${session.bikeName}`}
         {session.groupLabel && ` · ${session.groupLabel}`}
       </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        {setupLetter && (
+          <span
+            className="rounded-[6px] bg-foreground px-1.5 py-0.5 font-semibold text-background"
+            title="A mesma letra é a mesma afinação"
+          >
+            Afinação {setupLetter}
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          {setupText ?? "Sem afinação registada"}
+          {session.setupNote && ` · “${session.setupNote}”`}
+        </span>
+        {setupChanges.map((change) => (
+          <span
+            key={change.label}
+            className="rounded-full border border-foreground/40 bg-background px-2 py-0.5 font-medium text-foreground tabular-nums"
+          >
+            {formatSetupChange(change)}
+          </span>
+        ))}
+        {reference?.session.setup &&
+          session.setup &&
+          setupChanges.length === 0 && (
+            <span className="text-muted-foreground">· igual à referência</span>
+          )}
+      </div>
       <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-x-4 gap-y-3">
         {columns.map((column) => {
           const value = column.value(metrics);

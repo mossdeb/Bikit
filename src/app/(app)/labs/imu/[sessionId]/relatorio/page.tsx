@@ -11,6 +11,7 @@ import type {
 } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
 import {
   isSnapshotDefinition,
   isTrackIndex,
@@ -42,7 +43,7 @@ export default async function ImuSessionReportPage({
   if (!userId || !hasLabAccess(email)) notFound();
 
   const sessionColumns =
-    "id, name, rider_name, bike_id, group_id, mount_orientation, created_at, sample_rate_hz, sample_count, storage_path, track_index";
+    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index";
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(sessionColumns)
@@ -51,24 +52,42 @@ export default async function ImuSessionReportPage({
     .single();
   if (!session) notFound();
 
-  const [{ data: snapshotRows }, { data: bikes }, { data: groups }] =
-    await Promise.all([
-      supabase
-        .from("imu_snapshots")
-        .select(
-          "id, name, definition, reference_session_id, reference_entry_ms, reference_exit_ms, created_at",
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-      supabase.from("bikes").select("id, name").eq("user_id", userId),
-      supabase
-        .from("imu_session_groups")
-        .select("id, name, day")
-        .eq("user_id", userId),
-    ]);
+  const [
+    { data: snapshotRows },
+    { data: bikes },
+    { data: groups },
+    { data: setups },
+  ] = await Promise.all([
+    supabase
+      .from("imu_snapshots")
+      .select(
+        "id, name, definition, reference_session_id, reference_entry_ms, reference_exit_ms, created_at",
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase.from("bikes").select("id, name").eq("user_id", userId),
+    supabase
+      .from("imu_session_groups")
+      .select("id, name, day")
+      .eq("user_id", userId),
+    // Every setup of the account — a handful of rows — for this session and
+    // the references' alike, without a second round trip.
+    supabase
+      .from("imu_setups")
+      .select("id, values, note")
+      .eq("user_id", userId),
+  ]);
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
     (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
+  );
+  const setupById = new Map(
+    (setups ?? [])
+      .filter((s) => isSetupValues(s.values))
+      .map((s) => [
+        s.id,
+        { values: s.values as ImuSetupValues, note: s.note ?? null },
+      ]),
   );
   type SessionRow = NonNullable<typeof session>;
   const candidateOf = (s: SessionRow): ImuSnapshotCandidate => ({
@@ -82,6 +101,8 @@ export default async function ImuSessionReportPage({
     storagePath: s.storage_path,
     mountOrientation:
       s.mount_orientation as unknown as ImuMountOrientation | null,
+    setup: (s.setup_id && setupById.get(s.setup_id)?.values) || null,
+    setupNote: (s.setup_id && setupById.get(s.setup_id)?.note) || null,
   });
 
   const index = isTrackIndex(session.track_index) ? session.track_index : null;

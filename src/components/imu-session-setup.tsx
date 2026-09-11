@@ -1,0 +1,516 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Bike, SlidersHorizontal } from "lucide-react";
+import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import type { BikeType } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
+import {
+  circuitMode,
+  DAMPER_FIELDS,
+  damperSpring,
+  setupValuesEqual,
+  type ImuCircuit,
+  type ImuDamperSetup,
+  type ImuSetupValues,
+  type ImuTireSetup,
+} from "@/lib/imu/setup";
+
+/** What the bike calls its dampers, for the blocks' headings; null falls
+ * back to "Garfo" and "Amortecedor". Null for both on a hardtail is still
+ * two blocks — the form does not know what the bike lacks, only what it
+ * has, and an unfilled block costs nothing. */
+export interface ImuSetupLabels {
+  fork: string | null;
+  shock: string | null;
+  tireFront: string | null;
+  tireRear: string | null;
+}
+
+type Draft = Record<string, string>;
+
+const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
+  `${block}.${field}`;
+const tireKey = (field: keyof ImuTireSetup) => `tires.${field}`;
+
+/** The draft holds the numbers as strings and, under the same keys as the
+ * values, the choices: "air"/"coil" and "simple"/"dual". */
+function toDraft(values: ImuSetupValues): Draft {
+  const draft: Draft = {};
+  for (const block of ["fork", "shock"] as const) {
+    const damper = values[block];
+    for (const field of DAMPER_FIELDS) {
+      const v = damper?.[field];
+      draft[damperKey(block, field)] = v != null ? String(v) : "";
+    }
+    draft[damperKey(block, "spring")] = damperSpring(damper);
+    draft[damperKey(block, "compressionMode")] = circuitMode(
+      damper,
+      "compression",
+    );
+    draft[damperKey(block, "reboundMode")] = circuitMode(damper, "rebound");
+  }
+  draft[tireKey("frontPsi")] =
+    values.tires?.frontPsi != null ? String(values.tires.frontPsi) : "";
+  draft[tireKey("rearPsi")] =
+    values.tires?.rearPsi != null ? String(values.tires.rearPsi) : "";
+  return draft;
+}
+
+/** Back from the strings the inputs hold — a comma is a decimal point
+ * here, and a blank is "not filled in", never zero. */
+function fromDraft(draft: Draft): ImuSetupValues {
+  const num = (key: string): number | undefined => {
+    const raw = draft[key]?.trim().replace(",", ".");
+    if (!raw) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const damper = (block: "fork" | "shock"): ImuDamperSetup => {
+    const d: ImuDamperSetup = {
+      spring: draft[damperKey(block, "spring")] === "coil" ? "coil" : "air",
+      compressionMode:
+        draft[damperKey(block, "compressionMode")] === "simple"
+          ? "simple"
+          : "dual",
+      reboundMode:
+        draft[damperKey(block, "reboundMode")] === "simple" ? "simple" : "dual",
+    };
+    for (const field of DAMPER_FIELDS) {
+      const v = num(damperKey(block, field));
+      if (v != null) d[field] = v;
+    }
+    return d;
+  };
+  return {
+    fork: damper("fork"),
+    shock: damper("shock"),
+    tires: {
+      frontPsi: num(tireKey("frontPsi")),
+      rearPsi: num(tireKey("rearPsi")),
+    },
+  };
+}
+
+/**
+ * "Afinação" on the session's header: the fork, the shock and the tyres
+ * as they were set for this run (the supplied layout, 2026-09-11). Opens
+ * prefilled with the session's setup — inherited from the bike's last one
+ * at import — and saving with nothing changed changes nothing: the action
+ * keeps the row. A change makes a new setup for the bike, which the next
+ * import inherits.
+ *
+ * Errors are written into the dialog — the garage rule.
+ */
+export function ImuSessionSetup({
+  sessionId,
+  values,
+  note,
+  labels,
+  bikeType,
+}: {
+  sessionId: string;
+  /** The session's current setup, or empty. */
+  values: ImuSetupValues;
+  note: string | null;
+  labels: ImuSetupLabels;
+  /** The bike's type, for the mark between the two dampers (the supplied
+   * layout); null draws a generic bike. */
+  bikeType: BikeType | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Draft>(() => toDraft(values));
+  const [draftNote, setDraftNote] = useState(note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty =
+    !setupValuesEqual(fromDraft(draft), values) ||
+    draftNote.trim() !== (note ?? "");
+
+  async function save() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const result = await saveImuSessionSetup({
+      sessionId,
+      values: fromDraft(draft),
+      note: draftNote,
+    });
+    setBusy(false);
+    if (result.status === "error") {
+      setError(result.message);
+      return;
+    }
+    setOpen(false);
+    router.refresh();
+  }
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((d) => ({ ...d, [key]: e.target.value }));
+  const choose = (key: string, value: string) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+
+  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || Bike;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setDraft(toDraft(values));
+          setDraftNote(note ?? "");
+          setBusy(false);
+          setError(null);
+        }
+      }}
+    >
+      <DialogTrigger
+        title="A afinação da bicicleta nesta volta"
+        // The report door's pill, beside it: outlined, the mark and the
+        // word — a control, not a figure.
+        className={cn(
+          "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground sm:self-end",
+          CLICKABLE_CARD_HOVER,
+        )}
+      >
+        <SlidersHorizontal
+          className="size-[18px]"
+          strokeWidth={2.1}
+          aria-hidden
+        />
+        Afinação
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Afinação nesta volta</DialogTitle>
+          <DialogDescription className="mt-1">
+            Pressões em psi e cliques contados a partir de fechado. Só o que
+            preencheres fica guardado; uma alteração cria uma afinação nova para
+            a bicicleta, que as próximas importações herdam.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          className="space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          {/* The fork, the bike, the shock — the supplied layout: the mark
+              in a hatched plate between the two dampers, so each block reads
+              as its end of the bike. The plate is a desktop affair; stacked
+              on a phone the two blocks follow each other and the mark would
+              be a picture between forms. */}
+          <div className="grid gap-5 sm:grid-cols-[1fr_auto_1fr]">
+            <DamperBlock
+              block="fork"
+              heading={labels.fork || "Garfo"}
+              draft={draft}
+              set={set}
+              choose={choose}
+            />
+            <div
+              aria-hidden
+              className="imu-event-band hidden w-36 items-center justify-center self-stretch rounded-[14px] bg-muted/40 sm:flex"
+            >
+              {/* Mirrored: the art faces right, and here the fork's block is
+                  on the left — the bike should face its own fork (by
+                  request, 2026-09-11). */}
+              <BikeMark className="h-auto w-20 -scale-x-100 text-foreground" />
+            </div>
+            <DamperBlock
+              block="shock"
+              heading={labels.shock || "Amortecedor"}
+              draft={draft}
+              set={set}
+              choose={choose}
+            />
+          </div>
+
+          <div className="border-t border-border pt-5">
+            <p className="font-medium">Pneus</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <NumberField
+                id="setup-tires-front"
+                label={
+                  labels.tireFront
+                    ? `À frente · ${labels.tireFront}`
+                    : "Pressão à frente"
+                }
+                unit="psi"
+                value={draft[tireKey("frontPsi")]}
+                onChange={set(tireKey("frontPsi"))}
+              />
+              <NumberField
+                id="setup-tires-rear"
+                label={
+                  labels.tireRear
+                    ? `Atrás · ${labels.tireRear}`
+                    : "Pressão atrás"
+                }
+                unit="psi"
+                value={draft[tireKey("rearPsi")]}
+                onChange={set(tireKey("rearPsi"))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="setup-note">Nota</Label>
+            <Input
+              id="setup-note"
+              value={draftNote}
+              placeholder="ex.: mais 2 cliques de rebound à frente"
+              onChange={(e) => setDraftNote(e.target.value)}
+            />
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <Button
+            type="submit"
+            className="w-full"
+            variant="inverted"
+            disabled={busy || !dirty}
+          >
+            {busy ? "A guardar…" : "Guardar"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type Setter = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => void;
+type Chooser = (key: string, value: string) => void;
+
+/**
+ * One damper: its heading with the air/coil switch (the supplied layout,
+ * 2026-09-11), the pressure or the spring rate under it, then the two
+ * circuits. Switching keeps the number of the other choice in the draft,
+ * so a wrong flick costs nothing; only the choice taken is saved.
+ */
+function DamperBlock({
+  block,
+  heading,
+  draft,
+  set,
+  choose,
+}: {
+  block: "fork" | "shock";
+  heading: string;
+  draft: Draft;
+  set: Setter;
+  choose: Chooser;
+}) {
+  const springKey = damperKey(block, "spring");
+  const air = draft[springKey] !== "coil";
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
+        <p className="font-medium">{heading}</p>
+        <ModeSwitch
+          label={air ? "Ar" : "Mola"}
+          checked={air}
+          onToggle={() => choose(springKey, air ? "coil" : "air")}
+        />
+      </div>
+      {air ? (
+        <NumberField
+          id={`setup-${block}-pressure`}
+          label="Pressão"
+          unit="psi"
+          value={draft[damperKey(block, "pressurePsi")]}
+          onChange={set(damperKey(block, "pressurePsi"))}
+        />
+      ) : (
+        <NumberField
+          id={`setup-${block}-spring`}
+          label="Mola"
+          unit="lbs"
+          value={draft[damperKey(block, "springRateLbs")]}
+          onChange={set(damperKey(block, "springRateLbs"))}
+        />
+      )}
+      <Circuit
+        block={block}
+        circuit="compression"
+        name="Compressão"
+        draft={draft}
+        set={set}
+        choose={choose}
+      />
+      <Circuit
+        block={block}
+        circuit="rebound"
+        name="Rebound"
+        draft={draft}
+        set={set}
+        choose={choose}
+      />
+    </div>
+  );
+}
+
+/**
+ * One damping circuit in a ruled box: its name, the one-dial/two-dial
+ * switch, and the clicks — a single field, or low- and high-speed side
+ * by side. Low speed first (by request, 2026-09-11): the knob a rider
+ * turns most, and the one every damper has.
+ */
+function Circuit({
+  block,
+  circuit,
+  name,
+  draft,
+  set,
+  choose,
+}: {
+  block: "fork" | "shock";
+  circuit: ImuCircuit;
+  name: string;
+  draft: Draft;
+  set: Setter;
+  choose: Chooser;
+}) {
+  const modeKey = damperKey(block, `${circuit}Mode`);
+  const dual = draft[modeKey] !== "simple";
+  const lowField: keyof ImuDamperSetup = `${circuit}Low`;
+  const highField: keyof ImuDamperSetup = `${circuit}High`;
+  return (
+    <div className="rounded-[12px] border border-border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">{name}</p>
+        <ModeSwitch
+          label={dual ? "Alta/baixa" : "Simples"}
+          checked={dual}
+          onToggle={() => choose(modeKey, dual ? "simple" : "dual")}
+        />
+      </div>
+      {dual ? (
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <NumberField
+            id={`setup-${block}-${lowField}`}
+            label="Baixa velocidade"
+            unit="cliques"
+            value={draft[damperKey(block, lowField)]}
+            onChange={set(damperKey(block, lowField))}
+            small
+          />
+          <NumberField
+            id={`setup-${block}-${highField}`}
+            label="Alta velocidade"
+            unit="cliques"
+            value={draft[damperKey(block, highField)]}
+            onChange={set(damperKey(block, highField))}
+            small
+          />
+        </div>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <NumberField
+            id={`setup-${block}-${circuit}`}
+            label="Cliques"
+            unit="cliques"
+            value={draft[damperKey(block, circuit)]}
+            onChange={set(damperKey(block, circuit))}
+            small
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A small labelled switch — the lab's track-and-thumb (the analysis
+ * page's "Valores"), the word beside it naming the state it is in. */
+function ModeSwitch({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex h-6 shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
+    >
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+          checked ? "bg-foreground" : "bg-muted-foreground/30",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 size-3 rounded-full bg-background transition-transform",
+            checked && "translate-x-3",
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
+function NumberField({
+  id,
+  label,
+  unit,
+  value,
+  onChange,
+  small = false,
+}: {
+  id: string;
+  label: string;
+  unit: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  small?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className={cn(small && "text-xs")}>
+        {label}
+      </Label>
+      <div className="relative">
+        <Input
+          id={id}
+          inputMode="decimal"
+          value={value ?? ""}
+          onChange={onChange}
+          placeholder="–"
+          className="pr-14 tabular-nums"
+        />
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
+}
