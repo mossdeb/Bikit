@@ -467,27 +467,40 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         // — 15 of 17 read as 89 %. Between 13 and 17 the same instant is
         // half way, which is where it is. The G and lean bars keep their
         // zero: a corner does pass through 0 G lateral and 0° at its ends.
+        //
+        // And the two ends are printed in the order the corner reached
+        // them (by request, 2026-09-11): "26–19" for a corner entered fast
+        // and left slow, "19–26" for one that opened out. The bar follows
+        // the same reading — it runs from the first end to the second, so
+        // the cursor's mark moves the way the rider's speed did.
         const gpsMax = gpsPeakSpeed(gps, event.startMs, event.endMs);
         const range = ctx.speed
           ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
           : gpsMax != null
-            ? { min: gpsMax * 3.6, max: gpsMax * 3.6 }
+            ? { min: gpsMax * 3.6, max: gpsMax * 3.6, minMs: 0, maxMs: 0 }
             : null;
         const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
         if (range) {
           const span = range.max - range.min;
+          const [first, last] =
+            range.maxMs < range.minMs
+              ? [range.max, range.min]
+              : [range.min, range.max];
           metrics.push({
             label: "Velocidade na curva",
             value:
               span >= 0.5
-                ? `${Math.round(range.min)}–${Math.round(range.max)}`
+                ? `${Math.round(first)}–${Math.round(last)}`
                 : Math.round(range.max).toString(),
             unit: "km/h",
             ...(vNow != null && {
               now: `${Math.round(vNow * 3.6)} km/h`,
               progress:
                 span > 0
-                  ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
+                  ? Math.min(
+                      1,
+                      Math.max(0, (vNow * 3.6 - first) / (last - first)),
+                    )
                   : 1,
             }),
           });

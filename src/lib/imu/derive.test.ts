@@ -533,9 +533,19 @@ describe("windowRange", () => {
   const t = new Float64Array([0, 10, 20, 30, 40]);
   const v = new Float32Array([13, 17, 15, 14, 16]);
 
-  it("reads the signed floor and ceiling inside the window", () => {
-    expect(windowRange(t, v, 0, 40)).toEqual({ min: 13, max: 17 });
-    expect(windowRange(t, v, 20, 40)).toEqual({ min: 14, max: 16 });
+  it("reads the signed floor and ceiling inside the window, and when each came", () => {
+    expect(windowRange(t, v, 0, 40)).toEqual({
+      min: 13,
+      max: 17,
+      minMs: 0,
+      maxMs: 10,
+    });
+    expect(windowRange(t, v, 20, 40)).toEqual({
+      min: 14,
+      max: 16,
+      minMs: 30,
+      maxMs: 40,
+    });
   });
 
   it("returns null for a window with no samples", () => {

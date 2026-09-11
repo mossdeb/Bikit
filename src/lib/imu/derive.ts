@@ -232,14 +232,17 @@ export function windowPeak(
 /**
  * Smallest and largest value across [fromMs, toMs], signed — the two ends a
  * reading can sit between inside an event: the speed's floor and ceiling
- * through a corner. Null when the window holds no samples.
+ * through a corner — each with the instant it was first reached, so a
+ * card can print the two in the order they happened ("26–19" for a corner
+ * entered fast and left slow; by request, 2026-09-11). Null when the
+ * window holds no samples.
  */
 export function windowRange(
   tMs: Float64Array,
   values: ArrayLike<number>,
   fromMs: number,
   toMs: number,
-): { min: number; max: number } | null {
+): { min: number; max: number; minMs: number; maxMs: number } | null {
   if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
     return null;
   const i0 = lowerBoundIndex(tMs, fromMs);
@@ -247,12 +250,20 @@ export function windowRange(
   if (i0 > i1 || i0 >= tMs.length) return null;
   let min = values[i0];
   let max = values[i0];
+  let minMs = tMs[i0];
+  let maxMs = tMs[i0];
   for (let i = i0 + 1; i <= i1; i++) {
     const v = values[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
+    if (v < min) {
+      min = v;
+      minMs = tMs[i];
+    }
+    if (v > max) {
+      max = v;
+      maxMs = tMs[i];
+    }
   }
-  return { min, max };
+  return { min, max, minMs, maxMs };
 }
 
 /**
