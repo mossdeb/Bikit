@@ -51,7 +51,10 @@ import type {
 } from "@/lib/imu/format";
 import {
   altitudeMSeries,
+  centredMeanSeries,
+  corneringGSeries,
   EVENT_REACH_MS,
+  INSTANT_WINDOW_MS,
   eventsNear,
   formatSessionTime,
   gForceOf,
@@ -353,6 +356,12 @@ interface EventContext {
   g: ArrayLike<number>;
   lean: ArrayLike<number>;
   roughness: ArrayLike<number>;
+  /** The corner's lateral force, G, right positive (corneringGSeries) —
+   * null without a speed or a frame whose up is known. */
+  cornerG: ArrayLike<number> | null;
+  /** The forward axis averaged over INSTANT_WINDOW_MS — the braking card's
+   * deceleration, flattened of the trail's chatter. */
+  axMean: ArrayLike<number>;
   /** The GPS track when the file carries one — the fusion figures (jump
    * length, curve radius, braking distance, retained speed) exist only
    * with it, and every card degrades to its IMU-only self without. */
@@ -387,7 +396,7 @@ interface EventDescription {
  * while the caveat stays attached.
  */
 function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
-  const { tMs, ax, ay, gz, g, lean, roughness, gps, cursorIndex } = ctx;
+  const { tMs, gz, g, lean, roughness, gps, cursorIndex } = ctx;
   const seconds = (fromMs: number, toMs: number) => ({
     label: "Duração",
     value: ((toMs - fromMs) / 1000).toFixed(1),
@@ -427,14 +436,27 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
   switch (event.kind) {
     case "curve": {
       const metrics: EventMetric[] = [];
-      const lat = windowPeak(tMs, ay, event.startMs, event.endMs);
-      if (lat != null)
+      // The corner's force, v·ω/g over INSTANT_WINDOW_MS, peak and now
+      // alike — not the frame's lateral axis, which a leaning bike holds
+      // near zero and a stone spikes to 5 G (corneringGSeries, by request,
+      // 2026-09-11). Without a speed or a frame whose up is known there is
+      // no such force to read, and no figure.
+      const cornerG = ctx.cornerG;
+      const lat = cornerG
+        ? windowPeak(tMs, cornerG, event.startMs, event.endMs)
+        : null;
+      if (cornerG && lat != null && lat > 0) {
+        const now = cursorIndex >= 0 ? Math.abs(cornerG[cursorIndex]) : null;
         metrics.push({
           label: "G lateral máx",
           value: lat.toFixed(2),
           unit: "G",
-          ...nowOf(ay, "G", lat),
+          ...(now != null && {
+            now: `${now.toFixed(2)} G`,
+            progress: Math.min(1, now / lat),
+          }),
         });
+      }
       const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
       if (maxLean != null)
         metrics.push({
@@ -468,11 +490,12 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         // half way, which is where it is. The G and lean bars keep their
         // zero: a corner does pass through 0 G lateral and 0° at its ends.
         //
-        // And the two ends are printed in the order the corner reached
-        // them (by request, 2026-09-11): "26–19" for a corner entered fast
-        // and left slow, "19–26" for one that opened out. The bar follows
-        // the same reading — it runs from the first end to the second, so
-        // the cursor's mark moves the way the rider's speed did.
+        // The two ends are printed in the order the corner reached them
+        // (by request, 2026-09-11): "26–19" for a corner entered fast and
+        // left slow, "19–26" for one that opened out. The bar does NOT
+        // follow that order: empty is the corner's slowest, full its
+        // fastest, always (by request, same day — a bar running from 25
+        // down to 17 read 24 km/h as nearly empty, which looked broken).
         const gpsMax = gpsPeakSpeed(gps, event.startMs, event.endMs);
         const range = ctx.speed
           ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
@@ -497,10 +520,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
               now: `${Math.round(vNow * 3.6)} km/h`,
               progress:
                 span > 0
-                  ? Math.min(
-                      1,
-                      Math.max(0, (vNow * 3.6 - first) / (last - first)),
-                    )
+                  ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
                   : 1,
             }),
           });
@@ -638,13 +658,30 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     case "impact": {
       const metrics: EventMetric[] = [];
       const peak = windowPeak(tMs, g, event.timeMs - 150, event.timeMs + 150);
-      if (peak != null)
+      // An impact IS a spike, so its figure stays the raw peak; the "now"
+      // is the highest reading within INSTANT_WINDOW_MS of the cursor
+      // rather than one sample — steady as it scrubs, full on the hit
+      // itself (2026-09-11).
+      if (peak != null) {
+        const nowPeak =
+          cursorIndex >= 0
+            ? windowPeak(
+                tMs,
+                g,
+                tMs[cursorIndex] - INSTANT_WINDOW_MS / 2,
+                tMs[cursorIndex] + INSTANT_WINDOW_MS / 2,
+              )
+            : null;
         metrics.push({
           label: "Pico",
           value: peak.toFixed(2),
           unit: "G",
-          ...nowOf(g, "G", peak),
+          ...(nowPeak != null && {
+            now: `${nowPeak.toFixed(2)} G`,
+            progress: peak > 0 ? Math.min(1, nowPeak / peak) : 0,
+          }),
         });
+      }
       const energy = impactEnergy(
         tMs,
         g,
@@ -668,14 +705,25 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     }
     case "braking": {
       const metrics: EventMetric[] = [];
-      const decel = windowPeak(tMs, ax, event.startMs, event.endMs);
-      if (decel != null)
+      // The deceleration over INSTANT_WINDOW_MS, peak and now alike: the
+      // raw forward axis peaked on the trail's hits — of either sign, as
+      // windowPeak reads |ax| — and a braking is a sustained pull, not a
+      // spike (2026-09-11). The bar fills with the pull; accelerating
+      // leaves it empty.
+      const axRange = windowRange(tMs, ctx.axMean, event.startMs, event.endMs);
+      const decel = axRange ? -axRange.min : null;
+      if (decel != null && decel > 0) {
+        const now = cursorIndex >= 0 ? ctx.axMean[cursorIndex] : null;
         metrics.push({
           label: "Travagem máx",
           value: decel.toFixed(2),
           unit: "G",
-          ...nowOf(ax, "G", decel),
+          ...(now != null && {
+            now: `${now.toFixed(2)} G`,
+            progress: Math.min(1, Math.max(0, -now) / decel),
+          }),
         });
+      }
       // Fusion: what the braking actually did — the speed it entered and
       // left with, and the ground it took to do it. Read off the speed
       // series rather than the file's own event fields, so a braking WE
@@ -925,6 +973,21 @@ export function ImuSessionAnalysis({
 
   /** The estimated pitch, the dashboard's second attitude — not a chart
    * series, so it lives beside seriesValues rather than inside it. */
+  /** The cards' readings of an instant, over INSTANT_WINDOW_MS: the
+   * corner's force and the flattened forward axis. Not chart series, so
+   * beside seriesValues rather than inside it. */
+  const instantSeries = useMemo(() => {
+    if (!data || !seriesValues) return null;
+    const { tMs, ax, gz } = data.channels;
+    const speed = seriesValues.speed ?? null;
+    return {
+      // The yaw is about the bike's up only once the frame is aligned —
+      // the lean's own condition.
+      cornerG: data.aligned && speed ? corneringGSeries(tMs, speed, gz) : null,
+      axMean: centredMeanSeries(tMs, ax, INSTANT_WINDOW_MS),
+    };
+  }, [data, seriesValues]);
+
   /** The corners in time order — each one's momentum window is bounded by
    * its neighbours, so the cards read the list rather than the event. */
   const sessionCurves = useMemo(
@@ -1127,6 +1190,8 @@ export function ImuSessionAnalysis({
     g: gForce,
     lean: seriesValues.lean,
     roughness: seriesValues.roughness,
+    cornerG: instantSeries?.cornerG ?? null,
+    axMean: instantSeries?.axMean ?? data.channels.ax,
     gps: data.gps,
     speed: seriesValues.speed ?? null,
     curves: sessionCurves,

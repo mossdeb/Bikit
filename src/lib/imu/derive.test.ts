@@ -6,6 +6,7 @@ import {
   alignSessionWithOrientation,
   altitudeMSeries,
   applyMountingYaw,
+  corneringGSeries,
   curveMomentum,
   estimateMountingYaw,
   fusedSpeedKmhSeries,
@@ -1075,5 +1076,26 @@ describe("formatSessionTime", () => {
     expect(formatSessionTime(134420)).toBe("02:14");
     expect(formatSessionTime(134420, true)).toBe("02:14.420");
     expect(formatSessionTime(348000)).toBe("05:48");
+  });
+});
+
+describe("corneringGSeries", () => {
+  // 1 s at 100 Hz, 36 km/h (10 m/s) through a 1 rad/s turn to the right —
+  // 10 m/s × 1 rad/s ÷ 9.81 ≈ 1.02 G — with one sample of the yaw gyro
+  // kicked to −2000 °/s by a hit halfway.
+  const t = Float64Array.from({ length: 101 }, (_, i) => i * 10);
+  const v = new Float32Array(101).fill(36);
+  const right = new Float32Array(101).fill((-180 / Math.PI) * 1);
+  right[50] = -2000;
+
+  it("reads v·ω/g, right positive, left negative", () => {
+    expect(corneringGSeries(t, v, right)[20]).toBeCloseTo(10 / 9.81, 2);
+    const left = right.map((w) => -w);
+    expect(corneringGSeries(t, v, left)[20]).toBeCloseTo(-10 / 9.81, 2);
+  });
+
+  it("spreads a one-sample yaw hit over the window instead of printing it", () => {
+    // Raw, that sample alone would read 35 G.
+    expect(corneringGSeries(t, v, right)[50]).toBeLessThan(3);
   });
 });

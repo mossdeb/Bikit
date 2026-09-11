@@ -404,9 +404,10 @@ export function jerkSeries(
 /**
  * A channel's mean over a window centred on each sample, by TIME — a gap in
  * the recording widens nothing — moved along by two pointers. Shared by the
- * attitude estimates, which are all averages of something over a stretch.
+ * attitude estimates, which are all averages of something over a stretch,
+ * and by the event cards' readings of an instant.
  */
-function centredMeanSeries(
+export function centredMeanSeries(
   tMs: Float64Array,
   values: ArrayLike<number>,
   windowMs: number,
@@ -500,6 +501,43 @@ export function leanSeries(
   const my = centredMeanSeries(tMs, ay, PITCH_WINDOW_MS);
   const mz = centredMeanSeries(tMs, az, PITCH_WINDOW_MS);
   for (let i = 0; i < n; i++) out[i] = Math.atan2(my[i], mz[i]) * toDeg;
+  return out;
+}
+
+/** The window an instant's force is read over on the event cards, ms: the
+ * frame's accelerometer at 416 Hz carries every stone of the trail, and a
+ * single sample jumps by 0.2 G to the next and sits 0.3 G off its own
+ * 300 ms mean (median over the 79 corners of R0050, 2026-09-11). Three
+ * tenths of a second flatten that and still sit inside a one-second
+ * corner. */
+export const INSTANT_WINDOW_MS = 300;
+
+/**
+ * The corner's lateral force, in G, right positive: v·ω/g, the centripetal
+ * acceleration the ground put through the tyres — speed from the given
+ * series, ω the yaw rate about the bike's up (gz, right turn negative)
+ * averaged over INSTANT_WINDOW_MS.
+ *
+ * Not the accelerometer's lateral axis, and by physics: a bike leans into
+ * a turn precisely so the force lines up with its own vertical, so the
+ * frame's lateral axis reads next to nothing mid-corner and the corner's
+ * force shows up as extra load on its vertical instead. On R0050 the
+ * lateral axis averaged 0.10 G through the corners while v·ω/g peaked at
+ * 0.68 G (medians), and the raw lateral peak the card used to print —
+ * 2.2 G median, 5.2 G at worst — was a stone, not the corner
+ * (2026-09-11). The same physics as the lean's balance angle, so the two
+ * figures on the card agree: tan(lean) is this force.
+ */
+export function corneringGSeries(
+  tMs: Float64Array,
+  speedKmh: ArrayLike<number>,
+  yawGz: ArrayLike<number>,
+  windowMs = INSTANT_WINDOW_MS,
+): Float32Array {
+  const omega = centredMeanSeries(tMs, yawGz, windowMs);
+  const out = new Float32Array(tMs.length);
+  for (let i = 0; i < out.length; i++)
+    out[i] = ((speedKmh[i] / 3.6) * ((-omega[i] * Math.PI) / 180)) / 9.81;
   return out;
 }
 
