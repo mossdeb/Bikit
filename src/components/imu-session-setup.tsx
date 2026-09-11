@@ -47,6 +47,7 @@ type Draft = Record<string, string>;
 const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
   `${block}.${field}`;
 const tireKey = (field: keyof ImuTireSetup) => `tires.${field}`;
+const RIDER_WEIGHT_KEY = "rider.weightKg";
 
 /** The draft holds the numbers as strings and, under the same keys as the
  * values, the choices: "air"/"coil" and "simple"/"dual". */
@@ -69,6 +70,8 @@ function toDraft(values: ImuSetupValues): Draft {
     values.tires?.frontPsi != null ? String(values.tires.frontPsi) : "";
   draft[tireKey("rearPsi")] =
     values.tires?.rearPsi != null ? String(values.tires.rearPsi) : "";
+  draft[RIDER_WEIGHT_KEY] =
+    values.rider?.weightKg != null ? String(values.rider.weightKg) : "";
   return draft;
 }
 
@@ -104,6 +107,7 @@ function fromDraft(draft: Draft): ImuSetupValues {
       frontPsi: num(tireKey("frontPsi")),
       rearPsi: num(tireKey("rearPsi")),
     },
+    rider: { weightKg: num(RIDER_WEIGHT_KEY) },
   };
 }
 
@@ -202,9 +206,10 @@ export function ImuSessionSetup({
         <DialogHeader>
           <DialogTitle className="text-2xl">Afinação nesta volta</DialogTitle>
           <DialogDescription className="mt-1">
-            Pressões em psi e cliques contados a partir de fechado. Só o que
-            preencheres fica guardado; uma alteração cria uma afinação nova para
-            a bicicleta, que as próximas importações herdam.
+            Pressões em psi, cliques contados a partir de fechado e o peso do
+            rider equipado em kg. Só o que preencheres fica guardado; uma
+            alteração cria uma afinação nova para a bicicleta, que as próximas
+            importações herdam.
           </DialogDescription>
         </DialogHeader>
 
@@ -237,7 +242,12 @@ export function ImuSessionSetup({
                 {/* Mirrored: the art faces right, and here the fork's card is
                     on the left — the bike should face its own fork (by
                     request, 2026-09-11). */}
-                <BikeMark className="h-auto w-24 -scale-x-100 text-foreground lg:w-32" />
+                {/* A 3 px line on screen whatever the size it is drawn at
+                    (by request, 2026-09-11: 2 px read too thin beside the
+                    cards): the art's own stroke is 4 in a 101-wide box,
+                    which painted ~5 px at 128 px. Fixed in screen pixels,
+                    the event cards' way. */}
+                <BikeMark className="h-auto w-24 -scale-x-100 text-foreground lg:w-32 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]" />
               </div>
               <DamperBlock
                 block="shock"
@@ -249,32 +259,49 @@ export function ImuSessionSetup({
             </div>
           </div>
 
+          {/* The tyres and the rider side by side on the second plate (the
+              supplied layout, 2026-09-11): two thirds and one third, stacked
+              on a phone. */}
           <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
-            <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
-              <p className="text-lg font-semibold">Pneus</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
-                <NumberField
-                  id="setup-tires-front"
-                  label={
-                    labels.tireFront
-                      ? `À frente · ${labels.tireFront}`
-                      : "Pressão à frente"
-                  }
-                  unit="psi"
-                  value={draft[tireKey("frontPsi")]}
-                  onChange={set(tireKey("frontPsi"))}
-                />
-                <NumberField
-                  id="setup-tires-rear"
-                  label={
-                    labels.tireRear
-                      ? `Atrás · ${labels.tireRear}`
-                      : "Pressão atrás"
-                  }
-                  unit="psi"
-                  value={draft[tireKey("rearPsi")]}
-                  onChange={set(tireKey("rearPsi"))}
-                />
+            <div className="grid gap-3 sm:grid-cols-[2fr_1fr] sm:gap-4">
+              <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+                <p className="text-lg font-semibold">Pneus</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
+                  <NumberField
+                    id="setup-tires-front"
+                    label={
+                      labels.tireFront
+                        ? `À frente · ${labels.tireFront}`
+                        : "Pressão à frente"
+                    }
+                    unit="psi"
+                    value={draft[tireKey("frontPsi")]}
+                    onChange={set(tireKey("frontPsi"))}
+                  />
+                  <NumberField
+                    id="setup-tires-rear"
+                    label={
+                      labels.tireRear
+                        ? `Atrás · ${labels.tireRear}`
+                        : "Pressão atrás"
+                    }
+                    unit="psi"
+                    value={draft[tireKey("rearPsi")]}
+                    onChange={set(tireKey("rearPsi"))}
+                  />
+                </div>
+              </div>
+              <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+                <p className="text-lg font-semibold">Rider</p>
+                <div className="mt-3">
+                  <NumberField
+                    id="setup-rider-weight"
+                    label="Peso equipado"
+                    unit="kg"
+                    value={draft[RIDER_WEIGHT_KEY]}
+                    onChange={set(RIDER_WEIGHT_KEY)}
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -19,6 +19,12 @@
  * not written down; the numbers of the other choice are dropped on
  * normalising, so a setup never carries a pressure AND a spring rate.
  *
+ * The rider's weight rides along (by request, 2026-09-11: "o peso do
+ * rider para futuras considerações"), kitted up, in kg — the load the
+ * suspension and the tyres were set for. It is part of the setup, not of
+ * a rider record the lab does not have: it compares, diffs and inherits
+ * like any knob, so a run 3 kg heavier reads as a different setup.
+ *
  * Setups are immutable rows shared by sessions (migration 00047): equal
  * values on save keep the row, changed values make a new one.
  */
@@ -52,10 +58,16 @@ export interface ImuTireSetup {
   rearPsi?: number;
 }
 
+/** The rider as the bike carried them: weight with the kit on, kg. */
+export interface ImuRiderSetup {
+  weightKg?: number;
+}
+
 export interface ImuSetupValues {
   fork?: ImuDamperSetup;
   shock?: ImuDamperSetup;
   tires?: ImuTireSetup;
+  rider?: ImuRiderSetup;
 }
 
 /** The numbers, in the order they are compared and listed. */
@@ -122,17 +134,25 @@ function isTires(value: unknown): value is ImuTireSetup {
   );
 }
 
+function isRider(value: unknown): value is ImuRiderSetup {
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).every(
+    ([key, v]) => key === "weightKg" && (v === undefined || isFiniteNumber(v)),
+  );
+}
+
 /** The shape check on what comes back from the `values` column. */
 export function isSetupValues(value: unknown): value is ImuSetupValues {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
     Object.keys(v).every(
-      (k) => k === "fork" || k === "shock" || k === "tires",
+      (k) => k === "fork" || k === "shock" || k === "tires" || k === "rider",
     ) &&
     (v.fork === undefined || isDamper(v.fork)) &&
     (v.shock === undefined || isDamper(v.shock)) &&
-    (v.tires === undefined || isTires(v.tires))
+    (v.tires === undefined || isTires(v.tires)) &&
+    (v.rider === undefined || isRider(v.rider))
   );
 }
 
@@ -207,6 +227,8 @@ export function normalizeSetupValues(values: ImuSetupValues): ImuSetupValues {
         kept[field] = values.tires[field];
     if (Object.keys(kept).length > 0) out.tires = kept;
   }
+  if (isFiniteNumber(values.rider?.weightKg))
+    out.rider = { weightKg: values.rider.weightKg };
   return out;
 }
 
@@ -282,6 +304,7 @@ export function setupSummary(
     const r = v.tires.rearPsi != null ? pt(v.tires.rearPsi) : "–";
     parts.push(`Pneus ${f}/${r} psi`);
   }
+  if (v.rider?.weightKg != null) parts.push(`Rider ${pt(v.rider.weightKg)} kg`);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
@@ -356,6 +379,10 @@ export function setupDiff(
       unit: " psi",
     });
   }
+  const wa = a.rider?.weightKg ?? null;
+  const wb = b.rider?.weightKg ?? null;
+  if (wa !== wb)
+    changes.push({ label: "rider", from: wa, to: wb, unit: " kg" });
   return changes;
 }
 
@@ -387,5 +414,6 @@ export function setupKey(values: ImuSetupValues): string {
     block(v.fork),
     block(v.shock),
     TIRE_FIELDS.map((f) => v.tires?.[f] ?? "").join(","),
+    v.rider?.weightKg ?? "",
   ].join("|");
 }

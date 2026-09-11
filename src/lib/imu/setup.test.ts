@@ -162,6 +162,24 @@ describe("setup differences", () => {
     expect(setupKey(reference)).not.toBe(
       setupKey({ ...reference, tires: { frontPsi: 22, rearPsi: 26 } }),
     );
-    expect(setupKey({})).toBe("||,");
+    expect(setupKey({})).toBe("||,|");
+  });
+});
+
+describe("the rider's weight", () => {
+  it("is kept, summed up, compared and diffed like a knob", () => {
+    const base = { fork: { pressurePsi: 100 }, rider: { weightKg: 80 } };
+    expect(isSetupValues(base)).toBe(true);
+    expect(isSetupValues({ rider: { heightCm: 180 } })).toBe(false);
+    expect(normalizeSetupValues({ rider: { weightKg: undefined } })).toEqual(
+      {},
+    );
+    expect(isSetupEmpty({ rider: { weightKg: 80 } })).toBe(false);
+    expect(setupSummary(base)).toBe("Garfo 100 psi · Rider 80 kg");
+    const heavier = { ...base, rider: { weightKg: 82.5 } };
+    expect(setupValuesEqual(base, heavier)).toBe(false);
+    expect(setupDiff(base, heavier).map(formatSetupChange)).toEqual([
+      "rider +2,5 kg",
+    ]);
   });
 });
