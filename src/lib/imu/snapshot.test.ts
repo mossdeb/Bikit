@@ -4,6 +4,7 @@ import {
   buildTrackIndex,
   createSnapshot,
   findSnapshotPasses,
+  findSnapshotTwins,
   isTrackIndex,
   OUTLINE_MAX_POINTS,
   prepareSnapshotSession,
@@ -451,5 +452,45 @@ describe("the track index", () => {
     expect(trackIndexMayPass(beside, def)).toBe(false);
     expect(trackIndexNearGate(turnsOff, def.entry)).toBe(true);
     expect(trackIndexMayPass(turnsOff, def)).toBe(false);
+  });
+});
+
+describe("findSnapshotTwins", () => {
+  // Gates by hand, 200 m apart heading east; the offsets below are metres.
+  const gate = (eastM: number, northM: number, headingDeg: number) => ({
+    latDeg: LAT0 + northM / (R * RAD),
+    lonDeg: LON0 + eastM / (R * RAD * Math.cos(LAT0 * RAD)),
+    headingDeg,
+    halfWidthM: 12,
+  });
+  const definition = (
+    kind: SnapshotDefinition["kind"],
+    eastM: number,
+    northM: number,
+    headingDeg: number,
+  ): SnapshotDefinition => ({
+    kind,
+    entry: gate(eastM, northM, headingDeg),
+    exit: gate(eastM + 200, northM, headingDeg),
+    referenceDurationMs: 20_000,
+  });
+  const here = definition("curve", 0, 0, 90);
+  const existing = [
+    { id: "same", definition: definition("curve", 5, -4, 100) },
+    { id: "moved", definition: definition("curve", 30, 0, 90) },
+    { id: "backwards", definition: definition("curve", 0, 0, 270) },
+    { id: "other-kind", definition: definition("braking", 0, 0, 90) },
+  ];
+
+  it("finds the Snapshot standing on the same gates, and not its neighbours", () => {
+    expect(findSnapshotTwins(here, existing).map((s) => s.id)).toEqual([
+      "same",
+    ]);
+  });
+
+  it("finds nothing among Snapshots elsewhere", () => {
+    expect(
+      findSnapshotTwins(definition("curve", 500, 500, 90), existing),
+    ).toEqual([]);
   });
 });

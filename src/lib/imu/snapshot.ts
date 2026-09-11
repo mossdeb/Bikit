@@ -838,3 +838,38 @@ export function trackIndexMayPass(
     trackIndexNearGate(index, definition.exit)
   );
 }
+
+/** Two gates are the same gate when their centres are within this, m —
+ * the gate's own half-width: closer than that and a pass through one is a
+ * pass through the other. */
+export const SNAPSHOT_TWIN_GATE_M = SNAPSHOT_GATE_HALF_WIDTH_M;
+/** …and their directions of travel agree to within this, degrees: the same
+ * corner ridden the other way is another Snapshot. */
+export const SNAPSHOT_TWIN_HEADING_DEG = 45;
+
+function sameGate(a: SnapshotGate, b: SnapshotGate): boolean {
+  const [dx, dy] = metresBetween(a.latDeg, a.lonDeg, b.latDeg, b.lonDeg);
+  if (Math.hypot(dx, dy) > SNAPSHOT_TWIN_GATE_M) return false;
+  const turn = Math.abs(((a.headingDeg - b.headingDeg + 540) % 360) - 180);
+  return turn <= SNAPSHOT_TWIN_HEADING_DEG;
+}
+
+/**
+ * The Snapshots already standing where a new one would: the same kind,
+ * both gates within SNAPSHOT_TWIN_GATE_M and SNAPSHOT_TWIN_HEADING_DEG of
+ * the new ones. Nothing forbids the twin — two Snapshots of one corner with
+ * different references are a legitimate thing to want — but the dialog
+ * asks before making it (by request, 2026-09-11: pressing "Snapshot" twice
+ * on a corner made two of it, and the report listed both). Order kept.
+ */
+export function findSnapshotTwins<T extends { definition: SnapshotDefinition }>(
+  definition: SnapshotDefinition,
+  existing: readonly T[],
+): T[] {
+  return existing.filter(
+    (s) =>
+      s.definition.kind === definition.kind &&
+      sameGate(s.definition.entry, definition.entry) &&
+      sameGate(s.definition.exit, definition.exit),
+  );
+}

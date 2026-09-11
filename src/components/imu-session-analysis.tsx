@@ -39,7 +39,10 @@ import {
 } from "@/components/imu-event-icons";
 import { useImuSession } from "@/lib/imu/use-imu-session";
 import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
-import { ImuSnapshotCreate } from "@/components/imu-snapshot-create";
+import {
+  ImuSnapshotCreate,
+  type ImuSnapshotTwin,
+} from "@/components/imu-snapshot-create";
 import type {
   GpsChannels,
   ImuEvent,
@@ -739,10 +742,14 @@ export function ImuSessionAnalysis({
   storagePath,
   riderName,
   header,
+  existingSnapshots,
   mountOrientation = null,
 }: {
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
+  /** The account's Snapshots, so the dialog on an event's card can say
+   * when one already stands on the same stretch instead of making a twin. */
+  existingSnapshots: ImuSnapshotTwin[];
   storagePath: string;
   /** An orientation copied from another session (setGroupMountOrientation),
    * used when the file carries none of its own. */
@@ -2360,6 +2367,7 @@ export function ImuSessionAnalysis({
                             prepared={snapshotSession}
                             event={primaryEvent}
                             sessionId={sessionId}
+                            existing={existingSnapshots}
                           />
                         ) : undefined
                       }
@@ -3232,19 +3240,24 @@ function EventCard({
               is a grey slab, which is exactly what it looked like. Flex has
               no phantom cells: the last row holds only what is in it, and
               the one that is left stretches to the width. How many share a
-              row is a share of the CARD's width — one, two from 512px,
-              three from 768px, and all six on one row from 1240px, the 1px
-              taken off each for the gaps — so a wide
-              card reads 3 + 3 and a full-width one a single row (by
-              request, 2026-09-10: a 140px basis packed four into the first
-              row and two into the second). 1240 is measured: the widest
-              cell — "24 → 18 → 24 km/h" over "Entrada → mín → saída", with
-              its mark and padding — needs ~205px, and six of those is 1230.
-              Measured against the card and not the window: the reading's
-              split is dragged by hand. All three steps are written as
-              `@min-[…]` and not as `@lg`/`@3xl`: Tailwind emits the named
-              ones AFTER an arbitrary one, so at 1282px the 33% rule came
-              later in the sheet and beat the 16% one that also matched. */}
+              row is a share of the CARD's width — two at any width, three
+              from 768px, and all six on one row from 1240px, the 1px taken
+              off each for the gaps — so a wide card reads 3 + 3 and a
+              full-width one a single row (by request, 2026-09-10: a 140px
+              basis packed four into the first row and two into the
+              second). Two and not one on a phone (by request, 2026-09-11):
+              six facts one under the other were a column of the card's
+              height to scroll past. A cell whose figure is wider than its
+              half — "39 → 27 → 27 km/h" needs ~190px at the phone's
+              padding — does not wrap the figure (see below); it grows, its
+              neighbour drops to the next row, and the band reflows around
+              it. 1240 is measured: the widest cell, with its mark and
+              padding, needs ~205px, and six of those is 1230. Measured
+              against the card and not the window: the reading's split is
+              dragged by hand. Both steps are written as `@min-[…]` and not
+              as `@lg`/`@3xl`: Tailwind emits the named ones AFTER an
+              arbitrary one, so at 1282px the 33% rule came later in the
+              sheet and beat the 16% one that also matched. */}
           {plain.length > 0 && (
             <div
               // `bg-clip-padding`, and it is what keeps every rule the same
@@ -3260,7 +3273,11 @@ function EventCard({
               {plain.map((metric) => (
                 <div
                   key={metric.label}
-                  className="flex grow basis-full items-center gap-3 bg-card px-5 py-6 @min-[512px]:basis-[calc(50%-1px)] @min-[768px]:basis-[calc(33.333%-1px)] @min-[1240px]:basis-[calc(16.666%-1px)]"
+                  // 16px of side padding until the card is 512px wide, the
+                  // 20 the rest of the cards wear from there: at 345px two
+                  // cells across leave 172 each, and the 8px are what keep
+                  // "Inclinação teórica" and its mark on one line.
+                  className="flex grow basis-[calc(50%-1px)] items-center gap-3 bg-card px-4 py-6 @min-[512px]:px-5 @min-[768px]:basis-[calc(33.333%-1px)] @min-[1240px]:basis-[calc(16.666%-1px)]"
                 >
                   {/* All or none: see EventMetric.Icon. */}
                   {allPlainMarked && metric.Icon && (

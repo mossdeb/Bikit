@@ -11,7 +11,9 @@ import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionSettings } from "@/components/imu-session-settings";
+import type { ImuSnapshotTwin } from "@/components/imu-snapshot-create";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -45,19 +47,59 @@ export default async function ImuSessionPage({
   // Every bike and every group, not just the session's own: the settings
   // dialog lets the rider pick another of each. The session's bike is
   // looked up in the same list rather than fetched a second time.
-  const [{ data: bikes }, { data: groups }] = await Promise.all([
-    supabase
-      .from("bikes")
-      .select("id, name, type")
+  const [{ data: bikes }, { data: groups }, { data: snapshotRows }] =
+    await Promise.all([
+      supabase
+        .from("bikes")
+        .select("id, name, type")
+        .eq("user_id", userId)
+        .order("name"),
+      supabase
+        .from("imu_session_groups")
+        .select("id, name, day")
+        .eq("user_id", userId)
+        .order("day", { ascending: false })
+        .order("created_at", { ascending: false }),
+      // Every Snapshot of the account: the "Snapshot" dialog on an event's
+      // card checks whether one already stands on the same gates before it
+      // makes another (findSnapshotTwins). Definitions only; nothing is
+      // measured here.
+      supabase
+        .from("imu_snapshots")
+        .select("id, name, definition, reference_session_id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+    ]);
+  // The reference sessions' names, for "já existe … feito de Run 1" — one
+  // query for all of them.
+  const snapshotDefs = (snapshotRows ?? []).filter((row) =>
+    isSnapshotDefinition(row.definition),
+  );
+  const referenceIds = [
+    ...new Set(
+      snapshotDefs
+        .map((row) => row.reference_session_id)
+        .filter((id): id is string => id != null),
+    ),
+  ];
+  const referenceNames = new Map<string, string>();
+  if (referenceIds.length > 0) {
+    const { data: rows } = await supabase
+      .from("imu_sessions")
+      .select("id, name")
       .eq("user_id", userId)
-      .order("name"),
-    supabase
-      .from("imu_session_groups")
-      .select("id, name, day")
-      .eq("user_id", userId)
-      .order("day", { ascending: false })
-      .order("created_at", { ascending: false }),
-  ]);
+      .in("id", referenceIds);
+    for (const row of rows ?? []) referenceNames.set(row.id, row.name);
+  }
+  const existingSnapshots: ImuSnapshotTwin[] = snapshotDefs.map((row) => ({
+    id: row.id,
+    name: row.name,
+    // Narrowed by the filter above; the type does not carry it over.
+    definition: row.definition as never,
+    referenceSessionName: row.reference_session_id
+      ? (referenceNames.get(row.reference_session_id) ?? null)
+      : null,
+  }));
   const bike = session.bike_id
     ? ((bikes ?? []).find((b) => b.id === session.bike_id) ?? null)
     : null;
@@ -92,6 +134,7 @@ export default async function ImuSessionPage({
         sessionId={session.id}
         storagePath={session.storage_path}
         riderName={session.rider_name}
+        existingSnapshots={existingSnapshots}
         // An orientation lent by another session, when this file has none
         // of its own; the shape is what setGroupMountOrientation stored.
         mountOrientation={
