@@ -34,7 +34,6 @@ import {
   formatSetupChange,
   setupDiff,
   setupKey,
-  setupSpread,
   type ImuDamperSetup,
   type ImuSetupValues,
 } from "@/lib/imu/setup";
@@ -73,6 +72,8 @@ const COLUMNS: {
   /** What the figure is and which way is better, for the "i" beside the
    * heading (by request, 2026-09-12). */
   description: string;
+  /** How the figure is computed, under "Como é calculado:". */
+  method?: string;
   /** A last line for a term the description leans on. */
   footnote?: string;
   /** The band, printed light in brackets after the name (by request,
@@ -91,14 +92,16 @@ const COLUMNS: {
     short: "Retenção",
     Icon: RetentionIcon,
     description:
-      "Quanto da velocidade de entrada sai de cada curva, descontada a gravidade da descida, em média das curvas da volta. Mais é melhor: a bicicleta agarrou e o rider não travou.",
+      "Quanto da velocidade de entrada é mantida à saída das curvas, corrigindo o efeito da gravidade da descida. O valor representa a média de todas as curvas da volta. Mais é melhor: indica maior conservação de velocidade ao longo das curvas.",
   },
   {
     label: "Harshness",
     short: "Harshness",
     Icon: HarshnessIcon,
     description:
-      "O pico (percentil 99) sobre o RMS da força dinâmica nas zonas acidentadas. Maior é mais seco: pancadas que a suspensão deixou passar ao quadro. Menos é melhor.",
+      "Quanto dos impactos mais fortes do terreno chega ao quadro, em relação à vibração normal da bicicleta nas zonas acidentadas. Menos é melhor: significa que a suspensão está a absorver melhor os impactos em vez de os transmitir ao quadro.",
+    method:
+      "Compara o percentil 99 dos impactos com o nível médio (RMS) da força dinâmica nas zonas acidentadas. Um valor mais alto indica impactos mais destacados em relação à vibração normal.",
     footnote: RMS_NOTE,
   },
   {
@@ -107,7 +110,9 @@ const COLUMNS: {
     band: "2–12 Hz",
     Icon: ChassisBandIcon,
     description:
-      "O RMS da força na banda de 2 a 12 Hz nas zonas acidentadas: o movimento do próprio quadro, o que a compressão controla. Menos é melhor.",
+      "Quanto a bicicleta se movimenta e oscila nas zonas acidentadas, nas frequências mais associadas ao movimento do chassis e da suspensão. Menos é melhor: significa uma bicicleta mais estável e controlada sobre o terreno.",
+    method:
+      "Mede o RMS da força dinâmica entre 2 e 12 Hz nas zonas acidentadas. Esta banda representa movimentos relativamente lentos do chassis, onde a compressão da suspensão tem maior influência.",
     footnote: RMS_NOTE,
   },
   {
@@ -116,7 +121,9 @@ const COLUMNS: {
     band: "12–60 Hz",
     Icon: ChatterBandIcon,
     description:
-      "O RMS da força na banda de 12 a 60 Hz nas zonas acidentadas: o que passa dos pneus e das pedras pequenas ao quadro. Menos é melhor.",
+      "Quanto das vibrações rápidas e dos pequenos impactos do terreno chega ao quadro nas zonas acidentadas. Menos é melhor: significa que pneus e suspensão estão a filtrar melhor as irregularidades rápidas do terreno.",
+    method:
+      "Mede o RMS da força dinâmica entre 12 e 60 Hz nas zonas acidentadas. Esta banda representa vibrações rápidas provocadas por pequenas pedras, raízes, irregularidades sucessivas e outras fontes de chatter.",
     footnote: RMS_NOTE,
   },
   {
@@ -124,16 +131,37 @@ const COLUMNS: {
     short: "Oscilação residual",
     Icon: SettleIcon,
     description:
-      "Quanto de cada impacto fica a oscilar no quadro na banda de 2 a 12 Hz nos 300 ms seguintes, sobre o pico da pancada, em mediana dos impactos. Menos é o amortecedor a fechar a pancada mais depressa.",
+      "Quanto movimento continua no quadro depois de um impacto. Menos é melhor: significa que a suspensão estabiliza a bicicleta mais rapidamente após cada pancada.",
+    method:
+      "Mede a energia que permanece na banda de 2–12 Hz durante os 300 ms após cada impacto, relativamente à intensidade do próprio impacto. O resultado representa a mediana de todos os impactos analisados na volta.",
   },
   {
     label: "Impactos",
     short: "Impactos",
     Icon: ImpactIcon,
     description:
-      "Impactos por quilómetro, com o limiar relativo a cada volta (1,5 vezes o percentil 99 da própria gravação). Não tem lado melhor, e o limiar relativo torna-o pouco comparável entre sessões.",
+      "Quantos impactos fortes a bicicleta recebe por quilómetro. Este valor descreve a intensidade da passagem, mas mais ou menos impactos não significa necessariamente melhor ou pior.",
+    method:
+      "Conta os impactos que ultrapassam um limiar definido para cada volta — 1,5× o percentil 99 da própria gravação — e normaliza o resultado pela distância percorrida. Como o limiar se adapta a cada volta, esta métrica é mais útil para caracterizar a sessão do que para comparar diretamente diferentes setups.",
   },
 ];
+
+/** The knobs in full, for the detail cards' titles (the supplied layout
+ * says "High-Speed Compression", not "HSC"). */
+const KNOB_FULL: Record<string, string> = {
+  LSC: "Low-Speed Compression",
+  HSC: "High-Speed Compression",
+  LSR: "Low-Speed Rebound",
+  HSR: "High-Speed Rebound",
+  C: "Compressão",
+  R: "Rebound",
+  pressão: "Pressão",
+  mola: "Mola",
+  sag: "SAG",
+  "pneu dt.": "Pneu da frente",
+  "pneu tr.": "Pneu de trás",
+  rider: "Peso",
+};
 
 const SETUP_DESCRIPTION =
   "A afinação da bicicleta nessa volta. A mesma letra é o mesmo conjunto de valores; as cápsulas dizem o que difere da referência e para que lado. Clica no setup para ver todos os valores.";
@@ -280,20 +308,6 @@ export function ImuSetupCompareView({
   });
   const unset = all.filter((c) => !c.setup);
 
-  const spread = setupSpread(
-    groups.map((g) => g.setup),
-    labels,
-  );
-  const constants = [
-    ...spread.constant,
-    ...(spread.constantClicks > 0
-      ? [
-          spread.constantClicks === 1
-            ? "o outro clique"
-            : `os outros ${spread.constantClicks} cliques`,
-        ]
-      : []),
-  ];
   const list = (items: string[]) =>
     items.length <= 1
       ? items.join("")
@@ -369,10 +383,41 @@ export function ImuSetupCompareView({
         .filter((g) => g !== referenceGroup)
         .map((g) => {
           const changes = setupDiff(referenceGroup.setup, g.setup);
-          const name = (label: string) =>
-            label
-              .replace(/^garfo /, `${labels.fork || "garfo"} `)
-              .replace(/^amort\. /, `${labels.shock || "amortecedor"} `);
+          // The card's title, the supplied layout's way: the component
+          // light, the knob in full and bold, the setup — "Fox X2 ·
+          // High-Speed Compression · Setup B".
+          const component = (label: string) =>
+            /^garfo /.test(label)
+              ? labels.fork || "Garfo"
+              : /^amort\. /.test(label)
+                ? labels.shock || "Amortecedor"
+                : /^pneu /.test(label)
+                  ? "Pneus"
+                  : "Rider";
+          const knobOf = (label: string) =>
+            KNOB_FULL[label.replace(/^(garfo|amort\.) /, "")] ??
+            label.replace(/^(garfo|amort\.) /, "");
+          const components = [
+            ...new Set(changes.map((c) => component(c.label))),
+          ];
+          const knobs = changes.map((c) => knobOf(c.label));
+          const boxes = changes.map((c) => {
+            const unit = c.kind === "clicks" ? "cliques" : c.unit.trim();
+            const num = (n: number | null) => (n == null ? "—" : nf(n, 0));
+            const delta =
+              c.from != null && c.to != null
+                ? `${signed(c.to - c.from, 0)}${unit ? ` ${unit}` : ""}`
+                : null;
+            const direction = formatSetupChange(c).split(" · ")[1] ?? null;
+            return {
+              knob: knobOf(c.label),
+              text: `${num(c.from)} → ${num(c.to)}`,
+              delta,
+              direction: direction
+                ? direction.charAt(0).toUpperCase() + direction.slice(1)
+                : null,
+            };
+          });
           // Each figure the choice rests on: the reference run's value,
           // this setup's median, the spread across its runs when it has
           // more than one — two runs on one setup are the noise every
@@ -431,7 +476,9 @@ export function ImuSetupCompareView({
             .filter((x): x is NonNullable<typeof x> => x != null);
           return {
             letter: g.letter,
-            title: changes.map((c) => name(c.label)).join(" e "),
+            component: components.join(" e "),
+            knobs: list(knobs),
+            boxes,
             changes,
             runs: g.members.length,
             effects,
@@ -439,11 +486,6 @@ export function ImuSetupCompareView({
         })
         .filter((d) => d.changes.length > 0)
     : [];
-  const changeLine = (c: ReturnType<typeof setupDiff>[number]) => {
-    const unit = c.kind === "clicks" ? "cliques" : c.unit.trim() || "";
-    const num = (n: number | null) => (n == null ? "—" : nf(n, 0));
-    return { text: `${num(c.from)} → ${num(c.to)}`, unit };
-  };
 
   return (
     <div className="space-y-[18px]">
@@ -499,16 +541,8 @@ export function ImuSetupCompareView({
         <section className="px-5 py-6 sm:px-6 sm:py-8">
           <p className="text-lg font-semibold">Comparação dos setups</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {groups.length === 0
-              ? "Nenhuma destas voltas tem afinação registada."
-              : groups.length === 1
-                ? "Todas as voltas foram na mesma afinação."
-                : spread.varying.length === 0
-                  ? "As afinações diferem só no que não foi preenchido."
-                  : `${constants.length > 0 ? `Mantiveste ${constants.length === 1 ? "constante" : "constantes"} ${list(constants)}. ` : ""}Portanto, a variável relevante é ${list(spread.varying)}:`}
-            {unset.length > 0 &&
-              groups.length > 0 &&
-              ` ${unset.length === 1 ? "Uma volta não tem" : `${unset.length} voltas não têm`} afinação registada.`}
+            Compara os setups para perceber qual oferece o melhor equilíbrio
+            entre velocidade, controlo e absorção do terreno.
           </p>
 
           {/* Wider than a phone, the table scrolls inside the card. */}
@@ -537,13 +571,12 @@ export function ImuSetupCompareView({
                       <c.Icon className="mb-2" />
                       <span className="flex items-center gap-1">
                         {c.short}
-                        {c.band && (
-                          <span className="font-light">[{c.band}]</span>
-                        )}
                         <MetricInfo
                           label={c.label}
                           description={c.description}
+                          method={c.method}
                           footnote={c.footnote}
+                          band={c.band}
                         />
                       </span>
                     </th>
@@ -586,87 +619,106 @@ export function ImuSetupCompareView({
                   key={d.letter}
                   className="rounded-[14px] border border-border p-5"
                 >
-                  <p className="font-semibold">
-                    {d.title}
-                    <span className="ml-2 text-xs font-medium text-muted-foreground">
-                      Setup {d.letter}
-                      {d.runs > 1 && ` · ${d.runs} voltas`}
-                    </span>
+                  <p className="text-lg">
+                    {d.component} ·{" "}
+                    <span className="font-semibold">{d.knobs}</span> · Setup{" "}
+                    {d.letter}
+                    {d.runs > 1 && (
+                      <span className="ml-2 text-xs font-medium text-muted-foreground">
+                        {d.runs} voltas
+                      </span>
+                    )}
                   </p>
-                  <p className="mt-4 border-b border-border pb-1 text-xs text-muted-foreground">
-                    Alteração de
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-                    {d.changes.map((c) => {
-                      const line = changeLine(c);
-                      return (
-                        <p key={c.label} className="tabular-nums">
-                          {d.changes.length > 1 && (
-                            <span className="mr-1.5 text-xs text-muted-foreground">
-                              {c.label.replace(/^(garfo|amort\.) /, "")}
-                            </span>
-                          )}
-                          {line.text}
-                          {line.unit && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">
-                              {line.unit}
-                            </span>
-                          )}
-                        </p>
-                      );
-                    })}
-                  </div>
-                  {d.effects.length > 0 ? (
-                    <div className="mt-4 space-y-3">
-                      {d.effects.map((effect) => (
+                  {/* The change on the left in a box of its own, the
+                      figures on the right (the supplied layout). */}
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
+                    <div className="flex flex-col gap-3">
+                      {d.boxes.map((box) => (
                         <div
-                          key={effect.name}
-                          className="rounded-[10px] bg-muted/40 px-3.5 py-3"
+                          key={box.knob}
+                          className="flex flex-1 flex-col items-center justify-center rounded-[12px] border border-border px-3 py-4 text-center"
                         >
-                          <p className="text-sm font-semibold">{effect.name}</p>
-                          {/* REF and the setup on one line (by request,
-                              2026-09-12); the spread on its own. */}
-                          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm tabular-nums">
-                            <span>
-                              REF <span className="ml-1">{effect.ref}</span>
-                            </span>
-                            <span>
-                              {d.letter}{" "}
-                              <span className="ml-1">{effect.value}</span>
-                              {effect.runs > 1 && (
-                                <span className="ml-1.5 text-xs text-muted-foreground">
-                                  mediana de {effect.runs} voltas
-                                </span>
-                              )}
-                            </span>
+                          <p className="text-sm text-muted-foreground">
+                            Alteração de
+                            {d.boxes.length > 1 && (
+                              <span className="block text-xs">{box.knob}</span>
+                            )}
                           </p>
-                          {effect.range && (
-                            <p className="mt-0.5 text-sm tabular-nums">
-                              Variação entre voltas{" "}
-                              <span className="ml-1">{effect.range}</span>
+                          <p className="mt-1.5 text-2xl font-semibold tabular-nums">
+                            {box.text}
+                          </p>
+                          {box.delta && (
+                            <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
+                              {box.delta}
+                            </span>
+                          )}
+                          {box.direction && (
+                            <p className="mt-1.5 text-sm text-muted-foreground">
+                              [{box.direction}]
                             </p>
                           )}
-                          <p className="mt-2 text-sm">
-                            <span
-                              className={cn(
-                                "font-semibold tabular-nums",
-                                effect.tone === "better" &&
-                                  "text-emerald-600 dark:text-emerald-400",
-                                effect.tone === "worse" && "text-[#FF5A39]",
-                              )}
-                            >
-                              {effect.delta}
-                            </span>
-                            , {effect.verdict}.
-                          </p>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      Aparece quando as sessões estiverem lidas.
-                    </p>
-                  )}
+                    {d.effects.length > 0 ? (
+                      <div className="flex flex-col gap-3">
+                        {d.effects.map((effect) => (
+                          <div
+                            key={effect.name}
+                            className="flex flex-1 flex-col justify-center rounded-[12px] bg-muted/40 px-4 py-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="mr-1 text-base font-semibold">
+                                {effect.name}
+                              </p>
+                              <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                Referência{" "}
+                                <span className="font-semibold">
+                                  {effect.ref}
+                                </span>
+                              </span>
+                              <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                setup {d.letter}{" "}
+                                <span className="font-semibold">
+                                  {effect.value}
+                                </span>
+                                {effect.runs > 1 && (
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    mediana de {effect.runs}
+                                  </span>
+                                )}
+                              </span>
+                              {effect.range && (
+                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                  voltas{" "}
+                                  <span className="font-semibold">
+                                    {effect.range}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-sm">
+                              <span
+                                className={cn(
+                                  "font-semibold tabular-nums",
+                                  effect.tone === "better" &&
+                                    "text-emerald-600 dark:text-emerald-400",
+                                  effect.tone === "worse" && "text-[#FF5A39]",
+                                )}
+                              >
+                                {effect.delta}
+                              </span>
+                              , {effect.verdict}.
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="self-center text-sm text-muted-foreground">
+                        Aparece quando as sessões estiverem lidas.
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -700,11 +752,16 @@ export function ImuSetupCompareView({
 function MetricInfo({
   label,
   description,
+  method,
   footnote,
+  band,
 }: {
   label: string;
   description: string;
+  method?: string;
   footnote?: string;
+  /** The band, light after the name (by request, 2026-09-12). */
+  band?: string;
 }) {
   return (
     <Popover>
@@ -715,10 +772,21 @@ function MetricInfo({
         <Info className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent align="start" className="p-4">
-        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-sm font-semibold">
+          {band ? label.replace(` ${band}`, "") : label}
+          {band && <span className="ml-1.5 font-light">[{band}]</span>}
+        </p>
         <p className="mt-1.5 text-sm font-normal text-muted-foreground">
           {description}
         </p>
+        {method && (
+          <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
+            <span className="font-medium text-foreground">
+              Como é calculado:
+            </span>{" "}
+            {method}
+          </p>
+        )}
         {footnote && (
           <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
             {footnote}
