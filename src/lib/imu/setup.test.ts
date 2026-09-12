@@ -8,6 +8,7 @@ import {
   normalizeSetupValues,
   setupDiff,
   setupKey,
+  setupSpread,
   setupSummary,
   setupValuesEqual,
 } from "./setup";
@@ -125,7 +126,7 @@ describe("air or coil, one dial or two", () => {
       "garfo pressão 78 psi → —",
       "amort. mola → 450 lbs",
       "amort. C → 8",
-      "amort. R alta → 3",
+      "amort. HSR → 3",
     ]);
   });
 });
@@ -144,10 +145,10 @@ describe("setup differences", () => {
       tires: { frontPsi: 24, rearPsi: 24 },
     });
     expect(changes.map(formatSetupChange)).toEqual([
-      "garfo C baixa → 12",
-      "garfo R baixa +2",
-      "amort. R baixa 10 → —",
-      "pneu tr. −2 psi",
+      "garfo LSC → 12",
+      "garfo LSR +2 · mais aberto",
+      "amort. LSR 10 → —",
+      "pneu tr. −2 psi · mais mole",
     ]);
     expect(setupDiff(reference, reference)).toEqual([]);
   });
@@ -181,5 +182,58 @@ describe("the rider's weight", () => {
     expect(setupDiff(base, heavier).map(formatSetupChange)).toEqual([
       "rider +2,5 kg",
     ]);
+  });
+});
+
+describe("sag and the spread of a set of setups", () => {
+  it("keeps the sag with either spring, in the summary and the differences", () => {
+    const a = { fork: { pressurePsi: 100, sagPct: 25 } };
+    expect(
+      normalizeSetupValues({ fork: { spring: "coil", sagPct: 30 } }),
+    ).toEqual({ fork: { spring: "coil", sagPct: 30 } });
+    expect(setupSummary(a, { fork: "Fox X2" })).toBe(
+      "Fox X2 100 psi · sag 25 %",
+    );
+    expect(
+      setupDiff(a, { fork: { pressurePsi: 90, sagPct: 30 } }).map(
+        formatSetupChange,
+      ),
+    ).toEqual([
+      "garfo pressão −10 psi · mais macio",
+      "garfo sag +5 % · mais macio",
+    ]);
+  });
+
+  it("says what a set of setups holds constant and what it varies", () => {
+    const base = {
+      fork: { pressurePsi: 100, compressionLow: 10, compressionHigh: 4 },
+      shock: { spring: "coil" as const, springRateLbs: 434 },
+      tires: { frontPsi: 20, rearPsi: 22 },
+      rider: { weightKg: 80 },
+    };
+    const spread = setupSpread(
+      [
+        base,
+        { ...base, fork: { ...base.fork, compressionLow: 12 } },
+        { ...base, fork: { ...base.fork, compressionHigh: 6 } },
+      ],
+      { fork: "Fox X2", shock: "Öhlins TTX22" },
+    );
+    expect(spread.constant).toEqual([
+      "o Fox X2 a 100 psi",
+      "o Öhlins TTX22 a 434 lbs",
+      "os pneus a 20/22 psi",
+      "o peso a 80 kg",
+    ]);
+    expect(spread.varying).toEqual(["LSC do Fox X2", "HSC do Fox X2"]);
+    expect(spread.constantClicks).toBe(0);
+    expect(
+      setupSpread([base, { ...base, rider: { weightKg: 82 } }]).constantClicks,
+    ).toBe(2);
+    expect(setupSpread([])).toEqual({
+      constant: [],
+      varying: [],
+      constantClicks: 0,
+    });
   });
 });

@@ -39,6 +39,10 @@ export interface ImuDamperSetup {
   pressurePsi?: number;
   /** Coil spring rate, lbs/in. */
   springRateLbs?: number;
+  /** Sag, % of travel — measured in the workshop, written here (by
+   * request, 2026-09-12): it discounts the rider's weight the way a
+   * pressure cannot, so two riders on one bike compare by it. */
+  sagPct?: number;
   /** One dial (simple) or low- and high-speed (dual, the default). */
   compressionMode?: ImuCircuitMode;
   /** Compression damping, clicks from closed — the single dial… */
@@ -70,16 +74,18 @@ export interface ImuSetupValues {
   rider?: ImuRiderSetup;
 }
 
-/** The numbers, in the order they are compared and listed. */
+/** The numbers, in the order they are compared and listed — low speed
+ * before high, the form's order. */
 export const DAMPER_FIELDS = [
   "pressurePsi",
   "springRateLbs",
+  "sagPct",
   "compression",
-  "compressionHigh",
   "compressionLow",
+  "compressionHigh",
   "rebound",
-  "reboundHigh",
   "reboundLow",
+  "reboundHigh",
 ] as const satisfies readonly (keyof ImuDamperSetup)[];
 type DamperField = (typeof DAMPER_FIELDS)[number];
 
@@ -188,6 +194,7 @@ export function circuitMode(
 function activeFields(damper: ImuDamperSetup | undefined): DamperField[] {
   const active = new Set<DamperField>([
     SPRING_FIELDS[damperSpring(damper)],
+    "sagPct",
     ...CIRCUIT_FIELDS.compression[circuitMode(damper, "compression")],
     ...CIRCUIT_FIELDS.rebound[circuitMode(damper, "rebound")],
   ]);
@@ -269,6 +276,7 @@ function damperSummary(label: string, d: ImuDamperSetup): string | null {
   if (damperSpring(d) === "coil") {
     if (d.springRateLbs != null) bits.push(`${pt(d.springRateLbs)} lbs`);
   } else if (d.pressurePsi != null) bits.push(`${pt(d.pressurePsi)} psi`);
+  if (d.sagPct != null) bits.push(`sag ${pt(d.sagPct)} %`);
   const c = circuitSummary("C", d, "compression");
   if (c) bits.push(c);
   const r = circuitSummary("R", d, "rebound");
@@ -308,21 +316,25 @@ export function setupSummary(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** What each knob is called in a difference — short, because a pass line
- * may carry three or four of them: "garfo R baixa +2", "pneu tr. −2 psi". */
+/** What each knob is called in a difference — the trade's own letters
+ * (LSC, HSR…) for the two-dial circuits, C and R for the single ones (by
+ * request, 2026-09-12: "corrige o sinal nas cápsulas para que fique mais
+ * perceptível"). */
 const DAMPER_FIELD_SHORT: Record<DamperField, string> = {
   pressurePsi: "pressão",
   springRateLbs: "mola",
+  sagPct: "sag",
   compression: "C",
-  compressionHigh: "C alta",
-  compressionLow: "C baixa",
+  compressionHigh: "HSC",
+  compressionLow: "LSC",
   rebound: "R",
-  reboundHigh: "R alta",
-  reboundLow: "R baixa",
+  reboundHigh: "HSR",
+  reboundLow: "LSR",
 };
 const DAMPER_FIELD_UNIT: Record<DamperField, string> = {
   pressurePsi: " psi",
   springRateLbs: " lbs",
+  sagPct: " %",
   compression: "",
   compressionHigh: "",
   compressionLow: "",
@@ -331,21 +343,38 @@ const DAMPER_FIELD_UNIT: Record<DamperField, string> = {
   reboundLow: "",
 };
 
+/** What a knob is, for the words a change carries: clicks open or close,
+ * a spring firms or softens, sag is the spring the other way round, a
+ * tyre hardens or softens, and a weight is just a weight. */
+export type SetupChangeKind = "clicks" | "spring" | "sag" | "tire" | "rider";
+const DAMPER_FIELD_KIND: Record<DamperField, SetupChangeKind> = {
+  pressurePsi: "spring",
+  springRateLbs: "spring",
+  sagPct: "sag",
+  compression: "clicks",
+  compressionHigh: "clicks",
+  compressionLow: "clicks",
+  rebound: "clicks",
+  reboundHigh: "clicks",
+  reboundLow: "clicks",
+};
+
 export interface SetupChange {
-  /** The knob, in words: "garfo R baixa", "pneu tr.". */
+  /** The knob, in words: "garfo LSR", "pneu tr.". */
   label: string;
   from: number | null;
   to: number | null;
   unit: string;
+  kind: SetupChangeKind;
 }
 
 /**
  * Every knob that differs between two setups — the reference's and a
- * pass's, on a Snapshot page — so a line can say "garfo R baixa +2" and
- * the reader knows what changed between two runs of the same corner
- * without opening either. Knobs neither setup filled in are not a change.
- * A damper that went from air to coil shows its pressure leaving and its
- * spring rate arriving, the two knobs it is.
+ * pass's, on a Snapshot page — so a line can say "garfo LSR +2 · mais
+ * aberto" and the reader knows what changed between two runs of the same
+ * corner without opening either. Knobs neither setup filled in are not a
+ * change. A damper that went from air to coil shows its pressure leaving
+ * and its spring rate arriving, the two knobs it is.
  */
 export function setupDiff(
   from: ImuSetupValues,
@@ -365,6 +394,7 @@ export function setupDiff(
         from: x,
         to: y,
         unit: DAMPER_FIELD_UNIT[field],
+        kind: DAMPER_FIELD_KIND[field],
       });
     }
   }
@@ -377,25 +407,112 @@ export function setupDiff(
       from: x,
       to: y,
       unit: " psi",
+      kind: "tire",
     });
   }
   const wa = a.rider?.weightKg ?? null;
   const wb = b.rider?.weightKg ?? null;
   if (wa !== wb)
-    changes.push({ label: "rider", from: wa, to: wb, unit: " kg" });
+    changes.push({
+      label: "rider",
+      from: wa,
+      to: wb,
+      unit: " kg",
+      kind: "rider",
+    });
   return changes;
 }
 
-/** "garfo R baixa +2", "pneu tr. −2 psi", "amort. pressão → 205 psi" when
- * the reference had none, "garfo C alta 2 → —" when this pass has none. */
+/** The direction a change went, in the words a mechanic uses: clicks
+ * counted from closed open as they grow; more pressure or a stiffer
+ * spring firms; more sag softens; a harder tyre is a harder tyre. */
+function changeDirection(kind: SetupChangeKind, delta: number): string | null {
+  const up = delta > 0;
+  switch (kind) {
+    case "clicks":
+      return up ? "mais aberto" : "mais fechado";
+    case "spring":
+      return up ? "mais firme" : "mais macio";
+    case "sag":
+      return up ? "mais macio" : "mais firme";
+    case "tire":
+      return up ? "mais duro" : "mais mole";
+    case "rider":
+      return null;
+  }
+}
+
+/** "garfo LSR +2 · mais aberto", "pneu tr. −2 psi · mais mole", "amort.
+ * pressão → 205 psi" when the reference had none, "garfo HSC 2 → —" when
+ * this pass has none. */
 export function formatSetupChange(change: SetupChange): string {
-  const { label, from, to, unit } = change;
+  const { label, from, to, unit, kind } = change;
   if (from != null && to != null) {
     const d = to - from;
-    return `${label} ${d > 0 ? "+" : "−"}${pt(Math.abs(d))}${unit}`;
+    const direction = changeDirection(kind, d);
+    return `${label} ${d > 0 ? "+" : "−"}${pt(Math.abs(d))}${unit}${direction ? ` · ${direction}` : ""}`;
   }
   if (to != null) return `${label} → ${pt(to)}${unit}`;
   return `${label} ${pt(from!)}${unit} → —`;
+}
+
+/** The knobs a set of setups agree on and the ones they differ in — the
+ * sentence at the head of a comparison: "Mantiveste constantes o Fox X2 a
+ * 100 psi, os pneus a 20/22 psi e o peso a 80 kg. O que varia: LSC e HSC
+ * do Fox X2." Only the knobs at least one setup filled in count; a knob
+ * one setup has and another lacks varies. The springs, sags, tyres and
+ * weight are named with their values; the clicks that did not move are
+ * only counted (`constantClicks`), or the sentence would list nine of
+ * them to say nothing. */
+export function setupSpread(
+  setups: ImuSetupValues[],
+  labels: { fork?: string | null; shock?: string | null } = {},
+): { constant: string[]; varying: string[]; constantClicks: number } {
+  const all = setups.map(normalizeSetupValues);
+  if (all.length === 0) return { constant: [], varying: [], constantClicks: 0 };
+  const constant: string[] = [];
+  const varying: string[] = [];
+  let constantClicks = 0;
+  const same = (values: (number | null)[]) =>
+    values.every((v) => v === values[0]);
+  for (const block of ["fork", "shock"] as const) {
+    const name = labels[block] || (block === "fork" ? "garfo" : "amortecedor");
+    for (const field of DAMPER_FIELDS) {
+      const values = all.map((v) => v[block]?.[field] ?? null);
+      if (values.every((v) => v == null)) continue;
+      const knob = DAMPER_FIELD_SHORT[field];
+      if (same(values)) {
+        const v = pt(values[0]!);
+        if (DAMPER_FIELD_KIND[field] === "clicks") constantClicks++;
+        else
+          constant.push(
+            field === "sagPct"
+              ? `o sag do ${name} a ${v} %`
+              : `o ${name} a ${v}${DAMPER_FIELD_UNIT[field]}`,
+          );
+      } else varying.push(`${knob} do ${name}`);
+    }
+  }
+  const front = all.map((v) => v.tires?.frontPsi ?? null);
+  const rear = all.map((v) => v.tires?.rearPsi ?? null);
+  const hasTires =
+    !front.every((v) => v == null) || !rear.every((v) => v == null);
+  if (hasTires) {
+    if (same(front) && same(rear))
+      constant.push(
+        `os pneus a ${front[0] != null ? pt(front[0]) : "–"}/${rear[0] != null ? pt(rear[0]) : "–"} psi`,
+      );
+    else {
+      if (!same(front)) varying.push("pneu da frente");
+      if (!same(rear)) varying.push("pneu de trás");
+    }
+  }
+  const weight = all.map((v) => v.rider?.weightKg ?? null);
+  if (!weight.every((v) => v == null)) {
+    if (same(weight)) constant.push(`o peso a ${pt(weight[0]!)} kg`);
+    else varying.push("peso do rider");
+  }
+  return { constant, varying, constantClicks };
 }
 
 /** A stable key for "the same setup": the normalised values, serialised

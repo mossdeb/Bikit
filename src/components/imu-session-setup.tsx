@@ -368,23 +368,36 @@ function DamperBlock({
           onToggle={() => choose(springKey, air ? "coil" : "air")}
         />
       </div>
-      {air ? (
+      {/* The spring and its sag side by side: the sag is what the spring
+          was set FOR, measured on the bike with the rider on it (by
+          request, 2026-09-12). */}
+      <div className="grid grid-cols-[1fr_auto] gap-3">
+        {air ? (
+          <NumberField
+            id={`setup-${block}-pressure`}
+            label="Pressão"
+            unit="psi"
+            value={draft[damperKey(block, "pressurePsi")]}
+            onChange={set(damperKey(block, "pressurePsi"))}
+          />
+        ) : (
+          <NumberField
+            id={`setup-${block}-spring`}
+            label="Mola"
+            unit="lbs"
+            value={draft[damperKey(block, "springRateLbs")]}
+            onChange={set(damperKey(block, "springRateLbs"))}
+          />
+        )}
         <NumberField
-          id={`setup-${block}-pressure`}
-          label="Pressão"
-          unit="psi"
-          value={draft[damperKey(block, "pressurePsi")]}
-          onChange={set(damperKey(block, "pressurePsi"))}
+          id={`setup-${block}-sag`}
+          label="SAG"
+          unit="%"
+          value={draft[damperKey(block, "sagPct")]}
+          onChange={set(damperKey(block, "sagPct"))}
+          className="w-24"
         />
-      ) : (
-        <NumberField
-          id={`setup-${block}-spring`}
-          label="Mola"
-          unit="lbs"
-          value={draft[damperKey(block, "springRateLbs")]}
-          onChange={set(damperKey(block, "springRateLbs"))}
-        />
-      )}
+      </div>
       <Circuit
         block={block}
         circuit="compression"
@@ -520,6 +533,7 @@ function NumberField({
   value,
   onChange,
   small = false,
+  className,
 }: {
   id: string;
   label: string;
@@ -527,9 +541,10 @@ function NumberField({
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   small?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={id} className={cn(small && "text-xs")}>
         {label}
       </Label>

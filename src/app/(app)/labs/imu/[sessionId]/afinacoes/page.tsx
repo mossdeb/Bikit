@@ -47,6 +47,7 @@ export default async function ImuSetupComparePage({
     { data: bikes },
     { data: groups },
     { data: setups },
+    { data: dampers },
   ] = await Promise.all([
     session.bike_id
       ? supabase
@@ -65,7 +66,28 @@ export default async function ImuSetupComparePage({
       .from("imu_setups")
       .select("id, values, note")
       .eq("user_id", userId),
+    // The bike's dampers, for their names in the table and the sentence —
+    // the session page's own lookup.
+    session.bike_id
+      ? supabase
+          .from("components")
+          .select("category, name, brand, model")
+          .eq("bike_id", session.bike_id)
+          .eq("user_id", userId)
+          .is("retired_at", null)
+          .in("category", ["Front Suspension (Fork)", "Rear Suspension"])
+      : Promise.resolve({ data: null }),
   ]);
+  const damperLabel = (category: string) => {
+    const c = (dampers ?? []).find((d) => d.category === category);
+    if (!c) return null;
+    const brandModel = [c.brand, c.model].filter(Boolean).join(" ").trim();
+    return brandModel || c.name || null;
+  };
+  const labels = {
+    fork: damperLabel("Front Suspension (Fork)"),
+    shock: damperLabel("Rear Suspension"),
+  };
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
     (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
@@ -116,6 +138,7 @@ export default async function ImuSetupComparePage({
       <ImuSetupCompareView
         reference={candidateOf(session)}
         runs={runs.map(candidateOf)}
+        labels={labels}
         leftOut={{
           otherTrail: sameRider.length - runs.length,
           otherRider: others.length - sameRider.length,

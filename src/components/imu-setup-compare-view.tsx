@@ -1,69 +1,106 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import Link from "next/link";
-import { SlidersHorizontal } from "lucide-react";
+import { Bike, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/format";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
-import { NativeSelect } from "@/components/ui/native-select";
+import { ImuDocGlyph } from "@/components/imu-pro-logo";
+import {
+  HarshnessIcon,
+  ImpactIcon,
+  RetentionIcon,
+  SettleIcon,
+  SetupSlidersIcon,
+  SpeedGaugeIcon,
+  VibrationIcon,
+} from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
 import {
   buildSessionReport,
-  compareReports,
-  type ReportComparisonRow,
   type ReportMetric,
   type SessionReport,
 } from "@/lib/imu/report";
 import {
+  circuitMode,
+  damperSpring,
   formatSetupChange,
   setupDiff,
   setupKey,
-  setupSummary,
+  setupSpread,
+  type ImuDamperSetup,
+  type ImuSetupValues,
 } from "@/lib/imu/setup";
 
 /**
- * The setups of one bike, run by run: the reference run pinned at the
- * top, and under it every other run of the same bike on the same trail,
- * each with its setup, the knobs that differ from the reference's, and
- * the report's comparable figures with their difference — the Snapshot
- * page's shape, over whole runs instead of one stretch (by request,
- * 2026-09-11). The files are read here, in the browser, as they arrive.
+ * The setups of one bike, run by run — the supplied layout (2026-09-12,
+ * "quero que o layout fique completamente idêntico"): the heading on the
+ * lab's dotted ground, then a hatched plate holding a white card with the
+ * comparison table, then a second plate with the setup that did best.
  *
- * Green and red only where a metric has a better direction; speed and
- * impacts are neither, and read quiet.
+ * The table: a row per run, its name with the date in brackets and REF
+ * on the reference; its setup as "Setup A" with the knobs that differ
+ * from the reference's as black pills; then a column per figure of the
+ * report, each headed by a mark, the value in bold where it differs from
+ * the reference's with the difference in a pill — green where better,
+ * red where worse, grey where neither direction is better. Above it,
+ * what the set of setups held constant and what it varied, computed from
+ * the setups, so the reader knows which knob the table is about.
+ *
+ * At the foot, the setup that did best by a declared figure, its knobs
+ * as tiles — and, with one setup only, the honest note that it is the
+ * only one known and was compared with nothing; with several, whether
+ * the margin beats the spread between two runs on the same setup.
+ *
+ * The files are read here, in the browser, as they arrive.
  */
 
-/** The report's metrics with a number, in the order the columns go. */
-const COLUMNS = [
-  "Velocidade média",
-  "Retenção nas curvas",
-  "Harshness",
-  "Vibração",
-  "Assentamento",
-  "Impactos",
-] as const;
+const COLUMNS: {
+  label: string;
+  short: string;
+  Icon: ComponentType<{ className?: string }>;
+}[] = [
+  {
+    label: "Velocidade média",
+    short: "Velocidade média",
+    Icon: SpeedGaugeIcon,
+  },
+  { label: "Retenção nas curvas", short: "Retenção", Icon: RetentionIcon },
+  { label: "Harshness", short: "Harshness", Icon: HarshnessIcon },
+  { label: "Vibração", short: "Vibração", Icon: VibrationIcon },
+  { label: "Assentamento", short: "Assentamento", Icon: SettleIcon },
+  { label: "Impactos", short: "Impactos", Icon: ImpactIcon },
+];
 
-const SHORT_LABEL: Record<(typeof COLUMNS)[number], string> = {
-  "Velocidade média": "Vel. média",
-  "Retenção nas curvas": "Retenção",
-  Harshness: "Harshness",
-  Vibração: "Vibração",
-  Assentamento: "Assentamento",
-  Impactos: "Impactos",
-};
+/** The figure the best setup is picked by: what the corners kept, the
+ * one figure on the table that is the bike's grip more than the trail's
+ * hits. Ties go to the lower harshness. */
+const BEST_BY = "Retenção nas curvas";
+const BEST_TIE_BREAK = "Harshness";
 
 type Loaded =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "done"; report: SessionReport };
 
+type Tone = "better" | "worse" | "tie" | "neutral";
+
+const nf = (value: number, digits: number) =>
+  value.toLocaleString("pt-PT", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 const signed = (value: number, digits: number) =>
-  `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toLocaleString(
-    "pt-PT",
-    { minimumFractionDigits: digits, maximumFractionDigits: digits },
-  )}`;
+  `${value > 0 ? "+" : value < 0 ? "−" : ""}${nf(Math.abs(value), digits)}`;
+const digitsOf = (m: ReportMetric) =>
+  (m.value.split(",")[1] ?? "").replace(/\D/g, "").length;
+const unitOf = (m: ReportMetric) => m.unit ?? (/%$/.test(m.value) ? "%" : "");
+/** "[11.9.26]" — the supplied layout's date. */
+const bracketDate = (iso: string) => {
+  const d = new Date(iso);
+  return `[${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(-2)}]`;
+};
 
 function metricOf(report: SessionReport, label: string): ReportMetric | null {
   return (
@@ -73,16 +110,37 @@ function metricOf(report: SessionReport, label: string): ReportMetric | null {
   );
 }
 
+function toneOf(m: ReportMetric, diff: number): Tone {
+  if (Math.abs(diff) <= (m.tie ?? 0)) return "tie";
+  if (!m.better) return "neutral";
+  return (m.better === "lower" ? diff < 0 : diff > 0) ? "better" : "worse";
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+export interface ImuSetupCompareLabels {
+  fork: string | null;
+  shock: string | null;
+}
+
 export function ImuSetupCompareView({
   reference,
   runs,
+  labels,
   leftOut,
 }: {
-  /** The session this page was reached from: the line every other is
+  /** The session this page was reached from: the row every other is
    * read against. */
   reference: ImuSnapshotCandidate;
   /** The bike's other runs on the same trail, newest first. */
   runs: ImuSnapshotCandidate[];
+  /** What the bike calls its dampers, for the sentence and the tiles. */
+  labels: ImuSetupCompareLabels;
   /** What the page does not show, and why — for one honest line. */
   leftOut: { otherTrail: number; otherRider: number; noGps: boolean };
 }) {
@@ -90,8 +148,6 @@ export function ImuSetupCompareView({
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(all.map((c) => [c.id, { status: "loading" }])),
   );
-  const [setupFilter, setSetupFilter] = useState("");
-  const [sort, setSort] = useState<"date" | "setup">("date");
 
   useEffect(() => {
     let cancelled = false;
@@ -115,9 +171,11 @@ export function ImuSetupCompareView({
     (l) => l.status === "loading",
   ).length;
   const failed = all.filter((c) => loaded.get(c.id)?.status === "error");
-  const referenceState = loaded.get(reference.id);
-  const referenceReport =
-    referenceState?.status === "done" ? referenceState.report : null;
+  const reportOf = (c: ImuSnapshotCandidate): SessionReport | null => {
+    const state = loaded.get(c.id);
+    return state?.status === "done" ? state.report : null;
+  };
+  const referenceReport = reportOf(reference);
 
   // One letter per distinct setup — the reference's first, then by the
   // run's date, so a letter does not move when a newer run arrives.
@@ -137,30 +195,89 @@ export function ImuSetupCompareView({
   }, [reference, runs]);
   const letterOf = (c: ImuSnapshotCandidate) =>
     c.setup ? (setupLetters.get(setupKey(c.setup)) ?? null) : null;
-  const setupGroups = [...setupLetters.entries()].map(([key, letter]) => ({
-    key,
-    letter,
-    summary: setupSummary(
-      all.find((c) => c.setup && setupKey(c.setup) === key)!.setup!,
-    ),
-  }));
-  const unsetCount = all.filter((c) => !c.setup).length;
 
-  const shown = runs
-    .filter(
-      (r) =>
-        !setupFilter ||
-        (setupFilter === "none"
-          ? !r.setup
-          : (letterOf(r) ?? "") === setupFilter),
-    )
-    .sort((a, b) => {
-      const byDate = b.createdAt.localeCompare(a.createdAt);
-      if (sort !== "setup") return byDate;
-      const la = letterOf(a) ?? "~";
-      const lb = letterOf(b) ?? "~";
-      return la.localeCompare(lb) || byDate;
-    });
+  /** The setups, each with its runs and — once their files are read — the
+   * median of every column across them, for the choice at the foot. */
+  const groups = [...setupLetters.entries()].map(([key, letter]) => {
+    const members = all.filter((c) => c.setup && setupKey(c.setup) === key);
+    const values = new Map<string, number[]>();
+    for (const c of members) {
+      const r = reportOf(c);
+      if (!r) continue;
+      for (const { label } of COLUMNS) {
+        const raw = metricOf(r, label)?.raw;
+        if (raw != null) values.set(label, [...(values.get(label) ?? []), raw]);
+      }
+    }
+    const medians = new Map<string, number>();
+    for (const [label, list] of values) medians.set(label, median(list)!);
+    return { key, letter, setup: members[0].setup!, members, values, medians };
+  });
+  const unset = all.filter((c) => !c.setup);
+
+  const spread = setupSpread(
+    groups.map((g) => g.setup),
+    labels,
+  );
+  const constants = [
+    ...spread.constant,
+    ...(spread.constantClicks > 0
+      ? [
+          spread.constantClicks === 1
+            ? "o outro clique"
+            : `os outros ${spread.constantClicks} cliques`,
+        ]
+      : []),
+  ];
+  const list = (items: string[]) =>
+    items.length <= 1
+      ? items.join("")
+      : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+
+  // The rows: the reference first, then the others grouped by setup in
+  // the letters' order, the runs without a setup last.
+  const rows = [
+    reference,
+    ...groups.flatMap((g) =>
+      g.members
+        .filter((c) => c.id !== reference.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    ),
+    ...unset
+      .filter((c) => c.id !== reference.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  ];
+
+  // The best setup: by the declared figure over the setups whose files
+  // are in; the tie-break by the second. What its margin has to beat is
+  // the metric's own tie or — when any setup was ridden twice — the widest
+  // spread between two runs on one setup, what the day alone does.
+  const ranked = groups
+    .filter((g) => g.medians.has(BEST_BY))
+    .sort(
+      (a, b) =>
+        b.medians.get(BEST_BY)! - a.medians.get(BEST_BY)! ||
+        (a.medians.get(BEST_TIE_BREAK) ?? Infinity) -
+          (b.medians.get(BEST_TIE_BREAK) ?? Infinity),
+    );
+  const best = ranked[0] ?? null;
+  const runnerUp = ranked[1] ?? null;
+  const bestMargin =
+    best && runnerUp
+      ? best.medians.get(BEST_BY)! - runnerUp.medians.get(BEST_BY)!
+      : null;
+  const bestMetric = referenceReport
+    ? metricOf(referenceReport, BEST_BY)
+    : null;
+  const withinSetupSpread = Math.max(
+    0,
+    ...groups.map((g) => {
+      const v = g.values.get(BEST_BY) ?? [];
+      return v.length > 1 ? Math.max(...v) - Math.min(...v) : 0;
+    }),
+  );
+  const bestNoise = Math.max(bestMetric?.tie ?? 0, withinSetupSpread);
+  const shown = groups.length === 1 ? groups[0] : best;
 
   const leftOutBits: string[] = [];
   if (leftOut.noGps)
@@ -176,26 +293,71 @@ export function ImuSetupCompareView({
       `${leftOut.otherRider} ${leftOut.otherRider === 1 ? "foi" : "foram"} com outro rider`,
     );
 
+  // "Em detalhe": each other setup against the reference's, knob by knob —
+  // what moved, by how much, and what the two figures the choice rests on
+  // did. Only once both sides' files are read.
+  const referenceGroup = groups.find((g) =>
+    g.members.some((c) => c.id === reference.id),
+  );
+  const details = referenceGroup
+    ? groups
+        .filter((g) => g !== referenceGroup)
+        .map((g) => {
+          const changes = setupDiff(referenceGroup.setup, g.setup);
+          const name = (label: string) =>
+            label
+              .replace(/^garfo /, `${labels.fork || "garfo"} `)
+              .replace(/^amort\. /, `${labels.shock || "amortecedor"} `);
+          const effects = [BEST_BY, BEST_TIE_BREAK]
+            .map((metricLabel) => {
+              const from = referenceGroup.medians.get(metricLabel);
+              const to = g.medians.get(metricLabel);
+              const m = referenceReport
+                ? metricOf(referenceReport, metricLabel)
+                : null;
+              if (from == null || to == null || !m) return null;
+              const digits = digitsOf(m);
+              const unit = unitOf(m);
+              const diff = to - from;
+              const noise = metricLabel === BEST_BY ? bestNoise : (m.tie ?? 0);
+              const column = COLUMNS.find((c) => c.label === metricLabel)!;
+              return `${column.short} ${nf(from, digits)} → ${nf(to, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}, ${Math.abs(diff) <= noise ? `uma diferença de ${signed(diff, digits)} que fica dentro do ruído` : `${signed(diff, digits)}${metricLabel === BEST_BY ? " pontos" : ""}`}.`;
+            })
+            .filter((x): x is string => x != null);
+          return {
+            letter: g.letter,
+            title: changes.map((c) => name(c.label)).join(" e "),
+            changes,
+            runs: g.members.length,
+            effects,
+          };
+        })
+        .filter((d) => d.changes.length > 0)
+    : [];
+  const changeLine = (c: ReturnType<typeof setupDiff>[number]) => {
+    const unit = c.kind === "clicks" ? "cliques" : c.unit.trim() || "";
+    const num = (n: number | null) => (n == null ? "—" : nf(n, 0));
+    return { text: `${num(c.from)} → ${num(c.to)}`, unit };
+  };
+
   return (
     <div className="space-y-[18px]">
+      {/* The heading, in a card of its own (the supplied layout). */}
       <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
         <div className="px-5 py-5 sm:px-6 sm:py-6">
-          <SlidersHorizontal
-            className="size-7 text-foreground"
-            strokeWidth={1.5}
-            aria-hidden
-          />
-          <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
+          <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
+            <Bike className="size-4" strokeWidth={2} aria-hidden />
             Afinações{reference.bikeName && ` · ${reference.bikeName}`}
           </p>
-          <h1 className="mt-0.5 font-display text-2xl font-semibold">
+          <h1 className="mt-1 font-display text-3xl font-semibold">
             As voltas nesta pista, afinação a afinação
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Referência:{" "}
             <Link
               href={`/labs/imu/${reference.id}`}
-              className="text-foreground underline-offset-2 hover:underline"
+              className="text-foreground underline underline-offset-2"
             >
               {reference.name}
             </Link>{" "}
@@ -210,211 +372,394 @@ export function ImuSetupCompareView({
         </div>
       </div>
 
-      {runs.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1 && (
-            <NativeSelect
-              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-              className="h-11 bg-card text-sm"
-              aria-label="Afinação"
-              value={setupFilter}
-              onChange={(e) => setSetupFilter(e.target.value)}
-            >
-              <option value="">Todas as afinações</option>
-              {setupGroups.map((g) => (
-                <option key={g.letter} value={g.letter}>
-                  Afinação {g.letter}
-                  {g.summary && ` · ${g.summary}`}
-                </option>
-              ))}
-              {unsetCount > 0 && <option value="none">Sem afinação</option>}
-            </NativeSelect>
-          )}
-          <NativeSelect
-            wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-            className="h-11 bg-card text-sm"
-            aria-label="Ordem"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as "date" | "setup")}
-          >
-            <option value="date">Mais recentes primeiro</option>
-            {setupGroups.length > 0 && (
-              <option value="setup">Agrupadas por afinação</option>
-            )}
-          </NativeSelect>
-        </div>
-      )}
-
       {pending > 0 && (
-        <p className="text-sm text-muted-foreground" aria-live="polite">
+        <p className="px-1 text-sm text-muted-foreground" aria-live="polite">
           A ler {all.length - pending + 1} de {all.length}{" "}
           {all.length === 1 ? "sessão" : "sessões"}…
         </p>
       )}
       {failed.map((c) => (
-        <p key={c.id} role="alert" className="text-sm text-destructive">
+        <p key={c.id} role="alert" className="px-1 text-sm text-destructive">
           {c.name}: {(loaded.get(c.id) as { message: string }).message}
         </p>
       ))}
 
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <RunLine
-          run={reference}
-          report={referenceReport}
-          reference={null}
-          referenceReport={null}
-          setupLetter={letterOf(reference)}
-          pinned
-        />
-        {shown.map((run) => {
-          const state = loaded.get(run.id);
-          return (
-            <RunLine
-              key={run.id}
-              run={run}
-              report={state?.status === "done" ? state.report : null}
-              reference={reference}
-              referenceReport={referenceReport}
-              setupLetter={letterOf(run)}
-            />
-          );
-        })}
-        {runs.length === 0 && (
-          <p className="border-t border-border px-5 py-5 text-sm text-muted-foreground sm:px-6">
-            Só esta volta, por enquanto. As que importares desta bicicleta nesta
-            pista entram sozinhas.
-          </p>
+      {/* One card, three sections ruled apart (the supplied layout). */}
+      <div
+        className={cn(
+          "divide-y divide-border rounded-lg bg-card",
+          DARK_CARD_HAIRLINE,
         )}
-        {runs.length > 0 && shown.length === 0 && (
-          <p className="border-t border-border px-5 py-5 text-sm text-muted-foreground sm:px-6">
-            Nenhuma outra volta com estes filtros.
+      >
+        <section className="px-5 py-6 sm:px-6 sm:py-8">
+          <p className="text-lg font-semibold">Comparação dos setups</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {groups.length === 0
+              ? "Nenhuma destas voltas tem afinação registada."
+              : groups.length === 1
+                ? "Todas as voltas foram na mesma afinação."
+                : spread.varying.length === 0
+                  ? "As afinações diferem só no que não foi preenchido."
+                  : `${constants.length > 0 ? `Mantiveste ${constants.length === 1 ? "constante" : "constantes"} ${list(constants)}. ` : ""}Portanto, a variável relevante é ${list(spread.varying)}:`}
+            {unset.length > 0 &&
+              groups.length > 0 &&
+              ` ${unset.length === 1 ? "Uma volta não tem" : `${unset.length} voltas não têm`} afinação registada.`}
           </p>
+
+          {/* Wider than a phone, the table scrolls inside the card. */}
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full min-w-[960px] border-collapse text-sm">
+              <thead>
+                <tr className="text-left">
+                  <th className="pr-4 pb-3 align-bottom font-semibold">
+                    Sessão
+                  </th>
+                  <th className="px-4 pb-3 align-bottom font-semibold">
+                    <SetupSlidersIcon className="mb-2" />
+                    Afinação
+                  </th>
+                  {COLUMNS.map((c) => (
+                    <th
+                      key={c.label}
+                      className="px-4 pb-3 align-bottom font-semibold whitespace-nowrap"
+                    >
+                      <c.Icon className="mb-2" />
+                      {c.short}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((run) => (
+                  <RunRow
+                    key={run.id}
+                    run={run}
+                    report={reportOf(run)}
+                    letter={letterOf(run)}
+                    reference={reference}
+                    referenceReport={referenceReport}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {runs.length === 0 && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Só esta volta, por enquanto. As que importares desta bicicleta
+              nesta pista entram sozinhas.
+            </p>
+          )}
+        </section>
+
+        {details.length > 0 && (
+          <section className="px-5 py-6 sm:px-6 sm:py-8">
+            <p className="text-lg font-semibold">Em detalhe</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cada afinação face à referência, botão a botão, e o que as duas
+              figuras da escolha fizeram com ela.
+            </p>
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {details.map((d) => (
+                <div
+                  key={d.letter}
+                  className="rounded-[14px] border border-border p-5"
+                >
+                  <p className="font-semibold">
+                    {d.title}
+                    <span className="ml-2 text-xs font-medium text-muted-foreground">
+                      Setup {d.letter}
+                      {d.runs > 1 && ` · ${d.runs} voltas`}
+                    </span>
+                  </p>
+                  <p className="mt-4 border-b border-border pb-1 text-xs text-muted-foreground">
+                    Alteração de
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                    {d.changes.map((c) => {
+                      const line = changeLine(c);
+                      return (
+                        <p key={c.label} className="tabular-nums">
+                          {d.changes.length > 1 && (
+                            <span className="mr-1.5 text-xs text-muted-foreground">
+                              {c.label.replace(/^(garfo|amort\.) /, "")}
+                            </span>
+                          )}
+                          {line.text}
+                          {line.unit && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">
+                              {line.unit}
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })}
+                  </div>
+                  {d.effects.length > 0 ? (
+                    <p className="mt-3 text-sm">{d.effects.join(" ")}</p>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Aparece quando as sessões estiverem lidas.
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* The best so far — or the only one known, said as such. */}
+        {shown && (
+          <section className="px-5 py-6 sm:px-6 sm:py-8">
+            <p className="text-lg font-semibold">O melhor setup até agora</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {groups.length === 1
+                ? "É a única afinação registada nesta pista. Ainda não foi testada nem comparada com outra, por isso não há como dizer se é a melhor."
+                : !best
+                  ? "Aparece quando as sessões estiverem lidas."
+                  : bestMargin != null && Math.abs(bestMargin) <= bestNoise
+                    ? `Setup ${best.letter}, pela retenção mediana nas curvas — mas a diferença para o ${runnerUp!.letter} (${signed(bestMargin, 1)} pontos) não passa o ruído entre voltas iguais (${nf(bestNoise, 1)} pontos). Ainda não separa os dois.`
+                    : `Setup ${best.letter}, pela retenção mediana nas curvas: ${nf(best.medians.get(BEST_BY)!, 0)} % em ${best.members.length === 1 ? "uma volta" : `${best.members.length} voltas`}${runnerUp ? `, ${signed(bestMargin!, 0)} pontos sobre o ${runnerUp.letter}` : ""}.${best.members.length === 1 ? " Com uma volta só, a diferença pode ser o dia e não a afinação." : ""}`}
+            </p>
+            <SetupTiles setup={shown.setup} labels={labels} />
+          </section>
         )}
       </div>
     </div>
   );
 }
 
-function RunLine({
+function RunRow({
   run,
   report,
+  letter,
   reference,
   referenceReport,
-  setupLetter,
-  pinned = false,
 }: {
   run: ImuSnapshotCandidate;
-  /** This run's report, once its file has been read. */
   report: SessionReport | null;
-  /** What the figures are compared with; null on the reference itself. */
-  reference: ImuSnapshotCandidate | null;
+  letter: string | null;
+  reference: ImuSnapshotCandidate;
   referenceReport: SessionReport | null;
-  setupLetter: string | null;
-  pinned?: boolean;
 }) {
-  const setupText = run.setup ? setupSummary(run.setup) : null;
-  const setupChanges =
-    reference?.setup && run.setup ? setupDiff(reference.setup, run.setup) : [];
-  const rows: Map<string, ReportComparisonRow> | null =
-    report && referenceReport
-      ? new Map(
-          compareReports(report, referenceReport).map((r) => [r.label, r]),
-        )
-      : null;
+  const isReference = run.id === reference.id;
+  const changes =
+    !isReference && reference.setup && run.setup
+      ? setupDiff(reference.setup, run.setup)
+      : [];
   return (
-    <div
-      className={cn(
-        "px-5 py-4 sm:px-6 sm:py-5",
-        !pinned && "border-t border-border",
-        pinned && "bg-muted/40",
-      )}
-    >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    <tr className="border-t border-border">
+      <td className="py-4 pr-4 align-middle whitespace-nowrap">
         <Link
           href={`/labs/imu/${run.id}`}
           className="font-semibold underline-offset-2 hover:underline"
         >
-          {run.name}
-        </Link>
-        {pinned && (
-          <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background">
-            Referência
-          </span>
-        )}
-      </div>
-      <p className="mt-0.5 text-sm text-muted-foreground">
-        {formatDate(run.createdAt)}
-        {run.riderName && ` · ${run.riderName}`}
-        {run.groupLabel && ` · ${run.groupLabel}`}
-      </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        {setupLetter && (
-          <span
-            className="rounded-[6px] bg-foreground px-1.5 py-0.5 font-semibold text-background"
-            title="A mesma letra é a mesma afinação"
-          >
-            Afinação {setupLetter}
-          </span>
-        )}
-        <span className="text-muted-foreground">
-          {setupText ?? "Sem afinação registada"}
-          {run.setupNote && ` · “${run.setupNote}”`}
+          {run.name.split(" - ")[0]}
+        </Link>{" "}
+        <span className="text-xs text-muted-foreground">
+          {bracketDate(run.createdAt)}
         </span>
-        {setupChanges.map((change) => (
-          <span
-            key={change.label}
-            className="rounded-full border border-foreground/40 bg-background px-2 py-0.5 font-medium text-foreground tabular-nums"
-          >
-            {formatSetupChange(change)}
+        {isReference && (
+          <span className="ml-2 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold tracking-wide text-background">
+            REF
           </span>
-        ))}
-        {reference?.setup && run.setup && setupChanges.length === 0 && (
-          <span className="text-muted-foreground">· igual à referência</span>
         )}
-      </div>
-      <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-x-4 gap-y-3">
-        {COLUMNS.map((label) => {
-          const metric = report ? metricOf(report, label) : null;
-          const row = rows?.get(label) ?? null;
-          return (
-            <div key={label} className="min-w-0">
-              <p className="truncate text-xs text-muted-foreground">
-                {SHORT_LABEL[label]}
-              </p>
-              <p className="leading-tight font-semibold tabular-nums">
-                {!report ? (
-                  <span className="text-muted-foreground">…</span>
-                ) : metric == null ? (
-                  "—"
-                ) : (
-                  <>
-                    {metric.value.replace(/\s*%$/, "")}
-                    {(metric.unit || /%$/.test(metric.value)) && (
-                      <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                        {metric.unit ?? "%"}
-                      </span>
-                    )}
-                  </>
-                )}
-              </p>
-              {row && (
-                <p
-                  className={cn(
-                    "text-xs tabular-nums",
-                    row.tone === "better" &&
-                      "text-emerald-600 dark:text-emerald-400",
-                    row.tone === "worse" && "text-[#FF5A39]",
-                    (row.tone === "neutral" || row.tone === "tie") &&
-                      "text-muted-foreground",
-                  )}
-                >
-                  {row.tone === "tie" ? "≈" : signed(row.diff, row.digits)}
+      </td>
+      <td className="px-4 py-4 align-middle">
+        <div className="flex flex-wrap items-center gap-2">
+          <FileText
+            className="size-[18px] shrink-0 text-foreground"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <span className="whitespace-nowrap">
+            {letter ? `Setup ${letter}` : "Sem afinação"}
+          </span>
+          {changes.map((change) => (
+            <span
+              key={change.label}
+              className="rounded-full bg-foreground px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-background tabular-nums"
+            >
+              {formatSetupChange(change)}
+            </span>
+          ))}
+        </div>
+      </td>
+      {COLUMNS.map(({ label }) => {
+        const m = report ? metricOf(report, label) : null;
+        const ref =
+          !isReference && referenceReport
+            ? metricOf(referenceReport, label)
+            : null;
+        return (
+          <td
+            key={label}
+            className="px-4 py-4 align-middle whitespace-nowrap tabular-nums"
+          >
+            {!report ? (
+              <span className="text-muted-foreground">…</span>
+            ) : m == null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              <Figure metric={m} reference={ref} />
+            )}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+/** One figure and, beside it, its difference to the reference's in a
+ * pill — bold where it differs beyond the tie. */
+function Figure({
+  metric,
+  reference,
+}: {
+  metric: ReportMetric;
+  reference: ReportMetric | null;
+}) {
+  const diff =
+    reference?.raw != null && metric.raw != null
+      ? metric.raw - reference.raw
+      : null;
+  const tone = reference && diff != null ? toneOf(reference, diff) : null;
+  const unit = unitOf(metric);
+  const differs = tone != null && tone !== "tie";
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={cn(differs && "font-bold")}>
+        {metric.value.replace(/\s*%$/, "")}
+        {unit && (
+          <>
+            {/^[°/%×]/.test(unit) ? "" : " "}
+            {unit}
+          </>
+        )}
+      </span>
+      {differs && diff != null && (
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+            tone === "better" &&
+              "bg-emerald-600 text-white dark:bg-emerald-500",
+            tone === "worse" && "bg-[#FF5A39] text-white",
+            tone === "neutral" && "bg-foreground text-background",
+          )}
+        >
+          {signed(diff, digitsOf(metric))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** A setup laid out as the supplied layout's tiles: "Garfo. Fox X2"
+ * over a row of cells — spring, the four damping dials high before low,
+ * sag — and the same for the shock; then the tyres and the rider. Only
+ * the knobs that were filled in. */
+function SetupTiles({
+  setup,
+  labels,
+}: {
+  setup: ImuSetupValues;
+  labels: ImuSetupCompareLabels;
+}) {
+  const pt = (n: number) => nf(n, Number.isInteger(n) ? 0 : 1);
+  const clicks = (n: number) => `${pt(n)} ${n === 1 ? "clique" : "cliques"}`;
+  const damperTiles = (d: ImuDamperSetup | undefined) => {
+    if (!d) return [];
+    const tiles: { label: string; value: string }[] = [];
+    if (damperSpring(d) === "coil") {
+      if (d.springRateLbs != null)
+        tiles.push({ label: "Mola", value: `${pt(d.springRateLbs)} lbs` });
+    } else if (d.pressurePsi != null)
+      tiles.push({ label: "Pressão de ar", value: `${pt(d.pressurePsi)} psi` });
+    if (circuitMode(d, "compression") === "simple") {
+      if (d.compression != null)
+        tiles.push({ label: "Compressão", value: clicks(d.compression) });
+    } else {
+      if (d.compressionHigh != null)
+        tiles.push({
+          label: "Compressão alta velocidade",
+          value: clicks(d.compressionHigh),
+        });
+      if (d.compressionLow != null)
+        tiles.push({
+          label: "Compressão baixa velocidade",
+          value: clicks(d.compressionLow),
+        });
+    }
+    if (circuitMode(d, "rebound") === "simple") {
+      if (d.rebound != null)
+        tiles.push({ label: "Rebound", value: clicks(d.rebound) });
+    } else {
+      if (d.reboundHigh != null)
+        tiles.push({
+          label: "Rebound alta velocidade",
+          value: clicks(d.reboundHigh),
+        });
+      if (d.reboundLow != null)
+        tiles.push({
+          label: "Rebound baixa velocidade",
+          value: clicks(d.reboundLow),
+        });
+    }
+    if (d.sagPct != null)
+      tiles.push({ label: "SAG", value: `${pt(d.sagPct)} %` });
+    return tiles;
+  };
+  const blocks: {
+    kind: string;
+    name: string;
+    tiles: { label: string; value: string }[];
+  }[] = [
+    { kind: "Garfo", name: labels.fork || "", tiles: damperTiles(setup.fork) },
+    {
+      kind: "Amortecedor",
+      name: labels.shock || "",
+      tiles: damperTiles(setup.shock),
+    },
+    {
+      kind: "Pneus",
+      name: "",
+      tiles: [
+        ...(setup.tires?.frontPsi != null
+          ? [{ label: "Frente", value: `${nf(setup.tires.frontPsi, 0)} psi` }]
+          : []),
+        ...(setup.tires?.rearPsi != null
+          ? [{ label: "Trás", value: `${nf(setup.tires.rearPsi, 0)} psi` }]
+          : []),
+        ...(setup.rider?.weightKg != null
+          ? [{ label: "Rider", value: `${nf(setup.rider.weightKg, 0)} kg` }]
+          : []),
+      ],
+    },
+  ].filter((b) => b.tiles.length > 0);
+  return (
+    <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      {blocks.map((block) => (
+        <div key={block.kind}>
+          <p className="text-base">
+            {block.kind}.{" "}
+            {block.name && <span className="font-semibold">{block.name}</span>}
+          </p>
+          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(104px,1fr))] gap-px overflow-hidden rounded-[14px] border border-border bg-border bg-clip-padding">
+            {block.tiles.map((tile) => (
+              <div
+                key={tile.label}
+                className="flex min-h-[96px] flex-col justify-center bg-card px-3 py-3 text-center"
+              >
+                <p className="text-[11px] leading-tight text-muted-foreground">
+                  {tile.label}
                 </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                <p className="mt-1.5 leading-tight font-semibold tabular-nums">
+                  {tile.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
