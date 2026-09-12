@@ -180,3 +180,71 @@ export function ImpactIcon({ className }: Props) {
     </svg>
   );
 }
+
+/** 9.svg — tall blocks over a baseline: the chassis's own motion. */
+export function ChassisBandIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 70 21"
+      fill="none"
+      className={cn(base, className)}
+      aria-hidden
+    >
+      <path
+        d="M1.34619 19.6523H68.6539"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <g
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      >
+        <path d="M15.3138 16.3579H5.58301V19.0065H15.3138V16.3579Z" />
+        <path d="M25.0443 1.27295L15.3135 7.3993V19.0063H25.0443V1.27295Z" />
+        <path d="M44.5062 1.27295L34.7754 7.89745V19.0063H44.5062V1.27295Z" />
+        <path d="M54.6864 15.6313H44.9556V19.0066H54.6864V15.6313Z" />
+        <path d="M64.4174 1.27295L54.6865 7.3993V19.0063H64.4174V1.27295Z" />
+        <path d="M34.7753 16.3579H25.0444V19.0065H34.7753V16.3579Z" />
+      </g>
+    </svg>
+  );
+}
+
+/** 10.svg — low blocks over a baseline: the chatter. */
+export function ChatterBandIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 70 21"
+      fill="none"
+      className={cn(base, className)}
+      aria-hidden
+    >
+      <path
+        d="M1.34619 19.6538H68.6539"
+        stroke="currentColor"
+        strokeWidth="2.69231"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      />
+      <g
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.34615"
+        strokeMiterlimit="10"
+        strokeLinecap="round"
+      >
+        <path d="M15.3138 13.7183H5.58301V19.0089H15.3138V13.7183Z" />
+        <path d="M25.0443 10.6177H15.3135V19.0087H25.0443V10.6177Z" />
+        <path d="M44.5062 8.42725H34.7754V19.0085H44.5062V8.42725Z" />
+        <path d="M54.6864 12.2666H44.9556V19.0088H54.6864V12.2666Z" />
+        <path d="M64.4173 15.6377H54.6865V19.0088H64.4173V15.6377Z" />
+        <path d="M34.7753 13.7183H25.0444V19.0089H34.7753V13.7183Z" />
+      </g>
+    </svg>
+  );
+}

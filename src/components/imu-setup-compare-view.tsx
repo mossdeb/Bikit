@@ -12,13 +12,14 @@ import {
 } from "@/components/ui/popover";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import {
+  ChassisBandIcon,
+  ChatterBandIcon,
   HarshnessIcon,
   ImpactIcon,
   RetentionIcon,
   SettleIcon,
   SetupSlidersIcon,
   SpeedGaugeIcon,
-  VibrationIcon,
 } from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
@@ -61,6 +62,10 @@ import {
  * The files are read here, in the browser, as they arrive.
  */
 
+/** RMS, for the "i"s that lean on it (by request, 2026-09-12). */
+const RMS_NOTE =
+  "*RMS: a raiz da média dos quadrados — o nível médio de uma força que oscila, contando igual o que sobe e o que desce. Um valor de pico diz quão alto foi o pior instante; o RMS diz quanto houve ao todo.";
+
 const COLUMNS: {
   label: string;
   short: string;
@@ -68,6 +73,11 @@ const COLUMNS: {
   /** What the figure is and which way is better, for the "i" beside the
    * heading (by request, 2026-09-12). */
   description: string;
+  /** A last line for a term the description leans on. */
+  footnote?: string;
+  /** The band, printed light in brackets after the name (by request,
+   * 2026-09-12: "[2–12 Hz] fonte light"). */
+  band?: string;
 }[] = [
   {
     label: "Velocidade média",
@@ -89,20 +99,32 @@ const COLUMNS: {
     Icon: HarshnessIcon,
     description:
       "O pico (percentil 99) sobre o RMS da força dinâmica nas zonas acidentadas. Maior é mais seco: pancadas que a suspensão deixou passar ao quadro. Menos é melhor.",
+    footnote: RMS_NOTE,
   },
   {
-    label: "Vibração",
-    short: "Vibração",
-    Icon: VibrationIcon,
+    label: "Chassis Movement 2–12 Hz",
+    short: "Chassis Movement",
+    band: "2–12 Hz",
+    Icon: ChassisBandIcon,
     description:
-      "O RMS da variação da força, amostra a amostra, nas zonas acidentadas, em G por segundo. É o chatter que chega ao quadro. Menos é melhor.",
+      "O RMS da força na banda de 2 a 12 Hz nas zonas acidentadas: o movimento do próprio quadro, o que a compressão controla. Menos é melhor.",
+    footnote: RMS_NOTE,
   },
   {
-    label: "Assentamento",
-    short: "Assentamento",
+    label: "Chatter 12–60 Hz",
+    short: "Chatter",
+    band: "12–60 Hz",
+    Icon: ChatterBandIcon,
+    description:
+      "O RMS da força na banda de 12 a 60 Hz nas zonas acidentadas: o que passa dos pneus e das pedras pequenas ao quadro. Menos é melhor.",
+    footnote: RMS_NOTE,
+  },
+  {
+    label: "Oscilação residual",
+    short: "Oscilação residual",
     Icon: SettleIcon,
     description:
-      "A mediana do tempo que a força leva a voltar abaixo de 1 G depois de cada impacto, com teto de 2 s. Menos é melhor, mas varia muito entre voltas iguais: só um efeito grande conta.",
+      "Quanto de cada impacto fica a oscilar no quadro na banda de 2 a 12 Hz nos 300 ms seguintes, sobre o pico da pancada, em mediana dos impactos. Menos é o amortecedor a fechar a pancada mais depressa.",
   },
   {
     label: "Impactos",
@@ -351,22 +373,62 @@ export function ImuSetupCompareView({
             label
               .replace(/^garfo /, `${labels.fork || "garfo"} `)
               .replace(/^amort\. /, `${labels.shock || "amortecedor"} `);
+          // Each figure the choice rests on: the reference run's value,
+          // this setup's median, the spread across its runs when it has
+          // more than one — two runs on one setup are the noise every
+          // difference has to beat (by request, 2026-09-12) — and the
+          // verdict against the wider of that spread and the metric's tie.
           const effects = [BEST_BY, BEST_TIE_BREAK]
             .map((metricLabel) => {
-              const from = referenceGroup.medians.get(metricLabel);
-              const to = g.medians.get(metricLabel);
-              const m = referenceReport
+              const ref = referenceReport
                 ? metricOf(referenceReport, metricLabel)
                 : null;
-              if (from == null || to == null || !m) return null;
-              const digits = digitsOf(m);
-              const unit = unitOf(m);
-              const diff = to - from;
-              const noise = metricLabel === BEST_BY ? bestNoise : (m.tie ?? 0);
+              const to = g.medians.get(metricLabel);
+              if (ref?.raw == null || to == null) return null;
+              const digits = digitsOf(ref);
+              const unit = unitOf(ref);
+              const values = g.values.get(metricLabel) ?? [];
+              const range =
+                values.length > 1
+                  ? { min: Math.min(...values), max: Math.max(...values) }
+                  : null;
+              const spreadAll = Math.max(
+                0,
+                ...groups.map((other) => {
+                  const v = other.values.get(metricLabel) ?? [];
+                  return v.length > 1 ? Math.max(...v) - Math.min(...v) : 0;
+                }),
+              );
+              const noise = Math.max(ref.tie ?? 0, spreadAll);
+              const diff = to - ref.raw;
+              const tone: Tone =
+                Math.abs(diff) <= noise ? "tie" : toneOf(ref, diff);
+              const fmt = (x: number) =>
+                `${nf(x, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
               const column = COLUMNS.find((c) => c.label === metricLabel)!;
-              return `${column.short} ${nf(from, digits)} → ${nf(to, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}, ${Math.abs(diff) <= noise ? `uma diferença de ${signed(diff, digits)} que fica dentro do ruído` : `${signed(diff, digits)}${metricLabel === BEST_BY ? " pontos" : ""}`}.`;
+              return {
+                name: column.short,
+                ref: fmt(ref.raw),
+                value: fmt(to),
+                runs: values.length,
+                range: range
+                  ? `${nf(range.min, digits)}–${fmt(range.max)}`
+                  : null,
+                delta: `${signed(diff, digits)}${unit === "%" ? " pp" : unit ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}` : ""}`,
+                tone,
+                verdict:
+                  tone === "tie"
+                    ? range
+                      ? "dentro da variação entre voltas"
+                      : `dentro do ruído entre voltas iguais (${nf(noise, digits)}${unit === "%" ? " pp" : unit ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}` : ""})`
+                    : tone === "better"
+                      ? "acima da variação entre voltas · melhor"
+                      : tone === "worse"
+                        ? "acima da variação entre voltas · pior"
+                        : "acima da variação entre voltas",
+              };
             })
-            .filter((x): x is string => x != null);
+            .filter((x): x is NonNullable<typeof x> => x != null);
           return {
             letter: g.letter,
             title: changes.map((c) => name(c.label)).join(" e "),
@@ -475,9 +537,13 @@ export function ImuSetupCompareView({
                       <c.Icon className="mb-2" />
                       <span className="flex items-center gap-1">
                         {c.short}
+                        {c.band && (
+                          <span className="font-light">[{c.band}]</span>
+                        )}
                         <MetricInfo
                           label={c.label}
                           description={c.description}
+                          footnote={c.footnote}
                         />
                       </span>
                     </th>
@@ -551,7 +617,51 @@ export function ImuSetupCompareView({
                     })}
                   </div>
                   {d.effects.length > 0 ? (
-                    <p className="mt-3 text-sm">{d.effects.join(" ")}</p>
+                    <div className="mt-4 space-y-3">
+                      {d.effects.map((effect) => (
+                        <div
+                          key={effect.name}
+                          className="rounded-[10px] bg-muted/40 px-3.5 py-3"
+                        >
+                          <p className="text-sm font-semibold">{effect.name}</p>
+                          {/* REF and the setup on one line (by request,
+                              2026-09-12); the spread on its own. */}
+                          <p className="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm tabular-nums">
+                            <span>
+                              REF <span className="ml-1">{effect.ref}</span>
+                            </span>
+                            <span>
+                              {d.letter}{" "}
+                              <span className="ml-1">{effect.value}</span>
+                              {effect.runs > 1 && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                  mediana de {effect.runs} voltas
+                                </span>
+                              )}
+                            </span>
+                          </p>
+                          {effect.range && (
+                            <p className="mt-0.5 text-sm tabular-nums">
+                              Variação entre voltas{" "}
+                              <span className="ml-1">{effect.range}</span>
+                            </p>
+                          )}
+                          <p className="mt-2 text-sm">
+                            <span
+                              className={cn(
+                                "font-semibold tabular-nums",
+                                effect.tone === "better" &&
+                                  "text-emerald-600 dark:text-emerald-400",
+                                effect.tone === "worse" && "text-[#FF5A39]",
+                              )}
+                            >
+                              {effect.delta}
+                            </span>
+                            , {effect.verdict}.
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-muted-foreground">
                       Aparece quando as sessões estiverem lidas.
@@ -590,9 +700,11 @@ export function ImuSetupCompareView({
 function MetricInfo({
   label,
   description,
+  footnote,
 }: {
   label: string;
   description: string;
+  footnote?: string;
 }) {
   return (
     <Popover>
@@ -607,6 +719,11 @@ function MetricInfo({
         <p className="mt-1.5 text-sm font-normal text-muted-foreground">
           {description}
         </p>
+        {footnote && (
+          <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
+            {footnote}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -19,13 +19,17 @@
 
 import type { ImuEvent, ImuSessionData } from "./format";
 import {
+  bandpassSeries,
+  CHASSIS_BAND_HZ,
+  CHATTER_BAND_HZ,
   curveMomentum,
+  DECAY_TO_MS,
   fusedSpeedKmhSeries,
+  impactDecayRatio,
   gForceOf,
   gpsMeanSpeed,
   impactEnergy,
   impactSeverityIndex,
-  jerkSeries,
   leanSeries,
   pitchSeries,
   roughnessSeries,
@@ -33,7 +37,6 @@ import {
   windowMeanAbs,
   windowRms,
 } from "./derive";
-import { lowerBoundIndex } from "./downsample";
 
 export interface ReportMetric {
   label: string;
@@ -79,11 +82,6 @@ const MOVING_KMH = 3;
 const BRAKE_BEFORE_CURVE_MS = 2000;
 /** An impact's energy is read over this each side, the card's window. */
 const IMPACT_WINDOW_MS = 150;
-/** After an impact, "settled" is the dynamic G staying under this for
- * SETTLE_HOLD_MS — the first moment the frame is back to riding. */
-const SETTLE_G = 1.0;
-const SETTLE_HOLD_MS = 100;
-const SETTLE_CAP_MS = 2000;
 /** How many of anything a highlights list names. */
 const HIGHLIGHTS = 3;
 
@@ -136,7 +134,6 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
   const perKm = (count: number) =>
     distanceKm != null ? count / distanceKm : null;
   const moving = (i: number) => speed == null || speed[i] > MOVING_KMH;
-  const at = (ms: number) => Math.min(n - 1, lowerBoundIndex(tMs, ms));
 
   const curves = session.events.filter(
     (e): e is Extract<ImuEvent, { kind: "curve" }> => e.kind === "curve",
@@ -360,64 +357,77 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         });
     }
 
-    // Chatter: how fast the G changes, sample to sample, on rough ground.
-    const jerk = jerkSeries(tMs, g);
-    const chatter: number[] = [];
-    for (let i = 0; i < n; i++)
-      if (moving(i) && (!useRough || inRough(i))) chatter.push(jerk[i]);
-    if (chatter.length > 100) {
-      const rms = Math.sqrt(
-        chatter.reduce((a, v) => a + v * v, 0) / chatter.length,
-      );
+    // The two bands of the frame's motion (by request, 2026-09-12, over
+    // the jerk RMS that weighed every frequency alike): the chassis's own
+    // bobbing in 2–12 Hz, which the compression damping controls, and the
+    // chatter in 12–60 Hz, which the tyres and the small stones put
+    // through. Both RMS over the same ground as the harshness.
+    const dynamic = new Float32Array(n);
+    for (let i = 0; i < n; i++) dynamic[i] = g[i] - 1;
+    const chassis = bandpassSeries(tMs, dynamic, ...CHASSIS_BAND_HZ);
+    const chatterBand = bandpassSeries(tMs, dynamic, ...CHATTER_BAND_HZ);
+    const bandRms = (band: Float32Array) => {
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < n; i++)
+        if (moving(i) && (!useRough || inRough(i))) {
+          sum += band[i] * band[i];
+          count++;
+        }
+      return count > 100 ? Math.sqrt(sum / count) : null;
+    };
+    const where = useRough ? " nas zonas acidentadas" : "";
+    const chassisRms = bandRms(chassis);
+    if (chassisRms != null)
       metrics.push({
-        label: "Vibração",
-        value: pt(rms, 0),
-        unit: "G/s",
-        raw: rms,
+        label: "Chassis Movement 2–12 Hz",
+        value: pt(chassisRms, 2),
+        unit: "G",
+        raw: chassisRms,
         better: "lower",
-        tie: 5,
-        hint: `RMS da variação da força${useRough ? " nas zonas acidentadas" : ""}`,
+        tie: 0.04,
+        hint: `RMS da força na banda do movimento do quadro${where}; o que a compressão controla`,
       });
-    }
+    const chatterRms = bandRms(chatterBand);
+    if (chatterRms != null)
+      metrics.push({
+        label: "Chatter 12–60 Hz",
+        value: pt(chatterRms, 2),
+        unit: "G",
+        raw: chatterRms,
+        better: "lower",
+        tie: 0.04,
+        hint: `RMS da força na banda do chatter${where}; o que passa dos pneus ao quadro`,
+      });
 
-    // Settling: after each impact, how long until the frame is riding again.
-    const settles: { impact: (typeof impacts)[number]; ms: number }[] = [];
+    // Decay: how much of each impact goes on bobbing in the chassis band
+    // over the 300 ms that follow it, over the hit's own peak — the
+    // damper's work, read where it is done. (The settling time that stood
+    // here counted until the force stayed under 1 G, and so measured the
+    // trail after the hit: two runs on one setup gave 558 and 1065 ms.)
+    const decays: { impact: (typeof impacts)[number]; ratio: number }[] = [];
     for (const impact of impacts) {
-      const i0 = at(impact.timeMs);
-      let settled: number | null = null;
-      let quietSince: number | null = null;
-      for (let i = i0; i < n && tMs[i] - impact.timeMs <= SETTLE_CAP_MS; i++) {
-        if (Math.abs(g[i] - 1) < SETTLE_G) {
-          if (quietSince == null) quietSince = tMs[i];
-          else if (tMs[i] - quietSince >= SETTLE_HOLD_MS) {
-            settled = quietSince - impact.timeMs;
-            break;
-          }
-        } else quietSince = null;
-      }
-      settles.push({ impact, ms: settled ?? SETTLE_CAP_MS });
+      const ratio = impactDecayRatio(tMs, chassis, dynamic, impact.timeMs);
+      if (ratio != null) decays.push({ impact, ratio });
     }
-    const settleMedian = median(settles.map((s) => s.ms));
-    if (settleMedian != null) {
+    const decayMedian = median(decays.map((d) => d.ratio));
+    if (decayMedian != null) {
       metrics.push({
-        label: "Assentamento",
-        value: pt(settleMedian, 0),
-        unit: "ms",
-        raw: settleMedian,
+        label: "Oscilação residual",
+        value: pt(100 * decayMedian, 1),
+        unit: "%",
+        raw: 100 * decayMedian,
         better: "lower",
-        tie: 30,
-        hint: "mediana do tempo até a força voltar abaixo de 1 G após um impacto",
+        tie: 1,
+        hint: `energia de 2–12 Hz nos ${DECAY_TO_MS} ms após um impacto sobre o pico dele, mediana; menos é o amortecedor a fechar a pancada`,
       });
-      for (const s of [...settles]
-        .sort((a, b) => b.ms - a.ms)
+      for (const d of [...decays]
+        .sort((a, b) => b.ratio - a.ratio)
         .slice(0, HIGHLIGHTS))
         highlights.push({
           title: "Impacto",
-          timeMs: s.impact.timeMs,
-          detail:
-            s.ms >= SETTLE_CAP_MS
-              ? `não assentou em ${pt(SETTLE_CAP_MS / 1000, 1)} s`
-              : `assentou em ${pt(s.ms, 0)} ms`,
+          timeMs: d.impact.timeMs,
+          detail: `${pt(100 * d.ratio, 0)} % da pancada ficou a oscilar`,
         });
     }
 
@@ -442,16 +452,15 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         });
     }
 
-    if (settleMedian != null)
+    if (decayMedian != null)
       parts.push(
-        impacts.length === 1
-          ? `Depois do único impacto o quadro voltou a andar em ${pt(settleMedian, 0)} ms.`
-          : `Depois de um impacto o quadro volta a andar em ${pt(settleMedian, 0)} ms, mediana de ${impacts.length}.`,
+        decays.length === 1
+          ? `Depois do único impacto ${pt(100 * decayMedian, 0)} % da pancada ficou a oscilar no quadro.`
+          : `Depois de um impacto ${pt(100 * decayMedian, 0)} % da pancada fica a oscilar no quadro, mediana de ${decays.length}.`,
       );
-    const vib = metrics.find((m) => m.label === "Vibração");
-    if (vib)
+    if (chassisRms != null && chatterRms != null)
       parts.push(
-        `Vibração de ${vib.value} G/s${useRough ? " em terreno acidentado" : " ao longo da gravação"}.`,
+        `Chassis a ${pt(chassisRms, 2)} G e chatter a ${pt(chatterRms, 2)} G${useRough ? " em terreno acidentado" : " ao longo da gravação"}.`,
       );
     if (parts.length === 0)
       parts.push(
@@ -465,7 +474,10 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
       metrics,
       highlights:
         highlights.length > 0
-          ? { heading: "Impactos mais lentos a assentar", items: highlights }
+          ? {
+              heading: "Impactos que mais ficaram a oscilar",
+              items: highlights,
+            }
           : null,
       caveat:
         "Um sensor no quadro mede o trilho filtrado pela bicicleta. Estes valores só ganham sentido comparados com outra passagem na mesma pista, com outra afinação ou outra bicicleta.",

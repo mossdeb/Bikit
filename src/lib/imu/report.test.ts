@@ -109,10 +109,15 @@ describe("buildSessionReport", () => {
     expect(report.rider.highlights?.items).toHaveLength(1);
     expect(report.rider.caveat).toBeNull();
 
-    // Bike: the hit settles, and the rough stretch gives harshness and
-    // vibration something to measure.
+    // Bike: the hit's decay, and the rough stretch gives the harshness
+    // and the two bands something to measure.
     expect(labels(report.bike)).toEqual(
-      expect.arrayContaining(["Harshness", "Vibração", "Assentamento"]),
+      expect.arrayContaining([
+        "Harshness",
+        "Chassis Movement 2–12 Hz",
+        "Chatter 12–60 Hz",
+        "Oscilação residual",
+      ]),
     );
     expect(report.bike.caveat).toMatch(/outra passagem/);
     expect(report.bike.highlights?.items[0].timeMs).toBe(22000);

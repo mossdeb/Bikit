@@ -401,6 +401,118 @@ export function jerkSeries(
   return out;
 }
 
+/** Second-order Butterworth halves, low- and high-pass, by the bilinear
+ * transform; run forward and then backward so the band keeps its phase
+ * (a filter run one way delays the signal by a few samples, and an
+ * impact's oscillation would be read late). */
+function biquad(kind: "lp" | "hp", fcHz: number, fsHz: number) {
+  const K = Math.tan((Math.PI * fcHz) / fsHz);
+  const K2 = K * K;
+  const norm = 1 / (1 + Math.SQRT2 * K + K2);
+  return {
+    b:
+      kind === "lp"
+        ? [K2 * norm, 2 * K2 * norm, K2 * norm]
+        : [norm, -2 * norm, norm],
+    a1: 2 * (K2 - 1) * norm,
+    a2: (1 - Math.SQRT2 * K + K2) * norm,
+  };
+}
+
+function runBiquad(x: Float64Array, c: ReturnType<typeof biquad>): void {
+  let x1 = 0;
+  let x2 = 0;
+  let y1 = 0;
+  let y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const v = c.b[0] * x[i] + c.b[1] * x1 + c.b[2] * x2 - c.a1 * y1 - c.a2 * y2;
+    x2 = x1;
+    x1 = x[i];
+    y2 = y1;
+    y1 = v;
+    x[i] = v;
+  }
+}
+
+function filtfilt(x: Float64Array, c: ReturnType<typeof biquad>): void {
+  runBiquad(x, c);
+  x.reverse();
+  runBiquad(x, c);
+  x.reverse();
+}
+
+/**
+ * The part of a channel between two frequencies, Hz — the chassis's own
+ * motion in 2–12 Hz, the chatter the tyres and the small stones put
+ * through it in 12–60 Hz (by request, 2026-09-12: the bands over the
+ * jerk, which weighed every frequency alike). Two second-order Butterworth
+ * halves, zero-phase; the sample rate is read off the timeline, and the
+ * top of the band is held under it, so a 100 Hz recording asked for
+ * 12–60 Hz gets 12–45.
+ */
+export function bandpassSeries(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  lowHz: number,
+  highHz: number,
+): Float32Array {
+  const n = tMs.length;
+  const out = new Float32Array(n);
+  if (n < 3) return out;
+  const fs = 1000 / ((tMs[n - 1] - tMs[0]) / (n - 1));
+  const x = Float64Array.from(values as ArrayLike<number>);
+  filtfilt(x, biquad("hp", Math.min(lowHz, 0.45 * fs), fs));
+  filtfilt(x, biquad("lp", Math.min(highHz, 0.45 * fs), fs));
+  for (let i = 0; i < n; i++) out[i] = x[i];
+  return out;
+}
+
+/** The chassis band, Hz, and the chatter band. */
+export const CHASSIS_BAND_HZ: readonly [number, number] = [2, 12];
+export const CHATTER_BAND_HZ: readonly [number, number] = [12, 60];
+/** An impact's peak is read within this of its instant, ms; its decay over
+ * the window that follows. */
+export const DECAY_PEAK_HALF_MS = 50;
+export const DECAY_FROM_MS = 50;
+export const DECAY_TO_MS = 350;
+
+/**
+ * How much of an impact goes on oscillating in the chassis band after it:
+ * the RMS of the 2–12 Hz signal over the 300 ms that follow the hit, over
+ * the hit's own peak — a ratio, 0.07 for a hit the damper took in one
+ * bounce, more where the frame kept bobbing (by request, 2026-09-12:
+ * "Decay Ratio = energia pós-impacto / intensidade do impacto"). It
+ * replaced the settling time, which counted until the force stayed under
+ * 1 G for 100 ms and so measured the trail after the hit rather than the
+ * damper: two runs on one setup gave 558 and 1065 ms where this gives
+ * 7,5 % and 7,3 %. Null when the window is off the recording or the peak
+ * is nothing.
+ */
+export function impactDecayRatio(
+  tMs: Float64Array,
+  chassisBand: ArrayLike<number>,
+  dynamicG: ArrayLike<number>,
+  impactMs: number,
+): number | null {
+  const n = tMs.length;
+  if (n === 0 || impactMs + DECAY_TO_MS > tMs[n - 1]) return null;
+  const at = (ms: number) => Math.min(n - 1, lowerBoundIndex(tMs, ms));
+  let peak = 0;
+  for (
+    let i = at(impactMs - DECAY_PEAK_HALF_MS);
+    i <= at(impactMs + DECAY_PEAK_HALF_MS);
+    i++
+  )
+    peak = Math.max(peak, Math.abs(dynamicG[i]));
+  if (peak <= 0) return null;
+  const i0 = at(impactMs + DECAY_FROM_MS);
+  const i1 = at(impactMs + DECAY_TO_MS);
+  if (i1 <= i0) return null;
+  let sum = 0;
+  for (let i = i0; i <= i1; i++) sum += chassisBand[i] * chassisBand[i];
+  return Math.sqrt(sum / (i1 - i0 + 1)) / peak;
+}
+
 /**
  * A channel's mean over a window centred on each sample, by TIME — a gap in
  * the recording widens nothing — moved along by two pointers. Shared by the

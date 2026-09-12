@@ -6,7 +6,9 @@ import {
   alignSessionWithOrientation,
   altitudeMSeries,
   applyMountingYaw,
+  bandpassSeries,
   corneringGSeries,
+  impactDecayRatio,
   curveMomentum,
   estimateMountingYaw,
   fusedSpeedKmhSeries,
@@ -1097,5 +1099,77 @@ describe("corneringGSeries", () => {
   it("spreads a one-sample yaw hit over the window instead of printing it", () => {
     // Raw, that sample alone would read 35 G.
     expect(corneringGSeries(t, v, right)[50]).toBeLessThan(3);
+  });
+});
+
+describe("bandpassSeries", () => {
+  // 20 s at 200 Hz: a 5 Hz tone between a 0.3 Hz sway and a 40 Hz buzz.
+  const fs = 200;
+  const t = Float64Array.from({ length: 20 * fs }, (_, i) => (i * 1000) / fs);
+  const tone = (hz: number, i: number) => Math.sin((2 * Math.PI * hz * i) / fs);
+  const x = Float32Array.from(
+    t,
+    (_, i) => tone(5, i) + tone(0.3, i) + tone(40, i),
+  );
+
+  it("keeps the tone inside the band and drops the ones outside it", () => {
+    const y = bandpassSeries(t, x, 2, 12);
+    let worst = 0;
+    for (let i = 5 * fs; i < 15 * fs; i++)
+      worst = Math.max(worst, Math.abs(y[i] - tone(5, i)));
+    expect(worst).toBeLessThan(0.15);
+  });
+
+  it("holds the band under the sample rate", () => {
+    const y = bandpassSeries(t, x, 12, 60);
+    for (let i = 5 * fs; i < 15 * fs; i++)
+      expect(Number.isFinite(y[i])).toBe(true);
+    // The 40 Hz buzz is inside 12–60: it survives, the 5 Hz tone does not.
+    let rms = 0;
+    for (let i = 5 * fs; i < 15 * fs; i++) rms += y[i] * y[i];
+    expect(Math.sqrt(rms / (10 * fs))).toBeGreaterThan(0.5);
+    expect(Math.sqrt(rms / (10 * fs))).toBeLessThan(0.9);
+  });
+});
+
+describe("impactDecayRatio", () => {
+  // 4 s at 400 Hz, a hit at 2 s: an 8 G spike, then a 6 Hz bounce that
+  // dies with the given time constant.
+  const fs = 400;
+  const t = Float64Array.from({ length: 4 * fs }, (_, i) => (i * 1000) / fs);
+  const hit = (tauMs: number) =>
+    Float32Array.from(t, (ms) => {
+      const dt = ms - 2000;
+      if (dt < 0) return 0;
+      if (dt < 10) return 8;
+      return (
+        3 * Math.exp(-dt / tauMs) * Math.sin((2 * Math.PI * 6 * dt) / 1000)
+      );
+    });
+
+  it("reads less where the bounce dies sooner", () => {
+    const fast = hit(60);
+    const slow = hit(400);
+    const rFast = impactDecayRatio(
+      t,
+      bandpassSeries(t, fast, 2, 12),
+      fast,
+      2000,
+    )!;
+    const rSlow = impactDecayRatio(
+      t,
+      bandpassSeries(t, slow, 2, 12),
+      slow,
+      2000,
+    )!;
+    expect(rFast).toBeGreaterThan(0);
+    expect(rFast).toBeLessThan(rSlow);
+    expect(rSlow).toBeLessThan(1);
+  });
+
+  it("is null off the end of the recording or on a hit with no peak", () => {
+    const flat = new Float32Array(t.length);
+    expect(impactDecayRatio(t, flat, flat, 2000)).toBeNull();
+    expect(impactDecayRatio(t, flat, hit(60), 3900)).toBeNull();
   });
 });
