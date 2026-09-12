@@ -2,9 +2,14 @@
 
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import Link from "next/link";
-import { Bike, FileText } from "lucide-react";
+import { Bike, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import {
   HarshnessIcon,
@@ -60,18 +65,56 @@ const COLUMNS: {
   label: string;
   short: string;
   Icon: ComponentType<{ className?: string }>;
+  /** What the figure is and which way is better, for the "i" beside the
+   * heading (by request, 2026-09-12). */
+  description: string;
 }[] = [
   {
     label: "Velocidade média",
     short: "Velocidade média",
     Icon: SpeedGaugeIcon,
+    description:
+      "A velocidade média em andamento, acima de 3 km/h, lida da série que funde o GPS com o acelerómetro. Não tem lado melhor: é do rider e do dia, não da afinação.",
   },
-  { label: "Retenção nas curvas", short: "Retenção", Icon: RetentionIcon },
-  { label: "Harshness", short: "Harshness", Icon: HarshnessIcon },
-  { label: "Vibração", short: "Vibração", Icon: VibrationIcon },
-  { label: "Assentamento", short: "Assentamento", Icon: SettleIcon },
-  { label: "Impactos", short: "Impactos", Icon: ImpactIcon },
+  {
+    label: "Retenção nas curvas",
+    short: "Retenção",
+    Icon: RetentionIcon,
+    description:
+      "Quanto da velocidade de entrada sai de cada curva, descontada a gravidade da descida, em média das curvas da volta. Mais é melhor: a bicicleta agarrou e o rider não travou.",
+  },
+  {
+    label: "Harshness",
+    short: "Harshness",
+    Icon: HarshnessIcon,
+    description:
+      "O pico (percentil 99) sobre o RMS da força dinâmica nas zonas acidentadas. Maior é mais seco: pancadas que a suspensão deixou passar ao quadro. Menos é melhor.",
+  },
+  {
+    label: "Vibração",
+    short: "Vibração",
+    Icon: VibrationIcon,
+    description:
+      "O RMS da variação da força, amostra a amostra, nas zonas acidentadas, em G por segundo. É o chatter que chega ao quadro. Menos é melhor.",
+  },
+  {
+    label: "Assentamento",
+    short: "Assentamento",
+    Icon: SettleIcon,
+    description:
+      "A mediana do tempo que a força leva a voltar abaixo de 1 G depois de cada impacto, com teto de 2 s. Menos é melhor, mas varia muito entre voltas iguais: só um efeito grande conta.",
+  },
+  {
+    label: "Impactos",
+    short: "Impactos",
+    Icon: ImpactIcon,
+    description:
+      "Impactos por quilómetro, com o limiar relativo a cada volta (1,5 vezes o percentil 99 da própria gravação). Não tem lado melhor, e o limiar relativo torna-o pouco comparável entre sessões.",
+  },
 ];
+
+const SETUP_DESCRIPTION =
+  "A afinação da bicicleta nessa volta. A mesma letra é o mesmo conjunto de valores; as cápsulas dizem o que difere da referência e para que lado. Clica no setup para ver todos os valores.";
 
 /** The figure the best setup is picked by: what the corners kept, the
  * one figure on the table that is the bike's grip more than the trail's
@@ -348,10 +391,10 @@ export function ImuSetupCompareView({
           <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
           <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
             <Bike className="size-4" strokeWidth={2} aria-hidden />
-            Afinações{reference.bikeName && ` · ${reference.bikeName}`}
+            {reference.bikeName ?? "Afinações"}
           </p>
           <h1 className="mt-1 font-display text-3xl font-semibold">
-            As voltas nesta pista, afinação a afinação
+            Comparar afinações
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Referência:{" "}
@@ -416,7 +459,13 @@ export function ImuSetupCompareView({
                   </th>
                   <th className="px-4 pb-3 align-bottom font-semibold">
                     <SetupSlidersIcon className="mb-2" />
-                    Afinação
+                    <span className="flex items-center gap-1">
+                      Afinação
+                      <MetricInfo
+                        label="Afinação"
+                        description={SETUP_DESCRIPTION}
+                      />
+                    </span>
                   </th>
                   {COLUMNS.map((c) => (
                     <th
@@ -424,7 +473,13 @@ export function ImuSetupCompareView({
                       className="px-4 pb-3 align-bottom font-semibold whitespace-nowrap"
                     >
                       <c.Icon className="mb-2" />
-                      {c.short}
+                      <span className="flex items-center gap-1">
+                        {c.short}
+                        <MetricInfo
+                          label={c.label}
+                          description={c.description}
+                        />
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -438,6 +493,7 @@ export function ImuSetupCompareView({
                     letter={letterOf(run)}
                     reference={reference}
                     referenceReport={referenceReport}
+                    labels={labels}
                   />
                 ))}
               </tbody>
@@ -528,18 +584,48 @@ export function ImuSetupCompareView({
   );
 }
 
+/** The "i" beside a heading: what the figure is and which way is better
+ * — the analysis page's own pattern, a popover and not a tooltip because
+ * a finger cannot hover. */
+function MetricInfo({
+  label,
+  description,
+}: {
+  label: string;
+  description: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={`O que é ${label}`}
+        className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Info className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="p-4">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="mt-1.5 text-sm font-normal text-muted-foreground">
+          {description}
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RunRow({
   run,
   report,
   letter,
   reference,
   referenceReport,
+  labels,
 }: {
   run: ImuSnapshotCandidate;
   report: SessionReport | null;
   letter: string | null;
   reference: ImuSnapshotCandidate;
   referenceReport: SessionReport | null;
+  labels: ImuSetupCompareLabels;
 }) {
   const isReference = run.id === reference.id;
   const changes =
@@ -566,18 +652,69 @@ function RunRow({
       </td>
       <td className="px-4 py-4 align-middle">
         <div className="flex flex-wrap items-center gap-2">
-          <FileText
-            className="size-[18px] shrink-0 text-foreground"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <span className="whitespace-nowrap">
-            {letter ? `Setup ${letter}` : "Sem afinação"}
-          </span>
+          {run.setup && letter ? (
+            // The whole setup, on a click (by request, 2026-09-12): a
+            // popover with every knob listed, the same blocks the tiles
+            // below draw. A popover and not a tooltip: this is read on a
+            // phone, where hover is not a thing a finger does.
+            <Popover>
+              <PopoverTrigger
+                aria-label={`A afinação ${letter} completa`}
+                className="flex cursor-pointer items-center gap-2 rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <FileText
+                  className="size-[18px] shrink-0 text-foreground"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                <span className="whitespace-nowrap">Setup {letter}</span>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 p-4">
+                <p className="text-sm font-semibold">Setup {letter}</p>
+                {setupBlocks(run.setup, labels).map((block) => (
+                  <div key={block.kind} className="mt-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {block.kind}
+                      {block.name && ` · ${block.name}`}
+                    </p>
+                    <ul className="mt-1 divide-y divide-border">
+                      {block.tiles.map((tile) => (
+                        <li
+                          key={tile.label}
+                          className="flex items-baseline justify-between gap-3 py-1 text-sm"
+                        >
+                          <span className="text-muted-foreground">
+                            {tile.label}
+                          </span>
+                          <span className="font-medium whitespace-nowrap tabular-nums">
+                            {tile.value}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {run.setupNote && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    “{run.setupNote}”
+                  </p>
+                )}
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <>
+              <FileText
+                className="size-[18px] shrink-0 text-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <span className="whitespace-nowrap">Sem afinação</span>
+            </>
+          )}
           {changes.map((change) => (
             <span
               key={change.label}
-              className="rounded-full bg-foreground px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-background tabular-nums"
+              className="rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-background tabular-nums"
             >
               {formatSetupChange(change)}
             </span>
@@ -638,12 +775,15 @@ function Figure({
       </span>
       {differs && diff != null && (
         <span
+          // Black pills, the ink carrying the verdict (by request,
+          // 2026-09-12): the brand green where better, the lab's red where
+          // worse, the card's own colour where neither is better. In the
+          // dark theme the pill is light and the inks stay the same.
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-            tone === "better" &&
-              "bg-emerald-600 text-white dark:bg-emerald-500",
-            tone === "worse" && "bg-[#FF5A39] text-white",
-            tone === "neutral" && "bg-foreground text-background",
+            "rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold",
+            tone === "better" && "text-primary",
+            tone === "worse" && "text-[#FF5A39]",
+            tone === "neutral" && "text-background",
           )}
         >
           {signed(diff, digitsOf(metric))}
@@ -657,13 +797,19 @@ function Figure({
  * over a row of cells — spring, the four damping dials high before low,
  * sag — and the same for the shock; then the tyres and the rider. Only
  * the knobs that were filled in. */
-function SetupTiles({
-  setup,
-  labels,
-}: {
-  setup: ImuSetupValues;
-  labels: ImuSetupCompareLabels;
-}) {
+type SetupBlock = {
+  kind: string;
+  name: string;
+  tiles: { label: string; value: string }[];
+};
+
+/** A setup as blocks of labelled values — the fork's, the shock's, the
+ * tyres with the rider — for the tiles and for the row's popover alike.
+ * Only the knobs that were filled in. */
+function setupBlocks(
+  setup: ImuSetupValues,
+  labels: ImuSetupCompareLabels,
+): SetupBlock[] {
   const pt = (n: number) => nf(n, Number.isInteger(n) ? 0 : 1);
   const clicks = (n: number) => `${pt(n)} ${n === 1 ? "clique" : "cliques"}`;
   const damperTiles = (d: ImuDamperSetup | undefined) => {
@@ -708,11 +854,7 @@ function SetupTiles({
       tiles.push({ label: "SAG", value: `${pt(d.sagPct)} %` });
     return tiles;
   };
-  const blocks: {
-    kind: string;
-    name: string;
-    tiles: { label: string; value: string }[];
-  }[] = [
+  const blocks: SetupBlock[] = [
     { kind: "Garfo", name: labels.fork || "", tiles: damperTiles(setup.fork) },
     {
       kind: "Amortecedor",
@@ -735,6 +877,17 @@ function SetupTiles({
       ],
     },
   ].filter((b) => b.tiles.length > 0);
+  return blocks;
+}
+
+function SetupTiles({
+  setup,
+  labels,
+}: {
+  setup: ImuSetupValues;
+  labels: ImuSetupCompareLabels;
+}) {
+  const blocks = setupBlocks(setup, labels);
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
       {blocks.map((block) => (
