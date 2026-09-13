@@ -381,9 +381,14 @@ export function ImuSessionMap({
   useEffect(() => {
     onSeekRef.current = onSeek;
   }, [onSeek]);
-  /** Flips when the async init lands — the needle and marker effects run on
-   * mount, before the map exists, and need a reason to run again. */
-  const [ready, setReady] = useState(false);
+  /** Counts the maps built so far — the needle, mark and track effects run
+   * on mount, before the map exists, and need a reason to run again once
+   * it does. A counter and not a boolean on purpose: when the track changes
+   * under a live map (a trim), the teardown and the next build land in one
+   * batch, and a boolean that went false-then-true in the same batch never
+   * changed — so nothing repainted and the map came up bare until a reload.
+   * Zero is "no map yet". */
+  const [ready, setReady] = useState(0);
   /** Where north points on the rotated map, degrees clockwise from screen-up
    * — the badge arrow's rotation. Null until the map exists. */
   const [northDeg, setNorthDeg] = useState<number | null>(null);
@@ -714,7 +719,7 @@ export function ImuSessionMap({
       observer.observe(container);
 
       mapRef.current = map;
-      setReady(true);
+      setReady((n) => n + 1);
     })();
 
     return () => {
@@ -733,7 +738,6 @@ export function ImuSessionMap({
       boundsRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
-      setReady(false);
     };
   }, [gps]);
 

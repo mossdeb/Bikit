@@ -1869,26 +1869,6 @@ export function ImuSessionAnalysis({
                   Repor zoom
                 </button>
               )}
-              {/* The scissors: trim the session to the window shown. On the
-                  zoom row because that is the gesture — zoom onto the run,
-                  cut. Filled when a trim is in force, so a page that opens
-                  at 00:00 on the descent still says the file holds more. */}
-              {whole && (
-                <button
-                  type="button"
-                  onClick={() => setTrimOpen(true)}
-                  aria-label={trim ? "Recorte da sessão" : "Recortar a sessão"}
-                  className={cn(
-                    "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                    trim
-                      ? "border-foreground bg-foreground text-background hover:bg-foreground/90"
-                      : "border-border bg-card hover:bg-muted",
-                  )}
-                >
-                  <Scissors className="size-3.5" />
-                  {trim ? "Recortada" : "Recortar"}
-                </button>
-              )}
               {whole && trimOpen && (
                 <ImuSessionTrimDialog
                   open={trimOpen}
@@ -1943,6 +1923,23 @@ export function ImuSessionAnalysis({
                   />
                 </span>
               </button>
+              {/* The scissors: trim the session to the window shown. On the
+                  zoom row because that is the gesture — zoom onto the run,
+                  cut — and flush right, an icon in a circle like the zoom
+                  pair, and dressed like them whether or not a trim is in
+                  force (by request, 2026-09-13) — the label and the dialog
+                  say which. */}
+              {whole && (
+                <button
+                  type="button"
+                  onClick={() => setTrimOpen(true)}
+                  aria-label={trim ? "Recorte da sessão" : "Recortar a sessão"}
+                  title={trim ? "Recorte da sessão" : "Recortar a sessão"}
+                  className="ml-3 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted"
+                >
+                  <Scissors className="size-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
