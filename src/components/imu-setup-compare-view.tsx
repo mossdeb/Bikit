@@ -859,35 +859,12 @@ function RunRow({
                 <span className="whitespace-nowrap">Setup {letter}</span>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-72 p-4">
-                <p className="text-sm font-semibold">Setup {letter}</p>
-                {setupBlocks(run.setup, labels).map((block) => (
-                  <div key={block.kind} className="mt-3">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {block.kind}
-                      {block.name && ` · ${block.name}`}
-                    </p>
-                    <ul className="mt-1 divide-y divide-border">
-                      {block.tiles.map((tile) => (
-                        <li
-                          key={tile.label}
-                          className="flex items-baseline justify-between gap-3 py-1 text-sm"
-                        >
-                          <span className="text-muted-foreground">
-                            {tile.label}
-                          </span>
-                          <span className="font-medium whitespace-nowrap tabular-nums">
-                            {tile.value}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                {run.setupNote && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    “{run.setupNote}”
-                  </p>
-                )}
+                <ImuSetupDetails
+                  title={`Setup ${letter}`}
+                  setup={run.setup}
+                  note={run.setupNote}
+                  labels={labels}
+                />
               </PopoverContent>
             </Popover>
           ) : (
@@ -932,6 +909,49 @@ function RunRow({
         );
       })}
     </tr>
+  );
+}
+
+/** A setup's every knob, listed the way the popover on a run's setup shows
+ * it — here, and on a Snapshot's passes — with the rider's note under it.
+ * The popover itself stays with the caller: each has its own trigger. */
+export function ImuSetupDetails({
+  title,
+  setup,
+  note,
+  labels,
+}: {
+  title: string;
+  setup: ImuSetupValues;
+  note: string | null;
+  labels: ImuSetupCompareLabels;
+}) {
+  return (
+    <>
+      <p className="text-sm font-semibold">{title}</p>
+      {setupBlocks(setup, labels).map((block) => (
+        <div key={block.kind} className="mt-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            {block.kind}
+            {block.name && ` · ${block.name}`}
+          </p>
+          <ul className="mt-1 divide-y divide-border">
+            {block.tiles.map((tile) => (
+              <li
+                key={tile.label}
+                className="flex items-baseline justify-between gap-3 py-1 text-sm"
+              >
+                <span className="text-muted-foreground">{tile.label}</span>
+                <span className="font-medium whitespace-nowrap tabular-nums">
+                  {tile.value}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {note && <p className="mt-3 text-xs text-muted-foreground">“{note}”</p>}
+    </>
   );
 }
 

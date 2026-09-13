@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ellipsis, Trash2 } from "lucide-react";
+import { ArrowRight, Ellipsis, Trash2 } from "lucide-react";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -20,6 +20,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ImuSetupDetails } from "@/components/imu-setup-compare-view";
 import { ConfirmActionButton } from "@/components/delete-confirm-button";
 import {
   deleteImuSnapshot,
@@ -638,6 +644,33 @@ function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
   });
 }
 
+/** A Snapshot page has no bike at hand to name the dampers after; the
+ * setup's popover says "Garfo" and "Amortecedor" and nothing more. */
+const NO_DAMPER_NAMES = { fork: null, shock: null };
+
+/** The speeds that read as one movement — in, the slowest, out — and so
+ * share a cell, with arrows between them. The other figures stand alone. */
+const SPEED_FLOW = new Set(["entry", "min", "exit"]);
+
+function statCells(columns: Column[]): (Column | Column[])[] {
+  const cells: (Column | Column[])[] = [];
+  for (const column of columns) {
+    const last = cells[cells.length - 1];
+    if (SPEED_FLOW.has(column.key) && Array.isArray(last)) last.push(column);
+    else cells.push(SPEED_FLOW.has(column.key) ? [column] : column);
+  }
+  return cells;
+}
+
+/**
+ * One pass through the gates, as the supplied layout draws it
+ * (2026-09-14): a section ruled off from the next, with no card of its
+ * own around it (by request, the same day) — the name with its pills, where and when it was ridden, the
+ * setup's letter (the whole setup on a click) with the knobs that moved
+ * against the reference, and the figures in a box of cells, each with its
+ * difference to the reference in a black pill. The reference is told
+ * apart by its pill, not by a tint.
+ */
 export function SnapshotPassLine({
   row,
   reference,
@@ -657,130 +690,231 @@ export function SnapshotPassLine({
   const { session, metrics } = row;
   const sameSpeed =
     reference != null && reference.metrics.speedSource === metrics.speedSource;
-  // The setup line: what this run was set to, and — against a reference
-  // that has one — the knobs that moved, each in its own chip. Same
-  // numbers as the reference is said in words, so a silent line never
-  // means "unknown".
-  const setupText = session.setup ? setupSummary(session.setup) : null;
+  // Against a reference that has a setup, the knobs that moved, each in
+  // its own chip. Same numbers as the reference is said in words, so a
+  // silent row never means "unknown".
   const setupChanges =
     reference?.session.setup && session.setup
       ? setupDiff(reference.session.setup, session.setup)
       : [];
+  const setupTitle = setupLetter ? `Afinação ${setupLetter}` : "Afinação";
   return (
     <div
       className={cn(
-        "px-5 py-4 sm:px-6 sm:py-5",
+        "@container px-5 py-5 sm:p-[22px]",
         !pinned && "border-t border-border",
-        pinned && "bg-muted/40",
       )}
     >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <Link
-          href={`/labs/imu/${session.id}`}
-          className="font-semibold underline-offset-2 hover:underline"
-        >
-          {session.name}
-        </Link>
-        {pinned && (
-          <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background">
-            Referência
-          </span>
-        )}
-        {metrics.stopped && (
-          <span className="rounded-full bg-[#FFEEBE] px-2 py-0.5 text-xs font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
-            parou
-          </span>
-        )}
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {row.count > 1 && `passagem ${row.index} de ${row.count} · `}
-          aos {formatSessionTime(row.pass.entryMs)}
-        </span>
-      </div>
-      <p className="mt-0.5 text-sm text-muted-foreground">
-        {formatDate(session.createdAt)}
-        {session.riderName && ` · ${session.riderName}`}
-        {session.bikeName && ` · ${session.bikeName}`}
-        {session.groupLabel && ` · ${session.groupLabel}`}
-      </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        {setupLetter && (
-          <span
-            className="rounded-[6px] bg-foreground px-1.5 py-0.5 font-semibold text-background"
-            title="A mesma letra é a mesma afinação"
+      <div>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <Link
+            href={`/labs/imu/${session.id}`}
+            className="font-semibold underline-offset-2 hover:underline"
           >
-            Afinação {setupLetter}
-          </span>
-        )}
-        <span className="text-muted-foreground">
-          {setupText ?? "Sem afinação registada"}
-          {session.setupNote && ` · “${session.setupNote}”`}
-        </span>
-        {setupChanges.map((change) => (
-          <span
-            key={change.label}
-            className="rounded-full border border-foreground/40 bg-background px-2 py-0.5 font-medium text-foreground tabular-nums"
-          >
-            {formatSetupChange(change)}
-          </span>
-        ))}
-        {reference?.session.setup &&
-          session.setup &&
-          setupChanges.length === 0 && (
-            <span className="text-muted-foreground">· igual à referência</span>
+            {session.name}
+          </Link>
+          {pinned && (
+            <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background">
+              Referência
+            </span>
           )}
-      </div>
-      <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-x-4 gap-y-3">
-        {columns.map((column) => {
-          const value = column.value(metrics);
-          const refValue = reference ? column.value(reference.metrics) : null;
-          const comparable =
-            reference != null &&
-            value != null &&
-            refValue != null &&
-            (!column.speed || sameSpeed);
-          const diff = comparable ? value! - refValue! : null;
-          const tone = diff != null ? toneOf(column, diff) : null;
-          return (
-            <div key={column.key} className="min-w-0">
-              <p className="truncate text-xs text-muted-foreground">
-                {column.label}
-              </p>
-              <p className="leading-tight font-semibold tabular-nums">
-                {value == null ? "—" : nf(value, column.digits)}
-                {value != null && column.unit && (
-                  <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                    {column.unit}
-                  </span>
-                )}
-              </p>
-              {diff != null && tone && (
-                <p
-                  className={cn(
-                    "text-xs tabular-nums",
-                    tone === "better" &&
-                      "text-emerald-600 dark:text-emerald-400",
-                    tone === "worse" && "text-[#FF5A39]",
-                    (tone === "neutral" || tone === "tie") &&
-                      "text-muted-foreground",
-                  )}
+          {metrics.stopped && (
+            <span className="rounded-full bg-[#FFEEBE] px-2 py-0.5 text-xs font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
+              parou
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {row.count > 1 && `passagem ${row.index} de ${row.count} · `}
+            aos {formatSessionTime(row.pass.entryMs)}
+          </span>
+          {/* The setup's letter and the knobs that moved, on the first line
+              after the time (by request, 2026-09-14). */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+            {session.setup ? (
+              // The whole setup on a click — the list the compare page's
+              // popover shows — so the numbers stay one tap away instead of
+              // taking a line of their own. A popover and not a tooltip:
+              // this is read on a phone too.
+              <Popover>
+                <PopoverTrigger
+                  aria-label={`${setupTitle} completa`}
+                  className="cursor-pointer rounded-full bg-foreground px-2 py-0.5 font-medium text-background outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  {tone === "tie" ? "≈" : signed(diff, column.digits)}
-                </p>
+                  {setupTitle}
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-4">
+                  <ImuSetupDetails
+                    title={setupTitle}
+                    setup={session.setup}
+                    note={session.setupNote}
+                    labels={NO_DAMPER_NAMES}
+                  />
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <span className="text-muted-foreground">
+                Sem afinação registada
+              </span>
+            )}
+            {setupChanges.map((change) => (
+              <span
+                key={change.label}
+                className="rounded-full bg-foreground px-2 py-0.5 font-medium text-background tabular-nums"
+              >
+                {formatSetupChange(change)}
+              </span>
+            ))}
+            {reference?.session.setup &&
+              session.setup &&
+              setupChanges.length === 0 && (
+                <span className="text-muted-foreground">
+                  igual à referência
+                </span>
               )}
-            </div>
-          );
-        })}
+          </div>
+          {/* When and by whom, in the row's top-right corner (by request,
+              2026-09-14). On a narrow card it drops to a line of its own and
+              reads from the left, like any wrapped text. */}
+          <p className="ml-auto text-sm text-muted-foreground">
+            {formatDate(session.createdAt)}
+            {session.riderName && ` · ${session.riderName}`}
+            {session.bikeName && ` · ${session.bikeName}`}
+            {session.groupLabel && ` · ${session.groupLabel}`}
+          </p>
+        </div>
+
+        {/* The figures, in a box of cells ruled apart. With 640px of room
+            or more (by request, 2026-09-14) they all stand on one line and
+            share it, the speeds' cell half again as wide as the others —
+            a container query, so it follows the card and not the window,
+            whatever the sidebar is doing. Narrower, the cells keep a width
+            and wrap onto more rows, growing to fill each. The rules are each
+            cell's own top and left edge, the first row's and column's tucked
+            under the box's clipped rim, so a wrapped row is ruled like the
+            first. */}
+        <div className="mt-4 w-fit max-w-full overflow-hidden rounded-[14px] border border-border @min-[640px]:w-full">
+          <div className="-mt-px -ml-px flex flex-wrap @min-[640px]:flex-nowrap">
+            {statCells(columns).map((cell) =>
+              Array.isArray(cell) ? (
+                <div
+                  key={cell.map((c) => c.key).join("-")}
+                  className="flex w-[300px] grow items-center justify-center border-t border-l border-border px-3 py-3.5 @min-[640px]:w-auto @min-[640px]:flex-[1.5]"
+                >
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    {cell.map((column, i) => (
+                      <Fragment key={column.key}>
+                        {i > 0 && <FlowArrow />}
+                        <PassStat
+                          column={column}
+                          row={row}
+                          reference={reference}
+                          sameSpeed={sameSpeed}
+                        />
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  key={cell.key}
+                  className="flex w-[140px] grow items-center justify-center border-t border-l border-border px-4 py-3.5 @min-[640px]:w-auto @min-[640px]:flex-1 @min-[640px]:px-3"
+                >
+                  <PassStat
+                    column={cell}
+                    row={row}
+                    reference={reference}
+                    sameSpeed={sameSpeed}
+                  />
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+        {reference != null && !sameSpeed && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Velocidade lida de outra forma (
+            {metrics.speedSource === "gps"
+              ? "GPS em linha reta"
+              : "fundida com o acelerómetro"}
+            ) — as velocidades não se comparam com a referência.
+          </p>
+        )}
       </div>
-      {reference != null && !sameSpeed && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Velocidade lida de outra forma (
-          {metrics.speedSource === "gps"
-            ? "GPS em linha reta"
-            : "fundida com o acelerómetro"}
-          ) — as velocidades não se comparam com a referência.
-        </p>
+    </div>
+  );
+}
+
+/**
+ * One figure of a pass: its label, the value with its unit, and — against
+ * the reference — the difference in a black pill whose ink carries the
+ * verdict, as on the compare page: the brand green where better, the
+ * lab's red where worse, the card's own colour where neither is better or
+ * the gap is inside the tie ("≈").
+ */
+function PassStat({
+  column,
+  row,
+  reference,
+  sameSpeed,
+}: {
+  column: Column;
+  row: SnapshotPassRow;
+  reference: SnapshotPassRow | null;
+  sameSpeed: boolean;
+}) {
+  const value = column.value(row.metrics);
+  const refValue = reference ? column.value(reference.metrics) : null;
+  const comparable =
+    reference != null &&
+    value != null &&
+    refValue != null &&
+    (!column.speed || sameSpeed);
+  const diff = comparable ? value! - refValue! : null;
+  const tone = diff != null ? toneOf(column, diff) : null;
+  return (
+    <div className="flex min-w-0 flex-col items-center text-center">
+      <p className="text-xs whitespace-nowrap text-muted-foreground">
+        {column.label}
+      </p>
+      <p className="mt-0.5 leading-tight font-semibold whitespace-nowrap tabular-nums">
+        {value == null ? "—" : nf(value, column.digits)}
+        {value != null && column.unit && (
+          <span className="ml-1 text-xs font-normal text-muted-foreground">
+            {column.unit}
+          </span>
+        )}
+      </p>
+      {diff != null && tone && (
+        <span
+          title={
+            tone === "tie"
+              ? "Dentro da precisão das portas — conta como empate"
+              : undefined
+          }
+          className={cn(
+            "mt-1.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums",
+            tone === "better" && "text-primary",
+            tone === "worse" && "text-[#FF5A39]",
+            (tone === "neutral" || tone === "tie") && "text-background",
+          )}
+        >
+          {tone === "tie" ? "≈" : signed(diff, column.digits)}
+        </span>
       )}
     </div>
+  );
+}
+
+/** The arrow between two speeds of the flow: the label row left blank,
+ * the arrow on the figures' own line. */
+function FlowArrow() {
+  return (
+    <span aria-hidden className="flex flex-col items-center">
+      <span className="invisible text-xs">·</span>
+      <span className="mt-0.5 flex h-5 items-center">
+        <ArrowRight className="size-3.5 text-foreground" strokeWidth={2.5} />
+      </span>
+    </span>
   );
 }
 
