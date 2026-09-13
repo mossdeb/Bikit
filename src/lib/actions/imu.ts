@@ -341,6 +341,137 @@ export async function updateImuSession(input: {
   return { status: "ok" };
 }
 
+/**
+ * Sets, or lifts, a session's trim (src/lib/imu/trim.ts): the stretch of
+ * the recording that is the run. Two instants on the file's own timeline;
+ * the file is untouched, and every reader crops on load. The summary the
+ * list and the comparisons read (duration, counts, the track's index) is
+ * recomputed by the browser from the cropped session and written here, the
+ * way the import writes it — the browser is the side that has the parsed
+ * file. Null lifts the trim, and the summary handed over is then the whole
+ * recording's.
+ *
+ * The session's Snapshots keep their place: their gates are saved on the
+ * session's (trimmed) timeline, so a change of start moves them by the
+ * difference. A gate the new window would leave out refuses the trim by
+ * name — a Snapshot pointing outside its own recording is a broken one,
+ * and the honest answer is to widen the window or delete the Snapshot.
+ */
+export async function setImuSessionTrim(input: {
+  sessionId: string;
+  trim: { startMs: number; endMs: number } | null;
+  durationMs: number;
+  sampleCount: number;
+  maxG: number | null;
+  eventCount: number;
+  curveCount: number;
+  jumpCount: number;
+  impactCount: number;
+  airtimeMs: number;
+  trackIndex: SnapshotTrackIndex | null;
+}): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (!caller) return { status: "error", message: "Sem acesso." };
+  const { supabase, userId } = caller;
+
+  const trim = input.trim;
+  if (
+    trim &&
+    (!Number.isFinite(trim.startMs) ||
+      !Number.isFinite(trim.endMs) ||
+      trim.startMs < 0 ||
+      trim.endMs <= trim.startMs)
+  )
+    return { status: "error", message: "Janela de recorte inválida." };
+  if (
+    !Number.isFinite(input.durationMs) ||
+    !Number.isInteger(input.sampleCount) ||
+    input.sampleCount <= 0
+  )
+    return { status: "error", message: "Resumo da sessão inválido." };
+  if (input.trackIndex != null && !isTrackIndex(input.trackIndex))
+    return { status: "error", message: "Índice do traçado inválido." };
+
+  const { data: session } = await supabase
+    .from("imu_sessions")
+    .select("id, trim_start_ms, trim_end_ms")
+    .eq("id", input.sessionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!session) return { status: "error", message: "Sessão não encontrada." };
+
+  // The Snapshots' gates move with the start of the window.
+  const oldStart = session.trim_start_ms ?? 0;
+  const newStart = trim ? Math.round(trim.startMs) : 0;
+  const shift = oldStart - newStart;
+  const { data: snapshots, error: snapshotsError } = await supabase
+    .from("imu_snapshots")
+    .select("id, name, reference_entry_ms, reference_exit_ms")
+    .eq("reference_session_id", session.id)
+    .eq("user_id", userId);
+  if (snapshotsError)
+    return { status: "error", message: snapshotsError.message };
+  const moved = (snapshots ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    entry: s.reference_entry_ms + shift,
+    exit: s.reference_exit_ms + shift,
+  }));
+  const outside = moved.filter(
+    (s) => s.entry < 0 || s.exit > Math.round(input.durationMs),
+  );
+  if (outside.length > 0)
+    return {
+      status: "error",
+      message: `A janela deixa de fora ${outside.length === 1 ? "o Snapshot" : "os Snapshots"} ${outside
+        .map((s) => `«${s.name}»`)
+        .join(", ")}. Alarga o recorte ou apaga-o primeiro.`,
+    };
+
+  const { error } = await supabase
+    .from("imu_sessions")
+    .update({
+      trim_start_ms: trim ? Math.round(trim.startMs) : null,
+      trim_end_ms: trim ? Math.round(trim.endMs) : null,
+      duration_ms: Math.round(input.durationMs),
+      sample_count: input.sampleCount,
+      max_g: input.maxG,
+      event_count: input.eventCount,
+      curve_count: input.curveCount,
+      jump_count: input.jumpCount,
+      impact_count: input.impactCount,
+      airtime_ms: Math.round(input.airtimeMs),
+      track_index: input.trackIndex as unknown as Json,
+    })
+    .eq("id", session.id)
+    .eq("user_id", userId);
+  if (error) return { status: "error", message: error.message };
+
+  // One update per Snapshot — there are a handful per session at most, and
+  // each carries its own pair. A failure here is reported: the session is
+  // already trimmed, and a gate left in the old timeline is worth knowing.
+  if (shift !== 0) {
+    for (const s of moved) {
+      const { error: moveError } = await supabase
+        .from("imu_snapshots")
+        .update({ reference_entry_ms: s.entry, reference_exit_ms: s.exit })
+        .eq("id", s.id)
+        .eq("user_id", userId);
+      if (moveError)
+        return {
+          status: "error",
+          message: `O recorte ficou guardado, mas o Snapshot «${s.name}» não acompanhou: ${moveError.message}`,
+        };
+    }
+  }
+
+  revalidatePath("/labs/imu");
+  revalidatePath(`/labs/imu/${session.id}`);
+  revalidatePath(`/labs/imu/${session.id}/relatorio`);
+  revalidatePath(`/labs/imu/${session.id}/afinacoes`);
+  return { status: "ok" };
+}
+
 export type ImuOrientationShareResult =
   { status: "ok"; updated: number } | { status: "error"; message: string };
 

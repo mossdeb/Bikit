@@ -28,6 +28,7 @@ import {
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
+import type { ImuSessionTrim } from "@/lib/imu/trim";
 import {
   findSnapshotPasses,
   prepareSnapshotSession,
@@ -79,6 +80,10 @@ export interface ImuSnapshotCandidate {
    * between them (phase 2 of the setups, 2026-09-11). */
   setup: ImuSetupValues | null;
   setupNote: string | null;
+  /** The session's trim (src/lib/imu/trim.ts), null for the whole
+   * recording — every loader crops by it, so a pass is found on the same
+   * timeline the analysis shows. */
+  trim: ImuSessionTrim | null;
 }
 
 export interface ImuSnapshotRow {
@@ -286,7 +291,11 @@ export function ImuSnapshotView({
     let cancelled = false;
     for (const c of candidates) {
       (async () => {
-        const result = await loadImuSession(c.storagePath, c.mountOrientation);
+        const result = await loadImuSession(
+          c.storagePath,
+          c.mountOrientation,
+          c.trim,
+        );
         if (cancelled) return;
         let next: Loaded;
         if (result.data === null)

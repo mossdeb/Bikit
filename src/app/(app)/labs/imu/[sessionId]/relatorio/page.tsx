@@ -15,6 +15,7 @@ import type {
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isSetupValues, setupDiff, type ImuSetupValues } from "@/lib/imu/setup";
+import { trimOf } from "@/lib/imu/trim";
 import { pickSetupComparison } from "@/lib/imu/setup-compare";
 import {
   isSnapshotDefinition,
@@ -47,7 +48,7 @@ export default async function ImuSessionReportPage({
   if (!userId || !hasLabAccess(email)) notFound();
 
   const sessionColumns =
-    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index";
+    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index, trim_start_ms, trim_end_ms";
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(sessionColumns)
@@ -122,6 +123,7 @@ export default async function ImuSessionReportPage({
       s.mount_orientation as unknown as ImuMountOrientation | null,
     setup: (s.setup_id && setupById.get(s.setup_id)?.values) || null,
     setupNote: (s.setup_id && setupById.get(s.setup_id)?.note) || null,
+    trim: trimOf(s.trim_start_ms, s.trim_end_ms),
   });
 
   const index = isTrackIndex(session.track_index) ? session.track_index : null;

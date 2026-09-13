@@ -246,7 +246,11 @@ export function ImuSetupCompareView({
     let cancelled = false;
     for (const c of all) {
       (async () => {
-        const result = await loadImuSession(c.storagePath, c.mountOrientation);
+        const result = await loadImuSession(
+          c.storagePath,
+          c.mountOrientation,
+          c.trim,
+        );
         if (cancelled) return;
         const next: Loaded =
           result.data === null

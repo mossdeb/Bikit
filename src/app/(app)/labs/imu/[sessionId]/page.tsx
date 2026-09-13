@@ -22,6 +22,7 @@ import {
   type ImuSetupValues,
 } from "@/lib/imu/setup";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import { trimOf } from "@/lib/imu/trim";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 
 /**
@@ -46,7 +47,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -204,6 +205,7 @@ export default async function ImuSessionPage({
         mountOrientation={
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
+        trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more

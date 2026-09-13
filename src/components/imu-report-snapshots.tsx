@@ -113,6 +113,7 @@ export function ImuReportSnapshots({
         const result = await loadImuSession(
           candidate.storagePath,
           candidate.mountOrientation,
+          candidate.trim,
         );
         if (cancelled) return;
         setRefs((prev) =>

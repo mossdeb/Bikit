@@ -65,7 +65,11 @@ export function ImuSessionReport({
   /** Why there is none, when there is none — printed where it would go. */
   setupComparisonNote?: string | null;
 }) {
-  const { data, error } = useImuSession(storagePath, mountOrientation);
+  const { data, error } = useImuSession(
+    storagePath,
+    mountOrientation,
+    session.trim,
+  );
   const report = useMemo(
     () => (data ? buildSessionReport(data) : null),
     [data],
@@ -75,6 +79,7 @@ export function ImuSessionReport({
   const other = useImuSession(
     setupComparison?.session.storagePath ?? null,
     setupComparison?.session.mountOrientation ?? null,
+    setupComparison?.session.trim ?? null,
   );
   const comparisonRows = useMemo(
     () =>

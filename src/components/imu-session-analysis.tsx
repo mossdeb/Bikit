@@ -16,6 +16,7 @@ import {
   Minus,
   Plus,
   Route,
+  Scissors,
   TrendingDown,
   TrendingUp,
   Undo2,
@@ -38,6 +39,8 @@ import {
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
 import { useImuSession } from "@/lib/imu/use-imu-session";
+import type { ImuSessionTrim } from "@/lib/imu/trim";
+import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
 import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
 import {
   ImuSnapshotCreate,
@@ -805,6 +808,7 @@ export function ImuSessionAnalysis({
   header,
   existingSnapshots,
   mountOrientation = null,
+  trim = null,
 }: {
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
@@ -815,6 +819,10 @@ export function ImuSessionAnalysis({
   /** An orientation copied from another session (setGroupMountOrientation),
    * used when the file carries none of its own. */
   mountOrientation?: ImuMountOrientation | null;
+  /** The session's trim (src/lib/imu/trim.ts), null for the whole
+   * recording. The plot shows the trimmed run from 00:00; the scissors on
+   * the zoom row open the dialog that sets it. */
+  trim?: ImuSessionTrim | null;
   /** Who rode this recording, as recorded on import. It titles the
    * dashboard — the instruments are that person's ride, not a panel with a
    * generic name. Null on sessions imported before the field existed, and
@@ -828,10 +836,12 @@ export function ImuSessionAnalysis({
 }) {
   // The file, downloaded, parsed and read in the bike's frame — the same
   // hook the report page uses, so the two pages never disagree.
-  const { data, error: loadError } = useImuSession(
-    storagePath,
-    mountOrientation,
-  );
+  const {
+    data,
+    whole,
+    error: loadError,
+  } = useImuSession(storagePath, mountOrientation, trim);
+  const [trimOpen, setTrimOpen] = useState(false);
 
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
     new Set(["gforce"]),
@@ -1858,6 +1868,44 @@ export function ImuSessionAnalysis({
                   <Undo2 className="size-3.5" />
                   Repor zoom
                 </button>
+              )}
+              {/* The scissors: trim the session to the window shown. On the
+                  zoom row because that is the gesture — zoom onto the run,
+                  cut. Filled when a trim is in force, so a page that opens
+                  at 00:00 on the descent still says the file holds more. */}
+              {whole && (
+                <button
+                  type="button"
+                  onClick={() => setTrimOpen(true)}
+                  aria-label={trim ? "Recorte da sessão" : "Recortar a sessão"}
+                  className={cn(
+                    "flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                    trim
+                      ? "border-foreground bg-foreground text-background hover:bg-foreground/90"
+                      : "border-border bg-card hover:bg-muted",
+                  )}
+                >
+                  <Scissors className="size-3.5" />
+                  {trim ? "Recortada" : "Recortar"}
+                </button>
+              )}
+              {whole && trimOpen && (
+                <ImuSessionTrimDialog
+                  open={trimOpen}
+                  onOpenChange={setTrimOpen}
+                  sessionId={sessionId}
+                  whole={whole}
+                  trim={trim}
+                  // The plot's window is on the trimmed clock; the dialog
+                  // speaks the whole recording's, so the trim's start is
+                  // added back.
+                  // The first sample sits a millisecond or two after zero;
+                  // an unzoomed left edge is "from the start", not 00:00.001.
+                  visibleMs={[
+                    (zoomed ? Math.round(win[0]) : 0) + (trim?.startMs ?? 0),
+                    Math.round(win[1]) + (trim?.startMs ?? 0),
+                  ]}
+                />
               )}
               {/* The value pills' control, on the zoom row because both
                   shape what the plot shows of the cursor. A small switch, by

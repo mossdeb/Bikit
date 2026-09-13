@@ -9,6 +9,7 @@ import {
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
+import { trimOf } from "@/lib/imu/trim";
 import {
   isSnapshotDefinition,
   isTrackIndex,
@@ -59,7 +60,7 @@ export default async function ImuSnapshotPage({
     supabase
       .from("imu_sessions")
       .select(
-        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index",
+        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms",
       )
       .eq("user_id", userId)
       .not("track_index", "is", null)
@@ -111,6 +112,7 @@ export default async function ImuSnapshotPage({
         s.mount_orientation as unknown as ImuMountOrientation | null,
       setup: (s.setup_id && setupById.get(s.setup_id)?.values) || null,
       setupNote: (s.setup_id && setupById.get(s.setup_id)?.note) || null,
+      trim: trimOf(s.trim_start_ms, s.trim_end_ms),
     }));
 
   return (

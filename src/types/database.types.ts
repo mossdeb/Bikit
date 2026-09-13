@@ -507,6 +507,8 @@ export type Database = {
           setup_id: string | null;
           storage_path: string;
           track_index: Json | null;
+          trim_end_ms: number | null;
+          trim_start_ms: number | null;
           user_id: string;
         };
         Insert: {
@@ -530,6 +532,8 @@ export type Database = {
           setup_id?: string | null;
           storage_path: string;
           track_index?: Json | null;
+          trim_end_ms?: number | null;
+          trim_start_ms?: number | null;
           user_id: string;
         };
         Update: {
@@ -553,6 +557,8 @@ export type Database = {
           setup_id?: string | null;
           storage_path?: string;
           track_index?: Json | null;
+          trim_end_ms?: number | null;
+          trim_start_ms?: number | null;
           user_id?: string;
         };
         Relationships: [
