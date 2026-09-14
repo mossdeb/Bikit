@@ -665,11 +665,19 @@ function statCells(columns: Column[]): (Column | Column[])[] {
 /**
  * One pass through the gates, as the supplied layout draws it
  * (2026-09-14): a section ruled off from the next, with no card of its
- * own around it (by request, the same day) — the name with its pills, where and when it was ridden, the
- * setup's letter (the whole setup on a click) with the knobs that moved
- * against the reference, and the figures in a box of cells, each with its
- * difference to the reference in a black pill. The reference is told
- * apart by its pill, not by a tint.
+ * own, in two columns — on the left the name, when in the recording, the
+ * pills (the reference's, a stop, the setup's letter with the whole setup
+ * on a click, the knobs that moved against the reference) and when and by
+ * whom it was ridden; on the right the figures, in a box of cells, each
+ * with its difference to the reference in a black pill.
+ *
+ * Two container queries, each on the room it is about: the section's for
+ * the columns (side by side from 1030px, stacked below), and the right
+ * column's own for the box (one line of cells from 720px, wrapped below).
+ * 720 is what a curve's six cells need at the figures' and pills' size
+ * (~712px, measured 2026-09-14 with 12px pills); 1030 is that plus the
+ * left column and the gap.
+ * So the box never has to guess how wide the left column is.
  */
 export function SnapshotPassLine({
   row,
@@ -705,31 +713,46 @@ export function SnapshotPassLine({
         !pinned && "border-t border-border",
       )}
     >
-      <div>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div className="flex flex-col gap-4 @min-[1030px]:flex-row @min-[1030px]:items-stretch @min-[1030px]:gap-6">
+        <div className="min-w-0 @min-[1030px]:w-[280px] @min-[1030px]:shrink-0">
           <Link
             href={`/labs/imu/${session.id}`}
-            className="font-semibold underline-offset-2 hover:underline"
+            className="text-lg font-semibold underline-offset-2 hover:underline"
           >
             {session.name}
           </Link>
-          {pinned && (
-            <span className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium text-background">
-              Referência
-            </span>
-          )}
-          {metrics.stopped && (
-            <span className="rounded-full bg-[#FFEEBE] px-2 py-0.5 text-xs font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
-              parou
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground tabular-nums">
+          {/* Where the pass sits in its recording: the two gates' instants
+              on the session's clock (trimmed, when it is), so it can be found
+              on the analysis plot — by request, 2026-09-14. */}
+          <p
+            className="text-sm text-muted-foreground tabular-nums"
+            title="O dia da gravação e quando atravessou a porta de entrada e a de saída, no relógio da sessão"
+          >
+            {formatDate(session.createdAt)} ·{" "}
             {row.count > 1 && `passagem ${row.index} de ${row.count} · `}
-            aos {formatSessionTime(row.pass.entryMs)}
-          </span>
-          {/* The setup's letter and the knobs that moved, on the first line
-              after the time (by request, 2026-09-14). */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+            entre {formatSessionTime(row.pass.entryMs)} e{" "}
+            {formatSessionTime(row.pass.exitMs)}
+          </p>
+          {/* Who rode it and on what, right under the day and the gates'
+              times — the group was dropped (by request, 2026-09-14). */}
+          {[session.riderName, session.bikeName].some(Boolean) && (
+            <p className="text-sm text-muted-foreground">
+              {[session.riderName, session.bikeName]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            {pinned && (
+              <span className="rounded-full bg-foreground px-2 py-0.5 font-medium text-background">
+                Referência
+              </span>
+            )}
+            {metrics.stopped && (
+              <span className="rounded-full bg-[#FFEEBE] px-2 py-0.5 font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
+                parou
+              </span>
+            )}
             {session.setup ? (
               // The whole setup on a click — the list the compare page's
               // popover shows — so the numbers stay one tap away instead of
@@ -772,73 +795,66 @@ export function SnapshotPassLine({
                 </span>
               )}
           </div>
-          {/* When and by whom, in the row's top-right corner (by request,
-              2026-09-14). On a narrow card it drops to a line of its own and
-              reads from the left, like any wrapped text. */}
-          <p className="ml-auto text-sm text-muted-foreground">
-            {formatDate(session.createdAt)}
-            {session.riderName && ` · ${session.riderName}`}
-            {session.bikeName && ` · ${session.bikeName}`}
-            {session.groupLabel && ` · ${session.groupLabel}`}
-          </p>
         </div>
 
-        {/* The figures, in a box of cells ruled apart. With 640px of room
-            or more (by request, 2026-09-14) they all stand on one line and
-            share it, the speeds' cell half again as wide as the others —
-            a container query, so it follows the card and not the window,
-            whatever the sidebar is doing. Narrower, the cells keep a width
-            and wrap onto more rows, growing to fill each. The rules are each
-            cell's own top and left edge, the first row's and column's tucked
-            under the box's clipped rim, so a wrapped row is ruled like the
-            first. */}
-        <div className="mt-4 w-fit max-w-full overflow-hidden rounded-[14px] border border-border @min-[640px]:w-full">
-          <div className="-mt-px -ml-px flex flex-wrap @min-[640px]:flex-nowrap">
-            {statCells(columns).map((cell) =>
-              Array.isArray(cell) ? (
-                <div
-                  key={cell.map((c) => c.key).join("-")}
-                  className="flex w-[300px] grow items-center justify-center border-t border-l border-border px-3 py-3.5 @min-[640px]:w-auto @min-[640px]:flex-[1.5]"
-                >
-                  <div className="flex items-start gap-2 sm:gap-3">
-                    {cell.map((column, i) => (
-                      <Fragment key={column.key}>
-                        {i > 0 && <FlowArrow />}
-                        <PassStat
-                          column={column}
-                          row={row}
-                          reference={reference}
-                          sameSpeed={sameSpeed}
-                        />
-                      </Fragment>
-                    ))}
+        <div className="@container flex min-w-0 flex-1 flex-col">
+          {/* The figures, in a box of cells ruled apart. With 720px of this
+              column's room or more they all stand on one line and share it,
+              the speeds' cell half again as wide as the others. Narrower,
+              the cells keep a width and wrap onto more rows, growing to fill
+              each. The rules are each cell's own top and left edge, the
+              first row's and column's tucked under the box's clipped rim, so
+              a wrapped row is ruled like the first. Beside the left column
+              the box stretches to the pass's full height, pills or none
+              (by request, 2026-09-14), the figures centred in it. */}
+          <div className="flex w-fit max-w-full flex-1 flex-col overflow-hidden rounded-[14px] border border-border @min-[720px]:w-full">
+            <div className="-mt-px -ml-px flex flex-1 flex-wrap @min-[720px]:flex-nowrap">
+              {statCells(columns).map((cell) =>
+                Array.isArray(cell) ? (
+                  <div
+                    key={cell.map((c) => c.key).join("-")}
+                    className="flex w-[300px] grow items-center justify-center border-t border-l border-border px-3 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-[1.5]"
+                  >
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      {cell.map((column, i) => (
+                        <Fragment key={column.key}>
+                          {i > 0 && <FlowArrow />}
+                          <PassStat
+                            column={column}
+                            row={row}
+                            reference={reference}
+                            sameSpeed={sameSpeed}
+                          />
+                        </Fragment>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div
-                  key={cell.key}
-                  className="flex w-[140px] grow items-center justify-center border-t border-l border-border px-4 py-3.5 @min-[640px]:w-auto @min-[640px]:flex-1 @min-[640px]:px-3"
-                >
-                  <PassStat
-                    column={cell}
-                    row={row}
-                    reference={reference}
-                    sameSpeed={sameSpeed}
-                  />
-                </div>
-              ),
-            )}
+                ) : (
+                  <div
+                    key={cell.key}
+                    className="flex w-[140px] grow items-center justify-center border-t border-l border-border px-4 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-1 @min-[720px]:px-3"
+                  >
+                    <PassStat
+                      column={cell}
+                      row={row}
+                      reference={reference}
+                      sameSpeed={sameSpeed}
+                    />
+                  </div>
+                ),
+              )}
+            </div>
           </div>
+          {reference != null && !sameSpeed && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Velocidade lida de outra forma (
+              {metrics.speedSource === "gps"
+                ? "GPS em linha reta"
+                : "fundida com o acelerómetro"}
+              ) — as velocidades não se comparam com a referência.
+            </p>
+          )}
         </div>
-        {reference != null && !sameSpeed && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Velocidade lida de outra forma (
-            {metrics.speedSource === "gps"
-              ? "GPS em linha reta"
-              : "fundida com o acelerómetro"}
-            ) — as velocidades não se comparam com a referência.
-          </p>
-        )}
       </div>
     </div>
   );
@@ -846,10 +862,12 @@ export function SnapshotPassLine({
 
 /**
  * One figure of a pass: its label, the value with its unit, and — against
- * the reference — the difference in a black pill whose ink carries the
- * verdict, as on the compare page: the brand green where better, the
- * lab's red where worse, the card's own colour where neither is better or
- * the gap is inside the tie ("≈").
+ * the reference — the difference in a pill whose colours carry the
+ * verdict: a black pill with the brand green where better, a black pill
+ * with the lab's red where worse, and a white pill with a black outline
+ * where the metric has no better direction or the gap is inside the tie
+ * ("≈") — by request, 2026-09-14. The black pills carry the same outline
+ * in their own colour, so both kinds are the same size.
  */
 function PassStat({
   column,
@@ -873,13 +891,13 @@ function PassStat({
   const tone = diff != null ? toneOf(column, diff) : null;
   return (
     <div className="flex min-w-0 flex-col items-center text-center">
-      <p className="text-xs whitespace-nowrap text-muted-foreground">
+      <p className="text-sm leading-tight whitespace-nowrap text-foreground">
         {column.label}
       </p>
-      <p className="mt-0.5 leading-tight font-semibold whitespace-nowrap tabular-nums">
+      <p className="text-lg leading-tight font-semibold whitespace-nowrap tabular-nums">
         {value == null ? "—" : nf(value, column.digits)}
         {value != null && column.unit && (
-          <span className="ml-1 text-xs font-normal text-muted-foreground">
+          <span className="ml-1 text-base font-normal text-muted-foreground">
             {column.unit}
           </span>
         )}
@@ -892,10 +910,10 @@ function PassStat({
               : undefined
           }
           className={cn(
-            "mt-1.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums",
-            tone === "better" && "text-primary",
-            tone === "worse" && "text-[#FF5A39]",
-            (tone === "neutral" || tone === "tie") && "text-background",
+            "mt-1.5 rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums",
+            tone === "better" && "bg-foreground text-primary",
+            tone === "worse" && "bg-foreground text-[#FF5A39]",
+            (tone === "neutral" || tone === "tie") && "bg-card text-foreground",
           )}
         >
           {tone === "tie" ? "≈" : signed(diff, column.digits)}
@@ -910,8 +928,8 @@ function PassStat({
 function FlowArrow() {
   return (
     <span aria-hidden className="flex flex-col items-center">
-      <span className="invisible text-xs">·</span>
-      <span className="mt-0.5 flex h-5 items-center">
+      <span className="invisible text-sm leading-tight">·</span>
+      <span className="flex h-[1.25em] items-center text-lg">
         <ArrowRight className="size-3.5 text-foreground" strokeWidth={2.5} />
       </span>
     </span>

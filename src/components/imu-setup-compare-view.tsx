@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { NativeSelect } from "@/components/ui/native-select";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import {
   ChassisBandIcon,
@@ -34,6 +35,7 @@ import {
   formatSetupChange,
   setupDiff,
   setupKey,
+  setupSummary,
   type ImuDamperSetup,
   type ImuSetupValues,
 } from "@/lib/imu/setup";
@@ -48,8 +50,9 @@ import {
  * on the reference; its setup as "Setup A" with the knobs that differ
  * from the reference's as black pills; then a column per figure of the
  * report, each headed by a mark, the value in bold where it differs from
- * the reference's with the difference in a pill — green where better,
- * red where worse, grey where neither direction is better. Above it,
+ * the reference's with the difference in a pill — black with green where
+ * better, black with red where worse, white with a black outline where
+ * neither direction is better. Above it,
  * what the set of setups held constant and what it varied, computed from
  * the setups, so the reader knows which knob the table is about.
  *
@@ -241,6 +244,11 @@ export function ImuSetupCompareView({
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(all.map((c) => [c.id, { status: "loading" }])),
   );
+  /** The table's two dropdowns, back by request (2026-09-14): which setup
+   * to show against the reference, and in what order. They shape the
+   * table only — the detail cards and the best setup read every run. */
+  const [setupFilter, setSetupFilter] = useState("");
+  const [sort, setSort] = useState<"setup" | "date">("setup");
 
   useEffect(() => {
     let cancelled = false;
@@ -317,19 +325,25 @@ export function ImuSetupCompareView({
       ? items.join("")
       : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
 
-  // The rows: the reference first, then the others grouped by setup in
-  // the letters' order, the runs without a setup last.
-  const rows = [
-    reference,
-    ...groups.flatMap((g) =>
-      g.members
-        .filter((c) => c.id !== reference.id)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    ),
-    ...unset
-      .filter((c) => c.id !== reference.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  ];
+  // The rows: the reference first whatever the filter — it is what every
+  // other row is read against — then the runs the setup filter keeps,
+  // grouped by setup in the letters' order (the runs without one last) or
+  // newest first.
+  const others = all
+    .filter((c) => c.id !== reference.id)
+    .filter(
+      (c) =>
+        !setupFilter ||
+        (setupFilter === "none"
+          ? !c.setup
+          : (letterOf(c) ?? "") === setupFilter),
+    )
+    .sort((a, b) => {
+      const byDate = b.createdAt.localeCompare(a.createdAt);
+      if (sort !== "setup") return byDate;
+      return (letterOf(a) ?? "~").localeCompare(letterOf(b) ?? "~") || byDate;
+    });
+  const rows = [reference, ...others];
 
   // The best setup: by the declared figure over the setups whose files
   // are in; the tie-break by the second. What its margin has to beat is
@@ -523,6 +537,42 @@ export function ImuSetupCompareView({
         </div>
       </div>
 
+      {runs.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {groups.length + (unset.length > 0 ? 1 : 0) > 1 && (
+            <NativeSelect
+              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
+              className="h-11 bg-card text-sm"
+              aria-label="Afinação"
+              value={setupFilter}
+              onChange={(e) => setSetupFilter(e.target.value)}
+            >
+              <option value="">Todas as afinações</option>
+              {groups.map((g) => {
+                const summary = setupSummary(g.setup, labels);
+                return (
+                  <option key={g.letter} value={g.letter}>
+                    Afinação {g.letter}
+                    {summary && ` · ${summary}`}
+                  </option>
+                );
+              })}
+              {unset.length > 0 && <option value="none">Sem afinação</option>}
+            </NativeSelect>
+          )}
+          <NativeSelect
+            wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
+            className="h-11 bg-card text-sm"
+            aria-label="Ordem"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as "setup" | "date")}
+          >
+            <option value="setup">Agrupadas por afinação</option>
+            <option value="date">Mais recentes primeiro</option>
+          </NativeSelect>
+        </div>
+      )}
+
       {pending > 0 && (
         <p className="px-1 text-sm text-muted-foreground" aria-live="polite">
           A ler {all.length - pending + 1} de {all.length}{" "}
@@ -602,6 +652,11 @@ export function ImuSetupCompareView({
               </tbody>
             </table>
           </div>
+          {runs.length > 0 && others.length === 0 && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Nenhuma outra volta com esta afinação.
+            </p>
+          )}
           {runs.length === 0 && (
             <p className="mt-4 text-sm text-muted-foreground">
               Só esta volta, por enquanto. As que importares desta bicicleta
@@ -822,8 +877,8 @@ function RunRow({
       ? setupDiff(reference.setup, run.setup)
       : [];
   return (
-    <tr className="border-t border-border">
-      <td className="py-4 pr-4 align-middle whitespace-nowrap">
+    <tr className="h-[90px] border-t border-border">
+      <td className="py-2 pr-4 align-middle whitespace-nowrap">
         <Link
           href={`/labs/imu/${run.id}`}
           className="font-semibold underline-offset-2 hover:underline"
@@ -839,7 +894,7 @@ function RunRow({
           </span>
         )}
       </td>
-      <td className="px-4 py-4 align-middle">
+      <td className="px-4 py-2 align-middle">
         <div className="flex flex-wrap items-center gap-2">
           {run.setup && letter ? (
             // The whole setup, on a click (by request, 2026-09-12): a
@@ -880,7 +935,7 @@ function RunRow({
           {changes.map((change) => (
             <span
               key={change.label}
-              className="rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-background tabular-nums"
+              className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background tabular-nums"
             >
               {formatSetupChange(change)}
             </span>
@@ -896,7 +951,7 @@ function RunRow({
         return (
           <td
             key={label}
-            className="px-4 py-4 align-middle whitespace-nowrap tabular-nums"
+            className="px-4 py-2 align-middle whitespace-nowrap tabular-nums"
           >
             {!report ? (
               <span className="text-muted-foreground">…</span>
@@ -984,15 +1039,17 @@ function Figure({
       </span>
       {differs && diff != null && (
         <span
-          // Black pills, the ink carrying the verdict (by request,
-          // 2026-09-12): the brand green where better, the lab's red where
-          // worse, the card's own colour where neither is better. In the
-          // dark theme the pill is light and the inks stay the same.
+          // The verdict in the pill's colours, the Snapshot page's rule
+          // (2026-09-14): black with the brand green where better, black
+          // with the lab's red where worse, white with a black outline
+          // where the metric has no better direction. The black pills carry
+          // the same outline in their own colour, so both are one size. A
+          // tie has no pill here: the figure is simply not bold.
           className={cn(
-            "rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold",
-            tone === "better" && "text-primary",
-            tone === "worse" && "text-[#FF5A39]",
-            tone === "neutral" && "text-background",
+            "rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold",
+            tone === "better" && "bg-foreground text-primary",
+            tone === "worse" && "bg-foreground text-[#FF5A39]",
+            tone === "neutral" && "bg-card text-foreground",
           )}
         >
           {signed(diff, digitsOf(metric))}
