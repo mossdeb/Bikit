@@ -2,21 +2,22 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
+import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
-import {
-  ImuSessionReport,
-  type ImuReportSetupComparison,
-} from "@/components/imu-session-report";
+import { ImuSessionReport } from "@/components/imu-session-report";
 import type {
   ImuSnapshotCandidate,
   ImuSnapshotRow,
 } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
-import { isSetupValues, setupDiff, type ImuSetupValues } from "@/lib/imu/setup";
+import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
+import {
+  SETUP_COMPONENT_CATEGORIES,
+  setupLabelsOf,
+} from "@/lib/imu/setup-labels";
 import { trimOf } from "@/lib/imu/trim";
-import { pickSetupComparison } from "@/lib/imu/setup-compare";
 import {
   isSnapshotDefinition,
   isTrackIndex,
@@ -24,7 +25,7 @@ import {
 } from "@/lib/imu/snapshot";
 
 /**
- * Lab: one IMU session's report — the recording read as rider, bike and
+ * Lab: one IMU session's report — the recording read as bike, rider and
  * trail, and under them the Snapshots it passes through. Same gate and the
  * same row as the analysis page; the file itself is downloaded by the
  * client component from Storage, where RLS guards it a second time. The
@@ -33,7 +34,10 @@ import {
  *
  * The Snapshots handed over are the ones whose gates this track's index
  * comes near — the file decides which it passes. With them go the
- * sessions their references live in, for the client to read once.
+ * sessions their references live in, for the client to read once, and
+ * how many of the account's sessions each Snapshot sets side by side.
+ * The Bike card opens the setup form, so the bike's type and the names of
+ * its dampers and tyres come along too.
  */
 export default async function ImuSessionReportPage({
   params,
@@ -62,7 +66,8 @@ export default async function ImuSessionReportPage({
     { data: bikes },
     { data: groups },
     { data: setups },
-    { data: earlierRows },
+    { data: components },
+    { data: trackRows },
   ] = await Promise.all([
     supabase
       .from("imu_snapshots")
@@ -71,7 +76,7 @@ export default async function ImuSessionReportPage({
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
-    supabase.from("bikes").select("id, name").eq("user_id", userId),
+    supabase.from("bikes").select("id, name, type").eq("user_id", userId),
     supabase
       .from("imu_session_groups")
       .select("id, name, day")
@@ -82,20 +87,24 @@ export default async function ImuSessionReportPage({
       .from("imu_setups")
       .select("id, values, note")
       .eq("user_id", userId),
-    // The bike's earlier runs that carry a setup — the pool the Bike
-    // section's comparison is picked from (pickSetupComparison). Newest
-    // first; a few dozen covers a season of one bike.
+    // What the bike calls its dampers and tyres, for the setup form the
+    // Bike card opens.
     session.bike_id
       ? supabase
-          .from("imu_sessions")
-          .select(sessionColumns)
-          .eq("user_id", userId)
+          .from("components")
+          .select("category, name, brand, model")
           .eq("bike_id", session.bike_id)
-          .not("setup_id", "is", null)
-          .lt("created_at", session.created_at)
-          .order("created_at", { ascending: false })
-          .limit(40)
+          .eq("user_id", userId)
+          .is("retired_at", null)
+          .in("category", SETUP_COMPONENT_CATEGORIES)
       : Promise.resolve({ data: null }),
+    // Every session's track index, for how many sessions each Snapshot
+    // sets side by side — the same pool the Snapshot's page reads.
+    supabase
+      .from("imu_sessions")
+      .select("id, track_index")
+      .eq("user_id", userId)
+      .not("track_index", "is", null),
   ]);
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
@@ -134,16 +143,32 @@ export default async function ImuSessionReportPage({
         (row.reference_session_id === session.id ||
           (index != null && trackIndexMayPass(index, row.definition))),
     )
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      // Narrowed by the filter above; the type does not carry it over.
-      definition: row.definition as never,
-      referenceSessionId: row.reference_session_id,
-      referenceEntryMs: row.reference_entry_ms,
-      referenceExitMs: row.reference_exit_ms,
-      createdAt: row.created_at,
-    }));
+    .map((row) => {
+      // The sessions whose track comes near both gates, and the reference
+      // whatever its track says — what the Snapshot's page sets side by
+      // side before it reads the files.
+      const near = new Set(
+        (trackRows ?? [])
+          .filter(
+            (r) =>
+              isTrackIndex(r.track_index) &&
+              trackIndexMayPass(r.track_index, row.definition as never),
+          )
+          .map((r) => r.id),
+      );
+      if (row.reference_session_id) near.add(row.reference_session_id);
+      return {
+        id: row.id,
+        name: row.name,
+        // Narrowed by the filter above; the type does not carry it over.
+        definition: row.definition as never,
+        referenceSessionId: row.reference_session_id,
+        referenceEntryMs: row.reference_entry_ms,
+        referenceExitMs: row.reference_exit_ms,
+        createdAt: row.created_at,
+        sessionCount: near.size,
+      };
+    });
 
   // The other sessions the references live in — one query for all.
   const referenceIds = [
@@ -163,24 +188,10 @@ export default async function ImuSessionReportPage({
     for (const row of rows ?? []) referenceSessions[row.id] = candidateOf(row);
   }
 
-  // The run this one's setup is set against: same bike and rider, another
-  // setup, the same trail. The client reads its file beside this one's.
   const current = candidateOf(session);
-  const compareOf = (s: SessionRow) => ({
-    ...candidateOf(s),
-    trackIndex: isTrackIndex(s.track_index) ? s.track_index : null,
-  });
-  const { pick, reason } = pickSetupComparison(
-    { ...current, trackIndex: index },
-    (earlierRows ?? []).map(compareOf),
-  );
-  const setupComparison: ImuReportSetupComparison | null =
-    pick && current.setup && pick.setup
-      ? {
-          session: candidateOf(earlierRows!.find((s) => s.id === pick.id)!),
-          changes: setupDiff(pick.setup, current.setup),
-        }
-      : null;
+  const bikeType =
+    ((bikes ?? []).find((b) => b.id === session.bike_id)?.type as
+      BikeType | undefined) ?? null;
 
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
@@ -193,15 +204,25 @@ export default async function ImuSessionReportPage({
         session={current}
         snapshots={snapshots}
         referenceSessions={referenceSessions}
-        setupComparison={setupComparison}
-        setupComparisonNote={reason}
+        bikeType={bikeType}
+        // The setup form the Bike card opens — only with a bike: a setup
+        // belongs to one.
+        setup={
+          session.bike_id
+            ? {
+                values: current.setup ?? {},
+                note: current.setupNote,
+                labels: setupLabelsOf(components),
+              }
+            : null
+        }
         header={
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
-            <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-foreground uppercase">
               Relatório
             </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold">
+            <h1 className="mt-0.5 font-display text-3xl font-semibold">
               {session.name}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">

@@ -187,6 +187,10 @@ export interface SnapshotPassMetrics {
   /** Time in the air between the gates, ms — the jumps and drops the
    * session's events place there, added up. */
   airtimeMs: number;
+  /** Speed at the first flight's takeoff between the gates, km/h — what
+   * the rider carried off the lip, the figure a jump is about (by request,
+   * 2026-09-14). Null without a flight or without a speed. */
+  takeoffKmh: number | null;
   /** The highest G force between the gates. */
   peakG: number | null;
 }
@@ -532,6 +536,7 @@ export function snapshotPassMetrics(
   const { entryMs, exitMs } = pass;
   let impacts = 0;
   let airtimeMs = 0;
+  let firstTakeoffMs: number | null = null;
   for (const e of session.events) {
     if (e.kind === "impact" && e.timeMs >= entryMs && e.timeMs <= exitMs)
       impacts++;
@@ -539,8 +544,11 @@ export function snapshotPassMetrics(
       (e.kind === "jump" || e.kind === "drop") &&
       e.takeoffMs >= entryMs &&
       e.takeoffMs <= exitMs
-    )
+    ) {
       airtimeMs += e.airtimeMs;
+      if (firstTakeoffMs == null || e.takeoffMs < firstTakeoffMs)
+        firstTakeoffMs = e.takeoffMs;
+    }
   }
   const metrics: SnapshotPassMetrics = {
     durationMs: exitMs - entryMs,
@@ -558,6 +566,7 @@ export function snapshotPassMetrics(
     maxDecelMps2: null,
     impacts,
     airtimeMs,
+    takeoffKmh: null,
     peakG: windowPeak(tMs, gForce, entryMs, exitMs),
   };
   if (!speedKmh || tMs.length === 0) return metrics;
@@ -615,6 +624,8 @@ export function snapshotPassMetrics(
 
   return {
     ...metrics,
+    takeoffKmh:
+      firstTakeoffMs != null ? valueAt(tMs, speedKmh, firstTakeoffMs) : null,
     entryKmh,
     exitKmh,
     minKmh,

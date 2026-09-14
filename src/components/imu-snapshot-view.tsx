@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Ellipsis, Trash2 } from "lucide-react";
-import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
+import { SnapshotKindMark } from "@/components/imu-event-icons";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
@@ -107,6 +107,10 @@ export interface ImuSnapshotRow {
   referenceEntryMs: number;
   referenceExitMs: number;
   createdAt: string;
+  /** How many of the account's sessions come near both gates (the
+   * reference included) — the report's "Sessões em comparação". Only the
+   * report fills it. */
+  sessionCount?: number;
 }
 
 /** One session's passes, once its file has been read. */
@@ -224,14 +228,37 @@ const RETENTION_CORRECTED: Column = {
   better: "higher",
   tie: 100 * TIE_RETENTION,
 };
+/** The hardest slowing, in G like the analysis page's braking card (by
+ * request, 2026-09-14: one unit for one thing across the lab). */
 const DECEL: Column = {
   key: "decel",
-  label: "Desacel. máx",
-  unit: "m/s²",
+  label: "Travagem máx",
+  unit: "G",
   speed: true,
-  value: (m) => m.maxDecelMps2,
-  digits: 1,
-  tie: 0.3,
+  value: (m) => (m.maxDecelMps2 == null ? null : m.maxDecelMps2 / 9.81),
+  digits: 2,
+  tie: 0.03,
+};
+/** What a brake took off: the entry speed less the exit speed. */
+const SPEED_LOST: Column = {
+  key: "speedLost",
+  label: "Vel. perdida",
+  unit: "km/h",
+  speed: true,
+  value: (m) =>
+    m.entryKmh == null || m.exitKmh == null ? null : m.entryKmh - m.exitKmh,
+  digits: 0,
+  tie: TIE_KMH,
+};
+/** The speed off the lip — what a jump carried into the air. */
+const TAKEOFF: Column = {
+  key: "takeoff",
+  label: "Descolagem",
+  unit: "km/h",
+  speed: true,
+  value: (m) => m.takeoffKmh,
+  digits: 0,
+  tie: TIE_KMH,
 };
 const IMPACTS: Column = {
   key: "impacts",
@@ -268,9 +295,14 @@ export const SNAPSHOT_COLUMNS: Record<SnapshotKind, Column[]> = {
     DECEL,
     IMPACTS,
   ],
-  jump: [TIME, ENTRY, MIN, EXIT, AIRTIME, PEAK_G, IMPACTS],
-  rough_section: [TIME, ENTRY, MIN, EXIT, PEAK_G, IMPACTS],
-  braking: [TIME, ENTRY, MIN, EXIT, DECEL, IMPACTS],
+  // Each kind its own figures (by request, 2026-09-14: the content fits the
+  // event). A curve is read by its speeds in, at the apex and out; a jump
+  // by what it took off with, how long it flew and how hard it landed; a
+  // brake by the speed before and after and what it took off; a rough
+  // stretch by the speed through it and how hard it hit.
+  jump: [TIME, TAKEOFF, AIRTIME, PEAK_G, IMPACTS],
+  rough_section: [TIME, ENTRY, EXIT, PEAK_G, IMPACTS],
+  braking: [TIME, ENTRY, EXIT, SPEED_LOST, DECEL, IMPACTS],
 };
 
 function toneOf(column: Column, diff: number): Tone {
@@ -536,7 +568,7 @@ export function ImuSnapshotView({
             corner: the map stops short of it (`sm:mr-12`). */}
         <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:px-6 sm:py-6">
           <div className="min-w-0 pr-10 sm:pr-0">
-            <ImuSnapshotGlyph className="size-7 text-foreground" sizePx={28} />
+            <SnapshotKindMark kind={snapshot.definition.kind} />
             <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
               Snapshot · {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
             </p>
@@ -1034,7 +1066,7 @@ function PassStat({
       <p className="text-base leading-tight font-semibold whitespace-nowrap tabular-nums">
         {value == null ? "—" : nf(value, column.digits)}
         {value != null && column.unit && (
-          <span className="ml-1 text-base font-normal text-muted-foreground">
+          <span className="ml-1 text-sm font-normal text-foreground">
             {column.unit}
           </span>
         )}

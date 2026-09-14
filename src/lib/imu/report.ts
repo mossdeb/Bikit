@@ -613,6 +613,18 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         });
     }
 
+    // Flights: every time both wheels left the ground, lip or ledge — the
+    // count the analysis page's résumé calls "Saltos" (by request,
+    // 2026-09-14, the report's supplied layout).
+    metrics.push({
+      label: "Saltos",
+      value: String(summary.jumpCount),
+      hint:
+        summary.jumpCount > 0
+          ? `${pt(summary.airtimeMs / 1000, 1)} s no ar no total`
+          : "nenhum salto detetado",
+    });
+
     for (const s of [...roughSections]
       .map((s) => ({ s, rms: windowRms(tMs, g, s.startMs, s.endMs, 1) ?? 0 }))
       .sort((a, b) => b.rms - a.rms)

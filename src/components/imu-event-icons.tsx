@@ -1,3 +1,7 @@
+import type { ComponentType } from "react";
+import { cn } from "@/lib/utils";
+import type { SnapshotKind } from "@/lib/imu/snapshot";
+
 /**
  * Icons for the IMU details panel.
  *
@@ -316,5 +320,37 @@ export function CurveLeftIcon({ className }: IconProps) {
         fill="#434343"
       />
     </svg>
+  );
+}
+
+/** A Snapshot's kind as its event's icon. A curve Snapshot does not keep
+ * its direction, so every curve wears the right-hand one. */
+const SNAPSHOT_KIND_ICON: Record<SnapshotKind, ComponentType<IconProps>> = {
+  curve: CurveRightIcon,
+  jump: JumpIcon,
+  rough_section: RoughSectionIcon,
+  braking: BrakingIcon,
+};
+
+/** A Snapshot's mark: its event's icon, white on a black rounded square —
+ * the report's Snapshot cards and the Snapshot page's header wear it (by
+ * request, 2026-09-14: the event's icon, not the Snapshot glyph). */
+export function SnapshotKindMark({
+  kind,
+  className,
+}: {
+  kind: SnapshotKind;
+  className?: string;
+}) {
+  const Icon = SNAPSHOT_KIND_ICON[kind];
+  return (
+    <span
+      className={cn(
+        "flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-foreground text-background",
+        className,
+      )}
+    >
+      <Icon className="size-5" />
+    </span>
   );
 }

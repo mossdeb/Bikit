@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import type { ImuSessionData } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
@@ -11,7 +13,6 @@ import { loadImuSession } from "@/lib/imu/use-imu-session";
 import {
   findSnapshotPasses,
   prepareSnapshotSession,
-  SNAPSHOT_KIND_LABEL,
   snapshotPassMetrics,
   snapshotPassPath,
   type SnapshotPass,
@@ -25,18 +26,28 @@ import {
   type ImuSnapshotRow,
 } from "@/components/imu-snapshot-view";
 import { ImuSnapshotMiniMap } from "@/components/imu-snapshot-mini-map";
+import { SnapshotKindMark } from "@/components/imu-event-icons";
+
+const seconds = (ms: number) =>
+  (ms / 1000).toLocaleString("pt-PT", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
 /**
  * The Snapshots this recording passes through, under the report's three
- * cards (by request, 2026-09-10): each as a card in the shape of the
- * Snapshot page's header — name, reference, the picture of the stretch —
- * with this session's passes as one line of times against the reference.
- * The figures stay on the Snapshot's page (simplified by request, the same
- * day: the full lines here were more than the report needed). The page
- * hands over the Snapshots
- * whose gates this track comes near; the file, already read for the
- * report, decides which it actually passes. A reference that lives in
- * another session is read once, however many Snapshots point at it.
+ * cards, in the supplied layout (2026-09-14): a heading with how many,
+ * and a switch to fold them away; then a card each — the kind's mark, the
+ * name, the reference's day and the instants of its gates, a pill for
+ * where this recording stands against it (the reference itself, or its
+ * time against the reference's), and on the right how many sessions the
+ * Snapshot sets side by side and the picture of the stretch. The figures
+ * stay on the Snapshot's page, a click away.
+ *
+ * The page hands over the Snapshots whose gates this track comes near;
+ * the file, already read for the report, decides which it actually
+ * passes. A reference that lives in another session is read once,
+ * however many Snapshots point at it.
  */
 export function ImuReportSnapshots({
   data,
@@ -52,6 +63,7 @@ export function ImuReportSnapshots({
   referenceSessions: Record<string, ImuSnapshotCandidate>;
 }) {
   const prepared = useMemo(() => prepareSnapshotSession(data), [data]);
+  const [open, setOpen] = useState(true);
 
   // This session's passes through each Snapshot, from the file in hand.
   const own = useMemo(() => {
@@ -139,10 +151,6 @@ export function ImuReportSnapshots({
     () =>
       shown.map((snapshot) => {
         const passes = own.get(snapshot.id) ?? [];
-        // The reference pass and the session it is read from: one of this
-        // session's own passes, or the reference session's once that file
-        // has been read. Only its time is needed here — the figures are
-        // the Snapshot page's business (simplified by request, 2026-09-10).
         const isOwnReference = snapshot.referenceSessionId === session.id;
         let refPrepared: SnapshotSession | null = null;
         let refPass: SnapshotPass | null = null;
@@ -192,26 +200,43 @@ export function ImuReportSnapshots({
   if (shown.length === 0) return null;
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2 px-1">
-        <ImuSnapshotGlyph className="size-5 text-foreground" sizePx={20} />
-        <h2 className="font-display text-lg font-semibold">Snapshots</h2>
-        <span className="text-sm text-muted-foreground">
-          {shown.length === 1
-            ? "1 troço de referência nesta gravação"
-            : `${shown.length} troços de referência nesta gravação`}
-        </span>
+    <section className="space-y-[18px] pt-4">
+      <div className="flex items-center gap-3 px-1">
+        <ImuSnapshotGlyph className="size-7 text-foreground" sizePx={28} />
+        <p className="text-sm">
+          <span className="font-semibold">Snapshots</span>{" "}
+          <span className="text-muted-foreground">
+            {shown.length === 1
+              ? "1 troço de referência nesta gravação"
+              : `${shown.length} troços de referência nesta gravação`}
+          </span>
+        </p>
+        {/* The list folds away: a recording can pass a dozen Snapshots,
+            and the three cards above are what the report is about. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={open ? "Esconder os Snapshots" : "Mostrar os Snapshots"}
+          className="ml-auto flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground tabular-nums transition-colors hover:text-foreground"
+        >
+          ({shown.length})
+          {open ? (
+            <ChevronUp className="size-4" />
+          ) : (
+            <ChevronDown className="size-4" />
+          )}
+        </button>
       </div>
-      {cards.map((card) => (
-        <SnapshotCard key={card.snapshot.id} session={session} {...card} />
-      ))}
+      {open &&
+        cards.map((card) => (
+          <SnapshotCard key={card.snapshot.id} session={session} {...card} />
+        ))}
     </section>
   );
 }
 
-/** One Snapshot's card: the Snapshot page's own header as a card —
- * identity on the left, the picture of the stretch on the right, this
- * session's passes as one line. The detail lives a click away. */
+/** One Snapshot's card — see ImuReportSnapshots. */
 function SnapshotCard({
   snapshot,
   session,
@@ -243,110 +268,144 @@ function SnapshotCard({
       section: snapshotPassPath(refPrepared, refPass),
     };
   }, [refPrepared, refPass]);
+  const isReferencePass = (pass: SnapshotPass) =>
+    isOwnReference &&
+    Math.abs(pass.entryMs - snapshot.referenceEntryMs) <= REFERENCE_MATCH_MS;
 
   return (
     <Link
-      // Under the reference's session, so back from the Snapshot
-      // lands on the report it belongs to; this session's own when
-      // the reference is gone.
+      // Under the reference's session, so back from the Snapshot lands on
+      // the report it belongs to; this session's own when the reference
+      // is gone.
       href={`/labs/imu/${snapshot.referenceSessionId ?? session.id}/snapshots/${snapshot.id}`}
       className={cn(
-        // The Snapshot page's own header, as a card: identity on the
-        // left, the picture of the stretch on the right, and this
-        // session's passes as one line — the detail lives a click
-        // away.
-        "flex flex-col gap-4 rounded-lg bg-card px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6",
+        "flex flex-col gap-4 rounded-lg bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:px-[22px]",
         DARK_CARD_HAIRLINE,
         CLICKABLE_CARD_HOVER,
       )}
     >
       <div className="min-w-0">
-        <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-          {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
-        </p>
-        <p className="mt-0.5 font-display text-xl font-semibold">
+        <SnapshotKindMark kind={snapshot.definition.kind} />
+        <p className="mt-4 font-display text-xl font-semibold">
           {snapshot.name}
         </p>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {referenceSession ? (
-            <>
-              Referência:{" "}
-              <span className="text-foreground">{referenceSession.name}</span>{" "}
-              aos {formatSessionTime(snapshot.referenceEntryMs)}
-              {refDurationMs != null &&
-                ` · ${(refDurationMs / 1000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
-            </>
-          ) : referenceState === "loading" ? (
-            "A ler a sessão de referência…"
-          ) : (
-            "A passagem de referência já não existe"
-          )}
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {referenceSession
+            ? `${formatDate(referenceSession.createdAt)} · entre ${formatSessionTime(snapshot.referenceEntryMs)} e ${formatSessionTime(snapshot.referenceExitMs)}`
+            : referenceState === "loading"
+              ? "A ler a sessão de referência…"
+              : "A passagem de referência já não existe"}
         </p>
-        {/* This session's passes, each as its time against the
-                  reference's — within the gates' precision is a tie. */}
-        <p className="mt-1 text-sm">
-          {isOwnReference && passes.length === 1
-            ? "Esta gravação é a referência."
-            : passes.map(({ pass, metrics }, i) => (
-                <span key={i} className="mr-3 inline-block tabular-nums">
-                  {passes.length > 1 && (
-                    <span className="text-muted-foreground">{i + 1}.ª </span>
-                  )}
-                  <span className="font-semibold">
-                    {(metrics.durationMs / 1000).toLocaleString("pt-PT", {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })}{" "}
-                    s
-                  </span>
-                  {metrics.stopped && (
-                    <span className="text-muted-foreground"> · parou</span>
-                  )}
-                  {refDurationMs != null &&
-                    !(
-                      isOwnReference &&
-                      Math.abs(pass.entryMs - snapshot.referenceEntryMs) <=
-                        REFERENCE_MATCH_MS
-                    ) && (
-                      <TimeDelta diffMs={metrics.durationMs - refDurationMs} />
-                    )}
-                </span>
-              ))}
-        </p>
+        {/* Where this recording stands against the reference: the
+            reference itself, or each pass's time against it in the
+            page's colours — green faster, red slower, a clear pill for a
+            tie inside the gates' own scatter. */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+          {passes.map(({ pass, metrics }, i) => (
+            <PassPill
+              key={i}
+              order={passes.length > 1 ? i + 1 : null}
+              isReference={isReferencePass(pass)}
+              durationMs={metrics.durationMs}
+              refDurationMs={refDurationMs}
+              stopped={metrics.stopped}
+            />
+          ))}
+        </div>
       </div>
-      <div className="h-[150px] w-full shrink-0 overflow-hidden rounded-[12px] bg-sidebar sm:w-[220px]">
-        {mapData && (
-          <ImuSnapshotMiniMap
-            track={mapData.track}
-            section={mapData.section}
-            className="h-full w-full"
-          />
-        )}
+      <div className="flex shrink-0 items-stretch gap-4">
+        <div className="flex w-[100px] flex-col items-center justify-center rounded-[14px] border border-border px-2 py-3 text-center">
+          <p className="text-xs leading-tight">Sessões em comparação</p>
+          <p className="mt-2 text-base leading-tight font-semibold tabular-nums">
+            {snapshot.sessionCount ?? "—"}
+          </p>
+        </div>
+        <div className="h-[106px] w-[156px] overflow-hidden rounded-[12px] bg-sidebar">
+          {mapData && (
+            <ImuSnapshotMiniMap
+              track={mapData.track}
+              section={mapData.section}
+              className="h-full w-full"
+            />
+          )}
+        </div>
       </div>
     </Link>
   );
 }
 
-/** The time against the reference, in the Snapshot page's tones: green
- * when faster, red when slower, a tie inside the gates' own scatter. */
-function TimeDelta({ diffMs }: { diffMs: number }) {
-  if (Math.abs(diffMs) <= SNAPSHOT_TIE_MS)
-    return <span className="text-muted-foreground"> · ≈</span>;
-  const s = Math.abs(diffMs / 1000).toLocaleString("pt-PT", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+/** One pass of this recording as a pill: "Referência" when it is the
+ * reference pass, otherwise its time against the reference's — until the
+ * reference is read, its own time in a clear pill. */
+function PassPill({
+  order,
+  isReference,
+  durationMs,
+  refDurationMs,
+  stopped,
+}: {
+  order: number | null;
+  isReference: boolean;
+  durationMs: number;
+  refDurationMs: number | null;
+  stopped: boolean;
+}) {
+  const prefix = order != null ? `${order}.ª · ` : "";
+  const base =
+    "rounded-full border px-2 py-0.5 font-medium whitespace-nowrap tabular-nums";
+  let pill;
+  if (isReference)
+    pill = (
+      <span
+        className={cn(base, "border-foreground bg-foreground text-background")}
+      >
+        {prefix}Referência
+      </span>
+    );
+  else if (refDurationMs == null)
+    pill = (
+      <span
+        className={cn(base, "border-foreground bg-transparent text-foreground")}
+      >
+        {prefix}
+        {seconds(durationMs)} s
+      </span>
+    );
+  else {
+    const diff = durationMs - refDurationMs;
+    const tie = Math.abs(diff) <= SNAPSHOT_TIE_MS;
+    pill = (
+      <span
+        title={`${seconds(durationMs)} s nesta volta, ${seconds(refDurationMs)} s na referência`}
+        className={cn(
+          base,
+          tie
+            ? "border-foreground bg-transparent text-foreground"
+            : diff < 0
+              ? "border-foreground bg-foreground text-primary"
+              : "border-foreground bg-foreground text-[#FF5A39]",
+        )}
+      >
+        {prefix}
+        {tie
+          ? "≈ referência"
+          : `${diff < 0 ? "−" : "+"}${seconds(Math.abs(diff))} s`}
+      </span>
+    );
+  }
   return (
-    <span
-      className={cn(
-        diffMs < 0
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-[#FF5A39]",
+    <>
+      {pill}
+      {stopped && (
+        <span
+          className={cn(
+            base,
+            "border-transparent bg-[#FFEEBE] text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]",
+          )}
+        >
+          parou
+        </span>
       )}
-    >
-      {" · "}
-      {diffMs < 0 ? "−" : "+"}
-      {s} s
-    </span>
+    </>
   );
 }

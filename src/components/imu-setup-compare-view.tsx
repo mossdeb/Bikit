@@ -808,7 +808,7 @@ export function ImuSetupCompareView({
 /** The "i" beside a heading: what the figure is and which way is better
  * — the analysis page's own pattern, a popover and not a tooltip because
  * a finger cannot hover. */
-function MetricInfo({
+export function MetricInfo({
   label,
   description,
   method,

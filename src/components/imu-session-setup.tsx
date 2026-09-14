@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Bike, SlidersHorizontal } from "lucide-react";
 import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
@@ -127,6 +127,9 @@ export function ImuSessionSetup({
   note,
   labels,
   bikeType,
+  triggerLabel,
+  triggerClassName,
+  triggerIcon,
 }: {
   sessionId: string;
   /** The session's current setup, or empty. */
@@ -136,6 +139,11 @@ export function ImuSessionSetup({
   /** The bike's type, for the mark between the two dampers (the supplied
    * layout); null draws a generic bike. */
   bikeType: BikeType | null;
+  /** The trigger's word, icon and dress, when not the analysis page's
+   * "Afinação" pill. */
+  triggerLabel?: string;
+  triggerClassName?: string;
+  triggerIcon?: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -189,18 +197,22 @@ export function ImuSessionSetup({
       <DialogTrigger
         title="A afinação da bicicleta nesta volta"
         // The report door's pill, beside it: outlined, the mark and the
-        // word — a control, not a figure.
+        // word — a control, not a figure. A caller can dress it otherwise
+        // (the report's Bike card, 2026-09-14).
         className={cn(
-          "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground sm:self-end",
+          triggerClassName ??
+            "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground sm:self-end",
           CLICKABLE_CARD_HOVER,
         )}
       >
-        <SlidersHorizontal
-          className="size-[18px]"
-          strokeWidth={2.1}
-          aria-hidden
-        />
-        Afinação
+        {triggerIcon ?? (
+          <SlidersHorizontal
+            className="size-[18px]"
+            strokeWidth={2.1}
+            aria-hidden
+          />
+        )}
+        {triggerLabel ?? "Afinação"}
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>

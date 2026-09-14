@@ -23,6 +23,10 @@ import {
 } from "@/lib/imu/setup";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { trimOf } from "@/lib/imu/trim";
+import {
+  SETUP_COMPONENT_CATEGORIES,
+  setupLabelsOf,
+} from "@/lib/imu/setup-labels";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 
 /**
@@ -132,41 +136,13 @@ export default async function ImuSessionPage({
           .eq("bike_id", session.bike_id)
           .eq("user_id", userId)
           .is("retired_at", null)
-          .in("category", [
-            "Front Suspension (Fork)",
-            "Rear Suspension",
-            "Tire",
-          ])
+          .in("category", SETUP_COMPONENT_CATEGORIES)
       : Promise.resolve({ data: null }),
   ]);
   const setupValues: ImuSetupValues =
     setupRow && isSetupValues(setupRow.values) ? setupRow.values : {};
   const setupNote = setupRow?.note ?? null;
-  const damperLabel = (category: string) => {
-    const c = (dampers ?? []).find((d) => d.category === category);
-    if (!c) return null;
-    const brandModel = [c.brand, c.model].filter(Boolean).join(" ").trim();
-    return brandModel || c.name || null;
-  };
-  // The tyres, front and rear: told apart by a "(front)"/"(rear)" or
-  // "frente"/"trás" in the name when the bike has two, the first one for
-  // both when it has one and says nothing.
-  const tires = (dampers ?? []).filter((d) => d.category === "Tire");
-  const tireLabel = (c: (typeof tires)[number] | undefined) => {
-    if (!c) return null;
-    const brandModel = [c.brand, c.model].filter(Boolean).join(" ").trim();
-    return brandModel || c.name || null;
-  };
-  const isFront = (c: (typeof tires)[number]) =>
-    /front|frente|dianteir/i.test(c.name ?? "");
-  const isRear = (c: (typeof tires)[number]) =>
-    /rear|tr[aá]s|traseir/i.test(c.name ?? "");
-  const setupLabels: ImuSetupLabels = {
-    fork: damperLabel("Front Suspension (Fork)"),
-    shock: damperLabel("Rear Suspension"),
-    tireFront: tireLabel(tires.find(isFront) ?? tires[0]),
-    tireRear: tireLabel(tires.find(isRear) ?? tires[1] ?? tires[0]),
-  };
+  const setupLabels: ImuSetupLabels = setupLabelsOf(dampers);
   const setupLine = setupSummary(setupValues, setupLabels);
   const BikeGlyph = bike?.type
     ? BIKE_TYPE_ICON[bike.type as BikeType]
