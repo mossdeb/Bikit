@@ -537,3 +537,13 @@ body.imu-lab-texture [data-app-shell] {
     animation: none;
   }
 }
+
+/* The Snapshot page's hover band (imu-snapshot-view.tsx): the grey of the
+   page's ground at 40 % over the card (lighter, by request 2026-09-14), but
+   opaque, so it covers the boxes'
+   lines where it crosses them instead of letting them show through. A class
+   and not a Tailwind arbitrary value: this build does not generate
+   bg-[color-mix(...)]. */
+.imu-focus-band {
+  background-color: color-mix(in oklab, var(--background) 40%, var(--card));
+}

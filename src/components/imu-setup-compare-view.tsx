@@ -935,7 +935,7 @@ function RunRow({
           {changes.map((change) => (
             <span
               key={change.label}
-              className="rounded-full bg-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background tabular-nums"
+              className="rounded-full border border-foreground bg-card px-2 py-0.5 text-xs font-medium whitespace-nowrap text-foreground tabular-nums"
             >
               {formatSetupChange(change)}
             </span>
@@ -1041,7 +1041,7 @@ function Figure({
         <span
           // The verdict in the pill's colours, the Snapshot page's rule
           // (2026-09-14): black with the brand green where better, black
-          // with the lab's red where worse, white with a black outline
+          // with the lab's red where worse, clear with a black outline
           // where the metric has no better direction. The black pills carry
           // the same outline in their own colour, so both are one size. A
           // tie has no pill here: the figure is simply not bold.
@@ -1049,7 +1049,7 @@ function Figure({
             "rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold",
             tone === "better" && "bg-foreground text-primary",
             tone === "worse" && "bg-foreground text-[#FF5A39]",
-            tone === "neutral" && "bg-card text-foreground",
+            tone === "neutral" && "bg-transparent text-foreground",
           )}
         >
           {signed(diff, digitsOf(metric))}

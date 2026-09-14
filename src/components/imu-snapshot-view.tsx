@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Ellipsis, Trash2 } from "lucide-react";
@@ -291,6 +298,67 @@ export function ImuSnapshotView({
   const [riderFilter, setRiderFilter] = useState("");
   const [setupFilter, setSetupFilter] = useState("");
   const [sort, setSort] = useState<"date" | "time" | "setup">("date");
+
+  /** The column the mouse is over, for the hover isolation (by request,
+   * 2026-09-14): that column across every pass gets a tinted band and
+   * every other figure fades. Mouse only — a finger has no hover. Each
+   * pass draws its stretch of the band inside its own figures column (see
+   * SnapshotPassLine), the stretches meeting into one across the list; it
+   * is only drawn when the column lines up across the passes and sits on
+   * one line of cells. When it does not (the cells wrapped), the matching
+   * cells are tinted one by one instead. Read by delegation on the list,
+   * and cleared only when the mouse leaves it, so crossing from one cell
+   * to the next never flickers. */
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusKeyRef = useRef<string | null>(null);
+  const [focus, setFocus] = useState<{
+    key: string;
+    aligned: boolean;
+  } | null>(null);
+  const [band, setBand] = useState<{ left: number; width: number } | null>(
+    null,
+  );
+  function readFocus(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
+    const cell = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-stat-col]",
+    );
+    const key = cell?.dataset.statCol ?? null;
+    if (key === focusKeyRef.current) return;
+    focusKeyRef.current = key;
+    const list = listRef.current;
+    if (!key || !cell || !list) {
+      setFocus(null);
+      return;
+    }
+    const at = cell.getBoundingClientRect();
+    const near = (a: number, b: number) => Math.abs(a - b) < 2;
+    const oneLine = [...(cell.parentElement?.children ?? [])].every((c) =>
+      near(c.getBoundingClientRect().top, at.top),
+    );
+    const lined = [...list.querySelectorAll<HTMLElement>("[data-stat-col]")]
+      .filter((c) => c.dataset.statCol === key)
+      .every((c) => {
+        const r = c.getBoundingClientRect();
+        return near(r.left, at.left) && near(r.width, at.width);
+      });
+    const aligned = oneLine && lined;
+    // Against the figures column the band is drawn in, and a pixel wider:
+    // the cell's box starts on its own left rule and ends where the next
+    // cell's rule begins, so a pixel more puts the band's right edge on
+    // that rule instead of beside it.
+    const figures = cell.closest<HTMLElement>("[data-pass-figures]");
+    if (aligned && figures)
+      setBand({
+        left: at.left - figures.getBoundingClientRect().left,
+        width: at.width + 1,
+      });
+    setFocus({ key, aligned });
+  }
+  function clearFocus() {
+    focusKeyRef.current = null;
+    setFocus(null);
+  }
 
   // Every candidate's file, in parallel, each landing as it arrives.
   useEffect(() => {
@@ -598,7 +666,15 @@ export function ImuSnapshotView({
         </p>
       )}
 
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+      <div
+        ref={listRef}
+        onPointerMove={readFocus}
+        onPointerLeave={clearFocus}
+        className={cn(
+          "relative isolate overflow-hidden rounded-lg bg-card",
+          DARK_CARD_HAIRLINE,
+        )}
+      >
         {reference && (
           <SnapshotPassLine
             row={reference}
@@ -606,6 +682,10 @@ export function ImuSnapshotView({
             columns={columns}
             setupLetter={letterOf(reference)}
             pinned
+            focusKey={focus?.key ?? null}
+            focusTinted={focus != null && !focus.aligned}
+            focusBand={band}
+            focusBandOn={focus?.aligned ?? false}
           />
         )}
         {others.map((row) => (
@@ -615,6 +695,10 @@ export function ImuSnapshotView({
             reference={reference}
             columns={columns}
             setupLetter={letterOf(row)}
+            focusKey={focus?.key ?? null}
+            focusTinted={focus != null && !focus.aligned}
+            focusBand={band}
+            focusBandOn={focus?.aligned ?? false}
           />
         ))}
         {pending === 0 && rows.length === 0 && (
@@ -664,8 +748,9 @@ function statCells(columns: Column[]): (Column | Column[])[] {
 
 /**
  * One pass through the gates, as the supplied layout draws it
- * (2026-09-14): a section ruled off from the next, with no card of its
- * own, in two columns — on the left the name, when in the recording, the
+ * (2026-09-14): a section ruled off from the next on a phone (no rule on
+ * a desktop, by request the same day), with no card of its own, in two
+ * columns — on the left the name, when in the recording, the
  * pills (the reference's, a stop, the setup's letter with the whole setup
  * on a click, the knobs that moved against the reference) and when and by
  * whom it was ridden; on the right the figures, in a box of cells, each
@@ -685,6 +770,10 @@ export function SnapshotPassLine({
   columns,
   setupLetter = null,
   pinned = false,
+  focusKey = null,
+  focusTinted = false,
+  focusBand = null,
+  focusBandOn = false,
 }: {
   row: SnapshotPassRow;
   /** What the figures are compared with; null on the reference itself. */
@@ -694,6 +783,17 @@ export function SnapshotPassLine({
    * null when it has none, or when the caller does not letter them. */
   setupLetter?: string | null;
   pinned?: boolean;
+  /** The column the mouse is over on the page, null for none — see the
+   * hover isolation in ImuSnapshotView. */
+  focusKey?: string | null;
+  /** Tint the hovered column's cells here, because the page could not
+   * draw one band across the passes (the columns do not line up). */
+  focusTinted?: boolean;
+  /** Where the hovered column's band sits in this pass's figures column,
+   * px — the last place it stood, so it can fade out there. */
+  focusBand?: { left: number; width: number } | null;
+  /** Whether the band is showing. */
+  focusBandOn?: boolean;
 }) {
   const { session, metrics } = row;
   const sameSpeed =
@@ -706,14 +806,22 @@ export function SnapshotPassLine({
       ? setupDiff(reference.session.setup, session.setup)
       : [];
   const setupTitle = setupLetter ? `Afinação ${setupLetter}` : "Afinação";
+  // A figure cell's part in the hover isolation: faded when another
+  // column has the mouse, tinted when it has it and there is no band.
+  const focusClass = (colKey: string) =>
+    cn(
+      "transition-[opacity,background-color] duration-150",
+      focusKey != null && focusKey !== colKey && "opacity-50",
+      focusTinted && focusKey === colKey && "bg-background/60",
+    );
   return (
     <div
       className={cn(
-        "@container px-5 py-5 sm:p-[22px]",
-        !pinned && "border-t border-border",
+        "@container flex min-h-[180px] flex-col px-5 py-5 sm:p-[22px]",
+        !pinned && "border-t border-border lg:border-t-0",
       )}
     >
-      <div className="flex flex-col gap-4 @min-[1030px]:flex-row @min-[1030px]:items-stretch @min-[1030px]:gap-6">
+      <div className="flex flex-1 flex-col gap-4 @min-[1030px]:flex-row @min-[1030px]:items-stretch @min-[1030px]:gap-6">
         <div className="min-w-0 @min-[1030px]:w-[280px] @min-[1030px]:shrink-0">
           <Link
             href={`/labs/imu/${session.id}`}
@@ -744,12 +852,12 @@ export function SnapshotPassLine({
           )}
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             {pinned && (
-              <span className="rounded-full bg-foreground px-2 py-0.5 font-medium text-background">
+              <span className="rounded-full border border-foreground bg-foreground px-2 py-0.5 font-medium text-background">
                 Referência
               </span>
             )}
             {metrics.stopped && (
-              <span className="rounded-full bg-[#FFEEBE] px-2 py-0.5 font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
+              <span className="rounded-full border border-transparent bg-[#FFEEBE] px-2 py-0.5 font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
                 parou
               </span>
             )}
@@ -761,7 +869,7 @@ export function SnapshotPassLine({
               <Popover>
                 <PopoverTrigger
                   aria-label={`${setupTitle} completa`}
-                  className="cursor-pointer rounded-full bg-foreground px-2 py-0.5 font-medium text-background outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="cursor-pointer rounded-full border border-foreground bg-foreground px-2 py-0.5 font-medium text-background outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {setupTitle}
                 </PopoverTrigger>
@@ -782,7 +890,7 @@ export function SnapshotPassLine({
             {setupChanges.map((change) => (
               <span
                 key={change.label}
-                className="rounded-full bg-foreground px-2 py-0.5 font-medium text-background tabular-nums"
+                className="rounded-full border border-foreground bg-card px-2 py-0.5 font-medium text-foreground tabular-nums"
               >
                 {formatSetupChange(change)}
               </span>
@@ -797,7 +905,28 @@ export function SnapshotPassLine({
           </div>
         </div>
 
-        <div className="@container flex min-w-0 flex-1 flex-col">
+        <div
+          data-pass-figures
+          className="@container relative flex min-w-0 flex-1 flex-col"
+        >
+          {/* This pass's stretch of the hovered column's band: the column's
+              width plus its right rule, the pass's full height (out through
+              the section's padding, so the stretches of neighbouring passes
+              meet). Drawn here and not once over the list, because each pass
+              and each figures column is a container, and a container paints
+              as one piece — only inside it can the band go over the boxes'
+              lines (it is opaque, and covers them) and under the figures
+              (lifted above it with z-10). A light rule on each side, the
+              boxes' own, so its edges read as drawn. Kept mounted and faded,
+              so it leaves where it stood instead of jumping. */}
+          <div
+            aria-hidden
+            className={cn(
+              "imu-focus-band pointer-events-none absolute -inset-y-5 border-x border-border transition-[left,width,opacity] duration-150 sm:-inset-y-[22px]",
+              focusBandOn ? "opacity-100" : "opacity-0",
+            )}
+            style={focusBand ?? undefined}
+          />
           {/* The figures, in a box of cells ruled apart. With 720px of this
               column's room or more they all stand on one line and share it,
               the speeds' cell half again as wide as the others. Narrower,
@@ -813,7 +942,11 @@ export function SnapshotPassLine({
                 Array.isArray(cell) ? (
                   <div
                     key={cell.map((c) => c.key).join("-")}
-                    className="flex w-[300px] grow items-center justify-center border-t border-l border-border px-3 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-[1.5]"
+                    data-stat-col={cell.map((c) => c.key).join("-")}
+                    className={cn(
+                      "flex w-[300px] grow items-center justify-center border-t border-l border-border px-3 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-[1.5] @min-[720px]:px-6",
+                      focusClass(cell.map((c) => c.key).join("-")),
+                    )}
                   >
                     <div className="flex items-start gap-2 sm:gap-3">
                       {cell.map((column, i) => (
@@ -832,7 +965,11 @@ export function SnapshotPassLine({
                 ) : (
                   <div
                     key={cell.key}
-                    className="flex w-[140px] grow items-center justify-center border-t border-l border-border px-4 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-1 @min-[720px]:px-3"
+                    data-stat-col={cell.key}
+                    className={cn(
+                      "flex w-[140px] grow items-center justify-center border-t border-l border-border px-4 py-3.5 @min-[720px]:w-auto @min-[720px]:flex-1 @min-[720px]:px-3",
+                      focusClass(cell.key),
+                    )}
                   >
                     <PassStat
                       column={cell}
@@ -846,7 +983,7 @@ export function SnapshotPassLine({
             </div>
           </div>
           {reference != null && !sameSpeed && (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="relative z-10 mt-2 text-xs text-muted-foreground">
               Velocidade lida de outra forma (
               {metrics.speedSource === "gps"
                 ? "GPS em linha reta"
@@ -864,7 +1001,7 @@ export function SnapshotPassLine({
  * One figure of a pass: its label, the value with its unit, and — against
  * the reference — the difference in a pill whose colours carry the
  * verdict: a black pill with the brand green where better, a black pill
- * with the lab's red where worse, and a white pill with a black outline
+ * with the lab's red where worse, and a clear pill with a black outline
  * where the metric has no better direction or the gap is inside the tie
  * ("≈") — by request, 2026-09-14. The black pills carry the same outline
  * in their own colour, so both kinds are the same size.
@@ -890,11 +1027,11 @@ function PassStat({
   const diff = comparable ? value! - refValue! : null;
   const tone = diff != null ? toneOf(column, diff) : null;
   return (
-    <div className="flex min-w-0 flex-col items-center text-center">
-      <p className="text-sm leading-tight whitespace-nowrap text-foreground">
+    <div className="relative z-10 flex min-w-0 flex-col items-center text-center">
+      <p className="text-xs leading-tight whitespace-nowrap text-foreground">
         {column.label}
       </p>
-      <p className="text-lg leading-tight font-semibold whitespace-nowrap tabular-nums">
+      <p className="text-base leading-tight font-semibold whitespace-nowrap tabular-nums">
         {value == null ? "—" : nf(value, column.digits)}
         {value != null && column.unit && (
           <span className="ml-1 text-base font-normal text-muted-foreground">
@@ -913,7 +1050,8 @@ function PassStat({
             "mt-1.5 rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums",
             tone === "better" && "bg-foreground text-primary",
             tone === "worse" && "bg-foreground text-[#FF5A39]",
-            (tone === "neutral" || tone === "tie") && "bg-card text-foreground",
+            (tone === "neutral" || tone === "tie") &&
+              "bg-transparent text-foreground",
           )}
         >
           {tone === "tie" ? "≈" : signed(diff, column.digits)}
@@ -927,9 +1065,9 @@ function PassStat({
  * the arrow on the figures' own line. */
 function FlowArrow() {
   return (
-    <span aria-hidden className="flex flex-col items-center">
-      <span className="invisible text-sm leading-tight">·</span>
-      <span className="flex h-[1.25em] items-center text-lg">
+    <span aria-hidden className="relative z-10 flex flex-col items-center">
+      <span className="invisible text-xs leading-tight">·</span>
+      <span className="flex h-[1.25em] items-center text-base">
         <ArrowRight className="size-3.5 text-foreground" strokeWidth={2.5} />
       </span>
     </span>
