@@ -999,6 +999,8 @@ export function ImuSetupDetails({
                 <span className="text-muted-foreground">{tile.label}</span>
                 <span className="font-medium whitespace-nowrap tabular-nums">
                   {tile.value}
+                  {tile.unit === "%" ? "" : " "}
+                  {tile.unit}
                 </span>
               </li>
             ))}
@@ -1066,7 +1068,7 @@ function Figure({
 type SetupBlock = {
   kind: string;
   name: string;
-  tiles: { label: string; value: string }[];
+  tiles: { label: string; value: string; unit: string }[];
 };
 
 /** A setup as blocks of labelled values — the fork's, the shock's, the
@@ -1077,68 +1079,76 @@ function setupBlocks(
   labels: ImuSetupCompareLabels,
 ): SetupBlock[] {
   const pt = (n: number) => nf(n, Number.isInteger(n) ? 0 : 1);
-  const clicks = (n: number) => `${pt(n)} ${n === 1 ? "clique" : "cliques"}`;
+  // The supplied layout's words (2026-09-14): the knobs by their English
+  // names, as the dampers' own manuals and the detail cards above say them,
+  // the number apart from its unit so the number can be bold.
+  const clicks = (label: string, n: number) => ({
+    label,
+    value: pt(n),
+    unit: n === 1 ? "click" : "clicks",
+  });
   const damperTiles = (d: ImuDamperSetup | undefined) => {
     if (!d) return [];
-    const tiles: { label: string; value: string }[] = [];
+    const tiles: { label: string; value: string; unit: string }[] = [];
     if (damperSpring(d) === "coil") {
       if (d.springRateLbs != null)
-        tiles.push({ label: "Mola", value: `${pt(d.springRateLbs)} lbs` });
+        tiles.push({
+          label: "Spring",
+          value: pt(d.springRateLbs),
+          unit: "Lbs",
+        });
     } else if (d.pressurePsi != null)
-      tiles.push({ label: "Pressão de ar", value: `${pt(d.pressurePsi)} psi` });
+      tiles.push({
+        label: "Air spring",
+        value: pt(d.pressurePsi),
+        unit: "PSI",
+      });
     if (circuitMode(d, "compression") === "simple") {
       if (d.compression != null)
-        tiles.push({ label: "Compressão", value: clicks(d.compression) });
+        tiles.push(clicks("Compression", d.compression));
     } else {
       if (d.compressionHigh != null)
-        tiles.push({
-          label: "Compressão alta velocidade",
-          value: clicks(d.compressionHigh),
-        });
+        tiles.push(clicks("High-Speed Compression", d.compressionHigh));
       if (d.compressionLow != null)
-        tiles.push({
-          label: "Compressão baixa velocidade",
-          value: clicks(d.compressionLow),
-        });
+        tiles.push(clicks("Low-Speed Compression", d.compressionLow));
     }
     if (circuitMode(d, "rebound") === "simple") {
-      if (d.rebound != null)
-        tiles.push({ label: "Rebound", value: clicks(d.rebound) });
+      if (d.rebound != null) tiles.push(clicks("Rebound", d.rebound));
     } else {
       if (d.reboundHigh != null)
-        tiles.push({
-          label: "Rebound alta velocidade",
-          value: clicks(d.reboundHigh),
-        });
+        tiles.push(clicks("High-Speed Rebound", d.reboundHigh));
       if (d.reboundLow != null)
-        tiles.push({
-          label: "Rebound baixa velocidade",
-          value: clicks(d.reboundLow),
-        });
+        tiles.push(clicks("Low-Speed Rebound", d.reboundLow));
     }
     if (d.sagPct != null)
-      tiles.push({ label: "SAG", value: `${pt(d.sagPct)} %` });
+      tiles.push({ label: "SAG", value: pt(d.sagPct), unit: "%" });
     return tiles;
   };
   const blocks: SetupBlock[] = [
-    { kind: "Garfo", name: labels.fork || "", tiles: damperTiles(setup.fork) },
+    { kind: "Fork", name: labels.fork || "", tiles: damperTiles(setup.fork) },
     {
-      kind: "Amortecedor",
+      kind: "Shock",
       name: labels.shock || "",
       tiles: damperTiles(setup.shock),
     },
     {
       kind: "Pneus",
-      name: "",
+      name: "Pressão",
       tiles: [
         ...(setup.tires?.frontPsi != null
-          ? [{ label: "Frente", value: `${nf(setup.tires.frontPsi, 0)} psi` }]
+          ? [
+              {
+                label: "Frente",
+                value: nf(setup.tires.frontPsi, 0),
+                unit: "PSI",
+              },
+            ]
           : []),
         ...(setup.tires?.rearPsi != null
-          ? [{ label: "Trás", value: `${nf(setup.tires.rearPsi, 0)} psi` }]
+          ? [{ label: "Trás", value: nf(setup.tires.rearPsi, 0), unit: "PSI" }]
           : []),
         ...(setup.rider?.weightKg != null
-          ? [{ label: "Rider", value: `${nf(setup.rider.weightKg, 0)} kg` }]
+          ? [{ label: "Rider", value: pt(setup.rider.weightKg), unit: "Kg" }]
           : []),
       ],
     },
@@ -1155,30 +1165,47 @@ function SetupTiles({
 }) {
   const blocks = setupBlocks(setup, labels);
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-2">
-      {blocks.map((block) => (
-        <div key={block.kind}>
-          <p className="text-base">
-            {block.kind}.{" "}
-            {block.name && <span className="font-semibold">{block.name}</span>}
-          </p>
-          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(104px,1fr))] gap-px overflow-hidden rounded-[14px] border border-border bg-border bg-clip-padding">
-            {block.tiles.map((tile) => (
-              <div
-                key={tile.label}
-                className="flex min-h-[96px] flex-col justify-center bg-card px-3 py-3 text-center"
-              >
-                <p className="text-[11px] leading-tight text-muted-foreground">
-                  {tile.label}
-                </p>
-                <p className="mt-1.5 leading-tight font-semibold tabular-nums">
-                  {tile.value}
-                </p>
+    // The setup form's own hatched plate (imu-event-band), holding a white
+    // card per block — fork, shock, tyres — each with its knobs in a box of
+    // cells ruled apart (the supplied layout, 2026-09-14). The rules are
+    // each cell's top and left edge, the first row's and column's tucked
+    // under the box's clipped rim, so a wrapped row on a narrow card is
+    // ruled like the first.
+    <div className="imu-event-band mt-6 rounded-[18px] border border-border p-3 sm:p-4">
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+        {blocks.map((block) => (
+          <div
+            key={block.kind}
+            className="rounded-[14px] border border-border bg-card p-4 sm:p-5"
+          >
+            <p className="text-base">
+              {block.kind}.{" "}
+              {block.name && (
+                <span className="font-semibold">{block.name}</span>
+              )}
+            </p>
+            <div className="mt-4 overflow-hidden rounded-[14px] border border-border">
+              <div className="-mt-px -ml-px grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))]">
+                {block.tiles.map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="flex min-h-[76px] flex-col items-center justify-center border-t border-l border-border px-2 py-3 text-center"
+                  >
+                    <p className="text-xs leading-tight text-muted-foreground">
+                      {tile.label}
+                    </p>
+                    <p className="mt-1.5 text-base leading-tight whitespace-nowrap tabular-nums">
+                      <span className="font-semibold">{tile.value}</span>
+                      {tile.unit === "%" ? "" : " "}
+                      {tile.unit}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
