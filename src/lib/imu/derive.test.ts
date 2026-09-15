@@ -9,6 +9,8 @@ import {
   bandpassSeries,
   corneringGSeries,
   impactDecayRatio,
+  impactRecoveryRatio,
+  recoveryHits,
   curveMomentum,
   estimateMountingYaw,
   fusedSpeedKmhSeries,
@@ -1171,5 +1173,81 @@ describe("impactDecayRatio", () => {
     const flat = new Float32Array(t.length);
     expect(impactDecayRatio(t, flat, flat, 2000)).toBeNull();
     expect(impactDecayRatio(t, flat, hit(60), 3900)).toBeNull();
+  });
+});
+
+describe("impactRecoveryRatio", () => {
+  // 4 s at 400 Hz, a hit at 1 s and the next at 1.8 s: an 8 G spike, then
+  // a 6 Hz bounce that dies with the given time constant.
+  const fs = 400;
+  const t = Float64Array.from({ length: 4 * fs }, (_, i) => (i * 1000) / fs);
+  const hits = (tauMs: number) =>
+    Float32Array.from(t, (ms) => {
+      let v = 0;
+      for (const at of [1000, 1800]) {
+        const dt = ms - at;
+        if (dt < 0) continue;
+        v +=
+          dt < 10
+            ? 8
+            : 3 * Math.exp(-dt / tauMs) * Math.sin((2 * Math.PI * 6 * dt) / 1000);
+      }
+      return v;
+    });
+
+  it("reads less where the frame has settled before the next hit", () => {
+    const fast = hits(60);
+    const slow = hits(600);
+    const rFast = impactRecoveryRatio(
+      t,
+      bandpassSeries(t, fast, 2, 12),
+      fast,
+      1000,
+      1800,
+    )!;
+    const rSlow = impactRecoveryRatio(
+      t,
+      bandpassSeries(t, slow, 2, 12),
+      slow,
+      1000,
+      1800,
+    )!;
+    expect(rFast).toBeGreaterThan(0);
+    expect(rFast).toBeLessThan(rSlow);
+    expect(rSlow).toBeLessThan(1);
+  });
+
+  it("finds the hits at the floor, the highest sample within the merge window", () => {
+    const x = hits(60);
+    // Two spikes of 8 G, 800 ms apart, each a 10 ms plateau (the second
+    // rides the first's bounce, so its highest sample can be any of its
+    // own); the bounce after each peaks under 3 G, so it is no hit.
+    const found = recoveryHits(t, x);
+    expect(found).toHaveLength(2);
+    expect(found[0]).toBeGreaterThanOrEqual(1000);
+    expect(found[0]).toBeLessThan(1010);
+    expect(found[1]).toBeGreaterThanOrEqual(1800);
+    expect(found[1]).toBeLessThan(1810);
+    // A hit under the floor is no hit.
+    const faint = Float32Array.from(x, (v) => v * 0.3);
+    expect(recoveryHits(t, faint)).toEqual([]);
+    // Two spikes 100 ms apart are one hit, the higher's instant.
+    const twin = Float32Array.from(t, (ms) =>
+      ms >= 1000 && ms < 1010 ? 5 : ms >= 1100 && ms < 1110 ? 7 : 0,
+    );
+    expect(recoveryHits(t, twin)).toEqual([1100]);
+  });
+
+  it("is null when the hits are not successive or the window has no room", () => {
+    const x = hits(60);
+    const band = bandpassSeries(t, x, 2, 12);
+    // Too far apart to be one after the other.
+    expect(impactRecoveryRatio(t, band, x, 1000, 1000 + 1600)).toBeNull();
+    // So close the window before the second would sit on the first's peak.
+    expect(impactRecoveryRatio(t, band, x, 1000, 1200)).toBeNull();
+    // The wrong way round, and a hit with no peak.
+    expect(impactRecoveryRatio(t, band, x, 1800, 1000)).toBeNull();
+    const flat = new Float32Array(t.length);
+    expect(impactRecoveryRatio(t, flat, flat, 1000, 1800)).toBeNull();
   });
 });

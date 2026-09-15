@@ -513,6 +513,94 @@ export function impactDecayRatio(
   return Math.sqrt(sum / (i1 - i0 + 1)) / peak;
 }
 
+/** Two hits this close, ms, are successive: the second arrives while the
+ * damper may still be returning from the first. */
+export const RECOVERY_GAP_MS = 1500;
+/** A hit the recovery reads: the dynamic force at or above this, G — the
+ * impact detector's own floor (4 G of |g|), WITHOUT its per-run scaling
+ * that keeps the impacts to a run's strongest few. A real run's impacts
+ * came 1,8 s apart or more (R0045, R0050, R0059, 2026-09-15): the runs of
+ * hits the recovery is about are the medium ones between them. */
+export const RECOVERY_HIT_G = 3;
+/** Everything above the floor within this of a hit is the same hit, ms —
+ * enough for the window before the next to clear the first's peak. */
+export const RECOVERY_HIT_MERGE_MS = 300;
+
+/**
+ * The hits the recovery pairs up: the instants where the dynamic force
+ * peaks at RECOVERY_HIT_G or more, the highest sample winning within
+ * RECOVERY_HIT_MERGE_MS of the first above the floor, the impact
+ * detector's own way. Sorted by time.
+ */
+export function recoveryHits(
+  tMs: Float64Array,
+  dynamicG: ArrayLike<number>,
+): number[] {
+  const n = tMs.length;
+  const hits: number[] = [];
+  let i = 0;
+  while (i < n) {
+    if (Math.abs(dynamicG[i]) < RECOVERY_HIT_G) {
+      i++;
+      continue;
+    }
+    let best = i;
+    let j = i;
+    while (j < n && tMs[j] - tMs[i] <= RECOVERY_HIT_MERGE_MS) {
+      if (Math.abs(dynamicG[j]) > Math.abs(dynamicG[best])) best = j;
+      j++;
+    }
+    hits.push(tMs[best]);
+    i = j;
+  }
+  return hits;
+}
+/** The window read before the next impact, ms: from this far ahead of its
+ * instant until the edge of its own peak. */
+export const RECOVERY_BEFORE_MS = 250;
+export const RECOVERY_UNTIL_MS = DECAY_PEAK_HALF_MS;
+
+/**
+ * What is left of an impact when the next one arrives (the "Recuperação"
+ * of the setup dynamics, by request, 2026-09-15: "a oscilação que ainda
+ * sobra quando chega o impacto seguinte"): the RMS of the chassis band
+ * over the 200 ms before the next hit's peak, over the first hit's own
+ * peak — the same ratio as impactDecayRatio, read at the moment it
+ * matters rather than at a fixed delay. A bike that has settled before
+ * the next hit reads near zero; one still bobbing, or packing down
+ * through a run of hits, reads more. Null when the two are not
+ * successive (further apart than RECOVERY_GAP_MS), when the window would
+ * run into the first hit's own peak, or when the peak is nothing.
+ */
+export function impactRecoveryRatio(
+  tMs: Float64Array,
+  chassisBand: ArrayLike<number>,
+  dynamicG: ArrayLike<number>,
+  impactMs: number,
+  nextImpactMs: number,
+): number | null {
+  const n = tMs.length;
+  const gap = nextImpactMs - impactMs;
+  if (n === 0 || gap <= 0 || gap > RECOVERY_GAP_MS) return null;
+  if (nextImpactMs - RECOVERY_BEFORE_MS < impactMs + DECAY_PEAK_HALF_MS)
+    return null;
+  const at = (ms: number) => Math.min(n - 1, lowerBoundIndex(tMs, ms));
+  let peak = 0;
+  for (
+    let i = at(impactMs - DECAY_PEAK_HALF_MS);
+    i <= at(impactMs + DECAY_PEAK_HALF_MS);
+    i++
+  )
+    peak = Math.max(peak, Math.abs(dynamicG[i]));
+  if (peak <= 0) return null;
+  const i0 = at(nextImpactMs - RECOVERY_BEFORE_MS);
+  const i1 = at(nextImpactMs - RECOVERY_UNTIL_MS);
+  if (i1 <= i0) return null;
+  let sum = 0;
+  for (let i = i0; i <= i1; i++) sum += chassisBand[i] * chassisBand[i];
+  return Math.sqrt(sum / (i1 - i0 + 1)) / peak;
+}
+
 /**
  * A channel's mean over a window centred on each sample, by TIME — a gap in
  * the recording widens nothing — moved along by two pointers. Shared by the

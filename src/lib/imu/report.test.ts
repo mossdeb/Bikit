@@ -137,6 +137,50 @@ describe("buildSessionReport", () => {
     expect(report.trail.headline).toMatch(/1 curvas, 1 impactos/);
   });
 
+  it("reads the recovery only where the hits come in runs", () => {
+    // The drawn ride has one hit: nothing to recover from before a next.
+    const one = buildSessionReport(ride());
+    expect(
+      one.bike.metrics.find((m) => m.label === "Recuperação"),
+    ).toBeUndefined();
+
+    // Four hits 700 ms apart through the rough stretch, each an 8 G spike
+    // with a 6 Hz bounce that dies in 80 ms: three successive pairs, and
+    // the frame is settled long before each next hit.
+    const runs = ride();
+    const { tMs, az } = runs.channels;
+    const hits = [21000, 21700, 22400, 23100];
+    for (let i = 0; i < tMs.length; i++) {
+      if (tMs[i] < 20000 || tMs[i] >= 24000) continue;
+      let v = 1;
+      for (const at of hits) {
+        const dt = tMs[i] - at;
+        if (dt < 0) continue;
+        v +=
+          dt < 30
+            ? 7
+            : 3 * Math.exp(-dt / 80) * Math.sin((2 * Math.PI * 6 * dt) / 1000);
+      }
+      az[i] = v;
+    }
+    runs.events = [
+      ...runs.events.filter((e) => e.kind !== "impact"),
+      ...hits.map((timeMs) => ({
+        kind: "impact" as const,
+        timeMs,
+        severity: "hard" as const,
+        confidence: 0.95,
+      })),
+    ];
+    const report = buildSessionReport(runs);
+    const recovery = report.bike.metrics.find((m) => m.label === "Recuperação");
+    expect(recovery).toBeDefined();
+    expect(recovery!.raw).toBeGreaterThanOrEqual(0);
+    expect(recovery!.raw).toBeLessThan(10);
+    expect(recovery!.better).toBe("lower");
+    expect(recovery!.hint).toMatch(/mediana de 3/);
+  });
+
   it("says what it cannot say without a track", () => {
     const report = buildSessionReport(ride(false));
     // The brake still counts — it is read off the accelerometer — but

@@ -26,6 +26,10 @@ import {
   DECAY_TO_MS,
   fusedSpeedKmhSeries,
   impactDecayRatio,
+  impactRecoveryRatio,
+  RECOVERY_GAP_MS,
+  RECOVERY_HIT_G,
+  recoveryHits,
   gForceOf,
   gpsMeanSpeed,
   impactEnergy,
@@ -84,6 +88,8 @@ const BRAKE_BEFORE_CURVE_MS = 2000;
 const IMPACT_WINDOW_MS = 150;
 /** How many of anything a highlights list names. */
 const HIGHLIGHTS = 3;
+/** Fewer successive impacts than this and the recovery says nothing. */
+const RECOVERY_MIN_PAIRS = 3;
 
 const pt = (value: number, digits = 0) =>
   value.toLocaleString("pt-PT", {
@@ -431,6 +437,39 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         });
     }
 
+    // Recovery: what is left of a hit when the next one lands, for the
+    // hits that come in runs (within RECOVERY_GAP_MS of each other) — the
+    // "Recuperação" axis of the setup dynamics (by request, 2026-09-15).
+    // Where the decay reads the damper closing one hit, this reads whether
+    // it was done before the next: the bike arriving settled, or still
+    // bobbing and packing down through the run. The hits are read at the
+    // detector's floor and not from the impacts, which a run keeps to its
+    // strongest few, seconds apart.
+    const hits = recoveryHits(tMs, dynamic);
+    const recoveries: number[] = [];
+    for (let k = 0; k + 1 < hits.length; k++) {
+      const ratio = impactRecoveryRatio(
+        tMs,
+        chassis,
+        dynamic,
+        hits[k],
+        hits[k + 1],
+      );
+      if (ratio != null) recoveries.push(ratio);
+    }
+    const recoveryMedian =
+      recoveries.length >= RECOVERY_MIN_PAIRS ? median(recoveries) : null;
+    if (recoveryMedian != null)
+      metrics.push({
+        label: "Recuperação",
+        value: pt(100 * recoveryMedian, 1),
+        unit: "%",
+        raw: 100 * recoveryMedian,
+        better: "lower",
+        tie: 1,
+        hint: `energia de 2–12 Hz nos 200 ms antes da pancada seguinte sobre o pico da anterior, para pancadas de ${pt(RECOVERY_HIT_G + 1)} G ou mais a menos de ${pt(RECOVERY_GAP_MS / 1000, 1)} s uma da outra; mediana de ${recoveries.length}. Menos é a bicicleta a chegar assente à próxima`,
+      });
+
     // Attitude on rough ground: how much the frame pitched and rolled.
     if (useRough && session.aligned) {
       const lean = leanSeries(tMs, ay, az, gx, gz, speed);
@@ -444,11 +483,18 @@ export function buildSessionReport(session: ImuSessionData): SessionReport {
         }
       const sl = stddev(leans);
       const sp = stddev(pitches);
+      // The number the figure is compared on is the pitch alone — the
+      // "Suporte" axis of the setup dynamics (2026-09-15): how much the
+      // frame dived and rocked through the rough is what the chassis
+      // resisted, where the lean is the rider's line as much as the bike.
       if (sl != null && sp != null)
         metrics.push({
           label: "Estabilidade",
           value: `±${pt(sp, 0)}° · ±${pt(sl, 0)}°`,
-          hint: "desvio do pitch e da inclinação nas zonas acidentadas",
+          raw: sp,
+          better: "lower",
+          tie: 1,
+          hint: "desvio do pitch e da inclinação nas zonas acidentadas; menos pitch é o quadro a resistir melhor às compressões",
         });
     }
 
