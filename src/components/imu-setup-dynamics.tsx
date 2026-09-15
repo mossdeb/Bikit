@@ -456,7 +456,7 @@ function Radar({
             )}
             style={dx === 0 ? { top: `${(100 * y) / SIZE}%` } : undefined}
           >
-            <span className="inline-flex rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-background">
+            <span className="inline-flex rounded-full border border-foreground bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-foreground">
               {axis.name}
             </span>
           </div>
@@ -493,7 +493,7 @@ function Radar({
                   transform,
                 }}
               >
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-1.5 py-px text-xs font-semibold whitespace-nowrap tabular-nums">
+                <span className="inline-flex items-center gap-1 rounded-full border border-foreground bg-foreground px-1.5 py-px text-xs font-semibold whitespace-nowrap text-background tabular-nums">
                   <span
                     aria-hidden
                     className="size-1.5 rounded-full"
