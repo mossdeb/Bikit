@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -298,6 +298,45 @@ function SetupPicker({
   );
 }
 
+/** How long a vertex takes to reach its new place, ms. */
+const TWEEN_MS = 400;
+
+/**
+ * A list of numbers eased towards its target whenever the target changes,
+ * from wherever the list is at that moment — a change mid-flight turns,
+ * it does not jump. An SVG's `points` cannot be transitioned in CSS, so
+ * this is a requestAnimationFrame loop with an ease-out; with reduced
+ * motion asked for, the first frame lands. The target travels as a
+ * string so a fresh array each render does not restart the loop.
+ */
+function useTweened(target: number[]): number[] {
+  const targetKey = target.join(",");
+  const [shown, setShown] = useState<number[]>(() => target.map(() => 0));
+  const shownRef = useRef(shown);
+  useEffect(() => {
+    const to = targetKey === "" ? [] : targetKey.split(",").map(Number);
+    const from =
+      shownRef.current.length === to.length
+        ? shownRef.current
+        : to.map(() => 0);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches;
+    const start = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const t = reduced ? 1 : Math.min(1, (now - start) / TWEEN_MS);
+      const eased = 1 - (1 - t) ** 3;
+      const next = to.map((v, i) => from[i] + (v - from[i]) * eased);
+      shownRef.current = next;
+      setShown(next);
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [targetKey]);
+  return shown;
+}
+
 /** The radar: four rings as diamonds, the tie band shaded inside the
  * outer one, the two setups as filled polygons, and a black pill at each
  * vertex with the axis's name and the two scores in the setups' dots. */
@@ -319,11 +358,20 @@ function Radar({
   const ring = (fraction: number) =>
     DYNAMICS_AXES.map((axis) => point(axis.key, RADIUS * fraction).join(","))
       .join(" ");
-  const polygon = (score: DynamicsScore) =>
-    DYNAMICS_AXES.map((axis) => {
-      const s = score.axes.find((x) => x.key === axis.key)?.score ?? 0;
-      return point(axis.key, (RADIUS * s) / 100).join(",");
-    }).join(" ");
+  // The vertices tween from where they are to where the picked setups
+  // put them (by request, 2026-09-15): the two polygons' four scores as
+  // one list, zero — the centre — until the files are read, so the first
+  // reading grows out of the middle.
+  const targets = scores.flatMap((s) =>
+    DYNAMICS_AXES.map((axis) =>
+      ready && s ? (s.axes.find((x) => x.key === axis.key)?.score ?? 0) : 0,
+    ),
+  );
+  const shown = useTweened(targets);
+  const polygon = (i: number) =>
+    DYNAMICS_AXES.map((axis, k) =>
+      point(axis.key, (RADIUS * shown[4 * i + k]) / 100).join(","),
+    ).join(" ");
   // The tie band: from one noise inside the rim (1 − 1/SPAN) to the rim.
   const tieInner = 1 - 1 / DYNAMICS_NOISE_SPAN;
 
@@ -369,7 +417,7 @@ function Radar({
             s ? (
               <polygon
                 key={i}
-                points={polygon(s)}
+                points={polygon(i)}
                 fill={SETUP_COLOURS[i]}
                 // Both light, so neither hides the other where they
                 // overlap (by request, 2026-09-15; they were 45 % and 35 %).
