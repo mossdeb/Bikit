@@ -16,9 +16,10 @@ import type { ReportMetric } from "@/lib/imu/report";
  * The setup dynamics at the head of the setups page (by request,
  * 2026-09-15, from a supplied layout): a four-axis radar of two setups
  * chosen from two dropdowns — absorption at the top, control on the
- * right, support at the foot, recovery on the left — on the lab's hatched
- * plate, and beside it the four axes explained once, with both setups'
- * scores and the figures each score is made of.
+ * right, support at the foot, recovery on the left — on a plain plate
+ * (the lab's hatch came off by request), and beside it the four axes
+ * explained once, with both setups' scores and the figures each score is
+ * made of.
  *
  * The scale is scoreDynamics's: 100 % is the best of the setups on the
  * trail, and the ring the chart shades is one noise from it — a tie. The
@@ -33,7 +34,7 @@ const SETUP_COLOURS = ["var(--chart-1)", "var(--chart-2)"] as const;
  * the four compass directions in the axes' order. */
 const SIZE = 400;
 const CENTRE = SIZE / 2;
-const RADIUS = 122;
+const RADIUS = 150;
 const DIRECTIONS: Record<DynamicsAxisKey, [number, number]> = {
   absorption: [0, -1],
   control: [1, 0],
@@ -143,7 +144,7 @@ export function ImuSetupDynamics({
             )}
           </div>
 
-          <div className="imu-event-band mt-5 rounded-[14px] border border-border p-3 sm:p-4">
+          <div className="mt-5 rounded-[14px] border border-border p-3 sm:p-4">
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
@@ -153,18 +154,13 @@ export function ImuSetupDynamics({
                     : "Aparece quando houver duas afinações nesta pista: cada eixo mede um setup contra o outro."}
               </p>
             ) : (
-              <Radar
-                scores={chosen}
-                letters={[a, b]}
-                ready={ready}
-                pct={pct}
-              />
+              <Radar scores={chosen} letters={[a, b]} ready={ready} pct={pct} />
             )}
           </div>
           {enough && (
             <p className="mt-3 text-xs text-muted-foreground">
-              100 % é o melhor dos setups em cada eixo. A faixa junto ao aro é
-              o empate: até um ruído entre voltas iguais do melhor; a{" "}
+              100 % é o melhor dos setups em cada eixo. A faixa junto ao aro é o
+              empate: até um ruído entre voltas iguais do melhor; a{" "}
               {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
             </p>
           )}
@@ -200,7 +196,9 @@ export function ImuSetupDynamics({
               );
               // The figures behind the score, one line each, both setups.
               const labels = [
-                ...new Set(per.flatMap((x) => x?.parts.map((p) => p.label) ?? [])),
+                ...new Set(
+                  per.flatMap((x) => x?.parts.map((p) => p.label) ?? []),
+                ),
               ];
               return (
                 <li key={axis.key} className="py-4 first:pt-3 last:pb-0">
@@ -231,7 +229,9 @@ export function ImuSetupDynamics({
                         >
                           <span className="truncate">{label}</span>
                           {per.map((x, i) => {
-                            const part = x?.parts.find((p) => p.label === label);
+                            const part = x?.parts.find(
+                              (p) => p.label === label,
+                            );
                             return (
                               <span
                                 key={i}
@@ -319,8 +319,9 @@ function useTweened(target: number[]): number[] {
       shownRef.current.length === to.length
         ? shownRef.current
         : to.map(() => 0);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)")
-      .matches;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     const start = performance.now();
     let raf = 0;
     const step = (now: number) => {
@@ -356,8 +357,9 @@ function Radar({
     return [CENTRE + dx * r, CENTRE + dy * r];
   };
   const ring = (fraction: number) =>
-    DYNAMICS_AXES.map((axis) => point(axis.key, RADIUS * fraction).join(","))
-      .join(" ");
+    DYNAMICS_AXES.map((axis) =>
+      point(axis.key, RADIUS * fraction).join(","),
+    ).join(" ");
   // The vertices tween from where they are to where the picked setups
   // put them (by request, 2026-09-15): the two polygons' four scores as
   // one list, zero — the centre — until the files are read, so the first
@@ -376,12 +378,15 @@ function Radar({
   const tieInner = 1 - 1 / DYNAMICS_NOISE_SPAN;
 
   return (
-    <div className="relative mx-auto aspect-square w-full max-w-[400px]">
+    <div className="relative mx-auto aspect-square w-full max-w-[460px]">
       <svg
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="block h-full w-full"
         role="img"
-        aria-label={`Dinâmica do setup: ${letters.filter(Boolean).map((l) => `Setup ${l}`).join(" contra ")}`}
+        aria-label={`Dinâmica do setup: ${letters
+          .filter(Boolean)
+          .map((l) => `Setup ${l}`)
+          .join(" contra ")}`}
       >
         <polygon
           points={`${ring(1)} ${ring(tieInner)}`}
