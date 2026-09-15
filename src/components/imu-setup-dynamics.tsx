@@ -371,7 +371,9 @@ function Radar({
                 key={i}
                 points={polygon(s)}
                 fill={SETUP_COLOURS[i]}
-                fillOpacity={i === 0 ? 0.45 : 0.35}
+                // The second, on top, lighter: the violet at 35 % hid the
+                // green under it (by request, 2026-09-15).
+                fillOpacity={i === 0 ? 0.45 : 0.2}
                 stroke={SETUP_COLOURS[i]}
                 strokeWidth={1}
                 strokeLinejoin="round"
