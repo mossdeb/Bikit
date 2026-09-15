@@ -419,8 +419,9 @@ function Radar({
                 points={polygon(i)}
                 fill={SETUP_COLOURS[i]}
                 // Both light, so neither hides the other where they
-                // overlap (by request, 2026-09-15; they were 45 % and 35 %).
-                fillOpacity={0.2}
+                // overlap, the violet lighter still — it reads darker than
+                // the green at the same opacity (by request, 2026-09-15).
+                fillOpacity={i === 0 ? 0.2 : 0.12}
                 stroke={SETUP_COLOURS[i]}
                 strokeWidth={1}
                 strokeLinejoin="round"
