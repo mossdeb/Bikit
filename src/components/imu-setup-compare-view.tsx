@@ -23,7 +23,9 @@ import {
   SpeedGaugeIcon,
 } from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
+import { ImuSetupDynamics } from "@/components/imu-setup-dynamics";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
+import { dynamicsMetricRules, scoreDynamics } from "@/lib/imu/setup-dynamics";
 import {
   buildSessionReport,
   type ReportMetric,
@@ -305,20 +307,31 @@ export function ImuSetupCompareView({
    * median of every column across them, for the choice at the foot. */
   const groups = [...setupLetters.entries()].map(([key, letter]) => {
     const members = all.filter((c) => c.setup && setupKey(c.setup) === key);
+    // Every figure with a number, not only the table's columns: the
+    // dynamics at the head read the Bike section's whole set.
     const values = new Map<string, number[]>();
     for (const c of members) {
       const r = reportOf(c);
       if (!r) continue;
-      for (const { label } of COLUMNS) {
-        const raw = metricOf(r, label)?.raw;
-        if (raw != null) values.set(label, [...(values.get(label) ?? []), raw]);
-      }
+      for (const m of [...r.rider.metrics, ...r.bike.metrics, ...r.trail.metrics])
+        if (m.raw != null)
+          values.set(m.label, [...(values.get(m.label) ?? []), m.raw]);
     }
     const medians = new Map<string, number>();
     for (const [label, list] of values) medians.set(label, median(list)!);
     return { key, letter, setup: members[0].setup!, members, values, medians };
   });
   const unset = all.filter((c) => !c.setup);
+
+  // The dynamics at the head: each setup scored on the four axes against
+  // the best of them, from the medians above — only the setups whose
+  // files are all read, so a score never moves under the reader.
+  const loadedReports = all
+    .map(reportOf)
+    .filter((r): r is SessionReport => r != null);
+  const dynamicsRules = dynamicsMetricRules(loadedReports);
+  const dynamicsGroups = groups.filter((g) => g.members.every(reportOf));
+  const dynamicsScores = scoreDynamics(dynamicsGroups, dynamicsRules);
 
   const list = (items: string[]) =>
     items.length <= 1
@@ -536,6 +549,18 @@ export function ImuSetupCompareView({
           </p>
         </div>
       </div>
+
+      <ImuSetupDynamics
+        setups={groups.map((g) => ({
+          letter: g.letter,
+          summary: setupSummary(g.setup, labels) ?? "",
+          runs: g.members.length,
+        }))}
+        scores={dynamicsScores}
+        rules={dynamicsRules}
+        referenceLetter={letterOf(reference)}
+        pending={pending > 0}
+      />
 
       {runs.length > 0 && (
         <div className="flex flex-wrap gap-2">
