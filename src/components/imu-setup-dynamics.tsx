@@ -22,7 +22,7 @@ import type { ReportMetric } from "@/lib/imu/report";
  * made of.
  *
  * The scale is scoreDynamics's: 100 % is the best of the setups on the
- * trail, and the ring the chart shades is one noise from it — a tie. The
+ * trail, and the first ring in from the rim is one noise — a tie. The
  * chart waits for two setups: with one, every axis would read 100 %.
  */
 
@@ -159,9 +159,9 @@ export function ImuSetupDynamics({
           </div>
           {enough && (
             <p className="mt-3 text-xs text-muted-foreground">
-              100 % é o melhor dos setups em cada eixo. A faixa junto ao aro é o
-              empate: até um ruído entre voltas iguais do melhor; a{" "}
-              {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
+              100 % é o melhor dos setups em cada eixo. Cada anel é um ruído
+              entre voltas iguais: dentro do primeiro a contar do aro é
+              empate; a {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
             </p>
           )}
         </div>
@@ -338,9 +338,9 @@ function useTweened(target: number[]): number[] {
   return shown;
 }
 
-/** The radar: four rings as diamonds, the tie band shaded inside the
- * outer one, the two setups as filled polygons, and a black pill at each
- * vertex with the axis's name and the two scores in the setups' dots. */
+/** The radar: four rings as diamonds, the two setups as filled polygons,
+ * and a black pill at each vertex with the axis's name and the two
+ * scores in the setups' dots. */
 function Radar({
   scores,
   letters,
@@ -374,9 +374,6 @@ function Radar({
     DYNAMICS_AXES.map((axis, k) =>
       point(axis.key, (RADIUS * shown[4 * i + k]) / 100).join(","),
     ).join(" ");
-  // The tie band: from one noise inside the rim (1 − 1/SPAN) to the rim.
-  const tieInner = 1 - 1 / DYNAMICS_NOISE_SPAN;
-
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[460px]">
       <svg
@@ -388,11 +385,8 @@ function Radar({
           .map((l) => `Setup ${l}`)
           .join(" contra ")}`}
       >
-        <polygon
-          points={`${ring(1)} ${ring(tieInner)}`}
-          fillRule="evenodd"
-          className="fill-foreground/[0.06]"
-        />
+        {/* Four rings, one noise apart: the first in from the rim is the
+            tie. (A shaded band said the same and came off by request.) */}
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <polygon
             key={f}
