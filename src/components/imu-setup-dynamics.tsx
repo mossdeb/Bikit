@@ -373,7 +373,7 @@ function Radar({
                 fill={SETUP_COLOURS[i]}
                 fillOpacity={i === 0 ? 0.45 : 0.35}
                 stroke={SETUP_COLOURS[i]}
-                strokeWidth={1.5}
+                strokeWidth={1}
                 strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
               />
