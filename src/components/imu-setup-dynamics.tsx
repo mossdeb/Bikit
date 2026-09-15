@@ -144,7 +144,7 @@ export function ImuSetupDynamics({
             )}
           </div>
 
-          <div className="mt-5 rounded-[14px] border border-border p-3 sm:p-4">
+          <div className="@container mt-5 rounded-[14px] border border-border p-3 sm:p-4">
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
@@ -160,8 +160,8 @@ export function ImuSetupDynamics({
           {enough && (
             <p className="mt-3 text-xs text-muted-foreground">
               100 % é o melhor dos setups em cada eixo. Cada anel é um ruído
-              entre voltas iguais: dentro do primeiro a contar do aro é
-              empate; a {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
+              entre voltas iguais: dentro do primeiro a contar do aro é empate;
+              a {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
             </p>
           )}
         </div>
@@ -430,55 +430,81 @@ function Radar({
           )}
       </svg>
 
-      {/* The pills: over the top vertex and under the bottom one, centred;
-          the side ones over the left vertex and under the right, flush
-          with the box — a pill with two scores is wider than the room
-          beside a vertex at any width the card gets. */}
+      {/* The axis labels, name only, at the ends of the axes (by request,
+          2026-09-15): over the top vertex and under the bottom one; beside
+          the left and right ones where the plate is wide enough for the
+          word to reach past the box — under 600 px of plate the side
+          labels stack over the left vertex and under the right, flush
+          with the box, leaving the vertex's chips their room. */}
       {DYNAMICS_AXES.map((axis) => {
-        const [, y] = point(axis.key, RADIUS + 10);
+        const [, y] = point(axis.key, RADIUS + 16);
         const [dx, dy] = DIRECTIONS[axis.key];
-        const values = scores.map(
-          (s) => s?.axes.find((a) => a.key === axis.key)?.score ?? null,
-        );
-        const style =
-          dx === 0
-            ? {
-                left: "50%",
-                top: `${(100 * y) / SIZE}%`,
-                transform: `translate(-50%, ${dy < 0 ? -100 : 0}%)`,
-              }
-            : dx < 0
-              ? {
-                  left: 0,
-                  top: "50%",
-                  transform: "translateY(calc(-100% - 8px))",
-                }
-              : { right: 0, top: "50%", transform: "translateY(8px)" };
         return (
           <div
             key={axis.key}
-            className="pointer-events-none absolute"
-            style={style}
+            className={cn(
+              "pointer-events-none absolute",
+              dx === 0 && "left-1/2 -translate-x-1/2",
+              dx === 0 && dy < 0 && "-translate-y-full",
+              // The side ones: 87.5 % is the rim, (CENTRE − RADIUS) / SIZE
+              // in from the box's edge — one of those literals Tailwind
+              // must find written out.
+              dx < 0 &&
+                "top-1/2 left-0 -translate-y-[calc(100%+36px)] @min-[600px]:right-[calc(87.5%+8px)] @min-[600px]:left-auto @min-[600px]:-translate-y-1/2",
+              dx > 0 &&
+                "top-1/2 right-0 translate-y-[36px] @min-[600px]:left-[calc(87.5%+8px)] @min-[600px]:right-auto @min-[600px]:-translate-y-1/2",
+            )}
+            style={dx === 0 ? { top: `${(100 * y) / SIZE}%` } : undefined}
           >
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
-              <span className="font-semibold">{axis.name}</span>
-              {ready &&
-                values.map((v, i) => (
-                  <span key={i} className="inline-flex items-center gap-1">
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: SETUP_COLOURS[i] }}
-                    />
-                    <span className="font-normal tabular-nums">
-                      {pct(v).replace(" %", "")}
-                    </span>
-                  </span>
-                ))}
+            <span className="inline-flex rounded-full bg-foreground px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-background">
+              {axis.name}
             </span>
           </div>
         );
       })}
+
+      {/* Each setup's score as a chip at its own vertex, riding the tween:
+          on the vertical axes the first setup's to the left of its point
+          and the second's to the right, on the horizontal ones over and
+          under — so two chips never cover each other however close the
+          points are, and read as one label when they coincide. */}
+      {ready &&
+        DYNAMICS_AXES.map((axis, k) => {
+          const [dx] = DIRECTIONS[axis.key];
+          return scores.map((s, i) => {
+            const value = s?.axes.find((a) => a.key === axis.key)?.score;
+            if (value == null) return null;
+            const [x, y] = point(axis.key, (RADIUS * shown[4 * i + k]) / 100);
+            const transform =
+              dx === 0
+                ? i === 0
+                  ? "translate(calc(-100% - 6px), -50%)"
+                  : "translate(6px, -50%)"
+                : i === 0
+                  ? "translate(-50%, calc(-100% - 12px))"
+                  : "translate(-50%, 12px)";
+            return (
+              <div
+                key={`${axis.key}-${i}`}
+                className="pointer-events-none absolute"
+                style={{
+                  left: `${(100 * x) / SIZE}%`,
+                  top: `${(100 * y) / SIZE}%`,
+                  transform,
+                }}
+              >
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-1.5 py-px text-xs font-semibold whitespace-nowrap tabular-nums">
+                  <span
+                    aria-hidden
+                    className="size-1.5 rounded-full"
+                    style={{ background: SETUP_COLOURS[i] }}
+                  />
+                  {pct(value).replace(" %", "")}
+                </span>
+              </div>
+            );
+          });
+        })}
       {!ready && (
         <p className="absolute inset-x-0 bottom-0 text-center text-xs text-muted-foreground">
           A ler as sessões…
