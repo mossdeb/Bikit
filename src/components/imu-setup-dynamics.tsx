@@ -457,7 +457,7 @@ function Radar({
             )}
             style={dx === 0 ? { top: `${(100 * y) / SIZE}%` } : undefined}
           >
-            <span className="inline-flex rounded-full border border-foreground bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-foreground">
+            <span className="inline-flex rounded-full bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-foreground">
               {axis.name}
             </span>
           </div>
