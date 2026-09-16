@@ -414,19 +414,42 @@ function Radar({
         {ready &&
           scores.map((s, i) =>
             s ? (
-              <polygon
-                key={i}
-                points={polygon(i)}
-                fill={SETUP_COLOURS[i]}
-                // Both light, so neither hides the other where they
-                // overlap, the violet lighter still — it reads darker than
-                // the green at the same opacity (by request, 2026-09-15).
-                fillOpacity={i === 0 ? 0.2 : 0.12}
-                stroke={SETUP_COLOURS[i]}
-                strokeWidth={1}
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
+              <g key={i}>
+                <polygon
+                  points={polygon(i)}
+                  fill={SETUP_COLOURS[i]}
+                  // Both light, so neither hides the other where they
+                  // overlap, the violet lighter still — it reads darker
+                  // than the green at the same opacity (by request,
+                  // 2026-09-15).
+                  fillOpacity={i === 0 ? 0.2 : 0.12}
+                  stroke={SETUP_COLOURS[i]}
+                  strokeWidth={1}
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {/* A dot on each vertex, the card's colour round it so
+                    two dots on one spot still read as two (by request,
+                    2026-09-16). */}
+                {DYNAMICS_AXES.map((axis, k) => {
+                  const [cx, cy] = point(
+                    axis.key,
+                    (RADIUS * shown[4 * i + k]) / 100,
+                  );
+                  return (
+                    <circle
+                      key={axis.key}
+                      cx={cx}
+                      cy={cy}
+                      r={3.5}
+                      fill={SETUP_COLOURS[i]}
+                      className="stroke-card"
+                      strokeWidth={1.5}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  );
+                })}
+              </g>
             ) : null,
           )}
       </svg>
@@ -457,7 +480,7 @@ function Radar({
             )}
             style={dx === 0 ? { top: `${(100 * y) / SIZE}%` } : undefined}
           >
-            <span className="inline-flex rounded-full bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-foreground">
+            <span className="inline-flex rounded-full bg-card px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-foreground">
               {axis.name}
             </span>
           </div>
