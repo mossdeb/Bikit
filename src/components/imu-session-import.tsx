@@ -223,6 +223,11 @@ export function ImuSessionImport({
                         {parsed.summary.sampleCount.toLocaleString("pt-PT")}
                       </span>{" "}
                       amostras · {parsed.summary.eventCount} eventos
+                      {/* The high-g sensor's shocks (firmware V15), when the
+                          file has the sensor — nought included, which says
+                          the sensor was there and nothing crossed it. */}
+                      {parsed.session.highG &&
+                        ` · ${parsed.session.highG.length} ${parsed.session.highG.length === 1 ? "choque" : "choques"} high-G`}
                     </p>
                   </div>
                   <ImuSessionDetailsFields

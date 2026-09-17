@@ -49,9 +49,11 @@ import {
 import type {
   GpsChannels,
   ImuEvent,
+  ImuHighGEvent,
   ImuMountOrientation,
   ImuSessionData,
 } from "@/lib/imu/format";
+import { highGNear } from "@/lib/imu/highg";
 import {
   altitudeMSeries,
   centredMeanSeries,
@@ -375,6 +377,9 @@ interface EventContext {
   /** The session's curves in time order: a corner's momentum window is
    * bounded by its neighbours, so the card needs to know them. */
   curves: readonly Extract<ImuEvent, { kind: "curve" }>[];
+  /** The high-g sensor's shocks (firmware V15), when the file has them:
+   * an impact's and a landing's real peak, beside the main IMU's own. */
+  highG?: readonly ImuHighGEvent[];
   cursorIndex: number;
 }
 
@@ -642,6 +647,15 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           value: landing.toFixed(1),
           unit: "G",
         });
+      // The same landing as the high-g sensor caught it, over the same
+      // 300 ms — its own figure, not the one above corrected: see highg.ts.
+      const landingShock = highGNear(ctx.highG, event.landingMs + 100, 200);
+      if (landingShock)
+        metrics.push({
+          label: "Aterragem high-G",
+          value: landingShock.peakG.toFixed(1),
+          unit: "G",
+        });
       const energy = impactEnergy(
         tMs,
         g,
@@ -685,6 +699,17 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           }),
         });
       }
+      // What the high-g sensor read of the same hit, when it caught it:
+      // 800 Hz and ±200 g against 416 Hz and ±16 g, so higher on any sharp
+      // hit and the only true figure on a clipped one. Beside "Pico" and
+      // not in its place — sessions without the sensor have no such number.
+      const shock = highGNear(ctx.highG, event.timeMs);
+      if (shock)
+        metrics.push({
+          label: "Pico high-G",
+          value: shock.peakG.toFixed(1),
+          unit: "G",
+        });
       const energy = impactEnergy(
         tMs,
         g,
@@ -1205,6 +1230,7 @@ export function ImuSessionAnalysis({
     gps: data.gps,
     speed: seriesValues.speed ?? null,
     curves: sessionCurves,
+    highG: data.highG,
     cursorIndex,
   };
   const primaryDesc = primaryEvent
