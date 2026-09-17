@@ -111,6 +111,28 @@ describe("trimSession", () => {
       { kind: "rough_section", startMs: 28000, endMs: 30000, confidence: 0.8 },
     ]);
     expect(cut.imuGaps).toEqual([{ atMs: 20000, durationMs: 300 }]);
+    // No high-g sensor on this recording: the trim does not invent one.
+    expect(cut.highG).toBeUndefined();
+  });
+
+  it("takes the high-g shocks with their instants", () => {
+    const window = () => new Float32Array(32);
+    const shock = (timeMs: number) => ({
+      timeMs,
+      peakG: 12,
+      peakIndex: 16,
+      sampleRateHz: 800,
+      preTriggerSamples: 16,
+      x: window(),
+      y: window(),
+      z: window(),
+    });
+    const cut = trimSession(
+      { ...recording(), highG: [shock(19000), shock(30000), shock(50000)] },
+      { startMs: 20000, endMs: 50000 },
+    );
+    // The one before the window and the one on its half-open end are gone.
+    expect(cut.highG?.map((h) => h.timeMs)).toEqual([10000]);
   });
 
   it("leaves the session alone without a trim or with an empty window", () => {

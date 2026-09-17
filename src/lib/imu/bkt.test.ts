@@ -40,9 +40,27 @@ interface GnssBlock {
   samples: GnssSample[];
 }
 
+/** One ADXL375 shock event as firmware V15 writes it: 208 bytes, the
+ * three axes as three arrays. The window rests at 1 g on z (20 LSB of
+ * 49 mg) and peaks on x at `peakIndex`. */
+interface HighGEventSpec {
+  triggerUs: number;
+  count?: number;
+  peakLsb?: number;
+  peakIndex?: number;
+}
+interface HighGBlock {
+  type: 3;
+  events: HighGEventSpec[];
+  /** The block's flags byte — the record layout; 0x01 is V15's. */
+  format?: number;
+}
+
 function buildBkt(
-  blocks: (ImuBlock | GnssBlock)[],
+  blocks: (ImuBlock | GnssBlock | HighGBlock)[],
   overrides: {
+    /** Header flag bit 2, which firmware V15 sets on every file. */
+    highGFlag?: boolean;
     /** "BKT1" builds firmware V13's header: CRC over all 64 bytes with the
      * CRC field zeroed. Default is the exporter-era "BKTL". */
     magic?: "BKTL" | "BKT1";
@@ -76,7 +94,7 @@ function buildBkt(
   view.setUint8(5, magic === "BKT1" ? 0 : 2);
   view.setUint16(6, 64, true);
   const cal = overrides.calibration ?? true;
-  view.setUint32(8, (cal ? 1 : 0) | 2, true);
+  view.setUint32(8, (cal ? 1 : 0) | 2 | (overrides.highGFlag ? 4 : 0), true);
   view.setUint32(12, overrides.sessionId ?? 7, true);
   view.setBigUint64(16, BigInt(0), true);
   // BigInt() calls and not `0n` literals: the tsconfig target predates them.
@@ -151,6 +169,7 @@ function buildBkt(
 
   let imuIndex = 0;
   let gnssIndex = 0;
+  let highGIndex = 0;
   blocks.forEach((b, seq) => {
     const off = BLOCK + seq * BLOCK;
     put(off, "BLK1");
@@ -161,10 +180,35 @@ function buildBkt(
       overrides.breakSequence === seq ? seq + 5 : seq,
       true,
     );
-    const size = b.type === 1 ? 12 : b.size;
-    view.setUint16(off + 16, b.samples.length, true);
+    const size = b.type === 1 ? 12 : b.type === 3 ? 208 : b.size;
+    const count = b.type === 3 ? b.events.length : b.samples.length;
+    view.setUint16(off + 16, count, true);
     view.setUint16(off + 18, size, true);
-    if (b.type === 1) {
+    if (b.type === 3) {
+      view.setUint8(off + 5, b.format ?? 1);
+      view.setUint32(off + 12, highGIndex, true);
+      view.setBigUint64(off + 20, BigInt(b.events[0]?.triggerUs ?? 0), true);
+      b.events.forEach((e, i) => {
+        const p = off + 32 + i * 208;
+        const n = e.count ?? 32;
+        view.setUint32(p, e.triggerUs, true);
+        view.setUint32(p + 4, Math.round((e.triggerUs * 32768) / 1e6), true);
+        view.setUint8(p + 8, n);
+        view.setUint8(p + 9, e.peakIndex ?? 16);
+        view.setUint16(p + 10, 1, true);
+        view.setUint16(p + 12, Math.round((e.peakLsb ?? 200) * 49), true);
+        for (let k = 0; k < Math.min(n, 32); k++) {
+          view.setInt16(
+            p + 16 + 2 * k,
+            k === (e.peakIndex ?? 16) ? (e.peakLsb ?? 200) : 0,
+            true,
+          );
+          view.setInt16(p + 80 + 2 * k, -3, true);
+          view.setInt16(p + 144 + 2 * k, 20, true);
+        }
+      });
+      highGIndex += b.events.length;
+    } else if (b.type === 1) {
       imuIndex += b.skipBefore ?? 0;
       view.setBigUint64(
         off + 20,
@@ -205,7 +249,7 @@ function buildBkt(
       });
       gnssIndex += b.samples.length;
     }
-    const payload = u8.subarray(off + 32, off + 32 + b.samples.length * size);
+    const payload = u8.subarray(off + 32, off + 32 + count * size);
     const crc = crc32(payload);
     view.setUint32(
       off + 28,
@@ -535,6 +579,137 @@ describe("parseBktFile", () => {
     expect(isBktFile(buf)).toBe(false);
     const result = parseBktFile(buf);
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("parseBktFile — firmware V15's high-g events", () => {
+  it("reads the ADXL375's shock windows, three arrays per event, onto the IMU's clock", () => {
+    const result = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(338),
+          imuBlock(338),
+          {
+            type: 3,
+            events: [
+              { triggerUs: 300_000, peakLsb: 200, peakIndex: 16 },
+              { triggerUs: 1_200_000, peakLsb: 260, peakIndex: 15 },
+            ],
+          },
+        ],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const events = result.session.highG!;
+    expect(events).toHaveLength(2);
+    expect(events[0].timeMs).toBeCloseTo(300, 6);
+    expect(events[1].timeMs).toBeCloseTo(1200, 6);
+    // 200 LSB of 49 mg on x, over the −3 and 20 LSB the other axes rest at.
+    expect(events[0].peakG).toBeCloseTo(Math.hypot(200, 3, 20) * 0.049, 4);
+    expect(events[0].peakIndex).toBe(16);
+    expect(events[1].peakIndex).toBe(15);
+    expect(events[0].sampleRateHz).toBe(800);
+    expect(events[0].preTriggerSamples).toBe(16);
+    // Three arrays, not interleaved triplets: y is −3 LSB all the way.
+    expect(events[0].x[16]).toBeCloseTo(9.8, 4);
+    expect(events[0].x[15]).toBe(0);
+    expect([...events[0].y].every((v) => Math.abs(v + 0.147) < 1e-6)).toBe(
+      true,
+    );
+    expect(events[0].z[31]).toBeCloseTo(0.98, 4);
+    // The IMU side of the file is untouched by the extra block.
+    expect(result.session.sampleCount).toBe(676);
+  });
+
+  it("tells a sensor that caught nothing from a file with no such sensor", () => {
+    const v15 = parseBktFile(
+      buildBkt([imuBlock(100)], { magic: "BKT1", highGFlag: true }),
+    );
+    const v13 = parseBktFile(buildBkt([imuBlock(100)], { magic: "BKT1" }));
+    expect(v15.ok && v15.session.highG).toEqual([]);
+    expect(v13.ok && v13.session.highG).toBeUndefined();
+  });
+
+  it("drops a capture whose FIFO read came back empty, and keeps the rest", () => {
+    const result = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(338),
+          {
+            type: 3,
+            events: [{ triggerUs: 100_000, count: 0 }, { triggerUs: 400_000 }],
+          },
+        ],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(result.ok && result.session.highG?.map((e) => e.timeMs)).toEqual([
+      400,
+    ]);
+  });
+
+  it("unwraps a trigger past 512 s: by the order of the events, and by where the IMU felt the hit", () => {
+    // The IMU timeline: a block at 0 s with a hit at 0,3 s, a gap, a block
+    // at 511,6 s, and one whose stamp has wrapped to 0,406 s — really
+    // 512,406 s — with a hit at 512,5 s.
+    const hitAt = (block: ImuBlock, index: number): ImuBlock => ({
+      ...block,
+      samples: block.samples.map((sample, i) =>
+        i === index ? [10, -20, 20000, 23, -32, 4] : sample,
+      ),
+    });
+    const result = parseBktFile(
+      buildBkt(
+        [
+          { ...hitAt(imuBlock(338), 125), streamTimeUs: 0 },
+          { ...imuBlock(338), skipBefore: 212_491, streamTimeUs: 511_600_000 },
+          { ...hitAt(imuBlock(100), 40), streamTimeUs: 406_150 },
+          {
+            type: 3,
+            events: [
+              // Two turns would hold it; the IMU felt it in the first.
+              { triggerUs: 300_000 },
+              // Reads 0,5 s, earlier than nothing before it — but the hit
+              // the IMU felt is a turn later.
+              { triggerUs: 500_000 },
+              // Reads 0,6 s, which is before the event ahead of it.
+              { triggerUs: 600_000 },
+            ],
+          },
+        ],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const wrap = (2 ** 24 / 32768) * 1000;
+    const times = result.session.highG!.map((e) => e.timeMs);
+    expect(times[0]).toBeCloseTo(300, 6);
+    expect(times[1]).toBeCloseTo(500 + wrap, 6);
+    expect(times[2]).toBeCloseTo(600 + wrap, 6);
+  });
+
+  it("rejects an event layout it does not know, and a record of the wrong size", () => {
+    const unknown = parseBktFile(
+      buildBkt(
+        [imuBlock(100), { type: 3, format: 2, events: [{ triggerUs: 1 }] }],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(unknown).toEqual({
+      ok: false,
+      error: "O bloco 1 (HIGHG) traz um formato de evento desconhecido (2).",
+    });
+    const tooMany = parseBktFile(
+      buildBkt(
+        [imuBlock(100), { type: 3, events: [{ triggerUs: 1, count: 40 }] }],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(tooMany.ok).toBe(false);
+    if (!tooMany.ok) expect(tooMany.error).toMatch(/declara 40 amostras/);
   });
 });
 

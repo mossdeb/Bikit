@@ -84,6 +84,10 @@ export function trimSession(
     imuGaps: session.imuGaps
       ?.filter((gap) => gap.atMs >= start && gap.atMs < end)
       .map((gap) => ({ ...gap, atMs: gap.atMs - start })),
+    // A shock goes with its instant, like an impact.
+    highG: session.highG
+      ?.filter((hit) => hit.timeMs >= start && hit.timeMs < end)
+      .map((hit) => ({ ...hit, timeMs: hit.timeMs - start })),
   };
 }
 

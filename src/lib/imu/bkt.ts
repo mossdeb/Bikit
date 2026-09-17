@@ -26,6 +26,9 @@
  *                type 1 = IMU, 12-byte samples (six int16)
  *                type 2 = GNSS, 36-byte samples (or 32 in older firmware,
  *                         without the odometer)
+ *                type 3 = HIGHG, firmware V15: 208-byte shock events from
+ *                         the ADXL375, written at STOP after every other
+ *                         block — see readHighGEvents
  *
  * Strict where the JSON parser is strict, and for the same reason: a bad
  * CRC, a block out of sequence, an index that goes backwards or a file
@@ -52,6 +55,7 @@
 import type {
   GpsChannels,
   ImuCalibration,
+  ImuHighGEvent,
   ImuMountOrientation,
   ImuParseResult,
   ImuTimelineGap,
@@ -79,7 +83,31 @@ const IMU_SAMPLE_SIZE = 12;
 const GNSS_SAMPLE_SIZES = new Set([32, 36]);
 const BLOCK_TYPE_IMU = 1;
 const BLOCK_TYPE_GNSS = 2;
+/** Firmware V15: the ADXL375's shock events. One record per event,
+ * `HighGDiskEventV1` in the firmware: trigger_time_us u32 @0,
+ * trigger_rtc_tick u32 @4, sample_count u8 @8, peak_index u8 @9, flags
+ * u16 @10, peak_mg u16 @12, reserved u16 @14, then int16 x[32] @16,
+ * y[32] @80, z[32] @144 — the three axes as three arrays, NOT interleaved.
+ * The block's own flags byte names the record layout; 0x01 is this one.
+ *
+ * What the record does not say and the firmware's configuration does: the
+ * window is sampled at 800 Hz with 16 samples held before the trigger
+ * (FIFO_CTL 0xD0), at the ADXL375's fixed 49 mg/LSB. */
+const BLOCK_TYPE_HIGHG = 3;
+const HIGHG_RECORD_SIZE = 208;
+const HIGHG_SAMPLES = 32;
+const HIGHG_FORMAT_V1 = 0x01;
+const HIGHG_G_PER_LSB = 0.049;
+const HIGHG_RATE_HZ = 800;
+const HIGHG_PRE_TRIGGER = 16;
+/** Two candidates for an event's place this close in what the main IMU
+ * read are not told apart by it, G. */
+const HIGHG_UNWRAP_MARGIN_G = 0.5;
 const FLAG_CALIBRATION = 0x1;
+/** Firmware V15 sets it on every file it writes, whether or not the
+ * ADXL375 answered at boot — so it says "this firmware", not "this sensor
+ * worked"; a HIGHG block is the only proof of the latter. */
+const FLAG_HIGHG = 0x4;
 /** Firmware V13.5's mounting orientation record, right after CAL1. */
 const ORI_MAGIC = "ORI1";
 const ORI_OFFSET = 128;
@@ -177,6 +205,8 @@ function readHeader(view: DataView): SessionHeader {
 
 interface BlockHeader {
   type: number;
+  /** Unused by IMU and GNSS blocks; the record layout on HIGHG ones. */
+  flags: number;
   headerSize: number;
   sequence: number;
   firstSampleIndex: number;
@@ -192,7 +222,7 @@ interface BlockHeader {
 function readBlockHeader(view: DataView, offset: number): BlockHeader {
   return {
     type: view.getUint8(offset + 4),
-    // offset + 5: flags — unused by the firmware so far.
+    flags: view.getUint8(offset + 5),
     headerSize: view.getUint16(offset + 6, true),
     sequence: view.getUint32(offset + 8, true),
     firstSampleIndex: view.getUint32(offset + 12, true),
@@ -204,6 +234,100 @@ function readBlockHeader(view: DataView, offset: number): BlockHeader {
 }
 
 const fail = (error: string): ImuParseResult => ({ ok: false, error });
+
+interface HighGRaw {
+  /** trigger_time_us as written: session-relative, from the logger's
+   * 24-bit RTC — so modulo RTC_WRAP_MS, like the IMU blocks' stamps. */
+  triggerMs: number;
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
+}
+
+/**
+ * The shock events on the session's timeline. Their trigger time comes
+ * from the same clock as the IMU blocks' stamps — RTC2 ticks since the
+ * session started, masked to 24 bits — so it needs no offset, but in a
+ * recording longer than 512 s it has wrapped and says so nowhere. The IMU
+ * blocks are dense enough to unwrap by order alone; shock events are not
+ * (one at 100 s and one at 700 s read 100 s and 188 s, in order). So each
+ * event takes, among the turns that keep it inside the recording and not
+ * before the event written ahead of it, the one where the main IMU read
+ * the hardest hit: a shock over the ADXL's threshold is one the LSM6DS3
+ * felt too. A tie — the IMU saw the same in both — goes to the earliest.
+ */
+function placeHighGEvents(
+  raw: HighGRaw[],
+  tMs: Float64Array,
+  ax: Float32Array,
+  ay: Float32Array,
+  az: Float32Array,
+): ImuHighGEvent[] {
+  const n = tMs.length;
+  const endMs = n > 0 ? tMs[n - 1] : 0;
+  const lowerBound = (ms: number) => {
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tMs[mid] < ms) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  /** The main IMU's highest |a| within 60 ms of an instant, G. */
+  const imuPeak = (ms: number) => {
+    let peak = 0;
+    for (let i = lowerBound(ms - 60); i < n && tMs[i] <= ms + 60; i++)
+      peak = Math.max(peak, Math.hypot(ax[i], ay[i], az[i]));
+    return peak;
+  };
+
+  const out: ImuHighGEvent[] = [];
+  let previousMs = -Infinity;
+  for (const event of raw) {
+    let timeMs = event.triggerMs;
+    let best = -1;
+    for (
+      let candidate = event.triggerMs;
+      candidate <= endMs + RTC_WRAP_MS;
+      candidate += RTC_WRAP_MS
+    ) {
+      if (candidate < previousMs) continue;
+      // Past the end only when nothing earlier would do: a trigger in the
+      // last block's tail is still this recording's.
+      if (candidate > endMs + 1000 && best >= 0) break;
+      const peak = imuPeak(candidate);
+      if (peak > best + HIGHG_UNWRAP_MARGIN_G) {
+        best = peak;
+        timeMs = candidate;
+      }
+      if (candidate > endMs) break;
+    }
+    previousMs = timeMs;
+
+    let peakG = 0;
+    let peakIndex = 0;
+    for (let k = 0; k < event.x.length; k++) {
+      const m = Math.hypot(event.x[k], event.y[k], event.z[k]);
+      if (m > peakG) {
+        peakG = m;
+        peakIndex = k;
+      }
+    }
+    out.push({
+      timeMs,
+      peakG,
+      peakIndex,
+      sampleRateHz: HIGHG_RATE_HZ,
+      preTriggerSamples: HIGHG_PRE_TRIGGER,
+      x: event.x,
+      y: event.y,
+      z: event.z,
+    });
+  }
+  return out;
+}
 
 /** The clock stamp and index of the next IMU block after `b`, or null when
  * `b` is the last one. Only headers are read; the main loop validates. */
@@ -386,6 +510,9 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   // by the samples that never made it.
   let nextImuIndex = 0;
   let nextGnssIndex = 0;
+  let nextHighGIndex = 0;
+  let sawHighG = false;
+  const highGRaw: HighGRaw[] = [];
   let imuWritten = 0;
   // Where the IMU timeline starts, from the first block's clock stamp. Every
   // firmware so far stamps the nominal index / rate, which makes this 0; a
@@ -411,7 +538,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     if (bh.headerSize !== BLOCK_HEADER_SIZE)
       return fail(`O bloco ${b} tem um cabeçalho de ${bh.headerSize} bytes.`);
 
-    let stream: "IMU" | "GNSS";
+    let stream: "IMU" | "GNSS" | "HIGHG";
     if (bh.type === BLOCK_TYPE_IMU) {
       if (bh.sampleSize !== IMU_SAMPLE_SIZE)
         return fail(
@@ -424,6 +551,17 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
           `O bloco ${b} (GNSS) tem amostras de ${bh.sampleSize} bytes.`,
         );
       stream = "GNSS";
+    } else if (bh.type === BLOCK_TYPE_HIGHG) {
+      if (bh.flags !== HIGHG_FORMAT_V1)
+        return fail(
+          `O bloco ${b} (HIGHG) traz um formato de evento desconhecido (${bh.flags}).`,
+        );
+      if (bh.sampleSize !== HIGHG_RECORD_SIZE)
+        return fail(
+          `O bloco ${b} (HIGHG) tem eventos de ${bh.sampleSize} bytes.`,
+        );
+      stream = "HIGHG";
+      sawHighG = true;
     } else {
       return fail(`O bloco ${b} é de um tipo desconhecido (${bh.type}).`);
     }
@@ -512,6 +650,32 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       }
       nextImuIndex = bh.firstSampleIndex + bh.sampleCount;
       imuWritten += bh.sampleCount;
+    } else if (stream === "HIGHG") {
+      if (bh.firstSampleIndex !== nextHighGIndex)
+        return fail(
+          `O bloco ${b} (HIGHG) deixa um buraco no índice dos eventos.`,
+        );
+      for (let i = 0; i < bh.sampleCount; i++) {
+        const s = payloadStart + i * HIGHG_RECORD_SIZE;
+        const count = view.getUint8(s + 8);
+        if (count > HIGHG_SAMPLES)
+          return fail(
+            `O evento high-G ${nextHighGIndex + i} declara ${count} amostras, mais do que cabem.`,
+          );
+        // A window the FIFO read came back empty for is a failed capture,
+        // not an event: nothing to place, nothing to read.
+        if (count === 0) continue;
+        const x = new Float32Array(count);
+        const y = new Float32Array(count);
+        const z = new Float32Array(count);
+        for (let k = 0; k < count; k++) {
+          x[k] = view.getInt16(s + 16 + 2 * k, true) * HIGHG_G_PER_LSB;
+          y[k] = view.getInt16(s + 80 + 2 * k, true) * HIGHG_G_PER_LSB;
+          z[k] = view.getInt16(s + 144 + 2 * k, true) * HIGHG_G_PER_LSB;
+        }
+        highGRaw.push({ triggerMs: view.getUint32(s, true) / 1000, x, y, z });
+      }
+      nextHighGIndex += bh.sampleCount;
     } else {
       if (bh.firstSampleIndex !== nextGnssIndex)
         return fail(
@@ -617,6 +781,12 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       imuGaps,
       sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
       orientation,
+      // Present — empty, even — when the file says the sensor was there:
+      // header flag bit 2, or a HIGHG block. "No shock crossed the
+      // threshold" and "no such sensor" are different recordings.
+      ...((h.flags & FLAG_HIGHG || sawHighG) && {
+        highG: placeHighGEvents(highGRaw, tMs, ax, ay, az),
+      }),
     },
   };
 }

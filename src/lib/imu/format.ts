@@ -166,6 +166,39 @@ export interface ImuSessionData {
    * puts the channels in the bike's frame outright and nothing has to be
    * estimated from the ride. Absent on files without it. */
   orientation?: ImuMountOrientation;
+  /** The shocks the logger's second accelerometer caught (firmware V15:
+   * an ADXL375, ±200 g), each a short window round its trigger — see
+   * ImuHighGEvent. Absent on files without the sensor; empty when it was
+   * there and nothing crossed its threshold. */
+  highG?: ImuHighGEvent[];
+}
+
+/**
+ * One shock as the high-g accelerometer recorded it (firmware V15, .BKT
+ * block type 3): 32 samples at 800 Hz round the instant its shock
+ * interrupt fired, 16 of them before it — 40 ms in all. The main IMU
+ * clips at ±16 g and samples at 416 Hz; this is what a hit really peaked
+ * at, and nothing else: too short a window to say what came after.
+ *
+ * The axes are the ADXL375's OWN, which no calibration relates to the
+ * bike's — only the magnitude means anything across the two sensors.
+ */
+export interface ImuHighGEvent {
+  /** The trigger on the session's timeline, ms — the same clock as the
+   * IMU blocks' stamps, so it lands on `channels.tMs` as is. */
+  timeMs: number;
+  /** The window's highest |a|, G, and the sample it fell on — recomputed
+   * from the raw axes, which the firmware calls authoritative. */
+  peakG: number;
+  peakIndex: number;
+  sampleRateHz: number;
+  /** How many of the samples precede the trigger: sample k was taken at
+   * timeMs + (k − preTriggerSamples) × 1000 / sampleRateHz. */
+  preTriggerSamples: number;
+  /** The window, G, in the sensor's frame. */
+  x: Float32Array;
+  y: Float32Array;
+  z: Float32Array;
 }
 
 export interface ImuMountOrientation {
