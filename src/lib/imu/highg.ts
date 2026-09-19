@@ -5,16 +5,18 @@
  * What the two sensors are to each other. The LSM6DS3 is the recording:
  * continuous, 416 Hz, ±16 g, in the bike's frame once aligned — every
  * figure of the report is read from it. The ADXL375 is a witness called
- * only for the hits: 40 ms at 800 Hz round each shock over its ~7,8 g
- * threshold, ±200 g, in its own uncalibrated frame. So the link is by
+ * only for the hits: 32 samples round each shock over its threshold —
+ * 40 ms at 800 Hz and ~7,8 g in firmware V15, 10 ms at 3200 Hz and
+ * ~14,8 g per axis in the firmware after it — ±200 g, in its own
+ * uncalibrated frame. So the link is by
  * INSTANT and the reading is by MAGNITUDE: a shock belongs to the impact
  * or the landing it fell within HIGHG_LINK_MS of, and what it adds is the
  * one number the main IMU cannot give — how hard the hit really peaked.
  *
  * It does NOT replace the main IMU's peak. The two differ by more than the
  * clipping: twice the sample rate and a wider band read a short shock
- * higher at any level (on the bench, 12,7 g against 6,3 g for the same
- * tap, far under 16 g). A session recorded without the sensor has no such
+ * higher at any level (on the bench, 12,7 g against 8,6 g for the same
+ * tap at 800 Hz, far under 16 g; at 3200 Hz, 175 g against 11,5 g). A session recorded without the sensor has no such
  * figure, so putting it where "Pico" or "G máx" stand would make sessions
  * with and without it incomparable. It is shown as its own figure, named
  * for where it came from.

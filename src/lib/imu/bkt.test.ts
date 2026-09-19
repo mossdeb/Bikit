@@ -48,6 +48,9 @@ interface HighGEventSpec {
   count?: number;
   peakLsb?: number;
   peakIndex?: number;
+  /** Every raw value even, the way the part reports at 3200 Hz; the
+   * default rests y at −3 LSB, as it would at 800 Hz. */
+  even?: boolean;
 }
 interface HighGBlock {
   type: 3;
@@ -203,7 +206,7 @@ function buildBkt(
             k === (e.peakIndex ?? 16) ? (e.peakLsb ?? 200) : 0,
             true,
           );
-          view.setInt16(p + 80 + 2 * k, -3, true);
+          view.setInt16(p + 80 + 2 * k, e.even ? -4 : -3, true);
           view.setInt16(p + 144 + 2 * k, 20, true);
         }
       });
@@ -621,6 +624,48 @@ describe("parseBktFile — firmware V15's high-g events", () => {
     expect(events[0].z[31]).toBeCloseTo(0.98, 4);
     // The IMU side of the file is untouched by the extra block.
     expect(result.session.sampleCount).toBe(676);
+  });
+
+  it("reads the faster window of the later firmware off the samples' parity", () => {
+    // Same layout, same header version, four times the rate: at 3200 Hz
+    // the ADXL375's output LSB is always 0, and that is all the file says.
+    const fast = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(338),
+          {
+            type: 3,
+            events: [
+              { triggerUs: 300_000, even: true },
+              { triggerUs: 600_000, even: true },
+            ],
+          },
+        ],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(fast.ok && fast.session.highG?.map((e) => e.sampleRateHz)).toEqual([
+      3200, 3200,
+    ]);
+    // One odd value anywhere and it is the older rate.
+    const mixed = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(338),
+          {
+            type: 3,
+            events: [
+              { triggerUs: 300_000, even: true },
+              { triggerUs: 600_000 },
+            ],
+          },
+        ],
+        { magic: "BKT1", highGFlag: true },
+      ),
+    );
+    expect(mixed.ok && mixed.session.highG?.map((e) => e.sampleRateHz)).toEqual(
+      [800, 800],
+    );
   });
 
   it("tells a sensor that caught nothing from a file with no such sensor", () => {

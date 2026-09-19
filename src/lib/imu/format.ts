@@ -175,8 +175,9 @@ export interface ImuSessionData {
 
 /**
  * One shock as the high-g accelerometer recorded it (firmware V15, .BKT
- * block type 3): 32 samples at 800 Hz round the instant its shock
- * interrupt fired, 16 of them before it — 40 ms in all. The main IMU
+ * block type 3): 32 samples round the instant its shock interrupt fired,
+ * 16 of them before it — 40 ms in all at V15's 800 Hz, 10 ms at the
+ * 3200 Hz of the firmware after it (see `sampleRateHz`). The main IMU
  * clips at ±16 g and samples at 416 Hz; this is what a hit really peaked
  * at, and nothing else: too short a window to say what came after.
  *

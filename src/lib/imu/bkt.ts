@@ -90,15 +90,25 @@ const BLOCK_TYPE_GNSS = 2;
  * y[32] @80, z[32] @144 — the three axes as three arrays, NOT interleaved.
  * The block's own flags byte names the record layout; 0x01 is this one.
  *
- * What the record does not say and the firmware's configuration does: the
- * window is sampled at 800 Hz with 16 samples held before the trigger
- * (FIFO_CTL 0xD0), at the ADXL375's fixed 49 mg/LSB. */
+ * What the record does not say and the firmware's configuration does: 16
+ * samples are held before the trigger (FIFO_CTL 0xD0), at the ADXL375's
+ * fixed 49 mg/LSB — and the RATE, which changed under the same layout and
+ * the same header version: 800 Hz in firmware V15 (BW_RATE 0x0D), 3200 Hz
+ * from V15.x/V16 (0x0F), a 40 ms window against a 10 ms one. Until the
+ * firmware writes it down, the samples themselves tell the two apart: at
+ * 3200 Hz the part's output LSB is always 0. Measured on real files
+ * (2026-09-19): 685 odd values in 1344 at 800 Hz (R0098), 0 in 288 at
+ * 3200 Hz (R0154). Too few samples to judge reads as the older rate. */
 const BLOCK_TYPE_HIGHG = 3;
 const HIGHG_RECORD_SIZE = 208;
 const HIGHG_SAMPLES = 32;
 const HIGHG_FORMAT_V1 = 0x01;
 const HIGHG_G_PER_LSB = 0.049;
 const HIGHG_RATE_HZ = 800;
+const HIGHG_FAST_RATE_HZ = 3200;
+/** Fewer raw values than this and "all even" proves nothing: one event's
+ * three axes. */
+const HIGHG_PARITY_MIN_VALUES = 96;
 const HIGHG_PRE_TRIGGER = 16;
 /** Two candidates for an event's place this close in what the main IMU
  * read are not told apart by it, G. */
@@ -258,6 +268,7 @@ interface HighGRaw {
  */
 function placeHighGEvents(
   raw: HighGRaw[],
+  sampleRateHz: number,
   tMs: Float64Array,
   ax: Float32Array,
   ay: Float32Array,
@@ -319,7 +330,7 @@ function placeHighGEvents(
       timeMs,
       peakG,
       peakIndex,
-      sampleRateHz: HIGHG_RATE_HZ,
+      sampleRateHz,
       preTriggerSamples: HIGHG_PRE_TRIGGER,
       x: event.x,
       y: event.y,
@@ -512,6 +523,8 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   let nextGnssIndex = 0;
   let nextHighGIndex = 0;
   let sawHighG = false;
+  let highGValues = 0;
+  let highGOddValues = 0;
   const highGRaw: HighGRaw[] = [];
   let imuWritten = 0;
   // Where the IMU timeline starts, from the first block's clock stamp. Every
@@ -669,9 +682,14 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
         const y = new Float32Array(count);
         const z = new Float32Array(count);
         for (let k = 0; k < count; k++) {
-          x[k] = view.getInt16(s + 16 + 2 * k, true) * HIGHG_G_PER_LSB;
-          y[k] = view.getInt16(s + 80 + 2 * k, true) * HIGHG_G_PER_LSB;
-          z[k] = view.getInt16(s + 144 + 2 * k, true) * HIGHG_G_PER_LSB;
+          const rx = view.getInt16(s + 16 + 2 * k, true);
+          const ry = view.getInt16(s + 80 + 2 * k, true);
+          const rz = view.getInt16(s + 144 + 2 * k, true);
+          highGValues += 3;
+          highGOddValues += (rx & 1) + (ry & 1) + (rz & 1);
+          x[k] = rx * HIGHG_G_PER_LSB;
+          y[k] = ry * HIGHG_G_PER_LSB;
+          z[k] = rz * HIGHG_G_PER_LSB;
         }
         highGRaw.push({ triggerMs: view.getUint32(s, true) / 1000, x, y, z });
       }
@@ -785,7 +803,16 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       // header flag bit 2, or a HIGHG block. "No shock crossed the
       // threshold" and "no such sensor" are different recordings.
       ...((h.flags & FLAG_HIGHG || sawHighG) && {
-        highG: placeHighGEvents(highGRaw, tMs, ax, ay, az),
+        highG: placeHighGEvents(
+          highGRaw,
+          highGValues >= HIGHG_PARITY_MIN_VALUES && highGOddValues === 0
+            ? HIGHG_FAST_RATE_HZ
+            : HIGHG_RATE_HZ,
+          tMs,
+          ax,
+          ay,
+          az,
+        ),
       }),
     },
   };
