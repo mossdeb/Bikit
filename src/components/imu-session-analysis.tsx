@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Activity,
   Bike,
   Check,
   ChevronDown,
@@ -53,7 +54,7 @@ import type {
   ImuMountOrientation,
   ImuSessionData,
 } from "@/lib/imu/format";
-import { highGNear } from "@/lib/imu/highg";
+import { HIGHG_LINK_MS, highGNear, highGWidthMs } from "@/lib/imu/highg";
 import {
   altitudeMSeries,
   centredMeanSeries,
@@ -242,6 +243,17 @@ const EVENT_KIND_DEFS = [
   { kind: "rough_section", label: "Zonas acidentadas", Icon: RoughSectionIcon },
   { kind: "braking", label: "Travagens", Icon: BrakingIcon },
 ] as const;
+
+/** The high-g sensor's shocks (firmware V15) as a kind of their own on the
+ * events menu — listed only on a file that has the sensor. Not an ImuEvent:
+ * the app detects those from the main IMU's trace, and these are the other
+ * sensor's own record of a hit, often of the same one. */
+const HIGHG_KIND = "highg";
+const HIGHG_KIND_DEF = {
+  kind: HIGHG_KIND,
+  label: "High-G",
+  Icon: Activity,
+} as const;
 
 const SEVERITY_LABEL: Record<string, string> = {
   light: "leve",
@@ -886,10 +898,18 @@ export function ImuSessionAnalysis({
    * a downhill run's plot is a wall of eighty tabs and five colours before
    * the trace has been looked at, and the curves are the events the
    * momentum work is about. The others are one tick away. */
+  // …and the high-g shocks: three marks on a run are not the wall the
+  // app's own events are, and they are the reason the second sensor is on
+  // the bike. The kind is in the set from the start — the file is still
+  // loading when this state is born — and counts for nothing on a file
+  // without the sensor (kindsOn), where it has no switch either.
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
-    new Set(["curve"]),
+    new Set(["curve", HIGHG_KIND]),
   );
-  const eventsOn = activeKinds.size > 0;
+  const hasHighG = data?.highG != null;
+  const kindsOn = (kinds: ReadonlySet<string>) =>
+    [...kinds].some((kind) => kind !== HIGHG_KIND || hasHighG);
+  const eventsOn = kindsOn(activeKinds);
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
   /** Whether the chart has the cursor pinned (its double-click lock). The
@@ -1176,9 +1196,10 @@ export function ImuSessionAnalysis({
   const activeSeriesDefs = availableSeriesDefs.filter((def) =>
     activeSeries.has(def.id),
   );
-  const activeKindDefs = EVENT_KIND_DEFS.filter((def) =>
-    activeKinds.has(def.kind),
-  );
+  const kindDefs = data.highG
+    ? [...EVENT_KIND_DEFS, HIGHG_KIND_DEF]
+    : EVENT_KIND_DEFS;
+  const activeKindDefs = kindDefs.filter((def) => activeKinds.has(def.kind));
   // JSX will not take an indexed expression as a component name, so the sole
   // active kind is hoisted to a capitalised binding.
   const soleKind = activeKindDefs.length === 1 ? activeKindDefs[0] : null;
@@ -1236,6 +1257,15 @@ export function ImuSessionAnalysis({
   const primaryDesc = primaryEvent
     ? describeEvent(primaryEvent, eventContext)
     : null;
+  // The shock within reach of the cursor, for a card of its own under the
+  // app's events: the same hit is often an impact above and a shock here,
+  // and the two say different things — one read off the continuous trace,
+  // the other the second sensor's own 40 ms of it.
+  const shocksOn = eventsOn && activeKinds.has(HIGHG_KIND);
+  const cursorShock =
+    shocksOn && cursorIndex >= 0
+      ? highGNear(data.highG, tMs[cursorIndex], EVENT_REACH_MS)
+      : null;
 
   // The dashboard reads the same instant as the cards; before the first
   // scrub it parks at the recording's start, so the instruments open on the
@@ -1312,8 +1342,8 @@ export function ImuSessionAnalysis({
   function toggleEvents() {
     const next = eventsOn
       ? new Set<string>()
-      : new Set(EVENT_KIND_DEFS.map((d) => d.kind));
-    refitRead(activeSeriesDefs.length === 0, next.size > 0);
+      : new Set<string>(kindDefs.map((d) => d.kind));
+    refitRead(activeSeriesDefs.length === 0, kindsOn(next));
     setActiveKinds(next);
   }
 
@@ -1324,8 +1354,8 @@ export function ImuSessionAnalysis({
     // The last kind off, or the first one on, is the events half of the
     // reading panel going away or coming back: the same refit the master
     // does.
-    if (next.size > 0 !== eventsOn)
-      refitRead(activeSeriesDefs.length === 0, next.size > 0);
+    if (kindsOn(next) !== eventsOn)
+      refitRead(activeSeriesDefs.length === 0, kindsOn(next));
     setActiveKinds(next);
   }
 
@@ -1619,9 +1649,9 @@ export function ImuSessionAnalysis({
           </>
         ) : (
           <span className="truncate">
-            {activeKindDefs.length === EVENT_KIND_DEFS.length
+            {activeKindDefs.length === kindDefs.length
               ? "Eventos"
-              : `${activeKindDefs.length} de ${EVENT_KIND_DEFS.length} eventos`}
+              : `${activeKindDefs.length} de ${kindDefs.length} eventos`}
           </span>
         )
       }
@@ -1632,7 +1662,7 @@ export function ImuSessionAnalysis({
           checked: eventsOn,
           onToggle: toggleEvents,
         },
-        ...EVENT_KIND_DEFS.map((def) => ({
+        ...kindDefs.map((def) => ({
           key: def.kind,
           label: def.label,
           Icon: def.Icon,
@@ -1861,6 +1891,7 @@ export function ImuSessionAnalysis({
               series={chartSeries}
               events={eventsOn ? data.events : []}
               eventKinds={activeKinds}
+              shocks={shocksOn ? data.highG : undefined}
               windowMs={win}
               fullMs={full}
               cursorMs={cursorMs}
@@ -2558,6 +2589,47 @@ export function ImuSessionAnalysis({
                           />
                         );
                       })}
+                    {cursorShock && (
+                      <EventCard
+                        className="mt-2 lg:mt-0"
+                        title="Choque high-G"
+                        Icon={Activity}
+                        timeMs={cursorShock.timeMs}
+                        confidence={null}
+                        action={<ShockWindow hit={cursorShock} />}
+                        metrics={[
+                          {
+                            label: "Pico",
+                            value: cursorShock.peakG.toFixed(1),
+                            unit: "G",
+                          },
+                          {
+                            label: "Largura",
+                            value: highGWidthMs(cursorShock).toFixed(1),
+                            unit: "ms",
+                          },
+                          // What the main IMU read of the same hit — the
+                          // figure every other card and the plot go by.
+                          ...(() => {
+                            const peak = windowPeak(
+                              tMs,
+                              gForce,
+                              cursorShock.timeMs - HIGHG_LINK_MS,
+                              cursorShock.timeMs + HIGHG_LINK_MS,
+                            );
+                            return peak != null
+                              ? [
+                                  {
+                                    label: "IMU principal",
+                                    value: peak.toFixed(1),
+                                    unit: "G",
+                                  },
+                                ]
+                              : [];
+                          })(),
+                        ]}
+                      />
+                    )}
                   </>
                 )}
 
@@ -3198,6 +3270,46 @@ function MetricGauge({
  * tile that inverts with the theme, that mint would land on white in dark
  * mode and disappear. Fixed dark keeps one contrast in both themes.
  */
+/** The shock's own window drawn small: |a| over its 40 ms, scaled to its
+ * peak, with a tick where the trigger fell — enough to see whether the hit
+ * was one sharp sample or a pulse with a body. */
+function ShockWindow({ hit }: { hit: ImuHighGEvent }) {
+  const n = hit.x.length;
+  if (n < 2 || !(hit.peakG > 0)) return null;
+  const width = 96;
+  const height = 36;
+  const points = Array.from({ length: n }, (_, k) => {
+    const g = Math.hypot(hit.x[k], hit.y[k], hit.z[k]);
+    return `${((k / (n - 1)) * width).toFixed(1)},${(height - 2 - (g / hit.peakG) * (height - 4)).toFixed(1)}`;
+  }).join(" ");
+  const triggerX = (hit.preTriggerSamples / (n - 1)) * width;
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-9 w-24 shrink-0 text-foreground"
+      role="img"
+      aria-label={`A janela do choque: ${((n * 1000) / hit.sampleRateHz).toFixed(0)} ms a ${hit.sampleRateHz} Hz`}
+    >
+      <line
+        x1={triggerX}
+        x2={triggerX}
+        y1={0}
+        y2={height}
+        className="stroke-foreground/25"
+        strokeWidth={1}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function EventCard({
   title,
   Icon,

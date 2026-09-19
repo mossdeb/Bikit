@@ -77,6 +77,16 @@ const BUCKETS = 400;
  * everything it owns is gated on this one constant. */
 const PAN_BAR_ENABLED = false;
 
+export interface ImuChartShock {
+  timeMs: number;
+  peakG: number;
+}
+
+/** Two shock pills closer than this on screen merge into one, px. */
+const SHOCK_PILL_MIN_GAP = 48;
+/** The shock pills hang under the event tabs and the impacts' arrows. */
+const SHOCK_PILL_TOP = EVENT_TAB_TOP + EVENT_TAB_H + 14;
+
 export interface ImuChartSeries {
   id: string;
   label: string;
@@ -110,6 +120,7 @@ export function ImuChart({
   series,
   events,
   eventKinds,
+  shocks,
   windowMs,
   fullMs,
   cursorMs,
@@ -122,6 +133,11 @@ export function ImuChart({
   series: ImuChartSeries[];
   events: ImuEvent[];
   eventKinds: ReadonlySet<string>;
+  /** The high-g sensor's shocks to mark (firmware V15), already filtered
+   * by the parent's switch. Marked at the top of the plot with their own
+   * figure and NOT drawn on a trace's scale: a 175 g hit on the axis would
+   * press the main IMU's line flat against the floor. */
+  shocks?: readonly ImuChartShock[];
   windowMs: [number, number];
   /** The whole recording — what a pinch out may grow the window back to. */
   fullMs: [number, number];
@@ -328,6 +344,41 @@ export function ImuChart({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  /** The shocks in the window as marks: neighbours whose pills would run
+   * into each other stand as one, at their middle, saying how many and
+   * the hardest of them — a run of hits reads "5× · 9,8 g" zoomed out and
+   * comes apart as the window narrows. */
+  const shockMarks = useMemo(() => {
+    const visible = (shocks ?? [])
+      .filter((shock) => shock.timeMs >= w0 && shock.timeMs <= w1)
+      .sort((a, b) => a.timeMs - b.timeMs);
+    const width = plotWidth ?? W;
+    const marks: {
+      fromMs: number;
+      toMs: number;
+      count: number;
+      peakG: number;
+    }[] = [];
+    for (const shock of visible) {
+      const last = marks[marks.length - 1];
+      if (
+        last &&
+        ((shock.timeMs - last.toMs) / span) * width < SHOCK_PILL_MIN_GAP
+      ) {
+        last.toMs = shock.timeMs;
+        last.count++;
+        last.peakG = Math.max(last.peakG, shock.peakG);
+      } else
+        marks.push({
+          fromMs: shock.timeMs,
+          toMs: shock.timeMs,
+          count: 1,
+          peakG: shock.peakG,
+        });
+    }
+    return marks;
+  }, [shocks, w0, w1, span, plotWidth]);
 
   /** The event tabs, with the ones that would overlap folded into one.
    *
@@ -723,6 +774,33 @@ export function ImuChart({
             {tab.label}
           </span>
         ))}
+
+        {/* The high-g shocks: a hairline at the instant and the sensor's
+            own figure in a pill under the tabs. Outlined where the tabs are
+            solid, so the two read as different things on one strip. */}
+        {shockMarks.map((mark, i) => {
+          const left = `${(((mark.fromMs + mark.toMs) / 2 - w0) / span) * 100}%`;
+          return (
+            <span key={`shock-${i}`} aria-hidden>
+              <span
+                className="pointer-events-none absolute bottom-0 w-px -translate-x-1/2 bg-foreground/25"
+                style={{ left, top: SHOCK_PILL_TOP }}
+              />
+              <span
+                className="pointer-events-none absolute flex -translate-x-1/2 items-center gap-1 rounded-full border border-foreground bg-card px-1.5 text-[10px] leading-[15px] font-semibold whitespace-nowrap text-foreground tabular-nums"
+                style={{ left, top: SHOCK_PILL_TOP }}
+              >
+                {mark.count > 1 && (
+                  <span className="font-normal">{mark.count}×</span>
+                )}
+                {mark.peakG.toLocaleString("pt-PT", {
+                  maximumFractionDigits: mark.peakG >= 20 ? 0 : 1,
+                })}{" "}
+                g
+              </span>
+            </span>
+          );
+        })}
 
         {cursorPercent != null && locked && (
           // The padlock rides the line rather than sitting in a corner: it is
