@@ -2632,6 +2632,23 @@ export function ImuSessionAnalysis({
                             Icon={desc.Icon}
                             outsideMs={offsetMs}
                             confidence={event.confidence}
+                            // "Comparar" here too (by request, 2026-09-20):
+                            // a brake inside a corner is never the headline
+                            // card, and was the one event with gates of its
+                            // own that could not be compared. These cards
+                            // only stand while the cursor is inside their
+                            // event, which is the headline's own rule.
+                            action={
+                              snapshotSession && snapshotKindOf(event) ? (
+                                <ImuSnapshotCreate
+                                  prepared={snapshotSession}
+                                  event={event}
+                                  sessionId={sessionId}
+                                  existing={existingSnapshots}
+                                  loadSession={loadSnapshotSession}
+                                />
+                              ) : undefined
+                            }
                             metrics={desc.metrics}
                           />
                         );
