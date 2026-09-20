@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -39,7 +40,7 @@ import {
   JumpIcon,
   RoughSectionIcon,
 } from "@/components/imu-event-icons";
-import { useImuSession } from "@/lib/imu/use-imu-session";
+import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
 import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
@@ -47,6 +48,7 @@ import {
   ImuSnapshotCreate,
   type ImuSnapshotTwin,
 } from "@/components/imu-snapshot-create";
+import type { ImuSnapshotSessionLoader } from "@/components/imu-snapshot-view";
 import type {
   GpsChannels,
   ImuEvent,
@@ -248,6 +250,9 @@ const EVENT_KIND_DEFS = [
  * events menu — listed only on a file that has the sensor. Not an ImuEvent:
  * the app detects those from the main IMU's trace, and these are the other
  * sensor's own record of a hit, often of the same one. */
+/** How many other sessions the comparison keeps read, at ~5 MB each. */
+const SNAPSHOT_CACHE_MAX = 12;
+
 const HIGHG_KIND = "highg";
 const HIGHG_KIND_DEF = {
   kind: HIGHG_KIND,
@@ -982,6 +987,47 @@ export function ImuSessionAnalysis({
   const snapshotSession = useMemo(
     () => (data?.gps ? prepareSnapshotSession(data) : null),
     [data],
+  );
+  // The other sessions a comparison has read, kept while this page stands
+  // (2026-09-20): from one corner of a trail to the next the candidates
+  // barely change, and their download — a megabyte each, measured; reading
+  // one takes ~30 ms — is the whole cost of opening "Comparar". So the
+  // first corner pays it and the rest open at once. This session is never
+  // downloaded at all: it is already in hand. Promises and not results, so
+  // two openings share one download; a failure is forgotten, to be tried
+  // again; and the oldest goes past SNAPSHOT_CACHE_MAX, at ~5 MB a session.
+  const [snapshotCache] = useState(
+    () => new Map<string, ReturnType<ImuSnapshotSessionLoader>>(),
+  );
+  const loadSnapshotSession = useCallback<ImuSnapshotSessionLoader>(
+    (candidate) => {
+      if (candidate.id === sessionId && snapshotSession)
+        return Promise.resolve({ data: snapshotSession });
+      const key = JSON.stringify([
+        candidate.storagePath,
+        candidate.trim,
+        candidate.mountOrientation,
+      ]);
+      const hit = snapshotCache.get(key);
+      if (hit) return hit;
+      const loading = loadImuSession(
+        candidate.storagePath,
+        candidate.mountOrientation,
+        candidate.trim,
+      ).then((result) =>
+        result.data === null
+          ? { data: null, error: result.error }
+          : { data: prepareSnapshotSession(result.data) },
+      );
+      snapshotCache.set(key, loading);
+      void loading.then((result) => {
+        if (result.data === null) snapshotCache.delete(key);
+      });
+      while (snapshotCache.size > SNAPSHOT_CACHE_MAX)
+        snapshotCache.delete(snapshotCache.keys().next().value!);
+      return loading;
+    },
+    [sessionId, snapshotSession, snapshotCache],
   );
 
   const seriesValues = useMemo(() => {
@@ -2548,6 +2594,7 @@ export function ImuSessionAnalysis({
                             event={primaryEvent}
                             sessionId={sessionId}
                             existing={existingSnapshots}
+                            loadSession={loadSnapshotSession}
                           />
                         ) : undefined
                       }

@@ -312,16 +312,45 @@ function toneOf(column: Column, diff: number): Tone {
   return good ? "better" : "worse";
 }
 
+/** How the view gets a candidate's recording: by default it downloads
+ * and reads the file; the comparison opened from an event's card hands in
+ * its own, which keeps what it has read for the next corner. */
+export type ImuSnapshotSessionLoader = (
+  candidate: ImuSnapshotCandidate,
+) => Promise<
+  { data: SnapshotSession; error?: undefined } | { data: null; error: string }
+>;
+
+async function downloadSnapshotSession(
+  c: ImuSnapshotCandidate,
+): ReturnType<ImuSnapshotSessionLoader> {
+  const result = await loadImuSession(
+    c.storagePath,
+    c.mountOrientation,
+    c.trim,
+  );
+  return result.data === null
+    ? { data: null, error: result.error }
+    : { data: prepareSnapshotSession(result.data) };
+}
+
 export function ImuSnapshotView({
   snapshot,
   candidates,
   fromSessionId,
+  draft = false,
+  loadSession = downloadSnapshotSession,
 }: {
   snapshot: ImuSnapshotRow;
   candidates: ImuSnapshotCandidate[];
   /** The session whose report this page was reached from — where back
    * goes, and where a deleted Snapshot leaves the reader. */
   fromSessionId: string;
+  /** Not saved yet: the comparison "Comparar" opens over the analysis
+   * (2026-09-20). The same view, without what only a saved Snapshot has —
+   * a name of its own, a date, the menu that renames and deletes. */
+  draft?: boolean;
+  loadSession?: ImuSnapshotSessionLoader;
 }) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(candidates.map((c) => [c.id, { status: "loading" }])),
@@ -397,17 +426,13 @@ export function ImuSnapshotView({
     let cancelled = false;
     for (const c of candidates) {
       (async () => {
-        const result = await loadImuSession(
-          c.storagePath,
-          c.mountOrientation,
-          c.trim,
-        );
+        const result = await loadSession(c);
         if (cancelled) return;
         let next: Loaded;
         if (result.data === null)
           next = { status: "error", message: result.error };
         else {
-          const prepared = prepareSnapshotSession(result.data);
+          const prepared = result.data;
           next = {
             status: "done",
             prepared,
@@ -425,7 +450,7 @@ export function ImuSnapshotView({
     return () => {
       cancelled = true;
     };
-  }, [candidates, snapshot.definition]);
+  }, [candidates, snapshot.definition, loadSession]);
 
   const pending = [...loaded.values()].filter(
     (l) => l.status === "loading",
@@ -556,13 +581,15 @@ export function ImuSnapshotView({
   return (
     <div className="space-y-[18px]">
       <div className={cn("relative rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-          <SnapshotSettings
-            id={snapshot.id}
-            name={snapshot.name}
-            afterDeleteHref={`/labs/imu/${fromSessionId}/relatorio`}
-          />
-        </div>
+        {!draft && (
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
+            <SnapshotSettings
+              id={snapshot.id}
+              name={snapshot.name}
+              afterDeleteHref={`/labs/imu/${fromSessionId}/relatorio`}
+            />
+          </div>
+        )}
         {/* The identity on the left and the map on the right from `sm`,
             the map under the words on a phone. The three dots keep the
             corner: the map stops short of it (`sm:mr-12`). */}
@@ -570,7 +597,8 @@ export function ImuSnapshotView({
           <div className="min-w-0 pr-10 sm:pr-0">
             <SnapshotKindMark kind={snapshot.definition.kind} />
             <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-              Snapshot · {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
+              {draft ? "Comparação" : "Snapshot"} ·{" "}
+              {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
             </p>
             <h1 className="mt-0.5 font-display text-2xl font-semibold">
               {snapshot.name}
@@ -590,8 +618,8 @@ export function ImuSnapshotView({
               ) : (
                 "A sessão de referência foi apagada · "
               )}
-              criado a {formatDate(snapshot.createdAt)} · portas a{" "}
-              {SNAPSHOT_GATE_OFFSET_M} m do evento
+              {!draft && <>criado a {formatDate(snapshot.createdAt)} · </>}
+              portas a {SNAPSHOT_GATE_OFFSET_M} m do evento
             </p>
           </div>
           {/* A fixed picture of the stretch (by request, 2026-09-10) — a
@@ -610,7 +638,11 @@ export function ImuSnapshotView({
         </div>
       </div>
 
-      {(bikes.length > 1 || riders.length > 1 || rows.length > 2) && (
+      {/* The filters and the order. Hidden in the comparison opened from
+          an event's card (by request, 2026-09-20, "por agora"): there the
+          reader came to look at one corner, not to sort a list. Kept off,
+          not deleted — the saved Snapshot's page still has them. */}
+      {!draft && (bikes.length > 1 || riders.length > 1 || rows.length > 2) && (
         <div className="flex flex-wrap gap-2">
           {bikes.length > 1 && (
             <NativeSelect

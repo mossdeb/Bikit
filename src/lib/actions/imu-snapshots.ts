@@ -7,6 +7,8 @@ import {
   isSnapshotDefinition,
   type SnapshotDefinition,
 } from "@/lib/imu/snapshot";
+import { loadSnapshotCandidates } from "@/lib/imu/snapshot-candidates";
+import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import type { Json } from "@/types/database.types";
 
 /**
@@ -18,6 +20,39 @@ import type { Json } from "@/types/database.types";
 
 export type ImuSnapshotResult =
   { status: "ok"; id: string } | { status: "error"; message: string };
+
+/**
+ * Who a comparison would read, for gates that are not saved anywhere yet
+ * (2026-09-20: "Comparar" on an event's card opens the comparison first
+ * and saves only on request). Read-only: nothing is written, and the
+ * choice is the Snapshot page's own (loadSnapshotCandidates).
+ */
+export async function listImuSnapshotCandidates(input: {
+  definition: SnapshotDefinition;
+  /** The session the comparison is opened from — always a candidate. */
+  sessionId: string;
+}): Promise<
+  | { status: "ok"; candidates: ImuSnapshotCandidate[] }
+  | { status: "error"; message: string }
+> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const userId = userData?.claims?.sub as string | undefined;
+  const email = userData?.claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: "Sem acesso." };
+  if (!isSnapshotDefinition(input.definition))
+    return { status: "error", message: "Definição do Snapshot inválida." };
+  return {
+    status: "ok",
+    candidates: await loadSnapshotCandidates(
+      supabase,
+      userId,
+      input.definition,
+      input.sessionId,
+    ),
+  };
+}
 
 export async function createImuSnapshot(input: {
   name: string;
