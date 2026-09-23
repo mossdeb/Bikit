@@ -139,7 +139,7 @@ export async function createImuSession(
   });
   if (error) return { status: "error", message: error.message };
 
-  revalidatePath("/labs/imu");
+  revalidatePath("/pro");
   return { status: "ok" };
 }
 
@@ -224,7 +224,7 @@ export async function deleteImuSessionGroup(
     .eq("user_id", caller.userId);
   if (error) return { status: "error", message: error.message };
 
-  revalidatePath("/labs/imu");
+  revalidatePath("/pro");
   return { status: "ok" };
 }
 
@@ -264,14 +264,14 @@ export async function deleteImuSession(
   // The row is gone either way; an undeleted file is an orphan, not a leak —
   // but it is reported rather than swallowed.
   if (fileError) {
-    revalidatePath("/labs/imu");
+    revalidatePath("/pro");
     return {
       status: "error",
       message: `A sessão foi apagada mas o ficheiro ficou: ${fileError.message}`,
     };
   }
 
-  revalidatePath("/labs/imu");
+  revalidatePath("/pro");
   return { status: "ok" };
 }
 
@@ -336,8 +336,8 @@ export async function updateImuSession(input: {
   if (error) return { status: "error", message: error.message };
   if (!data) return { status: "error", message: "Sessão não encontrada." };
 
-  revalidatePath("/labs/imu");
-  revalidatePath(`/labs/imu/${input.sessionId}`);
+  revalidatePath("/pro");
+  revalidatePath(`/pro/sessoes/${input.sessionId}`);
   return { status: "ok" };
 }
 
@@ -465,10 +465,10 @@ export async function setImuSessionTrim(input: {
     }
   }
 
-  revalidatePath("/labs/imu");
-  revalidatePath(`/labs/imu/${session.id}`);
-  revalidatePath(`/labs/imu/${session.id}/relatorio`);
-  revalidatePath(`/labs/imu/${session.id}/afinacoes`);
+  revalidatePath("/pro");
+  revalidatePath(`/pro/sessoes/${session.id}`);
+  revalidatePath(`/pro/sessoes/${session.id}/relatorio`);
+  revalidatePath(`/pro/sessoes/${session.id}/afinacoes`);
   return { status: "ok" };
 }
 
@@ -537,7 +537,7 @@ export async function setGroupMountOrientation(input: {
     .select("id");
   if (error) return { status: "error", message: error.message };
 
-  revalidatePath("/labs/imu");
+  revalidatePath("/pro");
   return { status: "ok", updated: data?.length ?? 0 };
 }
 

@@ -534,7 +534,7 @@ export function ImuSetupCompareView({
           <p className="mt-1.5 text-sm text-muted-foreground">
             Referência:{" "}
             <Link
-              href={`/labs/imu/${reference.id}`}
+              href={`/pro/sessoes/${reference.id}`}
               className="text-foreground underline underline-offset-2"
             >
               {reference.name}
@@ -905,7 +905,7 @@ function RunRow({
     <tr className="h-[90px] border-t border-border">
       <td className="py-2 pr-4 align-middle whitespace-nowrap">
         <Link
-          href={`/labs/imu/${run.id}`}
+          href={`/pro/sessoes/${run.id}`}
           className="font-semibold underline-offset-2 hover:underline"
         >
           {run.name.split(" - ")[0]}

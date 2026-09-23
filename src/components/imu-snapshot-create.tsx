@@ -265,7 +265,7 @@ export function ImuSnapshotCreate({
                     type="button"
                     variant="outline"
                     onClick={() =>
-                      router.push(`/labs/imu/${sessionId}/snapshots/${savedId}`)
+                      router.push(`/pro/sessoes/${sessionId}/snapshots/${savedId}`)
                     }
                   >
                     Abrir o Snapshot
@@ -302,7 +302,7 @@ export function ImuSnapshotCreate({
                       variant="inverted"
                       onClick={() =>
                         router.push(
-                          `/labs/imu/${sessionId}/snapshots/${twin.id}`,
+                          `/pro/sessoes/${sessionId}/snapshots/${twin.id}`,
                         )
                       }
                     >

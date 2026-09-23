@@ -586,7 +586,7 @@ export function ImuSnapshotView({
             <SnapshotSettings
               id={snapshot.id}
               name={snapshot.name}
-              afterDeleteHref={`/labs/imu/${fromSessionId}/relatorio`}
+              afterDeleteHref={`/pro/sessoes/${fromSessionId}/relatorio`}
             />
           </div>
         )}
@@ -608,7 +608,7 @@ export function ImuSnapshotView({
                 <>
                   Referência:{" "}
                   <Link
-                    href={`/labs/imu/${referenceSession.id}`}
+                    href={`/pro/sessoes/${referenceSession.id}`}
                     className="text-foreground underline-offset-2 hover:underline"
                   >
                     {referenceSession.name}
@@ -888,7 +888,7 @@ export function SnapshotPassLine({
       <div className="flex flex-1 flex-col gap-4 @min-[1030px]:flex-row @min-[1030px]:items-stretch @min-[1030px]:gap-6">
         <div className="min-w-0 @min-[1030px]:w-[280px] @min-[1030px]:shrink-0">
           <Link
-            href={`/labs/imu/${session.id}`}
+            href={`/pro/sessoes/${session.id}`}
             className="text-lg font-semibold underline-offset-2 hover:underline"
           >
             {session.name}

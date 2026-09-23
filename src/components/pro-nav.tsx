@@ -1,0 +1,179 @@
+"use client";
+
+import { useState, useSyncExternalStore, type ComponentType } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Bluetooth, PanelLeftClose, PanelLeft } from "lucide-react";
+import { BikitLockup, LogoMark } from "@/components/logo";
+import { ImuChartGlyph } from "@/components/imu-pro-logo";
+import { MenuSettingsIcon } from "@/components/menu-icons";
+import { cn } from "@/lib/utils";
+
+/**
+ * Bikit Pro's own navigation (2026-09-23): the same account, a different
+ * area. Where the app's rail lists the places of a bike's upkeep, this
+ * one lists the places of the sensor — the sessions, which are the home,
+ * the sensor probe, the account's settings. The door back to Bikit is in
+ * the account menu, as the door here is on the app's side: neither rail
+ * lists the other area (by request, 2026-09-23).
+ *
+ * Untranslated on purpose, like everything in the lab: the words are
+ * literals and not dictionary keys. Same shape, same rail colours and the
+ * same collapse switch as AppSidebar, and the same localStorage key, so
+ * a rail left open on one side is open on the other.
+ */
+
+const STORAGE_KEY = "bikelog_sidebar_expanded";
+const emptySubscribe = () => () => {};
+
+function useMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+interface ProNavItem {
+  href: string;
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+  /** Which paths light it: the home also owns the sessions under it. */
+  isActive: (pathname: string) => boolean;
+  /** The phone bar's glyph size, where the marks are drawn to different
+   * boxes (the app's bar sizes each one by hand too). */
+  iconClassName: string;
+}
+
+export const PRO_NAV_ITEMS: ProNavItem[] = [
+  {
+    href: "/pro",
+    label: "Sessões",
+    Icon: ImuChartGlyph,
+    isActive: (p) => p === "/pro" || p.startsWith("/pro/sessoes"),
+    iconClassName: "size-7",
+  },
+  {
+    href: "/pro/sensor",
+    label: "Sensor",
+    Icon: Bluetooth,
+    isActive: (p) => p.startsWith("/pro/sensor"),
+    iconClassName: "size-7",
+  },
+  {
+    href: "/pro/definicoes",
+    label: "Definições",
+    Icon: MenuSettingsIcon,
+    isActive: (p) => p.startsWith("/pro/definicoes"),
+    iconClassName: "size-7",
+  },
+];
+
+export function ProSidebar() {
+  const pathname = usePathname();
+  const mounted = useMounted();
+  const [override, setOverride] = useState<boolean | null>(null);
+  const expanded =
+    mounted && (override ?? localStorage.getItem(STORAGE_KEY) === "1");
+
+  function toggle() {
+    const next = !expanded;
+    localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+    setOverride(next);
+  }
+
+  const entry = (item: ProNavItem) => {
+    const active = item.isActive(pathname);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-label={item.label}
+        className={cn(
+          "flex h-11 items-center gap-3 rounded-[12px] text-sm font-semibold transition-colors",
+          expanded ? "justify-start px-3.5" : "w-11 justify-center",
+          active
+            ? "bg-sidebar-accent text-sidebar-primary"
+            : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
+        )}
+      >
+        <item.Icon className="size-5 shrink-0" />
+        {expanded && <span>{item.label}</span>}
+      </Link>
+    );
+  };
+
+  return (
+    <aside
+      className={cn(
+        "sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto bg-sidebar py-6 text-sidebar-foreground transition-[width] duration-150 sm:flex",
+        expanded
+          ? "w-[232px] items-stretch px-4"
+          : "w-[84px] items-center px-0",
+      )}
+    >
+      <div className="mb-8 flex items-center px-1">
+        {expanded ? (
+          <BikitLockup onDark pro className="h-10 w-auto" />
+        ) : (
+          <LogoMark />
+        )}
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1.5">
+        {PRO_NAV_ITEMS.map(entry)}
+      </nav>
+
+      <button
+        type="button"
+        onClick={toggle}
+        title={expanded ? "Recolher menu" : "Expandir menu"}
+        className={cn(
+          "mt-1.5 flex h-11 shrink-0 items-center gap-3 rounded-2xl text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground",
+          expanded ? "justify-start px-3.5" : "w-11 justify-center",
+        )}
+      >
+        {expanded ? (
+          <PanelLeftClose className="size-5 shrink-0" />
+        ) : (
+          <PanelLeft className="size-5 shrink-0" />
+        )}
+        {expanded && <span>Recolher</span>}
+      </button>
+    </aside>
+  );
+}
+
+export function ProMobileNav() {
+  const pathname = usePathname();
+
+  // The session analysis is read by scrubbing a chart with a thumb, with
+  // the readout underneath it: a floating bar across the bottom sits
+  // exactly where the details land. Reached by link and left by the
+  // header's back chevron, so nobody is stranded without the nav.
+  if (/^\/pro\/sessoes\/[^/]+$/.test(pathname)) return null;
+
+  return (
+    <nav
+      className="fixed inset-x-4 z-40 flex items-center justify-between rounded-[22px] bg-sidebar px-5 text-sidebar-foreground shadow-lg sm:hidden"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+      aria-label="Primary"
+    >
+      {PRO_NAV_ITEMS.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          aria-label={item.label}
+          className={cn(
+            "flex items-center justify-center py-3.5",
+            item.isActive(pathname)
+              ? "text-sidebar-primary"
+              : "text-sidebar-foreground/60",
+          )}
+        >
+          <item.Icon className={item.iconClassName} />
+        </Link>
+      ))}
+    </nav>
+  );
+}

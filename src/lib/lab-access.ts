@@ -1,5 +1,6 @@
 /**
- * Who may reach the lab routes.
+ * Who may reach the lab routes — Bikit Pro's area (`/pro`, since
+ * 2026-09-23) and the sensor probe under it.
  *
  * These are probes, not features: they exist to answer a question about
  * hardware or about a browser API before anything is built on top of it. They

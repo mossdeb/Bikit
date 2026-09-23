@@ -12,7 +12,6 @@ import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
 import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
 import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
-import { ImuLabTexture } from "@/components/imu-lab-texture";
 
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
@@ -94,7 +93,7 @@ export default async function ImuLabPage() {
         )}
       >
         <Link
-          href={`/labs/imu/${session.id}`}
+          href={`/pro/sessoes/${session.id}`}
           className="absolute inset-0 rounded-lg outline-none"
           aria-label={session.name}
         />
@@ -146,7 +145,6 @@ export default async function ImuLabPage() {
     <div className="-mx-5 px-[15px] pt-4 sm:mx-0 sm:px-0 sm:pt-8">
       {/* The lab's dot grid on the page background, for as long as this
           page is mounted. Renders nothing of its own. */}
-      <ImuLabTexture />
       <div className="flex items-center justify-between gap-3">
         <div>
           {/* "Sessões" and not "Sessões IMU": the lockup above it already

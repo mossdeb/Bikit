@@ -126,7 +126,7 @@ export function ImuSessionReport({
                   {/* The door to the whole picture — every run of this bike
                       on this trail, line by line. */}
                   <Link
-                    href={`/labs/imu/${session.id}/afinacoes`}
+                    href={`/pro/sessoes/${session.id}/afinacoes`}
                     className="flex w-full items-center justify-center gap-2.5 rounded-[14px] bg-foreground px-5 py-3 font-semibold text-background transition-opacity hover:opacity-90"
                   >
                     <FileText

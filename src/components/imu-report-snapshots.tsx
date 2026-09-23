@@ -277,7 +277,7 @@ function SnapshotCard({
       // Under the reference's session, so back from the Snapshot lands on
       // the report it belongs to; this session's own when the reference
       // is gone.
-      href={`/labs/imu/${snapshot.referenceSessionId ?? session.id}/snapshots/${snapshot.id}`}
+      href={`/pro/sessoes/${snapshot.referenceSessionId ?? session.id}/snapshots/${snapshot.id}`}
       className={cn(
         "flex flex-col gap-4 rounded-lg bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:px-[22px]",
         DARK_CARD_HAIRLINE,

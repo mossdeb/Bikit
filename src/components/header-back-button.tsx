@@ -39,26 +39,26 @@ const MOBILE_BACK_ROUTES: {
   { re: /^\/bikes\/([^/]+)\/edit$/, backHref: (m) => `/bikes/${m[1]}` },
   { re: /^\/bikes\/([^/]+)\/ride-load$/, backHref: (m) => `/bikes/${m[1]}` },
   {
-    re: /^\/labs\/imu\/[^/]+$/,
-    backHref: () => "/labs/imu",
+    re: /^\/pro\/sessoes\/[^/]+$/,
+    backHref: () => "/pro",
     alsoDesktop: true,
   },
   {
-    re: /^\/labs\/imu\/([^/]+)\/relatorio$/,
-    backHref: (m) => `/labs/imu/${m[1]}`,
+    re: /^\/pro\/sessoes\/([^/]+)\/relatorio$/,
+    backHref: (m) => `/pro/sessoes/${m[1]}`,
     alsoDesktop: true,
   },
   // A Snapshot lives under the session it was made from, and back is that
   // session's report — where the Snapshot is listed (by request).
   {
-    re: /^\/labs\/imu\/([^/]+)\/snapshots\/[^/]+$/,
-    backHref: (m) => `/labs/imu/${m[1]}/relatorio`,
+    re: /^\/pro\/sessoes\/([^/]+)\/snapshots\/[^/]+$/,
+    backHref: (m) => `/pro/sessoes/${m[1]}/relatorio`,
     alsoDesktop: true,
   },
   // The setups comparison is reached from the report's Bike card.
   {
-    re: /^\/labs\/imu\/([^/]+)\/afinacoes$/,
-    backHref: (m) => `/labs/imu/${m[1]}/relatorio`,
+    re: /^\/pro\/sessoes\/([^/]+)\/afinacoes$/,
+    backHref: (m) => `/pro/sessoes/${m[1]}/relatorio`,
     alsoDesktop: true,
   },
   {

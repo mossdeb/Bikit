@@ -1,34 +1,18 @@
 "use client";
 
-import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MOBILE_NAV_ITEMS } from "@/lib/nav-items";
-import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { cn } from "@/lib/utils";
 import { isFullscreenFormRoute } from "@/lib/fullscreen-form-routes";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
-export function MobileNav({
-  nav,
-  showLab = false,
-}: {
-  nav: Dictionary["nav"];
-  /** The owner's IMU lab entry — see AppSidebar. */
-  showLab?: boolean;
-}) {
+export function MobileNav({ nav }: { nav: Dictionary["nav"] }) {
   const pathname = usePathname();
 
   // The create forms take over the whole screen — no nav competing with
   // their bottom buttons.
   if (isFullscreenFormRoute(pathname)) return null;
-
-  // The IMU session analysis is read by scrubbing a chart with a thumb, with
-  // the readout underneath it: a floating bar across the bottom sits exactly
-  // where the details land. The lab is owner-only and reached by link, so
-  // nobody is stranded without the nav. (Desktop never had it — the bar is
-  // sm:hidden — so this only takes effect on a phone.)
-  if (/^\/labs\/imu\/[^/]+$/.test(pathname)) return null;
 
   return (
     <nav
@@ -39,35 +23,17 @@ export function MobileNav({
       {MOBILE_NAV_ITEMS.map(({ href, labelKey, icon: Icon, iconClassName }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
-          <Fragment key={href}>
-            {/* The lab's entry stands before the settings, with the places
-                you go to and not with the place you configure; the settings
-                keep the last slot they have always had. */}
-            {showLab && href === "/settings" && (
-              <Link
-                href="/labs/imu"
-                aria-label="IMU"
-                className={cn(
-                  "flex items-center justify-center py-3.5",
-                  pathname.startsWith("/labs/imu")
-                    ? "text-sidebar-primary"
-                    : "text-sidebar-foreground/60",
-                )}
-              >
-                <ImuChartGlyph className="size-7" />
-              </Link>
+          <Link
+            key={href}
+            href={href}
+            aria-label={nav[labelKey]}
+            className={cn(
+              "flex items-center justify-center py-3.5",
+              active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
             )}
-            <Link
-              href={href}
-              aria-label={nav[labelKey]}
-              className={cn(
-                "flex items-center justify-center py-3.5",
-                active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
-              )}
-            >
-              <Icon className={iconClassName} />
-            </Link>
-          </Fragment>
+          >
+            <Icon className={iconClassName} />
+          </Link>
         );
       })}
     </nav>

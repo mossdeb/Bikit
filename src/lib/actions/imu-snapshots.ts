@@ -107,7 +107,7 @@ export async function createImuSnapshot(input: {
   if (error || !data)
     return { status: "error", message: error?.message ?? "Sem resposta." };
 
-  revalidatePath(`/labs/imu/${session.id}/relatorio`);
+  revalidatePath(`/pro/sessoes/${session.id}/relatorio`);
   return { status: "ok", id: data.id };
 }
 
@@ -138,9 +138,9 @@ export async function renameImuSnapshot(input: {
   if (!data) return { status: "error", message: "Snapshot não encontrado." };
   if (data.reference_session_id) {
     revalidatePath(
-      `/labs/imu/${data.reference_session_id}/snapshots/${data.id}`,
+      `/pro/sessoes/${data.reference_session_id}/snapshots/${data.id}`,
     );
-    revalidatePath(`/labs/imu/${data.reference_session_id}/relatorio`);
+    revalidatePath(`/pro/sessoes/${data.reference_session_id}/relatorio`);
   }
   return { status: "ok", id: data.id };
 }

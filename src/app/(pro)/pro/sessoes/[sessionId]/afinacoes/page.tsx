@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
-import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSetupCompareView } from "@/components/imu-setup-compare-view";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
@@ -136,7 +135,6 @@ export default async function ImuSetupComparePage({
 
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
-      <ImuLabTexture />
       <ImuSetupCompareView
         reference={candidateOf(session)}
         runs={runs.map(candidateOf)}

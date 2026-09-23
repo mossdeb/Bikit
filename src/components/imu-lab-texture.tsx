@@ -15,8 +15,10 @@ import { useLayoutEffect } from "react";
  * threaded between that background and the content, which is a z-index
  * argument with the whole app rather than with this page.
  *
- * Scoped by mount: the class arrives with the page and leaves with it, so
- * no route outside `/labs/imu` renders a byte differently.
+ * Scoped by mount: the class arrives with Bikit Pro's layout and leaves
+ * with it, so no route outside `/pro` renders a byte differently. Mounted
+ * ONCE, by that layout — two mounts would take the class off when one of
+ * them left.
  *
  * The root element is marked as well: the same class switches off the
  * browser's swipe-to-navigate gesture there (`overscroll-behavior-x`, see

@@ -4,7 +4,6 @@ import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
-import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionReport } from "@/components/imu-session-report";
 import type {
   ImuSnapshotCandidate,
@@ -195,7 +194,6 @@ export default async function ImuSessionReportPage({
 
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
-      <ImuLabTexture />
       <ImuSessionReport
         storagePath={session.storage_path}
         mountOrientation={

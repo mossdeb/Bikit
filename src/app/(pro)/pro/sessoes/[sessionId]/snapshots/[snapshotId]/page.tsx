@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
-import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSnapshotView } from "@/components/imu-snapshot-view";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 import { loadSnapshotCandidates } from "@/lib/imu/snapshot-candidates";
@@ -52,7 +51,6 @@ export default async function ImuSnapshotPage({
 
   return (
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
-      <ImuLabTexture />
       <ImuSnapshotView
         fromSessionId={sessionId}
         snapshot={{

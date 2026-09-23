@@ -9,7 +9,6 @@ import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
-import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ImuSessionSettings } from "@/components/imu-session-settings";
 import type { ImuSnapshotTwin } from "@/components/imu-snapshot-create";
 import {
@@ -162,7 +161,6 @@ export default async function ImuSessionPage({
     <div className="-mx-5 px-[15px] pt-4 pb-10 sm:mx-0 sm:px-0 sm:pt-8">
       {/* The lab's dot grid on the page background, for as long as this
           page is mounted. Renders nothing of its own. */}
-      <ImuLabTexture />
       {/* The back chevron lives in the app header (HeaderBackButton has this
           route), matching the rest of the app — not inside the page. */}
 
@@ -288,7 +286,7 @@ export default async function ImuSessionPage({
                   bikeType={(bike?.type as BikeType | undefined) ?? null}
                 />
                 <Link
-                  href={`/labs/imu/${session.id}/relatorio`}
+                  href={`/pro/sessoes/${session.id}/relatorio`}
                   className={cn(
                     "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold",
                     CLICKABLE_CARD_HOVER,

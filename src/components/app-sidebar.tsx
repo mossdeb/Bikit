@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { BikitLockup, LogoMark } from "@/components/logo";
-import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -19,27 +18,17 @@ function useMounted() {
   return useSyncExternalStore(
     emptySubscribe,
     () => true,
-    () => false
+    () => false,
   );
 }
 
-export function AppSidebar({
-  nav,
-  showLab = false,
-}: {
-  nav: Dictionary["nav"];
-  /** Whether this account may reach the IMU lab (hasLabAccess, decided on
-   * the server). The entry is a literal "IMU" and not a dictionary key: the
-   * lab is untranslated on purpose, and a key would promise a feature. */
-  showLab?: boolean;
-}) {
+export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
   const pathname = usePathname();
   const mounted = useMounted();
   const [override, setOverride] = useState<boolean | null>(null);
 
-  const expanded = mounted && (override ?? localStorage.getItem(STORAGE_KEY) === "1");
-  /** Same route test the mobile header's logo uses, so the two agree. */
-  const isLab = pathname.startsWith("/labs/imu");
+  const expanded =
+    mounted && (override ?? localStorage.getItem(STORAGE_KEY) === "1");
 
   function toggle() {
     const next = !expanded;
@@ -64,22 +53,21 @@ export function AppSidebar({
         // `overflow-y-auto` for the day the nav outgrows a short window; it
         // shows no scrollbar while it fits.
         "sticky top-0 hidden h-dvh shrink-0 flex-col overflow-y-auto bg-sidebar py-6 text-sidebar-foreground transition-[width] duration-150 sm:flex",
-        expanded ? "w-[232px] items-stretch px-4" : "w-[84px] items-center px-0"
+        expanded
+          ? "w-[232px] items-stretch px-4"
+          : "w-[84px] items-center px-0",
       )}
     >
-      {/* The rail wears the lab's branding too, not just the phone's header:
-          on desktop the sidebar IS the place the app names itself, and
-          standing inside `/labs/imu` under a plain "Bikit" said the lab was
-          somewhere else.
-          Only while expanded — collapsed the rail is 84px and the lockup
+      {/* Only while expanded — collapsed the rail is 84px and the lockup
           wants ~140 at this height, so there the mark stands alone, which
-          is the same mark either way. */}
+          is the same mark either way. (Bikit Pro has a rail of its own,
+          with its own lockup — see pro-nav.tsx.) */}
       <div className="mb-8 flex items-center px-1">
         {expanded ? (
           // `onDark` on both: the rail is `--sidebar` in either theme, so the
           // word cannot be left to follow the theme — it would be near-black
           // on near-black in the light one.
-          <BikitLockup onDark pro={isLab} className="h-10 w-auto" />
+          <BikitLockup onDark className="h-10 w-auto" />
         ) : (
           // Collapsed the rail is 84px and the lockup wants ~140 at this
           // height, so the mark stands alone — the same mark the lockup
@@ -100,7 +88,7 @@ export function AppSidebar({
                 expanded ? "justify-start px-3.5" : "w-11 justify-center",
                 active
                   ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
               )}
             >
               <Icon className="size-5 shrink-0" />
@@ -108,24 +96,6 @@ export function AppSidebar({
             </Link>
           );
         })}
-        {/* The lab's door, for the owner only. Same shape as the entries
-            above; the glyph is the lab's own chart mark. */}
-        {showLab && (
-          <Link
-            href="/labs/imu"
-            aria-label="IMU"
-            className={cn(
-              "flex h-11 items-center gap-3 rounded-[12px] text-sm font-semibold transition-colors",
-              expanded ? "justify-start px-3.5" : "w-11 justify-center",
-              isLab
-                ? "bg-sidebar-accent text-sidebar-primary"
-                : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
-            )}
-          >
-            <ImuChartGlyph className="size-5 shrink-0" />
-            {expanded && <span>IMU</span>}
-          </Link>
-        )}
       </nav>
 
       <button
@@ -137,7 +107,7 @@ export function AppSidebar({
           // the `flex-1` on the nav already leaves this sitting on the
           // window's floor.
           "flex h-11 shrink-0 items-center gap-3 rounded-2xl text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground",
-          expanded ? "justify-start px-3.5" : "w-11 justify-center"
+          expanded ? "justify-start px-3.5" : "w-11 justify-center",
         )}
       >
         {expanded ? (

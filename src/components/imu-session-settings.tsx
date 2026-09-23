@@ -249,7 +249,7 @@ export function ImuSessionSettings({
                 setError(result.message);
                 return;
               }
-              router.push("/labs/imu");
+              router.push("/pro");
             }}
           />
         </div>

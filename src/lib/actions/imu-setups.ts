@@ -59,7 +59,7 @@ export async function saveImuSessionSetup(input: {
       .eq("id", session.id)
       .eq("user_id", userId);
     if (error) return { status: "error", message: error.message };
-    revalidatePath(`/labs/imu/${session.id}`);
+    revalidatePath(`/pro/sessoes/${session.id}`);
     return { status: "ok", setupId: null, changed: true };
   }
 
@@ -102,6 +102,6 @@ export async function saveImuSessionSetup(input: {
     .eq("user_id", userId);
   if (linkError) return { status: "error", message: linkError.message };
 
-  revalidatePath(`/labs/imu/${session.id}`);
+  revalidatePath(`/pro/sessoes/${session.id}`);
   return { status: "ok", setupId: inserted.id, changed: true };
 }

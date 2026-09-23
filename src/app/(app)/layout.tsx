@@ -8,12 +8,19 @@ import { HeaderLogo } from "@/components/header-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { UserMenu } from "@/components/user-menu";
-import { HeaderBackButton, HeaderEditButton } from "@/components/header-back-button";
+import {
+  HeaderBackButton,
+  HeaderEditButton,
+} from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
@@ -25,9 +32,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const dict = getDictionary(localeFromMetadata(user.user_metadata));
-  // The IMU lab's entry in both navs, for the owner's account only — the
-  // same gate the lab's pages apply (they 404 for anyone else).
-  const showLab = hasLabAccess(user.email as string | undefined);
+  // The door to Bikit Pro, in the account menu, for the accounts that have
+  // it — the same gate the Pro area applies (it 404s for anyone else). Not
+  // on the navs: the two areas keep their own (2026-09-23).
+  const showPro = hasLabAccess(user.email as string | undefined);
 
   return (
     <ToastProvider>
@@ -36,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           to reach exactly it (see globals.css). No rule matches it
           anywhere else. */}
       <div data-app-shell className="flex min-h-dvh bg-background">
-        <AppSidebar nav={dict.nav} showLab={showLab} />
+        <AppSidebar nav={dict.nav} />
         {/* The app's widest measure, raised from 1440 to 1600 on 2026-08-25.
             It governs every authenticated page, not just the lab that asked
             for it: past this width the surplus becomes equal margins. The
@@ -50,12 +58,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <div className="hidden items-center gap-3 sm:flex">
               <ThemeToggle />
               <NotificationBell notifications={dict.notifications} />
-              <UserMenu name={user.user_metadata?.full_name} email={user.email as string} common={dict.common} />
+              <UserMenu
+                name={user.user_metadata?.full_name}
+                email={user.email as string}
+                common={dict.common}
+                showPro={showPro}
+              />
             </div>
           </AppHeader>
           <AppMain>{children}</AppMain>
         </div>
-        <MobileNav nav={dict.nav} showLab={showLab} />
+        <MobileNav nav={dict.nav} />
       </div>
       <Toaster />
     </ToastProvider>
