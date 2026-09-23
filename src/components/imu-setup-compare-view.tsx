@@ -40,6 +40,7 @@ import {
   setupSummary,
   type ImuDamperSetup,
   type ImuSetupValues,
+  sagPercent,
 } from "@/lib/imu/setup";
 
 /**
@@ -162,6 +163,7 @@ const KNOB_FULL: Record<string, string> = {
   R: "Rebound",
   pressão: "Pressão",
   mola: "Mola",
+  curso: "Curso",
   sag: "SAG",
   "pneu dt.": "Pneu da frente",
   "pneu tr.": "Pneu de trás",
@@ -313,7 +315,11 @@ export function ImuSetupCompareView({
     for (const c of members) {
       const r = reportOf(c);
       if (!r) continue;
-      for (const m of [...r.rider.metrics, ...r.bike.metrics, ...r.trail.metrics])
+      for (const m of [
+        ...r.rider.metrics,
+        ...r.bike.metrics,
+        ...r.trail.metrics,
+      ])
         if (m.raw != null)
           values.set(m.label, [...(values.get(m.label) ?? []), m.raw]);
     }
@@ -1112,7 +1118,10 @@ function setupBlocks(
     value: pt(n),
     unit: n === 1 ? "click" : "clicks",
   });
-  const damperTiles = (d: ImuDamperSetup | undefined) => {
+  const damperTiles = (
+    d: ImuDamperSetup | undefined,
+    block: "fork" | "shock",
+  ) => {
     if (!d) return [];
     const tiles: { label: string; value: string; unit: string }[] = [];
     if (damperSpring(d) === "coil") {
@@ -1145,16 +1154,32 @@ function setupBlocks(
       if (d.reboundLow != null)
         tiles.push(clicks("Low-Speed Rebound", d.reboundLow));
     }
-    if (d.sagPct != null)
-      tiles.push({ label: "SAG", value: pt(d.sagPct), unit: "%" });
+    // The travel (the shock's own stroke) and the sag in mm, with the
+    // share the two make when both are in (2026-09-23).
+    if (d.travelMm != null)
+      tiles.push({
+        label: block === "fork" ? "Travel" : "Stroke",
+        value: pt(d.travelMm),
+        unit: "mm",
+      });
+    if (d.sagMm != null) {
+      tiles.push({ label: "SAG", value: pt(d.sagMm), unit: "mm" });
+      const share = sagPercent(d);
+      if (share != null)
+        tiles.push({ label: "SAG %", value: pt(share), unit: "%" });
+    }
     return tiles;
   };
   const blocks: SetupBlock[] = [
-    { kind: "Fork", name: labels.fork || "", tiles: damperTiles(setup.fork) },
+    {
+      kind: "Fork",
+      name: labels.fork || "",
+      tiles: damperTiles(setup.fork, "fork"),
+    },
     {
       kind: "Shock",
       name: labels.shock || "",
-      tiles: damperTiles(setup.shock),
+      tiles: damperTiles(setup.shock, "shock"),
     },
     {
       kind: "Pneus",

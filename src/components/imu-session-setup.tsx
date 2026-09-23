@@ -29,6 +29,7 @@ import {
   type ImuDamperSetup,
   type ImuSetupValues,
   type ImuTireSetup,
+  sagPercent,
 } from "@/lib/imu/setup";
 
 /** What the bike calls its dampers, for the blocks' headings; null falls
@@ -73,6 +74,21 @@ function toDraft(values: ImuSetupValues): Draft {
   draft[RIDER_WEIGHT_KEY] =
     values.rider?.weightKg != null ? String(values.rider.weightKg) : "";
   return draft;
+}
+
+/** "30 % do curso" under the sag field, from the two strings as typed —
+ * the same arithmetic the summary prints (sagPercent). Null until both
+ * numbers are in. */
+function sagShare(draft: Draft, block: "fork" | "shock"): string | null {
+  const num = (key: string) => {
+    const n = Number(draft[key]?.trim().replace(",", "."));
+    return draft[key]?.trim() && Number.isFinite(n) ? n : undefined;
+  };
+  const share = sagPercent({
+    travelMm: num(damperKey(block, "travelMm")),
+    sagMm: num(damperKey(block, "sagMm")),
+  });
+  return share != null ? `${share} % do curso` : null;
 }
 
 /** Back from the strings the inputs hold — a comma is a decimal point
@@ -380,36 +396,46 @@ function DamperBlock({
           onToggle={() => choose(springKey, air ? "coil" : "air")}
         />
       </div>
-      {/* The spring and its sag side by side: the sag is what the spring
-          was set FOR, measured on the bike with the rider on it (by
-          request, 2026-09-12). */}
-      <div className="grid grid-cols-[1fr_auto] gap-3">
-        {air ? (
-          <NumberField
-            id={`setup-${block}-pressure`}
-            label="Pressão"
-            unit="psi"
-            value={draft[damperKey(block, "pressurePsi")]}
-            onChange={set(damperKey(block, "pressurePsi"))}
-          />
-        ) : (
-          <NumberField
-            id={`setup-${block}-spring`}
-            label="Mola"
-            unit="lbs"
-            value={draft[damperKey(block, "springRateLbs")]}
-            onChange={set(damperKey(block, "springRateLbs"))}
-          />
-        )}
+      {/* The travel and the sag on one line, halves; the spring under
+          them, full width (by request, 2026-09-23). The sag is what the
+          spring was set FOR, measured on the bike with the rider on it in
+          mm off the O-ring, and the travel is what it is read against —
+          the share prints under the sag as soon as both are in. For the
+          shock the travel is its own stroke, the shaft the ring rides. */}
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField
+          id={`setup-${block}-travel`}
+          label={block === "fork" ? "Curso" : "Stroke"}
+          unit="mm"
+          value={draft[damperKey(block, "travelMm")]}
+          onChange={set(damperKey(block, "travelMm"))}
+        />
         <NumberField
           id={`setup-${block}-sag`}
           label="SAG"
-          unit="%"
-          value={draft[damperKey(block, "sagPct")]}
-          onChange={set(damperKey(block, "sagPct"))}
-          className="w-24"
+          unit="mm"
+          value={draft[damperKey(block, "sagMm")]}
+          onChange={set(damperKey(block, "sagMm"))}
+          hint={sagShare(draft, block)}
         />
       </div>
+      {air ? (
+        <NumberField
+          id={`setup-${block}-pressure`}
+          label="Pressão"
+          unit="psi"
+          value={draft[damperKey(block, "pressurePsi")]}
+          onChange={set(damperKey(block, "pressurePsi"))}
+        />
+      ) : (
+        <NumberField
+          id={`setup-${block}-spring`}
+          label="Mola"
+          unit="lbs"
+          value={draft[damperKey(block, "springRateLbs")]}
+          onChange={set(damperKey(block, "springRateLbs"))}
+        />
+      )}
       <Circuit
         block={block}
         circuit="compression"
@@ -546,6 +572,7 @@ function NumberField({
   onChange,
   small = false,
   className,
+  hint,
 }: {
   id: string;
   label: string;
@@ -554,6 +581,8 @@ function NumberField({
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   small?: boolean;
   className?: string;
+  /** A reading under the field — the sag's share of the travel. */
+  hint?: string | null;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -573,6 +602,9 @@ function NumberField({
           {unit}
         </span>
       </div>
+      {hint && (
+        <p className="text-xs text-muted-foreground tabular-nums">{hint}</p>
+      )}
     </div>
   );
 }

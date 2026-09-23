@@ -39,10 +39,17 @@ export interface ImuDamperSetup {
   pressurePsi?: number;
   /** Coil spring rate, lbs/in. */
   springRateLbs?: number;
-  /** Sag, % of travel — measured in the workshop, written here (by
-   * request, 2026-09-12): it discounts the rider's weight the way a
-   * pressure cannot, so two riders on one bike compare by it. */
-  sagPct?: number;
+  /** The travel, mm: the fork's, or the shock's own stroke — the shaft
+   * the O-ring rides, which is what its sag is measured against (by
+   * request, 2026-09-23). Rarely changes; it is here so the sag can be
+   * read as a share of it. */
+  travelMm?: number;
+  /** Sag, mm, as the O-ring shows it — measured in the workshop with the
+   * rider on the bike (by request, 2026-09-12; in mm rather than a share
+   * since 2026-09-23, with the share worked out from the travel:
+   * sagPercent). It discounts the rider's weight the way a pressure
+   * cannot, so two riders on one bike compare by it. */
+  sagMm?: number;
   /** One dial (simple) or low- and high-speed (dual, the default). */
   compressionMode?: ImuCircuitMode;
   /** Compression damping, clicks from closed — the single dial… */
@@ -79,7 +86,8 @@ export interface ImuSetupValues {
 export const DAMPER_FIELDS = [
   "pressurePsi",
   "springRateLbs",
-  "sagPct",
+  "travelMm",
+  "sagMm",
   "compression",
   "compressionLow",
   "compressionHigh",
@@ -162,6 +170,17 @@ export function isSetupValues(value: unknown): value is ImuSetupValues {
   );
 }
 
+/** The sag as a share of the travel, %, rounded to the unit — what the
+ * workshop card says and what the trade compares by. Null without both
+ * numbers, or with a travel of nothing. */
+export function sagPercent(damper: ImuDamperSetup | undefined): number | null {
+  const sag = damper?.sagMm;
+  const travel = damper?.travelMm;
+  if (!isFiniteNumber(sag) || !isFiniteNumber(travel) || travel <= 0)
+    return null;
+  return Math.round((sag * 100) / travel);
+}
+
 /** Air unless said otherwise — or unless only a spring rate was written,
  * which is a coil by any reading. */
 export function damperSpring(
@@ -194,7 +213,8 @@ export function circuitMode(
 function activeFields(damper: ImuDamperSetup | undefined): DamperField[] {
   const active = new Set<DamperField>([
     SPRING_FIELDS[damperSpring(damper)],
-    "sagPct",
+    "travelMm",
+    "sagMm",
     ...CIRCUIT_FIELDS.compression[circuitMode(damper, "compression")],
     ...CIRCUIT_FIELDS.rebound[circuitMode(damper, "rebound")],
   ]);
@@ -276,7 +296,12 @@ function damperSummary(label: string, d: ImuDamperSetup): string | null {
   if (damperSpring(d) === "coil") {
     if (d.springRateLbs != null) bits.push(`${pt(d.springRateLbs)} lbs`);
   } else if (d.pressurePsi != null) bits.push(`${pt(d.pressurePsi)} psi`);
-  if (d.sagPct != null) bits.push(`sag ${pt(d.sagPct)} %`);
+  if (d.sagMm != null) {
+    const share = sagPercent(d);
+    bits.push(
+      `sag ${pt(d.sagMm)} mm${share != null ? ` (${pt(share)} %)` : ""}`,
+    );
+  }
   const c = circuitSummary("C", d, "compression");
   if (c) bits.push(c);
   const r = circuitSummary("R", d, "rebound");
@@ -323,7 +348,8 @@ export function setupSummary(
 const DAMPER_FIELD_SHORT: Record<DamperField, string> = {
   pressurePsi: "pressão",
   springRateLbs: "mola",
-  sagPct: "sag",
+  travelMm: "curso",
+  sagMm: "sag",
   compression: "C",
   compressionHigh: "HSC",
   compressionLow: "LSC",
@@ -334,7 +360,8 @@ const DAMPER_FIELD_SHORT: Record<DamperField, string> = {
 const DAMPER_FIELD_UNIT: Record<DamperField, string> = {
   pressurePsi: " psi",
   springRateLbs: " lbs",
-  sagPct: " %",
+  travelMm: " mm",
+  sagMm: " mm",
   compression: "",
   compressionHigh: "",
   compressionLow: "",
@@ -346,11 +373,13 @@ const DAMPER_FIELD_UNIT: Record<DamperField, string> = {
 /** What a knob is, for the words a change carries: clicks open or close,
  * a spring firms or softens, sag is the spring the other way round, a
  * tyre hardens or softens, and a weight is just a weight. */
-export type SetupChangeKind = "clicks" | "spring" | "sag" | "tire" | "rider";
+export type SetupChangeKind =
+  "clicks" | "spring" | "travel" | "sag" | "tire" | "rider";
 const DAMPER_FIELD_KIND: Record<DamperField, SetupChangeKind> = {
   pressurePsi: "spring",
   springRateLbs: "spring",
-  sagPct: "sag",
+  travelMm: "travel",
+  sagMm: "sag",
   compression: "clicks",
   compressionHigh: "clicks",
   compressionLow: "clicks",
@@ -437,6 +466,7 @@ function changeDirection(kind: SetupChangeKind, delta: number): string | null {
       return up ? "mais macio" : "mais firme";
     case "tire":
       return up ? "mais duro" : "mais mole";
+    case "travel":
     case "rider":
       return null;
   }
@@ -486,9 +516,11 @@ export function setupSpread(
         if (DAMPER_FIELD_KIND[field] === "clicks") constantClicks++;
         else
           constant.push(
-            field === "sagPct"
-              ? `o sag do ${name} a ${v} %`
-              : `o ${name} a ${v}${DAMPER_FIELD_UNIT[field]}`,
+            field === "sagMm"
+              ? `o sag do ${name} a ${v} mm`
+              : field === "travelMm"
+                ? `o curso do ${name} a ${v} mm`
+                : `o ${name} a ${v}${DAMPER_FIELD_UNIT[field]}`,
           );
       } else varying.push(`${knob} do ${name}`);
     }

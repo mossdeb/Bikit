@@ -11,6 +11,7 @@ import {
   setupSpread,
   setupSummary,
   setupValuesEqual,
+  sagPercent,
 } from "./setup";
 
 describe("setup values", () => {
@@ -187,21 +188,35 @@ describe("the rider's weight", () => {
 
 describe("sag and the spread of a set of setups", () => {
   it("keeps the sag with either spring, in the summary and the differences", () => {
-    const a = { fork: { pressurePsi: 100, sagPct: 25 } };
+    const a = { fork: { pressurePsi: 100, travelMm: 160, sagMm: 40 } };
     expect(
-      normalizeSetupValues({ fork: { spring: "coil", sagPct: 30 } }),
-    ).toEqual({ fork: { spring: "coil", sagPct: 30 } });
+      normalizeSetupValues({ fork: { spring: "coil", sagMm: 30 } }),
+    ).toEqual({ fork: { spring: "coil", sagMm: 30 } });
+    // The share comes from the travel: 40 mm of 160 is 25 %.
     expect(setupSummary(a, { fork: "Fox X2" })).toBe(
-      "Fox X2 100 psi · sag 25 %",
+      "Fox X2 100 psi · sag 40 mm (25 %)",
+    );
+    // Without a travel the sag stands alone.
+    expect(setupSummary({ fork: { sagMm: 48 } }, { fork: "Fox X2" })).toBe(
+      "Fox X2 sag 48 mm",
     );
     expect(
-      setupDiff(a, { fork: { pressurePsi: 90, sagPct: 30 } }).map(
-        formatSetupChange,
-      ),
+      setupDiff(a, {
+        fork: { pressurePsi: 90, travelMm: 160, sagMm: 48 },
+      }).map(formatSetupChange),
     ).toEqual([
       "garfo pressão −10 psi · mais macio",
-      "garfo sag +5 % · mais macio",
+      "garfo sag +8 mm · mais macio",
     ]);
+  });
+
+  it("reads the sag as a share of the travel, and says so only with both", () => {
+    expect(sagPercent({ travelMm: 160, sagMm: 48 })).toBe(30);
+    // The shock: its own stroke, not the wheel's travel.
+    expect(sagPercent({ travelMm: 65, sagMm: 19.5 })).toBe(30);
+    expect(sagPercent({ sagMm: 48 })).toBeNull();
+    expect(sagPercent({ travelMm: 0, sagMm: 48 })).toBeNull();
+    expect(sagPercent(undefined)).toBeNull();
   });
 
   it("says what a set of setups holds constant and what it varies", () => {
