@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import {
@@ -12,16 +17,15 @@ import {
   type DynamicsAxisKey,
   type DynamicsScore,
 } from "@/lib/imu/setup-dynamics";
-import type { ReportMetric } from "@/lib/imu/report";
 
 /**
- * The setup dynamics at the head of the setups page (by request,
- * 2026-09-15, from a supplied layout): a four-axis radar of two setups
- * chosen from two dropdowns — absorption at the top, control on the
- * right, support at the foot, recovery on the left — on a plain plate
- * (the lab's hatch came off by request), and beside it the four axes
- * explained once, with both setups' scores and the figures each score is
- * made of.
+ * The setup dynamics on the setups page (by request, 2026-09-15, from a
+ * supplied layout; under the table since 2026-09-24): a four-axis radar
+ * of two setups chosen from two dropdowns — absorption at the top,
+ * control on the right, support at the foot, recovery on the left — on a
+ * plain plate (the lab's hatch came off by request), and beside it the
+ * four axes as cards, each with the two scores as bars and the second
+ * setup's gain or loss against the first.
  *
  * The scale is scoreDynamics's: 100 % is the best of the setups on the
  * trail, and the first ring in from the rim is one noise — a tie. The
@@ -49,20 +53,23 @@ export interface ImuSetupDynamicsSetup {
   /** The setup in one line, for the dropdown. */
   summary: string;
   runs: number;
+  /** The whole setup, knob by knob, for the popover a setup's name opens
+   * on the axis boxes (by request, 2026-09-24) — the table's own
+   * popover, rendered by the page so this module need not import it. */
+  details?: ReactNode;
+  /** The popover trigger's aria-label: "The full setup B". */
+  detailsLabel?: string;
 }
 
 export function ImuSetupDynamics({
   setups,
   scores,
-  rules,
   referenceLetter,
   pending,
 }: {
   setups: ImuSetupDynamicsSetup[];
   /** One per setup, in the same order, once its files are read. */
   scores: DynamicsScore[];
-  /** How each figure is printed, by label. */
-  rules: Map<string, Pick<ReportMetric, "unit" | "value">>;
   referenceLetter: string | null;
   /** Files still being read: the chart fills in as they arrive. */
   pending: boolean;
@@ -90,61 +97,44 @@ export function ImuSetupDynamics({
   const enough = setups.length >= 2;
   const ready = chosen.every((s) => s != null);
 
-  const pct = (score: number | null) =>
-    score == null ? "—" : proPercent(score, locale, 0);
-  // A figure in its own unit and decimals — read off how the report prints
-  // it, whichever decimal separator that is. The one composite figure,
-  // the stability (±5° · ±4°), carries its number as the pitch alone:
-  // printed ± with a decimal, since two setups a degree apart can still
-  // score differently.
-  const figure = (key: string, value: number) => {
-    const rule = rules.get(key);
-    const printed = rule?.value ?? "";
-    const unit = rule?.unit ?? printed.match(/[°%×]$/)?.[0] ?? "";
-    const composite = /^±/.test(printed);
-    const digits = composite
-      ? 1
-      : (printed.match(/[.,](\d+)/)?.[1] ?? "").length;
-    return `${composite ? "±" : ""}${proNumber(value, locale, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
-  };
-
   return (
-    <div className="grid gap-[18px] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      {/* The chart's card: the heading and the two dropdowns, then the
-          plate. */}
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="px-5 py-5 sm:px-6 sm:py-6">
-          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-            <div>
-              <p className="text-lg font-semibold">{words.title}</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {words.subtitle}
-              </p>
-            </div>
-            {enough && (
-              <div className="flex flex-1 items-center gap-2 sm:flex-none">
-                <SetupPicker
-                  colour={SETUP_COLOURS[0]}
-                  value={a ?? ""}
-                  setups={setups}
-                  label={words.firstSetup}
-                  onChange={(l) => setPicked([l, picked[1]])}
-                />
-                <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  {words.vs}
-                </span>
-                <SetupPicker
-                  colour={SETUP_COLOURS[1]}
-                  value={b ?? ""}
-                  setups={setups}
-                  label={words.secondSetup}
-                  onChange={(l) => setPicked([picked[0], l])}
-                />
-              </div>
-            )}
+    // One card for the whole module (by request, 2026-09-24, the supplied
+    // layout): the heading with the two dropdowns beside it, then the
+    // radar's plate on the left and the four axes as boxes on the right.
+    <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+      <div className="px-5 py-5 sm:px-6 sm:py-6">
+        <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
+          <div className="min-w-0">
+            <p className="text-lg font-semibold">{words.title}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {words.subtitle}
+            </p>
           </div>
+          {enough && (
+            <div className="flex flex-1 items-center gap-2 sm:flex-none">
+              <SetupPicker
+                colour={SETUP_COLOURS[0]}
+                value={a ?? ""}
+                setups={setups}
+                label={words.firstSetup}
+                onChange={(l) => setPicked([l, picked[1]])}
+              />
+              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                {words.vs}
+              </span>
+              <SetupPicker
+                colour={SETUP_COLOURS[1]}
+                value={b ?? ""}
+                setups={setups}
+                label={words.secondSetup}
+                onChange={(l) => setPicked([picked[0], l])}
+              />
+            </div>
+          )}
+        </div>
 
-          <div className="@container mt-5 rounded-[14px] border border-border p-3 sm:p-4">
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+          <div className="@container rounded-[14px] border border-border p-3 sm:p-4">
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
@@ -157,106 +147,148 @@ export function ImuSetupDynamics({
               <Radar scores={chosen} letters={[a, b]} ready={ready} />
             )}
           </div>
-          {enough && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {words.scale(DYNAMICS_NOISE_SPAN)}
-            </p>
-          )}
-        </div>
-      </div>
 
-      {/* The axes explained once, with both setups' scores. */}
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="px-5 py-5 sm:px-6 sm:py-6">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-end gap-x-3">
-            <p className="text-sm text-muted-foreground">{words.explanation}</p>
-            {[a, b].map((l, i) => (
-              <div key={i} className="flex flex-col items-end">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-2.5 py-1 font-display text-xs font-bold tracking-wide text-background uppercase"
-                  style={{ visibility: enough && l ? "visible" : "hidden" }}
-                >
-                  <span
-                    aria-hidden
-                    className="size-2 rounded-full"
-                    style={{ background: SETUP_COLOURS[i] }}
-                  />
-                  Setup {l}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <ul className="mt-2 divide-y divide-border">
+          {/* The four axes as boxes, two by two: the axis's name with the
+              second setup's gain or loss against the first as a pill, the
+              two scores as bars in the setups' colours, and what the axis
+              reads. The figures behind each score stay on the table
+              above. */}
+          <div className="grid gap-4 sm:grid-cols-2">
             {DYNAMICS_AXES.map((axis) => {
               const per = chosen.map(
-                (s) => s?.axes.find((x) => x.key === axis.key) ?? null,
+                (s) => s?.axes.find((x) => x.key === axis.key)?.score ?? null,
               );
-              // The axis in words — its name, what it reads, what it is
-              // made of — from the dictionary, by the axis's key.
               const axisWords = t.compare.axes[axis.key];
-              // The figures behind the score, one line each, both setups.
-              const keys = [
-                ...new Set(
-                  per.flatMap((x) => x?.parts.map((p) => p.key) ?? []),
-                ),
-              ];
+              const delta =
+                enough && ready && per[0] != null && per[1] != null
+                  ? per[1] - per[0]
+                  : null;
               return (
-                <li key={axis.key} className="py-4 first:pt-3 last:pb-0">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3">
-                    <p className="text-sm font-semibold">{axisWords.name}</p>
-                    {per.map((x, i) => (
-                      <p
-                        key={i}
+                <div
+                  key={axis.key}
+                  className="flex min-w-0 flex-col rounded-[14px] border border-border p-4 sm:p-5"
+                >
+                  {/* No mark before the name for now (hidden by request,
+                      2026-09-24): the layout's bike-over-a-wave is not
+                      drawn yet, and the bike alone crowded the name. */}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <p className="truncate text-base font-semibold">
+                      {axisWords.name}
+                    </p>
+                    {delta != null && Math.round(delta) !== 0 && (
+                      <span
+                        // The second setup against the first, in points of
+                        // the axis: the table's pill colours — green where
+                        // it gained, the lab's red where it lost.
                         className={cn(
-                          "min-w-[52px] text-right text-sm font-semibold tabular-nums",
-                          !enough && "invisible",
+                          "shrink-0 rounded-full border border-foreground bg-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                          delta > 0 ? "text-primary" : "text-[#FF5A39]",
                         )}
+                        title={words.deltaTitle(b ?? "", a ?? "")}
                       >
-                        {x ? pct(x.score) : "…"}
-                      </p>
-                    ))}
+                        {delta > 0 ? "+" : "−"}
+                        {proPercent(Math.abs(delta), locale, 0)}
+                      </span>
+                    )}
                   </div>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
+                  <div className="mt-4 w-full space-y-2.5">
+                    {[a, b].map((l, i) => {
+                      const setup = setups.find((s) => s.letter === l);
+                      return (
+                        <ScoreBar
+                          key={i}
+                          label={`Setup ${l ?? "—"}`}
+                          colour={SETUP_COLOURS[i]}
+                          value={enough && ready ? per[i] : null}
+                          hidden={!enough || !l}
+                          details={setup?.details}
+                          detailsLabel={setup?.detailsLabel}
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">
                     {axisWords.description}
                   </p>
-                  <p className="mt-1 text-sm font-medium">
-                    • {axisWords.parts}
-                  </p>
-                  {enough && keys.length > 0 && (
-                    <ul className="mt-1.5 space-y-0.5">
-                      {keys.map((key) => (
-                        <li
-                          key={key}
-                          className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 text-xs text-muted-foreground tabular-nums"
-                        >
-                          <span className="truncate">
-                            {t.report.metric[key]}
-                          </span>
-                          {per.map((x, i) => {
-                            const part = x?.parts.find((p) => p.key === key);
-                            return (
-                              <span
-                                key={i}
-                                className={cn(
-                                  "min-w-[52px] text-right",
-                                  part && !part.tie && "text-foreground",
-                                )}
-                              >
-                                {part ? figure(key, part.value) : "—"}
-                              </span>
-                            );
-                          })}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         </div>
+        {enough && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {words.scale(DYNAMICS_NOISE_SPAN)}
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+/** One setup's score on an axis as a bar: the word, the track with the
+ * setup's colour filling its share of it, the number. The fill eases to
+ * a new score, so switching a dropdown moves the bars as it moves the
+ * radar's vertices. */
+function ScoreBar({
+  label,
+  colour,
+  value,
+  hidden,
+  details,
+  detailsLabel,
+}: {
+  label: string;
+  colour: string;
+  /** 0–100, or null while the files are read. */
+  value: number | null;
+  /** No setup to show on this row: the row keeps its place, unseen. */
+  hidden: boolean;
+  /** The whole setup, for the popover the word opens; none, and the word
+   * is only a word. */
+  details?: ReactNode;
+  detailsLabel?: string;
+}) {
+  const locale = useProLocale();
+  const word = "w-[58px] shrink-0 truncate text-left text-sm";
+  return (
+    <div
+      // Tight columns (by request, 2026-09-24): the word and the number
+      // take only the room "Setup B" and "100" need, the bar the rest.
+      className={cn("flex w-full items-center gap-2", hidden && "invisible")}
+    >
+      {details ? (
+        // The setup's name opens the whole setup, as it does on the table
+        // (by request, 2026-09-24): a popover, since this is read on a
+        // phone too.
+        <Popover>
+          <PopoverTrigger
+            aria-label={detailsLabel}
+            className={cn(
+              word,
+              "cursor-pointer rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50",
+            )}
+          >
+            {label}
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 p-4">
+            {details}
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <span className={word}>{label}</span>
+      )}
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full transition-[width] duration-400 ease-out"
+          style={{
+            width: `${value ?? 0}%`,
+            background: colour,
+          }}
+        />
+      </div>
+      <span className="w-7 shrink-0 text-right text-sm text-muted-foreground tabular-nums">
+        {value == null ? "…" : proNumber(value, locale, 0)}
+      </span>
     </div>
   );
 }

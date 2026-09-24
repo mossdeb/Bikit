@@ -19,11 +19,11 @@ import {
   ImpactIcon,
   RetentionIcon,
   SettleIcon,
-  SetupSlidersIcon,
   SpeedGaugeIcon,
 } from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { ImuSetupDynamics } from "@/components/imu-setup-dynamics";
+import { ImuSetupDocs } from "@/components/imu-setup-docs";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
 import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
@@ -116,6 +116,10 @@ const COLUMNS: {
  * one figure on the table that is the bike's grip more than the trail's
  * hits. Ties go to the lower harshness. Both by the report's key, the
  * columns' way. */
+/** The setup and order filters over the table: hidden for now (by
+ * request, 2026-09-24). */
+const SHOW_FILTERS = false;
+
 const BEST_BY = COLUMNS.find((c) => c.key === "retention")!.metric;
 const BEST_TIE_BREAK = COLUMNS.find((c) => c.key === "harshness")!.metric;
 
@@ -487,44 +491,43 @@ export function ImuSetupCompareView({
 
   return (
     <div className="space-y-[18px]">
-      {/* The heading, in a card of its own (the supplied layout). */}
+      {/* The heading, in a card of its own (the supplied layout), with
+          the documentation's door at its right (by request, 2026-09-24):
+          under the words on a phone, beside them from `sm`. */}
       <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="px-5 py-5 sm:px-6 sm:py-6">
-          <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
-          <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
-            <Bike className="size-4" strokeWidth={2} aria-hidden />
-            {reference.bikeName ?? words.header.fallbackBike}
-          </p>
-          <h1 className="mt-1 font-display text-3xl font-semibold">
-            {words.header.title}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {words.header.reference}{" "}
-            <Link
-              href={`/pro/sessoes/${reference.id}`}
-              className="text-foreground underline underline-offset-2"
-            >
-              {reference.name}
-            </Link>{" "}
-            · {words.header.otherRuns(runs.length, !!reference.riderName)}
-            {leftOutBits.length > 0 && ` · ${leftOutBits.join(" · ")}`}
-          </p>
+        <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:px-6 sm:py-6">
+          <div className="min-w-0">
+            <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
+              <Bike className="size-4" strokeWidth={2} aria-hidden />
+              {reference.bikeName ?? words.header.fallbackBike}
+            </p>
+            <h1 className="mt-1 font-display text-3xl font-semibold">
+              {words.header.title}
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {words.header.reference}{" "}
+              <Link
+                href={`/pro/sessoes/${reference.id}`}
+                className="text-foreground underline underline-offset-2"
+              >
+                {reference.name}
+              </Link>{" "}
+              · {words.header.otherRuns(runs.length, !!reference.riderName)}
+              {leftOutBits.length > 0 && ` · ${leftOutBits.join(" · ")}`}
+            </p>
+          </div>
+          <div className="shrink-0 self-start">
+            <ImuSetupDocs />
+          </div>
         </div>
       </div>
 
-      <ImuSetupDynamics
-        setups={groups.map((g) => ({
-          letter: g.letter,
-          summary: setupSummary(g.setup, labels, locale) ?? "",
-          runs: g.members.length,
-        }))}
-        scores={dynamicsScores}
-        rules={dynamicsRules}
-        referenceLetter={letterOf(reference)}
-        pending={pending > 0}
-      />
-
-      {runs.length > 0 && (
+      {/* The two filters — which setup's runs, and the order — are off the
+          page for now (hidden by request, 2026-09-24, as the Snapshot
+          page's were): the table keeps every run, grouped by setup. The
+          controls stay here, behind the switch, for when they return. */}
+      {SHOW_FILTERS && runs.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {groups.length + (unset.length > 0 ? 1 : 0) > 1 && (
             <NativeSelect
@@ -573,13 +576,10 @@ export function ImuSetupCompareView({
         </p>
       ))}
 
-      {/* One card, three sections ruled apart (the supplied layout). */}
-      <div
-        className={cn(
-          "divide-y divide-border rounded-lg bg-card",
-          DARK_CARD_HAIRLINE,
-        )}
-      >
+      {/* The table first, in a card of its own; the dynamics read off it
+          come under it (by request, 2026-09-24 — they had stood at the
+          head); the details and the best setup close the page. */}
+      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
         <section className="px-5 py-6 sm:px-6 sm:py-8">
           <p className="text-lg font-semibold">{words.table.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -594,8 +594,9 @@ export function ImuSetupCompareView({
                   <th className="pr-4 pb-3 align-bottom font-semibold">
                     {words.table.session}
                   </th>
+                  {/* No mark over "Setup" (removed by request, 2026-09-24):
+                      the figures' columns keep theirs. */}
                   <th className="px-4 pb-3 align-bottom font-semibold">
-                    <SetupSlidersIcon className="mb-2" />
                     <span className="flex items-center gap-1">
                       {words.table.setup}
                       <MetricInfo
@@ -653,157 +654,188 @@ export function ImuSetupCompareView({
             </p>
           )}
         </section>
+      </div>
 
-        {details.length > 0 && (
-          <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">{words.details.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {words.details.intro}
-            </p>
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {details.map((d) => (
-                <div
-                  key={d.letter}
-                  className="rounded-[14px] border border-border p-5"
-                >
-                  <p className="text-lg">
-                    {d.component} ·{" "}
-                    <span className="font-semibold">{d.knobs}</span> · Setup{" "}
-                    {d.letter}
-                    {d.runs > 1 && (
-                      <span className="ml-2 text-xs font-medium text-muted-foreground">
-                        {t.common.run(d.runs)}
-                      </span>
-                    )}
-                  </p>
-                  {/* The change on the left in a box of its own, the
+      <ImuSetupDynamics
+        setups={groups.map((g) => ({
+          letter: g.letter,
+          summary: setupSummary(g.setup, labels, locale) ?? "",
+          runs: g.members.length,
+          details: (
+            <ImuSetupDetails
+              title={`Setup ${g.letter}`}
+              setup={g.setup}
+              note={g.members[0].setupNote}
+              labels={labels}
+            />
+          ),
+          detailsLabel: t.compare.row.fullSetup(g.letter),
+        }))}
+        scores={dynamicsScores}
+        referenceLetter={letterOf(reference)}
+        pending={pending > 0}
+      />
+
+      {(details.length > 0 || shown) && (
+        <div
+          className={cn(
+            "divide-y divide-border rounded-lg bg-card",
+            DARK_CARD_HAIRLINE,
+          )}
+        >
+          {details.length > 0 && (
+            <section className="px-5 py-6 sm:px-6 sm:py-8">
+              <p className="text-lg font-semibold">{words.details.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {words.details.intro}
+              </p>
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                {details.map((d) => (
+                  <div
+                    key={d.letter}
+                    className="rounded-[14px] border border-border p-5"
+                  >
+                    <p className="text-lg">
+                      {d.component} ·{" "}
+                      <span className="font-semibold">{d.knobs}</span> · Setup{" "}
+                      {d.letter}
+                      {d.runs > 1 && (
+                        <span className="ml-2 text-xs font-medium text-muted-foreground">
+                          {t.common.run(d.runs)}
+                        </span>
+                      )}
+                    </p>
+                    {/* The change on the left in a box of its own, the
                       figures on the right (the supplied layout). */}
-                  <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
-                    <div className="flex flex-col gap-3">
-                      {d.boxes.map((box) => (
-                        <div
-                          key={box.knob}
-                          className="flex flex-1 flex-col items-center justify-center rounded-[12px] border border-border px-3 py-4 text-center"
-                        >
-                          <p className="text-sm text-muted-foreground">
-                            {words.details.changeOf}
-                            {d.boxes.length > 1 && (
-                              <span className="block text-xs">{box.knob}</span>
-                            )}
-                          </p>
-                          <p className="mt-1.5 text-2xl font-semibold tabular-nums">
-                            {box.text}
-                          </p>
-                          {box.delta && (
-                            <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
-                              {box.delta}
-                            </span>
-                          )}
-                          {box.direction && (
-                            <p className="mt-1.5 text-sm text-muted-foreground">
-                              [{box.direction}]
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {d.effects.length > 0 ? (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
                       <div className="flex flex-col gap-3">
-                        {d.effects.map((effect) => (
+                        {d.boxes.map((box) => (
                           <div
-                            key={effect.name}
-                            className="flex flex-1 flex-col justify-center rounded-[12px] bg-muted/40 px-4 py-3"
+                            key={box.knob}
+                            className="flex flex-1 flex-col items-center justify-center rounded-[12px] border border-border px-3 py-4 text-center"
                           >
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="mr-1 text-base font-semibold">
-                                {effect.name}
-                              </p>
-                              <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                {words.details.reference}{" "}
-                                <span className="font-semibold">
-                                  {effect.ref}
-                                </span>
-                              </span>
-                              <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                {words.details.setupValue(d.letter)}{" "}
-                                <span className="font-semibold">
-                                  {effect.value}
-                                </span>
-                                {effect.runs > 1 && (
-                                  <span className="ml-1 text-xs text-muted-foreground">
-                                    {words.details.medianOf(effect.runs)}
-                                  </span>
-                                )}
-                              </span>
-                              {effect.range && (
-                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                  {words.details.runsRange}{" "}
-                                  <span className="font-semibold">
-                                    {effect.range}
-                                  </span>
+                            <p className="text-sm text-muted-foreground">
+                              {words.details.changeOf}
+                              {d.boxes.length > 1 && (
+                                <span className="block text-xs">
+                                  {box.knob}
                                 </span>
                               )}
-                            </div>
-                            <p className="mt-2 text-sm">
-                              <span
-                                className={cn(
-                                  "font-semibold tabular-nums",
-                                  effect.tone === "better" &&
-                                    "text-emerald-600 dark:text-emerald-400",
-                                  effect.tone === "worse" && "text-[#FF5A39]",
-                                )}
-                              >
-                                {effect.delta}
-                              </span>
-                              , {effect.verdict}.
                             </p>
+                            <p className="mt-1.5 text-2xl font-semibold tabular-nums">
+                              {box.text}
+                            </p>
+                            {box.delta && (
+                              <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
+                                {box.delta}
+                              </span>
+                            )}
+                            {box.direction && (
+                              <p className="mt-1.5 text-sm text-muted-foreground">
+                                [{box.direction}]
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="self-center text-sm text-muted-foreground">
-                        {words.waitingForSessions}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* The best so far — or the only one known, said as such. */}
-        {shown && (
-          <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">{words.best.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {groups.length === 1
-                ? words.best.onlyOne
-                : !best
-                  ? words.waitingForSessions
-                  : bestMargin != null && Math.abs(bestMargin) <= bestNoise
-                    ? words.best.withinNoise(
-                        best.letter,
-                        runnerUp!.letter,
-                        sg(bestMargin, 1),
-                        n(bestNoise, 1),
-                      )
-                    : words.best.clear(
-                        best.letter,
-                        proPercent(best.medians.get(BEST_BY)!, locale, 0),
-                        best.members.length,
-                        runnerUp
-                          ? {
-                              letter: runnerUp.letter,
-                              margin: sg(bestMargin!, 0),
-                            }
-                          : null,
+                      {d.effects.length > 0 ? (
+                        <div className="flex flex-col gap-3">
+                          {d.effects.map((effect) => (
+                            <div
+                              key={effect.name}
+                              className="flex flex-1 flex-col justify-center rounded-[12px] bg-muted/40 px-4 py-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="mr-1 text-base font-semibold">
+                                  {effect.name}
+                                </p>
+                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                  {words.details.reference}{" "}
+                                  <span className="font-semibold">
+                                    {effect.ref}
+                                  </span>
+                                </span>
+                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                  {words.details.setupValue(d.letter)}{" "}
+                                  <span className="font-semibold">
+                                    {effect.value}
+                                  </span>
+                                  {effect.runs > 1 && (
+                                    <span className="ml-1 text-xs text-muted-foreground">
+                                      {words.details.medianOf(effect.runs)}
+                                    </span>
+                                  )}
+                                </span>
+                                {effect.range && (
+                                  <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
+                                    {words.details.runsRange}{" "}
+                                    <span className="font-semibold">
+                                      {effect.range}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-2 text-sm">
+                                <span
+                                  className={cn(
+                                    "font-semibold tabular-nums",
+                                    effect.tone === "better" &&
+                                      "text-emerald-600 dark:text-emerald-400",
+                                    effect.tone === "worse" && "text-[#FF5A39]",
+                                  )}
+                                >
+                                  {effect.delta}
+                                </span>
+                                , {effect.verdict}.
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="self-center text-sm text-muted-foreground">
+                          {words.waitingForSessions}
+                        </p>
                       )}
-            </p>
-            <SetupTiles setup={shown.setup} labels={labels} />
-          </section>
-        )}
-      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* The best so far — or the only one known, said as such. */}
+          {shown && (
+            <section className="px-5 py-6 sm:px-6 sm:py-8">
+              <p className="text-lg font-semibold">{words.best.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {groups.length === 1
+                  ? words.best.onlyOne
+                  : !best
+                    ? words.waitingForSessions
+                    : bestMargin != null && Math.abs(bestMargin) <= bestNoise
+                      ? words.best.withinNoise(
+                          best.letter,
+                          runnerUp!.letter,
+                          sg(bestMargin, 1),
+                          n(bestNoise, 1),
+                        )
+                      : words.best.clear(
+                          best.letter,
+                          proPercent(best.medians.get(BEST_BY)!, locale, 0),
+                          best.members.length,
+                          runnerUp
+                            ? {
+                                letter: runnerUp.letter,
+                                margin: sg(bestMargin!, 0),
+                              }
+                            : null,
+                        )}
+              </p>
+              <SetupTiles setup={shown.setup} labels={labels} />
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

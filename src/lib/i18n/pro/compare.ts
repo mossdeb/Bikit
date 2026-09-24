@@ -1,3 +1,21 @@
+/** One concept in the documentation popup (2026-09-24): its name, the
+ * paragraphs that explain it, and the verdict line — which way is better,
+ * with its lead in bold — when the figure has one. */
+export interface CompareDocEntry {
+  key:
+    | "harshness"
+    | "chassis"
+    | "chatter"
+    | "settle"
+    | "impacts"
+    | "speed"
+    | "retention"
+    | "rms";
+  title: string;
+  paragraphs: string[];
+  verdict: { lead: string; text: string } | null;
+}
+
 /**
  * Pro dictionary, namespace `compare` (2026-09-24): the setups page —
  * the comparison table and the "i"s that explain each of its figures,
@@ -255,6 +273,115 @@ const en = {
    * setup and the radar all wait for the files the same way. */
   waitingForSessions: "Appears once the sessions are read.",
 
+  /** The documentation popup, from the page's header (by request,
+   * 2026-09-24): every concept the table and the dynamics use, explained
+   * once. */
+  docs: {
+    button: "Documentation",
+    title: "Documentation",
+    subtitle: "Concepts and metrics",
+    entries: [
+      {
+        key: "harshness",
+        title: "Harshness",
+        paragraphs: [
+          "Answers the question: “How much do the hard hits stand out from the normal vibration?”",
+          "In the rough sections, it compares the level of the hardest hits — the 99th percentile — with the average level of the vibration, measured as the RMS.",
+          "A value of 3.1× means the hardest hits reach about 3.1 times the average level of the vibration.",
+        ],
+        verdict: {
+          lead: "Lower is better:",
+          text: "the hits stand out less in the frame's response. A suspension that is too firm, or hits that use up the travel, can raise this value, but the metric alone does not say which.",
+        },
+      },
+      {
+        key: "chassis",
+        title: "Chassis Movement 2–12 Hz",
+        paragraphs: [
+          "Answers the question: “How much does the chassis move over rough ground?”",
+          "A filter keeps only the motion between 2 and 12 oscillations per second. This band holds mostly the slower movements of the chassis, the way the bike answers the larger irregularities of the trail.",
+          "Once filtered, the signal's average intensity in G is measured over the rough sections.",
+        ],
+        verdict: {
+          lead: "Lower is better:",
+          text: "a steadier, more controlled chassis. The suspension's compression settings tend to weigh heavily on this band.",
+        },
+      },
+      {
+        key: "chatter",
+        title: "Chatter 12–60 Hz",
+        paragraphs: [
+          "Answers the question: “How much of the trail's fast vibration reaches the frame?”",
+          "A filter keeps the motion between 12 and 60 oscillations per second. This band catches the fast vibration from small stones, successive roots, very broken ground or any other source of buzz — what is often felt as pins and needles in the hands and feet.",
+          "The average intensity of this vibration in G is measured over the rough sections.",
+        ],
+        verdict: {
+          lead: "Lower is better:",
+          text: "the bike, tyres and suspension together are passing less fast vibration to the chassis.",
+        },
+      },
+      {
+        key: "settle",
+        title: "Residual oscillation",
+        paragraphs: [
+          "Answers the question: “After a hit, how much motion goes on in the frame?”",
+          "For each impact detected, the hit's own intensity is measured first. Then the slower motion of the chassis, in the 2–12 Hz band, is read over the 300 ms that follow.",
+          "That residual motion is set against the intensity of the hit that caused it. The run's value is the median over every impact analysed.",
+          "A value of 7% means that, in the window after the hit, the residual motion is about 7% of the hit's intensity.",
+        ],
+        verdict: {
+          lead: "Lower is better:",
+          text: "the bike recovers and settles sooner after the hits. Rebound can weigh heavily on this metric, though the ground and how close the hits come also shape the result.",
+        },
+      },
+      {
+        key: "impacts",
+        title: "Impacts",
+        paragraphs: [
+          "Answers the question: “How many hard hits happened on the descent?”",
+          "The impacts counted are those where the dynamic G goes over a threshold set for each run: 1.5 times the recording's own 99th percentile, with a floor of 4 G. The count is then normalised by distance and shown as impacts per kilometre.",
+          "This metric helps tell whether a session was more or less aggressive, but more or fewer impacts does not by itself mean better or worse.",
+          "Since the threshold adapts to each recording, this metric suits describing the session better than comparing setups directly.",
+        ],
+        verdict: null,
+      },
+      {
+        key: "speed",
+        title: "Moving speed",
+        paragraphs: [
+          "Answers the question: “How fast was the descent while the bike was actually moving?”",
+          "The average speed is taken only over the stretches where the bike is moving, leaving out stops and moments without motion. That lets the pace of different sessions be compared without a stop skewing the result.",
+        ],
+        verdict: {
+          lead: "Higher is usually better:",
+          text: "a faster pass overall. It should be read with the other metrics, though, since more speed can also raise impacts, chatter and chassis movement.",
+        },
+      },
+      {
+        key: "retention",
+        title: "Retention",
+        paragraphs: [
+          "Answers the question: “How much speed is kept through the corners?”",
+          "For each corner, the speed going in is compared with the speed coming out, corrected for the pull of the descent. The run's value is the average over the corners analysed.",
+          "A value of 76% means that, on average, the rider leaves the corners with about 76% of the entry speed, once the descent is corrected for.",
+        ],
+        verdict: {
+          lead: "Higher is better:",
+          text: "less speed is lost through the corners. It can reflect better execution, more confidence, a better line, or more grip and control from the bike — the metric alone does not say which.",
+        },
+      },
+      {
+        key: "rms",
+        title: "RMS",
+        paragraphs: [
+          "RMS is a way of measuring the average intensity of a vibration without its positive and negative swings cancelling each other out.",
+          "If the frame rocks up and down over and over, say, a plain average could come out near zero. RMS takes the intensity of those movements, so one figure can say how much the bike was really vibrating or moving.",
+        ],
+        verdict: null,
+      },
+    ] as CompareDocEntry[],
+  },
+
   header: {
     /** The bike's name over the title, when the session has no bike. */
     fallbackBike: "Setups",
@@ -372,6 +499,9 @@ const en = {
     scale: (span: number): string =>
       `100% is the best of the setups on each axis. Each ring is one noise between runs on one setup: inside the first in from the rim is a tie; at ${span} noises the axis reaches zero.`,
     explanation: "Explanation",
+    /** The gain pill's title on an axis card: "Setup B against Setup A". */
+    deltaTitle: (second: string, first: string): string =>
+      `Setup ${second} against Setup ${first}`,
     /** The chart's aria-label: "Setup dynamics: Setup A vs Setup B". */
     chartLabel: (setups: string[]): string =>
       `Setup dynamics: ${setups.join(" vs ")}`,
@@ -420,6 +550,112 @@ const pt: typeof en = {
   clicks: (n) => (n === 1 ? "clique" : "cliques"),
 
   waitingForSessions: "Aparece quando as sessões estiverem lidas.",
+
+  docs: {
+    button: "Documentação",
+    title: "Documentação",
+    subtitle: "Conceitos e métricas",
+    entries: [
+      {
+        key: "harshness",
+        title: "Harshness",
+        paragraphs: [
+          "Responde à pergunta: “Quanto se destacam os impactos fortes em relação à vibração normal?”",
+          "Nas zonas acidentadas, compara o nível dos impactos mais fortes — o percentil 99 — com o nível médio da vibração, medido através do RMS.",
+          "Um valor de 3,1× significa que os impactos mais fortes atingem cerca de 3,1 vezes o nível médio da vibração.",
+        ],
+        verdict: {
+          lead: "Menos é melhor:",
+          text: "significa que os impactos se destacam menos na resposta do quadro. Uma suspensão demasiado firme ou impactos que esgotam o curso podem fazer este valor aumentar, mas a métrica, por si só, não identifica a causa.",
+        },
+      },
+      {
+        key: "chassis",
+        title: "Chassis Movement 2–12 Hz",
+        paragraphs: [
+          "Responde à pergunta: “Quanto se movimenta o chassis sobre terreno acidentado?”",
+          "É aplicado um filtro que considera apenas movimentos entre 2 e 12 oscilações por segundo. Esta banda representa sobretudo movimentos mais lentos do chassis, associados à forma como a bicicleta reage às irregularidades maiores do terreno.",
+          "Depois de filtrado o sinal, é medida a sua intensidade média em G nas zonas acidentadas.",
+        ],
+        verdict: {
+          lead: "Menos é melhor:",
+          text: "indica um chassis mais estável e controlado. Os ajustes de compressão da suspensão tendem a ter uma influência importante nesta banda.",
+        },
+      },
+      {
+        key: "chatter",
+        title: "Chatter 12–60 Hz",
+        paragraphs: [
+          "Responde à pergunta: “Quanta vibração rápida do terreno chega ao quadro?”",
+          "É aplicado um filtro que considera movimentos entre 12 e 60 oscilações por segundo. Esta banda capta vibrações rápidas provocadas por pequenas pedras, raízes sucessivas, terreno muito irregular ou outras fontes de trepidação — aquilo que muitas vezes se sente como um “formigueiro” nas mãos e nos pés.",
+          "É medida a intensidade média desta vibração em G nas zonas acidentadas.",
+        ],
+        verdict: {
+          lead: "Menos é melhor:",
+          text: "significa que o conjunto bicicleta, pneus e suspensão está a transmitir menos vibração rápida ao chassis.",
+        },
+      },
+      {
+        key: "settle",
+        title: "Oscilação residual",
+        paragraphs: [
+          "Responde à pergunta: “Depois de um impacto, quanto movimento continua no quadro?”",
+          "Para cada impacto detetado, é medida primeiro a intensidade da pancada. De seguida, é analisado o movimento mais lento do chassis, na banda de 2–12 Hz, durante os 300 ms seguintes.",
+          "Esse movimento residual é comparado com a intensidade do impacto que o originou. O valor apresentado para a volta corresponde à mediana de todos os impactos analisados.",
+          "Um valor de 7% significa que, na janela analisada após o impacto, o movimento residual corresponde a cerca de 7% da intensidade da pancada.",
+        ],
+        verdict: {
+          lead: "Menos é melhor:",
+          text: "indica que a bicicleta recupera e estabiliza mais rapidamente depois dos impactos. O rebound pode ter uma influência importante nesta métrica, embora o terreno e a proximidade entre impactos também afetem o resultado.",
+        },
+      },
+      {
+        key: "impacts",
+        title: "Impactos",
+        paragraphs: [
+          "Responde à pergunta: “Quantos impactos fortes ocorreram durante a descida?”",
+          "São identificados os impactos em que o G dinâmico ultrapassa um limiar definido para cada volta: 1,5 vezes o percentil 99 da própria gravação, com um mínimo de 4 G. O número de impactos é depois normalizado pela distância e apresentado em impactos por quilómetro.",
+          "Esta métrica ajuda a perceber se uma sessão foi mais ou menos agressiva, mas mais ou menos impactos não significa necessariamente melhor ou pior.",
+          "Como o limiar se adapta a cada gravação, esta métrica é mais adequada para caracterizar a sessão do que para comparar diretamente diferentes afinações.",
+        ],
+        verdict: null,
+      },
+      {
+        key: "speed",
+        title: "Velocidade em movimento",
+        paragraphs: [
+          "Responde à pergunta: “A que velocidade foi feita a descida quando a bicicleta estava efetivamente em movimento?”",
+          "Calcula a velocidade média apenas durante os períodos em que a bicicleta está em movimento, excluindo paragens e momentos sem andamento. Isto permite comparar o ritmo das diferentes sessões sem que uma paragem distorça o resultado.",
+        ],
+        verdict: {
+          lead: "Mais é geralmente melhor:",
+          text: "indica uma passagem globalmente mais rápida. No entanto, deve ser analisada em conjunto com as restantes métricas, porque velocidade superior também pode aumentar impactos, chatter e movimento do chassis.",
+        },
+      },
+      {
+        key: "retention",
+        title: "Retenção",
+        paragraphs: [
+          "Responde à pergunta: “Quanta velocidade é conservada ao atravessar as curvas?”",
+          "Para cada curva, compara a velocidade de entrada com a velocidade à saída, corrigindo o efeito da gravidade da descida. O resultado da volta corresponde à média das curvas analisadas.",
+          "Um valor de 76% significa que, em média, o rider conserva à saída das curvas cerca de 76% da velocidade de entrada, depois da correção do efeito da descida.",
+        ],
+        verdict: {
+          lead: "Mais é melhor:",
+          text: "significa que se perde menos velocidade ao longo das curvas. Pode refletir melhor execução, maior confiança, melhor escolha de linha ou maior aderência e controlo da bicicleta — a métrica, por si só, não determina a causa.",
+        },
+      },
+      {
+        key: "rms",
+        title: "RMS",
+        paragraphs: [
+          "O RMS é uma forma de medir a intensidade média de uma vibração sem que os movimentos positivos e negativos se anulem.",
+          "Por exemplo, se o quadro oscilar repetidamente para cima e para baixo, uma média convencional poderia aproximar-se de zero. O RMS considera a intensidade desses movimentos, permitindo representar num único valor quanto a bicicleta esteve realmente a vibrar ou a movimentar-se.",
+        ],
+        verdict: null,
+      },
+    ] as CompareDocEntry[],
+  },
 
   header: {
     fallbackBike: "Afinações",
@@ -518,6 +754,7 @@ const pt: typeof en = {
     scale: (span) =>
       `100 % é o melhor dos setups em cada eixo. Cada anel é um ruído entre voltas iguais: dentro do primeiro a contar do aro é empate; a ${span} ruídos o eixo chega a zero.`,
     explanation: "Explicação",
+    deltaTitle: (second, first) => `Setup ${second} contra o Setup ${first}`,
     chartLabel: (setups) => `Dinâmica do setup: ${setups.join(" contra ")}`,
     readingSessions: "A ler as sessões…",
   },
