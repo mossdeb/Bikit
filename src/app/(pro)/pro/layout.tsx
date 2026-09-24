@@ -62,7 +62,6 @@ export default async function ProLayout({
                 email={user.email as string}
                 common={dict.common}
                 settingsHref="/pro/definicoes"
-                showBikit
               />
             </div>
           </AppHeader>

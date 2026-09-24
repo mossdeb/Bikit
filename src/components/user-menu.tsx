@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Settings, LogOut } from "lucide-react";
-import { MenuDashboardIcon } from "@/components/menu-icons";
 import {
   Popover,
   PopoverTrigger,
@@ -18,7 +17,6 @@ export function UserMenu({
   email,
   common,
   showPro = false,
-  showBikit = false,
   settingsHref = "/settings",
 }: {
   name?: string | null;
@@ -27,11 +25,9 @@ export function UserMenu({
   /** The door to Bikit Pro, for the accounts that have it (2026-09-23):
    * the two areas keep their own navigation, so the way across lives
    * here, with the account, and not on the app's rail. Untranslated, like
-   * the area it opens. */
+   * the area it opens. One-way: the Pro shell's menu has no door back
+   * (removed by request, 2026-09-24) — the address bar is the way. */
   showPro?: boolean;
-  /** The door back to Bikit, from the Pro shell — the same place, the
-   * other way. */
-  showBikit?: boolean;
   /** Where "Definições" goes: the app's page, or its copy under Bikit
    * Pro's shell when the menu stands there. */
   settingsHref?: string;
@@ -70,15 +66,6 @@ export function UserMenu({
           >
             <ImuChartGlyph className="size-4 text-muted-foreground" />
             Bikit Pro
-          </Link>
-        )}
-        {showBikit && (
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2.5 rounded-sm px-2 py-2 text-sm hover:bg-muted"
-          >
-            <MenuDashboardIcon className="size-4 text-muted-foreground" />
-            Bikit
           </Link>
         )}
         <form action={logout}>

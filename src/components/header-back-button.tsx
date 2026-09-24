@@ -55,6 +55,12 @@ const MOBILE_BACK_ROUTES: {
     backHref: (m) => `/pro/sessoes/${m[1]}/relatorio`,
     alsoDesktop: true,
   },
+  // A bike under Pro: back to Pro's list of bikes.
+  {
+    re: /^\/pro\/bicicletas\/[^/]+$/,
+    backHref: () => "/pro/bicicletas",
+    alsoDesktop: true,
+  },
   // The setups comparison is reached from the report's Bike card.
   {
     re: /^\/pro\/sessoes\/([^/]+)\/afinacoes$/,

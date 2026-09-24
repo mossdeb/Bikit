@@ -3,19 +3,21 @@
 import { useState, useSyncExternalStore, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bluetooth, PanelLeftClose, PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { BikitLockup, LogoMark } from "@/components/logo";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
-import { MenuSettingsIcon } from "@/components/menu-icons";
+import { MenuBikesIcon, MenuSettingsIcon } from "@/components/menu-icons";
 import { cn } from "@/lib/utils";
 
 /**
  * Bikit Pro's own navigation (2026-09-23): the same account, a different
  * area. Where the app's rail lists the places of a bike's upkeep, this
  * one lists the places of the sensor — the sessions, which are the home,
- * the sensor probe, the account's settings. The door back to Bikit is in
- * the account menu, as the door here is on the app's side: neither rail
- * lists the other area (by request, 2026-09-23).
+ * the bikes as the sensor rode them (their setups), the account's
+ * settings. The sensor probe (/pro/sensor) is off the rail for now (by
+ * request, 2026-09-24). The door here is in the app's account menu; there
+ * is no door back — neither the rail nor the account menu under Pro
+ * lists Bikit (by request, 2026-09-23 and 2026-09-24).
  *
  * Untranslated on purpose, like everything in the lab: the words are
  * literals and not dictionary keys. Same shape, same rail colours and the
@@ -54,11 +56,11 @@ export const PRO_NAV_ITEMS: ProNavItem[] = [
     iconClassName: "size-7",
   },
   {
-    href: "/pro/sensor",
-    label: "Sensor",
-    Icon: Bluetooth,
-    isActive: (p) => p.startsWith("/pro/sensor"),
-    iconClassName: "size-7",
+    href: "/pro/bicicletas",
+    label: "Bicicletas",
+    Icon: MenuBikesIcon,
+    isActive: (p) => p.startsWith("/pro/bicicletas"),
+    iconClassName: "size-[36.4px]",
   },
   {
     href: "/pro/definicoes",
