@@ -14,7 +14,10 @@ import {
 } from "@/lib/imu/report";
 import type { ImuSetupValues } from "@/lib/imu/setup";
 import { useImuSession } from "@/lib/imu/use-imu-session";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import { ImuRiderGlyph } from "@/components/imu-pro-logo";
 import { TrailPeaksIcon } from "@/components/imu-report-icons";
 import { MetricInfo } from "@/components/imu-setup-compare-view";
@@ -78,7 +81,7 @@ export function ImuSessionReport({
     [data],
   );
   const BikeGlyph =
-    (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_TYPE_ICON.Other!;
+    (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
 
   return (
     <div className="space-y-[18px]">

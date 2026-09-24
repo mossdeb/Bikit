@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
-import { LogoMark } from "@/components/logo";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
+import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,7 +50,8 @@ const ROLL_STAGGER_MS = 38;
  * drawing: inline leaves half a line's descender under it, which would eat into
  * the 40px meant to sit between it and the words.
  */
-const GLYPH_CLASS = "block h-auto w-[180px] text-foreground [&_path]:[stroke-width:2.244]";
+const GLYPH_CLASS =
+  "block h-auto w-[180px] text-foreground [&_path]:[stroke-width:2.244]";
 
 const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const LOWER = "abcdefghijklmnopqrstuvwxyz";
@@ -113,7 +117,10 @@ export function BikeCreatedCelebration({
 
   useEffect(() => {
     if (!playing) return;
-    const id = window.setTimeout(() => setPlaying(false), skipping ? SKIP_MS : TOTAL_MS);
+    const id = window.setTimeout(
+      () => setPlaying(false),
+      skipping ? SKIP_MS : TOTAL_MS,
+    );
     return () => window.clearTimeout(id);
   }, [playing, skipping]);
 
@@ -135,7 +142,9 @@ export function BikeCreatedCelebration({
     if (!el || !playing || skipping) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const letters = Array.from(el.querySelectorAll<HTMLSpanElement>("[data-letter]"));
+    const letters = Array.from(
+      el.querySelectorAll<HTMLSpanElement>("[data-letter]"),
+    );
     if (letters.length === 0) return;
 
     const start = performance.now();
@@ -173,9 +182,12 @@ export function BikeCreatedCelebration({
             return;
           }
           running = true;
-          const behind = Math.round((1 - easeOut(Math.max(0, p))) * ROLL_DISTANCE);
+          const behind = Math.round(
+            (1 - easeOut(Math.max(0, p))) * ROLL_DISTANCE,
+          );
           const at = alphabet.indexOf(target);
-          span.textContent = alphabet[(at - behind + alphabet.length * 2) % alphabet.length];
+          span.textContent =
+            alphabet[(at - behind + alphabet.length * 2) % alphabet.length];
         });
 
         if (running) frame = requestAnimationFrame(step);
@@ -203,9 +215,9 @@ export function BikeCreatedCelebration({
 
   if (!playing) return <>{after}</>;
 
-  // Every BikeType has a drawing; only a null or hand-edited type falls
-  // through to the generic one.
-  const Glyph = BIKE_TYPE_ICON[type as BikeType] ?? BIKE_TYPE_ICON.Other;
+  // Every BikeType has a drawing; a null or hand-edited type draws as the
+  // app's fallback (an Enduro).
+  const Glyph = BIKE_TYPE_ICON[type as BikeType] ?? BIKE_ICON_FALLBACK;
 
   return (
     <div
@@ -216,7 +228,7 @@ export function BikeCreatedCelebration({
         // screen is a surface standing in front of it, the same white a card
         // is. In dark mode it follows the card too.
         "fixed inset-0 z-[60] flex flex-col items-center bg-card px-6 pt-14 pb-16 text-center",
-        skipping ? "bike-celebration-now" : "bike-celebration-auto"
+        skipping ? "bike-celebration-now" : "bike-celebration-auto",
       )}
       // A tap anywhere ends it. Someone adding their third bike has seen this
       // before and should not have to wait it out.
@@ -241,7 +253,10 @@ export function BikeCreatedCelebration({
         {/* The animation rides a wrapper, not the drawing: the icon map's
             components take a className and nothing else, and widening that
             signature for one caller is not worth it. */}
-        <span className="bike-celebration-settle my-10 block" style={{ animationDelay: `${AT.bike}ms` }}>
+        <span
+          className="bike-celebration-settle my-10 block"
+          style={{ animationDelay: `${AT.bike}ms` }}
+        >
           {Glyph && <Glyph className={GLYPH_CLASS} />}
         </span>
 

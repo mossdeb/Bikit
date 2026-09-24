@@ -1,7 +1,9 @@
-import { Bike } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBikeAccent } from "@/lib/bike-accent";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 
 export function BikeIcon({
@@ -15,7 +17,7 @@ export function BikeIcon({
   plain?: boolean;
   className?: string;
 }) {
-  const Icon = BIKE_TYPE_ICON[type as BikeType] ?? Bike;
+  const Icon = BIKE_TYPE_ICON[type as BikeType] ?? BIKE_ICON_FALLBACK;
 
   if (plain) {
     // Width and height apart rather than one `size-*`: tailwind-merge does not
@@ -27,7 +29,7 @@ export function BikeIcon({
         className={cn(
           size === "sm" ? "h-[57.2px] w-[57.2px]" : "h-14 w-14",
           "shrink-0 text-foreground",
-          className
+          className,
         )}
       />
     );
@@ -41,7 +43,7 @@ export function BikeIcon({
         size === "sm" ? "size-10" : "size-14",
         accent.bg,
         accent.fg,
-        className
+        className,
       )}
     >
       <Icon className={size === "sm" ? "size-5" : "size-7"} />

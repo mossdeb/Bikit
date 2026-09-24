@@ -139,3 +139,15 @@ export const BIKE_TYPE_ICON: Partial<Record<BikeType, ComponentType<IconProps>>>
   "Urban / Commuter": UrbanIcon,
   Other: OtherBikeIcon,
 };
+
+/**
+ * The drawing for a bike without a type — saved without a category, or
+ * with one the map does not know: an Enduro (by request, 2026-09-24), the
+ * shape most of the fleet has, rather than a generic silhouette that
+ * marks it as the odd one out. A constant and not a function returning
+ * the component, because a component picked by a call during render
+ * trips react-hooks/static-components; a map lookup with this after `??`
+ * does not. Every place that draws a bike reads the map and falls back
+ * to this, so the fallback is one decision.
+ */
+export const BIKE_ICON_FALLBACK: ComponentType<IconProps> = EnduroIcon;
