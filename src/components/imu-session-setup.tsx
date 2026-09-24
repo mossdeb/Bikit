@@ -396,46 +396,57 @@ function DamperBlock({
           onToggle={() => choose(springKey, air ? "coil" : "air")}
         />
       </div>
-      {/* The travel and the sag on one line, halves; the spring under
-          them, full width (by request, 2026-09-23). The sag is what the
-          spring was set FOR, measured on the bike with the rider on it in
-          mm off the O-ring, and the travel is what it is read against —
-          the share prints under the sag as soon as both are in. For the
-          shock the travel is its own stroke, the shaft the ring rides. */}
-      <div className="grid grid-cols-2 gap-3">
-        <NumberField
-          id={`setup-${block}-travel`}
-          label={block === "fork" ? "Curso" : "Stroke"}
-          unit="mm"
-          value={draft[damperKey(block, "travelMm")]}
-          onChange={set(damperKey(block, "travelMm"))}
-        />
-        <NumberField
-          id={`setup-${block}-sag`}
-          label="SAG"
-          unit="mm"
-          value={draft[damperKey(block, "sagMm")]}
-          onChange={set(damperKey(block, "sagMm"))}
-          hint={sagShare(draft, block)}
-        />
+      {/* The spring's box, level with the circuits' (the supplied layout,
+          2026-09-24): the travel and the sag on one line, halves, and the
+          spring under them, full width. The sag is what the spring was set
+          FOR, measured on the bike with the rider on it in mm off the
+          O-ring, and the travel is what it is read against — the share
+          prints under the sag as soon as both are in. For the shock the
+          travel is its own stroke, the shaft the ring rides. The fields
+          are `small`, the circuits' size, so the three boxes read as one
+          family. */}
+      <div className="rounded-[12px] border border-border p-3">
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField
+            id={`setup-${block}-travel`}
+            label={block === "fork" ? "Curso" : "Stroke"}
+            unit="mm"
+            value={draft[damperKey(block, "travelMm")]}
+            onChange={set(damperKey(block, "travelMm"))}
+            small
+          />
+          <NumberField
+            id={`setup-${block}-sag`}
+            label="SAG"
+            unit="mm"
+            value={draft[damperKey(block, "sagMm")]}
+            onChange={set(damperKey(block, "sagMm"))}
+            hint={sagShare(draft, block)}
+            small
+          />
+        </div>
+        <div className="mt-3">
+          {air ? (
+            <NumberField
+              id={`setup-${block}-pressure`}
+              label="Pressão"
+              unit="psi"
+              value={draft[damperKey(block, "pressurePsi")]}
+              onChange={set(damperKey(block, "pressurePsi"))}
+              small
+            />
+          ) : (
+            <NumberField
+              id={`setup-${block}-spring`}
+              label="Mola"
+              unit="lbs"
+              value={draft[damperKey(block, "springRateLbs")]}
+              onChange={set(damperKey(block, "springRateLbs"))}
+              small
+            />
+          )}
+        </div>
       </div>
-      {air ? (
-        <NumberField
-          id={`setup-${block}-pressure`}
-          label="Pressão"
-          unit="psi"
-          value={draft[damperKey(block, "pressurePsi")]}
-          onChange={set(damperKey(block, "pressurePsi"))}
-        />
-      ) : (
-        <NumberField
-          id={`setup-${block}-spring`}
-          label="Mola"
-          unit="lbs"
-          value={draft[damperKey(block, "springRateLbs")]}
-          onChange={set(damperKey(block, "springRateLbs"))}
-        />
-      )}
       <Circuit
         block={block}
         circuit="compression"
