@@ -9,6 +9,8 @@
  * derived metrics are computed on read (see derive.ts).
  */
 
+import type { Locale } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import { isBktFile, parseBktFile } from "./bkt";
 import { realignImuWords } from "./realign";
 import { detectImuEvents } from "./events";
@@ -289,7 +291,9 @@ export type ImuParseResult =
 interface ImuParser {
   id: string;
   matches: (json: unknown) => boolean;
-  parse: (json: unknown) => ImuParseResult;
+  /** The locale picks the language of the recusals, which are written on
+   * screen (i18n/pro/importing.ts, `json`). */
+  parse: (json: unknown, locale: Locale) => ImuParseResult;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -317,16 +321,15 @@ function confidenceOf(event: Record<string, unknown>): number | null {
 const bikitImuV1: ImuParser = {
   id: "bikit_imu_session",
   matches: (json) => isRecord(json) && json.format === "bikit_imu_session",
-  parse: (json) => {
-    if (!isRecord(json))
-      return { ok: false, error: "O ficheiro não é um objeto JSON." };
+  parse: (json, locale) => {
+    const t = getProDictionary(locale).importing.json;
+    if (!isRecord(json)) return { ok: false, error: t.notObject };
     const meta = isRecord(json.session) ? json.session : null;
-    if (!meta)
-      return { ok: false, error: 'Falta o bloco "session" com os metadados.' };
+    if (!meta) return { ok: false, error: t.missingSession };
 
     const samples = Array.isArray(json.samples) ? json.samples : null;
     if (!samples || samples.length === 0) {
-      return { ok: false, error: 'O ficheiro não tem amostras ("samples").' };
+      return { ok: false, error: t.noSamples };
     }
 
     const n = samples.length;
@@ -341,9 +344,8 @@ const bikitImuV1: ImuParser = {
 
     for (let i = 0; i < n; i++) {
       const s = samples[i];
-      if (!isRecord(s))
-        return { ok: false, error: `A amostra ${i} não é um objeto.` };
-      const t = finiteNumber(s.t_ms);
+      if (!isRecord(s)) return { ok: false, error: t.sampleNotObject(i) };
+      const sampleT = finiteNumber(s.t_ms);
       const vax = finiteNumber(s.ax_g);
       const vay = finiteNumber(s.ay_g);
       const vaz = finiteNumber(s.az_g);
@@ -351,7 +353,7 @@ const bikitImuV1: ImuParser = {
       const vgy = finiteNumber(s.gy_dps);
       const vgz = finiteNumber(s.gz_dps);
       if (
-        t == null ||
+        sampleT == null ||
         vax == null ||
         vay == null ||
         vaz == null ||
@@ -359,18 +361,15 @@ const bikitImuV1: ImuParser = {
         vgy == null ||
         vgz == null
       ) {
+        return { ok: false, error: t.sampleFields(i) };
+      }
+      if (i > 0 && sampleT < tMs[i - 1]) {
         return {
           ok: false,
-          error: `A amostra ${i} tem campos em falta ou não numéricos.`,
+          error: t.timeBackwards(i, sampleT, tMs[i - 1]),
         };
       }
-      if (i > 0 && t < tMs[i - 1]) {
-        return {
-          ok: false,
-          error: `O tempo anda para trás na amostra ${i} (${t} ms após ${tMs[i - 1]} ms).`,
-        };
-      }
-      tMs[i] = t;
+      tMs[i] = sampleT;
       ax[i] = vax;
       ay[i] = vay;
       az[i] = vaz;
@@ -401,7 +400,11 @@ const bikitImuV1: ImuParser = {
         : json.gnss_samples != null
           ? "gnss_samples"
           : null;
-    const gpsResult = parseGpsSamples(gpsKey ? json[gpsKey] : null, gpsKey);
+    const gpsResult = parseGpsSamples(
+      gpsKey ? json[gpsKey] : null,
+      gpsKey,
+      locale,
+    );
     if (!gpsResult.ok) return { ok: false, error: gpsResult.error };
 
     const lastT = tMs[n - 1];
@@ -497,10 +500,12 @@ function parseJsonCalibration(raw: unknown): ImuCalibration | null {
 function parseGpsSamples(
   raw: unknown,
   key: string | null,
+  locale: Locale,
 ): { ok: true; gps: GpsChannels | null } | { ok: false; error: string } {
+  const t = getProDictionary(locale).importing.json;
   if (raw == null) return { ok: true, gps: null };
   if (!Array.isArray(raw)) {
-    return { ok: false, error: `"${key ?? "gps_samples"}" não é uma lista.` };
+    return { ok: false, error: t.gpsNotList(key ?? "gps_samples") };
   }
 
   const kept: {
@@ -516,7 +521,7 @@ function parseGpsSamples(
   for (let i = 0; i < raw.length; i++) {
     const s = raw[i];
     if (!isRecord(s)) {
-      return { ok: false, error: `A amostra GPS ${i} não é um objeto.` };
+      return { ok: false, error: t.gpsSampleNotObject(i) };
     }
     // The receiver's own verdict on the fix, in either dialect. The
     // exporter flags each quantity apart; a sample whose position, altitude
@@ -534,32 +539,29 @@ function parseGpsSamples(
         valid.speed === false)
     )
       continue;
-    const t = finiteNumber(s.t_ms);
+    const sampleT = finiteNumber(s.t_ms);
     const lat = finiteNumber(s.latitude_deg) ?? finiteNumber(s.latitude);
     const lon = finiteNumber(s.longitude_deg) ?? finiteNumber(s.longitude);
     const alt = finiteNumber(s.altitude_msl_m) ?? finiteNumber(s.altitude_m);
     const speed = finiteNumber(s.ground_speed_mps) ?? finiteNumber(s.speed_m_s);
     if (
-      t == null ||
+      sampleT == null ||
       lat == null ||
       lon == null ||
       alt == null ||
       speed == null
     ) {
-      return {
-        ok: false,
-        error: `A amostra GPS ${i} tem campos em falta ou não numéricos.`,
-      };
+      return { ok: false, error: t.gpsSampleFields(i) };
     }
     const prev = kept[kept.length - 1];
-    if (prev && t < prev.t) {
+    if (prev && sampleT < prev.t) {
       return {
         ok: false,
-        error: `O tempo anda para trás na amostra GPS ${i} (${t} ms após ${prev.t} ms).`,
+        error: t.gpsTimeBackwards(i, sampleT, prev.t),
       };
     }
     kept.push({
-      t,
+      t: sampleT,
       lat,
       lon,
       alt,
@@ -654,18 +656,18 @@ const PARSERS: ImuParser[] = [bikitImuV1];
 /**
  * Parses an imported file into the normalized session, trying each known
  * format in turn. The error strings are user-facing (they appear on the
- * import form, written on screen — not in a toast).
+ * import form, written on screen — not in a toast), so they come from the
+ * Pro dictionary in the reader's language.
  */
-export function parseImuFile(json: unknown): ImuParseResult {
+export function parseImuFile(json: unknown, locale: Locale): ImuParseResult {
   const parser = PARSERS.find((p) => p.matches(json));
   if (!parser) {
     return {
       ok: false,
-      error:
-        'Formato não reconhecido. Esperado um ficheiro com "format": "bikit_imu_session".',
+      error: getProDictionary(locale).importing.json.unknownFormat,
     };
   }
-  return parser.parse(json);
+  return parser.parse(json, locale);
 }
 
 /**
@@ -678,12 +680,17 @@ export function parseImuFile(json: unknown): ImuParseResult {
  * A file that is neither says so in one message rather than two — "not
  * JSON" would be misleading for a binary that merely lost its first bytes.
  */
-export function parseImuBytes(bytes: ArrayBuffer): ImuParseResult {
+export function parseImuBytes(
+  bytes: ArrayBuffer,
+  locale: Locale,
+): ImuParseResult {
   // Both paths end in realignImuWords: the logger's firmware (through
   // V11, at least) writes stretches with the six words of a frame rotated,
   // and the exporter's JSON is made from the same .BKT — so the repair
   // belongs to reading the recording, whichever wrapper it came in.
-  const result = isBktFile(bytes) ? parseBktFile(bytes) : parseJsonBytes(bytes);
+  const result = isBktFile(bytes)
+    ? parseBktFile(bytes, locale)
+    : parseJsonBytes(bytes, locale);
   if (!result.ok) return result;
   const realigned = realignImuWords(result.session);
   // A file that brought its own events (the exporter's JSON, when it did)
@@ -696,15 +703,15 @@ export function parseImuBytes(bytes: ArrayBuffer): ImuParseResult {
   return { ok: true, session };
 }
 
-function parseJsonBytes(bytes: ArrayBuffer): ImuParseResult {
+function parseJsonBytes(bytes: ArrayBuffer, locale: Locale): ImuParseResult {
   let json: unknown;
   try {
     json = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return {
       ok: false,
-      error: "O ficheiro não é JSON válido nem um .BKT do sensor.",
+      error: getProDictionary(locale).importing.json.notJsonNorBkt,
     };
   }
-  return parseImuFile(json);
+  return parseImuFile(json, locale);
 }

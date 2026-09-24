@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { crc32, isBktFile, parseBktFile, BKT_FORMAT } from "./bkt";
-import { parseImuBytes } from "./format";
+import {
+  crc32,
+  isBktFile,
+  parseBktFile as parseBktFileIn,
+  BKT_FORMAT,
+} from "./bkt";
+import { parseImuBytes as parseImuBytesIn } from "./format";
+
+// The parsers take the reader's language for their recusals; these tests
+// read them in Portuguese, the copy they were written against.
+const parseBktFile = (bytes: ArrayBuffer) => parseBktFileIn(bytes, "pt");
+const parseImuBytes = (bytes: ArrayBuffer) => parseImuBytesIn(bytes, "pt");
 
 /**
  * Builds a valid .BKT in memory, the way the firmware lays it out, so every

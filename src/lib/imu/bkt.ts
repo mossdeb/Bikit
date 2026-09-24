@@ -33,7 +33,9 @@
  * Strict where the JSON parser is strict, and for the same reason: a bad
  * CRC, a block out of sequence, an index that goes backwards or a file
  * shorter than its header declares is a corrupt recording, not a variant.
- * Every recusal names the block, written on screen like the rest.
+ * Every recusal names the block, written on screen like the rest — in the
+ * reader's language, which is why the parser takes a `locale`: the
+ * messages come from the Pro dictionary (i18n/pro/importing.ts, `bkt`).
  *
  * Three places this is deliberately LESS strict than the exporter:
  * - A header with the GNSS flag set but no GNSS samples is accepted, as a
@@ -52,6 +54,8 @@
  * for a firmware that stamps when the first sample really landed.
  */
 
+import type { Locale } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import type {
   GpsChannels,
   ImuCalibration,
@@ -380,45 +384,41 @@ function recordCrc(
   return crc32(copy);
 }
 
-export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
+export function parseBktFile(
+  bytes: ArrayBuffer,
+  locale: Locale,
+): ImuParseResult {
+  const t = getProDictionary(locale).importing.bkt;
   if (bytes.byteLength < SESSION_HEADER_SIZE) {
-    return fail("O ficheiro é mais pequeno do que o cabeçalho de 64 bytes.");
+    return fail(t.tooShort);
   }
   const view = new DataView(bytes);
   const u8 = new Uint8Array(bytes);
   const magic = ascii(view, 0, 4);
   if (magic !== MAGIC_LEGACY && magic !== MAGIC_V1) {
-    return fail('O ficheiro não começa pela assinatura "BKTL" nem "BKT1".');
+    return fail(t.badMagic);
   }
   const h = readHeader(view);
 
   if (h.headerSize !== SESSION_HEADER_SIZE)
-    return fail(`Cabeçalho com tamanho inesperado (${h.headerSize} bytes).`);
-  if (h.blockSize !== BLOCK_SIZE)
-    return fail(`Blocos com tamanho inesperado (${h.blockSize} bytes).`);
+    return fail(t.headerSize(h.headerSize));
+  if (h.blockSize !== BLOCK_SIZE) return fail(t.blockSize(h.blockSize));
   if (h.imuSampleSize !== IMU_SAMPLE_SIZE)
-    return fail(
-      `Amostras IMU com tamanho inesperado (${h.imuSampleSize} bytes).`,
-    );
-  if (headerCrc(u8, magic) !== h.storedCrc)
-    return fail("O CRC do cabeçalho não bate certo — ficheiro corrompido.");
-  if (h.imuRateMHz === 0)
-    return fail("O cabeçalho declara uma taxa de amostragem de zero.");
-  if (h.accelScaleUg === 0 || h.gyroScaleMdps === 0)
-    return fail("O cabeçalho não traz as escalas dos sensores.");
+    return fail(t.imuSampleSize(h.imuSampleSize));
+  if (headerCrc(u8, magic) !== h.storedCrc) return fail(t.headerCrc);
+  if (h.imuRateMHz === 0) return fail(t.zeroRate);
+  if (h.accelScaleUg === 0 || h.gyroScaleMdps === 0) return fail(t.noScales);
 
   // Calibration: validated when the header says it is there, because a bad
   // snapshot is a sign the header region itself is damaged — and read, for
   // alignSessionToBike to express the channels in the bike's frame.
   let calibration: ImuCalibration | null = null;
   if (h.flags & FLAG_CALIBRATION) {
-    if (bytes.byteLength < CAL_OFFSET + CAL_SIZE)
-      return fail("O bloco de calibração está truncado.");
-    if (ascii(view, CAL_OFFSET, 4) !== CAL_MAGIC)
-      return fail('O bloco de calibração não começa por "CAL1".');
+    if (bytes.byteLength < CAL_OFFSET + CAL_SIZE) return fail(t.calTruncated);
+    if (ascii(view, CAL_OFFSET, 4) !== CAL_MAGIC) return fail(t.calMagic);
     const storedCalCrc = view.getUint32(CAL_OFFSET + 52, true);
     if (recordCrc(u8, CAL_OFFSET, CAL_SIZE, magic) !== storedCalCrc)
-      return fail("O CRC da calibração não bate certo — ficheiro corrompido.");
+      return fail(t.calCrc);
     // CAL1 layout (`<4sB3x9fIII`): magic, version, pad, then nine floats —
     // gravity reference xyz, gyro bias xyz, gravity magnitude, accel and
     // gyro stddev — then sample_count, calibration_count, crc32.
@@ -452,7 +452,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   ) {
     const storedOriCrc = view.getUint32(ORI_OFFSET + 56, true);
     if (recordCrc(u8, ORI_OFFSET, ORI_SIZE, magic) !== storedOriCrc)
-      return fail("O CRC da orientação não bate certo — ficheiro corrompido.");
+      return fail(t.oriCrc);
     const f = (i: number) => view.getFloat32(ORI_OFFSET + 8 + i * 4, true);
     const v = Array.from({ length: 10 }, (_, i) => f(i));
     const up: [number, number, number] = [v[0], v[1], v[2]];
@@ -470,7 +470,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       Math.abs(dot(up, left)) > 0.02 ||
       Math.abs(dot(front, left)) > 0.02
     )
-      return fail("A orientação do logger não é um referencial ortonormal.");
+      return fail(t.oriNotOrthonormal);
     orientation = {
       up,
       front,
@@ -484,13 +484,11 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
   const expectedSize = BLOCK_SIZE + h.totalBlocks * BLOCK_SIZE;
   if (bytes.byteLength !== expectedSize) {
     const present = Math.max(0, Math.floor(bytes.byteLength / BLOCK_SIZE) - 1);
-    return fail(
-      `Ficheiro incompleto: o cabeçalho declara ${h.totalBlocks} blocos e o ficheiro traz ${present}.`,
-    );
+    return fail(t.incomplete(h.totalBlocks, present));
   }
 
   const n = h.totalImuSamples;
-  if (n === 0) return fail("O ficheiro não tem amostras IMU.");
+  if (n === 0) return fail(t.noImuSamples);
   const tMs = new Float64Array(n);
   const ax = new Float32Array(n);
   const ay = new Float32Array(n);
@@ -541,51 +539,35 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
 
   for (let b = 0; b < h.totalBlocks; b++) {
     const off = BLOCK_SIZE + b * BLOCK_SIZE;
-    if (ascii(view, off, 4) !== BLOCK_MAGIC)
-      return fail(`O bloco ${b} não começa por "BLK1" — ficheiro corrompido.`);
+    if (ascii(view, off, 4) !== BLOCK_MAGIC) return fail(t.blockMagic(b));
     const bh = readBlockHeader(view, off);
-    if (bh.sequence !== b)
-      return fail(
-        `O bloco ${b} está fora de sequência (diz ser o ${bh.sequence}).`,
-      );
+    if (bh.sequence !== b) return fail(t.blockSequence(b, bh.sequence));
     if (bh.headerSize !== BLOCK_HEADER_SIZE)
-      return fail(`O bloco ${b} tem um cabeçalho de ${bh.headerSize} bytes.`);
+      return fail(t.blockHeaderSize(b, bh.headerSize));
 
     let stream: "IMU" | "GNSS" | "HIGHG";
     if (bh.type === BLOCK_TYPE_IMU) {
       if (bh.sampleSize !== IMU_SAMPLE_SIZE)
-        return fail(
-          `O bloco ${b} (IMU) tem amostras de ${bh.sampleSize} bytes.`,
-        );
+        return fail(t.imuBlockSampleSize(b, bh.sampleSize));
       stream = "IMU";
     } else if (bh.type === BLOCK_TYPE_GNSS) {
       if (!GNSS_SAMPLE_SIZES.has(bh.sampleSize))
-        return fail(
-          `O bloco ${b} (GNSS) tem amostras de ${bh.sampleSize} bytes.`,
-        );
+        return fail(t.gnssBlockSampleSize(b, bh.sampleSize));
       stream = "GNSS";
     } else if (bh.type === BLOCK_TYPE_HIGHG) {
-      if (bh.flags !== HIGHG_FORMAT_V1)
-        return fail(
-          `O bloco ${b} (HIGHG) traz um formato de evento desconhecido (${bh.flags}).`,
-        );
+      if (bh.flags !== HIGHG_FORMAT_V1) return fail(t.highGFormat(b, bh.flags));
       if (bh.sampleSize !== HIGHG_RECORD_SIZE)
-        return fail(
-          `O bloco ${b} (HIGHG) tem eventos de ${bh.sampleSize} bytes.`,
-        );
+        return fail(t.highGRecordSize(b, bh.sampleSize));
       stream = "HIGHG";
       sawHighG = true;
     } else {
-      return fail(`O bloco ${b} é de um tipo desconhecido (${bh.type}).`);
+      return fail(t.unknownBlockType(b, bh.type));
     }
 
     const maxCount = Math.floor(
       (BLOCK_SIZE - BLOCK_HEADER_SIZE) / bh.sampleSize,
     );
-    if (bh.sampleCount > maxCount)
-      return fail(
-        `O bloco ${b} (${stream}) declara mais amostras do que cabem.`,
-      );
+    if (bh.sampleCount > maxCount) return fail(t.tooManySamples(b, stream));
 
     const payloadStart = off + BLOCK_HEADER_SIZE;
     const payloadLen = bh.sampleCount * bh.sampleSize;
@@ -593,18 +575,13 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       crc32(u8.subarray(payloadStart, payloadStart + payloadLen)) !==
       bh.payloadCrc
     )
-      return fail(
-        `O CRC do bloco ${b} (${stream}) não bate certo — ficheiro corrompido.`,
-      );
+      return fail(t.blockCrc(b, stream));
 
     if (stream === "IMU") {
       // Backwards or overlapping is still corruption; forwards is a gap.
       if (bh.firstSampleIndex < nextImuIndex)
-        return fail(`O bloco ${b} (IMU) volta atrás no índice das amostras.`);
-      if (imuWritten + bh.sampleCount > n)
-        return fail(
-          "Os blocos trazem mais amostras IMU do que o cabeçalho declara.",
-        );
+        return fail(t.imuIndexBackwards(b));
+      if (imuWritten + bh.sampleCount > n) return fail(t.moreImuThanDeclared);
       if (imuWritten === 0)
         originMs = bh.streamTimeUs / 1000 - bh.firstSampleIndex * periodMs;
       if (bh.firstSampleIndex > nextImuIndex && imuWritten > 0)
@@ -665,16 +642,12 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       imuWritten += bh.sampleCount;
     } else if (stream === "HIGHG") {
       if (bh.firstSampleIndex !== nextHighGIndex)
-        return fail(
-          `O bloco ${b} (HIGHG) deixa um buraco no índice dos eventos.`,
-        );
+        return fail(t.highGIndexHole(b));
       for (let i = 0; i < bh.sampleCount; i++) {
         const s = payloadStart + i * HIGHG_RECORD_SIZE;
         const count = view.getUint8(s + 8);
         if (count > HIGHG_SAMPLES)
-          return fail(
-            `O evento high-G ${nextHighGIndex + i} declara ${count} amostras, mais do que cabem.`,
-          );
+          return fail(t.highGTooManySamples(nextHighGIndex + i, count));
         // A window the FIFO read came back empty for is a failed capture,
         // not an event: nothing to place, nothing to read.
         if (count === 0) continue;
@@ -696,9 +669,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
       nextHighGIndex += bh.sampleCount;
     } else {
       if (bh.firstSampleIndex !== nextGnssIndex)
-        return fail(
-          `O bloco ${b} (GNSS) deixa um buraco no índice das amostras.`,
-        );
+        return fail(t.gnssIndexHole(b));
       const wide = bh.sampleSize === 36;
       for (let i = 0; i < bh.sampleCount; i++) {
         const s = payloadStart + i * bh.sampleSize;
@@ -718,14 +689,12 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
           !(flags & GNSS_SPEED)
         )
           continue;
-        const t = view.getUint32(s, true);
+        const sampleT = view.getUint32(s, true);
         const prev = gpsKept[gpsKept.length - 1];
-        if (prev && t < prev.t)
-          return fail(
-            `O tempo anda para trás na amostra GNSS ${nextGnssIndex + i} (${t} ms após ${prev.t} ms).`,
-          );
+        if (prev && sampleT < prev.t)
+          return fail(t.gnssTimeBackwards(nextGnssIndex + i, sampleT, prev.t));
         gpsKept.push({
-          t,
+          t: sampleT,
           lat: view.getInt32(s + 4, true) / 1e7,
           lon: view.getInt32(s + 8, true) / 1e7,
           alt: view.getInt32(s + 12, true) / 1000,
@@ -742,10 +711,7 @@ export function parseBktFile(bytes: ArrayBuffer): ImuParseResult {
     }
   }
 
-  if (imuWritten !== n)
-    return fail(
-      `Os blocos trazem ${imuWritten} amostras IMU e o cabeçalho declara ${n}.`,
-    );
+  if (imuWritten !== n) return fail(t.imuCountMismatch(imuWritten, n));
 
   let gps: GpsChannels | null = null;
   if (gpsKept.length > 0) {

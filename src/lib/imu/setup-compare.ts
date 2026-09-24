@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import { setupKey, type ImuSetupValues } from "./setup";
 import { trackIndexCoverage, type SnapshotTrackIndex } from "./snapshot";
 
@@ -12,8 +14,9 @@ import { trackIndexCoverage, type SnapshotTrackIndex } from "./snapshot";
  * (trackIndexCoverage) to at least SETUP_COMPARE_COVERAGE: a lap of a
  * longer ride still counts, a neighbouring trail does not.
  *
- * When there is nothing to compare against, the reason — in words, for
- * the card to print where the comparison would go.
+ * When there is nothing to compare against, the reason — in words, in
+ * the reader's language, for the card to print where the comparison
+ * would go.
  */
 
 export const SETUP_COMPARE_COVERAGE = 0.7;
@@ -30,13 +33,10 @@ export function pickSetupComparison<T extends SetupCompareSession>(
   current: SetupCompareSession,
   /** The bike's earlier sessions, newest first. */
   earlier: T[],
+  locale: Locale,
 ): { pick: T | null; reason: string | null } {
-  if (!current.setup)
-    return {
-      pick: null,
-      reason:
-        "Regista a afinação desta volta para a comparar com a anterior da bicicleta.",
-    };
+  const t = getProDictionary(locale).compare.pick;
+  if (!current.setup) return { pick: null, reason: t.noSetup };
   const key = setupKey(current.setup);
   const others = earlier.filter(
     (s) =>
@@ -44,18 +44,8 @@ export function pickSetupComparison<T extends SetupCompareSession>(
       setupKey(s.setup) !== key &&
       (s.riderName ?? null) === (current.riderName ?? null),
   );
-  if (others.length === 0)
-    return {
-      pick: null,
-      reason:
-        "Ainda não há outra volta desta bicicleta com uma afinação diferente.",
-    };
-  if (!current.trackIndex)
-    return {
-      pick: null,
-      reason:
-        "Sem GPS nesta gravação não há como saber se as outras afinações foram na mesma pista.",
-    };
+  if (others.length === 0) return { pick: null, reason: t.noOther };
+  if (!current.trackIndex) return { pick: null, reason: t.noGps };
   for (const s of others)
     if (
       s.trackIndex &&
@@ -63,8 +53,5 @@ export function pickSetupComparison<T extends SetupCompareSession>(
         SETUP_COMPARE_COVERAGE
     )
       return { pick: s, reason: null };
-  return {
-    pick: null,
-    reason: `A última volta com outra afinação (${others[0].name}) foi noutra pista, e só a mesma pista separa a afinação do terreno.`,
-  };
+  return { pick: null, reason: t.otherTrail(others[0].name) };
 }

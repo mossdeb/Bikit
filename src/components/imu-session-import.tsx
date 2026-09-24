@@ -34,6 +34,8 @@ import {
   type ImuGroupOption,
 } from "@/lib/imu/groups";
 import { bikeFormValid, bikeRefFromForm } from "@/lib/imu/bike-ref";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { proNumber } from "@/lib/i18n/pro";
 
 /**
  * The one door for sessions, with two ways through it: the logger over
@@ -67,6 +69,8 @@ export function ImuSessionImport({
   riders: string[];
 }) {
   const router = useRouter();
+  const t = useProDict();
+  const locale = useProLocale();
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"device" | "file">("device");
@@ -108,7 +112,7 @@ export function ImuSessionImport({
     if (!file) return;
     // Bytes and not text: the logger's .BKT is binary, and the dispatcher
     // sniffs the first four of them to pick the parser.
-    const result = parseImuBytes(await file.arrayBuffer());
+    const result = parseImuBytes(await file.arrayBuffer(), locale);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -143,6 +147,7 @@ export function ImuSessionImport({
       riderName: rider,
       bike: bikeRefFromForm(bikeId, newBikeName),
       group: groupRefFromForm(groupId, newGroupName),
+      locale,
     });
     if (!outcome.ok) {
       setBusy(false);
@@ -164,14 +169,13 @@ export function ImuSessionImport({
         className={buttonVariants({ variant: "inverted", size: "sm" })}
       >
         <Plus data-icon="inline-start" />
-        Importar sessão
+        {t.importing.dialog.trigger}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Importar sessão IMU</DialogTitle>
+          <DialogTitle>{t.importing.dialog.title}</DialogTitle>
           <DialogDescription className="mt-1">
-            Do dispositivo, por Bluetooth, ou de um ficheiro .BKT ou JSON. É
-            validada antes de sair daqui.
+            {t.importing.dialog.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -186,10 +190,10 @@ export function ImuSessionImport({
         >
           <TabsList variant="pill" className="w-full border border-border">
             <TabsTrigger value="device" className="flex-1 px-3 py-1.5">
-              Dispositivo
+              {t.importing.dialog.tabDevice}
             </TabsTrigger>
             <TabsTrigger value="file" className="flex-1 px-3 py-1.5">
-              Ficheiro
+              {t.importing.dialog.tabFile}
             </TabsTrigger>
           </TabsList>
 
@@ -226,14 +230,15 @@ export function ImuSessionImport({
                       {formatSessionTime(parsed.summary.durationMs)} ·{" "}
                       {Math.round(parsed.summary.sampleRateHz)} Hz ·{" "}
                       <span className="tabular-nums">
-                        {parsed.summary.sampleCount.toLocaleString("pt-PT")}
+                        {proNumber(parsed.summary.sampleCount, locale)}
                       </span>{" "}
-                      amostras · {parsed.summary.eventCount} eventos
+                      {t.common.units.samples} ·{" "}
+                      {t.importing.dialog.events(parsed.summary.eventCount)}
                       {/* The high-g sensor's shocks (firmware V15), when the
                           file has the sensor — nought included, which says
                           the sensor was there and nothing crossed it. */}
                       {parsed.session.highG &&
-                        ` · ${parsed.session.highG.length} ${parsed.session.highG.length === 1 ? "choque" : "choques"} high-G`}
+                        ` · ${t.importing.dialog.highGShocks(parsed.session.highG.length)}`}
                     </p>
                   </div>
                   <ImuSessionDetailsFields
@@ -273,7 +278,7 @@ export function ImuSessionImport({
                 }
                 onClick={handleImport}
               >
-                {busy ? "A importar…" : "Importar"}
+                {busy ? t.importing.importingButton : t.importing.importButton}
               </Button>
             </div>
           </TabsContent>

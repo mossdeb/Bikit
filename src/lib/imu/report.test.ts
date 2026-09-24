@@ -87,8 +87,10 @@ function ride(withGps = true): ImuSessionData {
 }
 
 describe("buildSessionReport", () => {
+  // The names and sentences asserted below are the Portuguese ones; the
+  // English report is the same figures under the dictionary's other words.
   it("answers in all three dimensions, with the figures the ride was drawn with", () => {
-    const report = buildSessionReport(ride());
+    const report = buildSessionReport(ride(), "pt");
     const labels = (s: { metrics: { label: string }[] }) =>
       s.metrics.map((m) => m.label);
 
@@ -139,7 +141,7 @@ describe("buildSessionReport", () => {
 
   it("reads the recovery only where the hits come in runs", () => {
     // The drawn ride has one hit: nothing to recover from before a next.
-    const one = buildSessionReport(ride());
+    const one = buildSessionReport(ride(), "pt");
     expect(
       one.bike.metrics.find((m) => m.label === "Recuperação"),
     ).toBeUndefined();
@@ -172,7 +174,7 @@ describe("buildSessionReport", () => {
         confidence: 0.95,
       })),
     ];
-    const report = buildSessionReport(runs);
+    const report = buildSessionReport(runs, "pt");
     const recovery = report.bike.metrics.find((m) => m.label === "Recuperação");
     expect(recovery).toBeDefined();
     expect(recovery!.raw).toBeGreaterThanOrEqual(0);
@@ -182,7 +184,7 @@ describe("buildSessionReport", () => {
   });
 
   it("says what it cannot say without a track", () => {
-    const report = buildSessionReport(ride(false));
+    const report = buildSessionReport(ride(false), "pt");
     // The brake still counts — it is read off the accelerometer — but
     // nothing that needs a speed does.
     expect(report.rider.metrics.map((m) => m.label)).toEqual(["Travagens"]);
@@ -196,6 +198,22 @@ describe("buildSessionReport", () => {
     expect(
       report.trail.metrics.find((m) => m.label === "Distância"),
     ).toBeUndefined();
+  });
+
+  it("writes the same figures in English, the English way", () => {
+    const report = buildSessionReport(ride(), "en");
+    const trail = Object.fromEntries(
+      report.trail.metrics.map((m) => [m.label, m]),
+    );
+    expect(trail["Distance"].value).toBe("0.31");
+    expect(trail["Roughness"].hint).toBe("10% of the time in rough sections");
+    expect(report.rider.headline).toMatch(/^Kept .* Braked once,/);
+    expect(report.trail.headline).toMatch(/1 corner, 1 impact,/);
+    // The English tile names carry the same numbers as the Portuguese.
+    const pt = buildSessionReport(ride(), "pt");
+    expect(report.bike.metrics.map((m) => m.raw)).toEqual(
+      pt.bike.metrics.map((m) => m.raw),
+    );
   });
 });
 
@@ -218,17 +236,25 @@ describe("compareReports", () => {
   ): SessionReport => ({
     rider: section("Rider", [
       {
+        key: "cornerRetention",
         label: "Retenção nas curvas",
         value: `${retention} %`,
         raw: retention,
         better: "higher",
         tie: 2,
       },
-      { label: "Velocidade máx", value: "40" },
-      { label: "Velocidade média", value: "26,4", raw: 26.4, tie: 0.5 },
+      { key: "maxSpeed", label: "Velocidade máx", value: "40" },
+      {
+        key: "avgSpeed",
+        label: "Velocidade média",
+        value: "26,4",
+        raw: 26.4,
+        tie: 0.5,
+      },
     ]),
     bike: section("Bike", [
       {
+        key: "harshness",
         label: "Harshness",
         value: harsh.toFixed(1).replace(".", ","),
         unit: "×",
@@ -237,6 +263,7 @@ describe("compareReports", () => {
         tie: 0.2,
       },
       {
+        key: "residualOscillation",
         label: "Assentamento",
         value: String(settle),
         unit: "ms",
@@ -249,7 +276,11 @@ describe("compareReports", () => {
   });
 
   it("sets each numbered metric against the other report's, with a verdict", () => {
-    const rows = compareReports(report(3.1, 180, 71), report(3.6, 190, 76));
+    const rows = compareReports(
+      report(3.1, 180, 71),
+      report(3.6, 190, 76),
+      "pt",
+    );
     expect(rows.map((r) => [r.label, r.tone, r.digits])).toEqual([
       ["Retenção nas curvas", "worse", 0],
       ["Velocidade média", "tie", 1],
@@ -261,12 +292,29 @@ describe("compareReports", () => {
     // A metric with no better direction is neutral once past its tie.
     const faster = report(3.1, 180, 71);
     faster.rider.metrics[2].raw = 30;
-    expect(compareReports(faster, report(3.6, 190, 76))[1].tone).toBe(
+    expect(compareReports(faster, report(3.6, 190, 76), "pt")[1].tone).toBe(
       "neutral",
     );
     // A metric only one report has, or one without a number, is left out.
     const partial = report(3.1, 180, 71);
     partial.bike.metrics.pop();
-    expect(compareReports(partial, report(3.6, 190, 76))).toHaveLength(3);
+    expect(compareReports(partial, report(3.6, 190, 76), "pt")).toHaveLength(3);
+  });
+
+  it("counts the decimals by the language's own separator", () => {
+    const english = (harsh: number): SessionReport => ({
+      rider: section("Rider", []),
+      bike: section("Bike", [
+        {
+          key: "harshness",
+          label: "Harshness",
+          value: harsh.toFixed(1),
+          raw: harsh,
+          tie: 0.2,
+        },
+      ]),
+      trail: section("Trail", []),
+    });
+    expect(compareReports(english(3.1), english(3.6), "en")[0].digits).toBe(1);
   });
 });

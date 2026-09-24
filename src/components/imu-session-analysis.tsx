@@ -89,6 +89,9 @@ import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
 import { ImuSessionMap } from "@/components/imu-session-map";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { proNumber, type ProDictionary } from "@/lib/i18n/pro";
+import type { Locale } from "@/lib/i18n";
 import {
   StatClockIcon,
   StatImpactIcon,
@@ -105,114 +108,41 @@ import {
  * more entry here plus a `values` provider below — the raw channels are never
  * touched. Colors are a lab palette, fixed in both themes, deliberately not
  * the health nor the Ride Load vocabularies.
+ *
+ * The words — the pill's name, the two-word summary under it and the
+ * sentence behind the (i) — are not here: they live in the Pro dictionary
+ * under `analysis.series`, keyed by the same id, and the component joins
+ * them on at render (LabelledSeriesDef) in the reader's language.
  */
 const SERIES_DEFS = [
-  {
-    id: "gforce",
-    label: "Força G",
-    unit: "G",
-    color: "#2563EB",
-    summary: "Aceleração",
-    description: "Magnitude total da aceleração — √(x²+y²+z²)",
-  },
-  {
-    id: "ax",
-    label: "Acel X",
-    unit: "g",
-    color: "#0D9488",
-    summary: "Acelerar e travar",
-    description: "Aceleração longitudinal — acelerar e travar",
-  },
-  {
-    id: "ay",
-    label: "Acel Y",
-    unit: "g",
-    color: "#16A34A",
-    summary: "Curvas e movimento lateral",
-    description: "Aceleração lateral — sobretudo curvas e movimentos laterais",
-  },
-  {
-    id: "az",
-    label: "Acel Z",
-    unit: "g",
-    color: "#0891B2",
-    summary: "Impactos e aterragens",
-    description: "Aceleração vertical — impactos, terreno, saltos e aterragens",
-  },
-  {
-    id: "gx",
-    label: "Roll (X)",
-    unit: "°/s",
-    color: "#9333EA",
-    summary: "Inclinar a bicicleta",
-    description: "Rotação sobre o eixo longitudinal — inclinar a bicicleta",
-  },
-  {
-    id: "gy",
-    label: "Pitch (Y)",
-    unit: "°/s",
-    color: "#C026D3",
-    summary: "Empinar e mergulhar",
-    description: "Rotação sobre o eixo lateral — empinar e mergulhar",
-  },
-  {
-    id: "gz",
-    label: "Yaw (Z)",
-    unit: "°/s",
-    color: "#EA580C",
-    summary: "Mudar de direção",
-    description: "Rotação sobre o eixo vertical — mudar de direção",
-  },
-  {
-    id: "roughness",
-    label: "Roughness",
-    unit: "G RMS",
-    color: "#D97706",
-    summary: "Trepidação do terreno",
-    description: "Trepidação do terreno — RMS do G dinâmico em janela de 0,5 s",
-  },
-  {
-    id: "jerk",
-    label: "Jerk",
-    unit: "G/s",
-    color: "#DB2777",
-    summary: "Movimentos abruptos",
-    description: "Variação da aceleração — transições e movimentos abruptos",
-  },
-  {
-    id: "lean",
-    label: "Lean (est.)",
-    unit: "°",
-    color: "#475569",
-    summary: "Inclinação estimada",
-    description:
-      "Inclinação estimada — giroscópio de rolamento, ancorado ao ângulo de equilíbrio da curva atan(v·ω/g) da velocidade do GPS e da guinada; sem GPS, a inclinação média do acelerómetro",
-  },
+  { id: "gforce", unit: "G", color: "#2563EB" },
+  { id: "ax", unit: "g", color: "#0D9488" },
+  { id: "ay", unit: "g", color: "#16A34A" },
+  { id: "az", unit: "g", color: "#0891B2" },
+  { id: "gx", unit: "°/s", color: "#9333EA" },
+  { id: "gy", unit: "°/s", color: "#C026D3" },
+  { id: "gz", unit: "°/s", color: "#EA580C" },
+  { id: "roughness", unit: "G RMS", color: "#D97706" },
+  { id: "jerk", unit: "G/s", color: "#DB2777" },
+  { id: "lean", unit: "°", color: "#475569" },
   /** Only offered when the file carries a GPS track — the recorded speed,
    * with the forward accelerometer drawing the shape between fixes once the
    * bike's forward is known (fusedSpeedKmhSeries); a straight line between
    * fixes until then. */
-  {
-    id: "speed",
-    label: "Velocidade",
-    unit: "km/h",
-    color: "#65A30D",
-    summary: "Velocidade GPS",
-    description:
-      "Velocidade sobre o solo, medida pelo GPS da gravação; entre fixes, o acelerómetro frontal desenha a forma quando a frente da bicicleta é conhecida",
-  },
+  { id: "speed", unit: "km/h", color: "#65A30D" },
   /** GPS-only as well: the receiver's own altitude, resampled. */
-  {
-    id: "altitude",
-    label: "Altitude",
-    unit: "m",
-    color: "#92400E",
-    summary: "Perfil de elevação",
-    description: "Altitude acima do nível do mar, medida pelo GPS da gravação",
-  },
+  { id: "altitude", unit: "m", color: "#92400E" },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
+
+/** A series definition with its words joined on from the dictionary — what
+ * every consumer below reads, so a label is never looked up twice. */
+type LabelledSeriesDef = (typeof SERIES_DEFS)[number] & {
+  label: string;
+  summary: string;
+  description: string;
+};
 
 /** The series computed from the raw channels rather than recorded by the
  * sensor — listed apart in the details panel, never under "Dados brutos". */
@@ -235,15 +165,17 @@ const UNSIGNED_IDS = new Set<SeriesId>([
  * made since before speed existed. */
 const GPS_SERIES_IDS = new Set<SeriesId>(["speed", "altitude"]);
 
+/** The event kinds with a switch on the events menu. Their names come from
+ * the dictionary (`analysis.kinds`, keyed by the kind) at render. */
 const EVENT_KIND_DEFS = [
-  { kind: "curve", label: "Curvas", Icon: CurveRightIcon },
-  { kind: "jump", label: "Saltos", Icon: JumpIcon },
+  { kind: "curve", Icon: CurveRightIcon },
+  { kind: "jump", Icon: JumpIcon },
   // No "Drops" entry: the detector calls every flight a jump (the pre-load
   // heuristic mislabelled real jumps on 2026-09-09), and a file that
   // brings its own drops still draws them — they just have no switch.
-  { kind: "impact", label: "Impactos", Icon: Zap },
-  { kind: "rough_section", label: "Zonas acidentadas", Icon: RoughSectionIcon },
-  { kind: "braking", label: "Travagens", Icon: BrakingIcon },
+  { kind: "impact", Icon: Zap },
+  { kind: "rough_section", Icon: RoughSectionIcon },
+  { kind: "braking", Icon: BrakingIcon },
 ] as const;
 
 /** The high-g sensor's shocks (firmware V15) as a kind of their own on the
@@ -256,15 +188,8 @@ const SNAPSHOT_CACHE_MAX = 12;
 const HIGHG_KIND = "highg";
 const HIGHG_KIND_DEF = {
   kind: HIGHG_KIND,
-  label: "High-G",
   Icon: Activity,
 } as const;
-
-const SEVERITY_LABEL: Record<string, string> = {
-  light: "leve",
-  medium: "médio",
-  hard: "forte",
-};
 
 /** Which event owns the headline when several cover the same instant — the
  * pointiest wins (an impact inside a rough section reads as the impact). */
@@ -419,12 +344,24 @@ interface EventDescription {
  * The curve's lean is the balance-angle estimate (leanSeries), and its
  * label — not its value — carries the (est.), so the number stays readable
  * while the caveat stays attached.
+ *
+ * The words come from the dictionary and the figures are written the way
+ * the reader's language writes them — "0,79" in Portuguese, "0.79" in
+ * English — which is why the two ride in as arguments: this runs outside
+ * render, where no hook can be asked.
  */
-function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
+function describeEvent(
+  event: ImuEvent,
+  ctx: EventContext,
+  t: ProDictionary["analysis"],
+  locale: Locale,
+): EventDescription {
   const { tMs, gz, g, lean, roughness, gps, cursorIndex } = ctx;
+  /** A figure with a fixed number of decimals, in the reader's language. */
+  const num = (n: number, digits: number) => proNumber(n, locale, digits);
   const seconds = (fromMs: number, toMs: number) => ({
-    label: "Duração",
-    value: ((toMs - fromMs) / 1000).toFixed(1),
+    label: t.event.duration,
+    value: num((toMs - fromMs) / 1000, 1),
     unit: "s",
     Icon: StatStopwatchIcon,
   });
@@ -442,7 +379,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     if (cursorIndex < 0) return {};
     const v = values[cursorIndex];
     return {
-      now: `${v.toFixed(digits)}${/^[°/]/.test(unit) ? "" : " "}${unit}`,
+      now: `${num(v, digits)}${/^[°/]/.test(unit) ? "" : " "}${unit}`,
       progress: peak > 0 ? Math.min(1, Math.abs(v) / peak) : 0,
     };
   };
@@ -473,11 +410,11 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       if (cornerG && lat != null && lat > 0) {
         const now = cursorIndex >= 0 ? Math.abs(cornerG[cursorIndex]) : null;
         metrics.push({
-          label: "G lateral máx",
-          value: lat.toFixed(2),
+          label: t.event.lateralGMax,
+          value: num(lat, 2),
           unit: "G",
           ...(now != null && {
-            now: `${now.toFixed(2)} G`,
+            now: `${num(now, 2)} G`,
             progress: Math.min(1, now / lat),
           }),
         });
@@ -485,7 +422,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       const maxLean = windowPeak(tMs, lean, event.startMs, event.endMs);
       if (maxLean != null)
         metrics.push({
-          label: "Inclinação máx (est.)",
+          label: t.event.leanMax,
           value: `~${Math.round(maxLean)}`,
           unit: "°",
           ...nowOf(lean, "°", maxLean, 0),
@@ -535,7 +472,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
               ? [range.max, range.min]
               : [range.min, range.max];
           metrics.push({
-            label: "Velocidade na curva",
+            label: t.event.curveSpeed,
             value:
               span >= 0.5
                 ? `${Math.round(first)}–${Math.round(last)}`
@@ -555,13 +492,13 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         if (vMean != null && omegaDeg != null && omegaDeg > 1) {
           const omega = (omegaDeg * Math.PI) / 180;
           metrics.push({
-            label: "Raio (est.)",
+            label: t.event.radius,
             value: `~${Math.round(vMean / omega)}`,
             unit: "m",
             Icon: StatRadiusIcon,
           });
           metrics.push({
-            label: "Inclinação teórica",
+            label: t.event.theoreticalLean,
             value: `~${Math.round(
               (Math.atan((vMean * omega) / 9.81) * 180) / Math.PI,
             )}`,
@@ -593,7 +530,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           : null;
         if (momentum) {
           metrics.push({
-            label: "Entrada → mín → saída",
+            label: t.event.entryMinExit,
             value: `${Math.round(momentum.entryKmh)} → ${Math.round(momentum.minKmh)} → ${Math.round(momentum.exitKmh)}`,
             unit: "km/h",
             Icon: StatGaugeIcon,
@@ -605,7 +542,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           // of the raw ratio was the hill: a "−4 m" next to "88 %" says the
           // corner was ridden well on a descent, not coasted.
           metrics.push({
-            label: "Retenção",
+            label: t.event.retention,
             value: Math.round(
               100 * (momentum.retentionCorrected ?? momentum.retention),
             ).toString(),
@@ -614,8 +551,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           });
           if (momentum.dropM != null && Math.abs(momentum.dropM) >= 0.5)
             metrics.push({
-              label: "Desnível",
-              value: `${momentum.dropM > 0 ? "−" : "+"}${Math.abs(momentum.dropM).toFixed(1)}`,
+              label: t.event.elevationDrop,
+              value: `${momentum.dropM > 0 ? "−" : "+"}${num(Math.abs(momentum.dropM), 1)}`,
               unit: "m",
               Icon: StatDropIcon,
             });
@@ -624,7 +561,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       metrics.push(seconds(event.startMs, event.endMs));
       return {
         title:
-          event.direction === "left" ? "Curva à esquerda" : "Curva à direita",
+          event.direction === "left" ? t.event.curveLeft : t.event.curveRight,
         Icon: event.direction === "left" ? CurveLeftIcon : CurveRightIcon,
         metrics,
       };
@@ -635,8 +572,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
     case "drop": {
       const metrics: EventMetric[] = [
         {
-          label: "No ar",
-          value: (event.airtimeMs / 1000).toFixed(2),
+          label: t.event.airtime,
+          value: num(event.airtimeMs / 1000, 2),
           unit: "s",
         },
       ];
@@ -647,8 +584,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         const v = speedAt(event.takeoffMs);
         if (v != null)
           metrics.push({
-            label: "Distância",
-            value: `~${((v * event.airtimeMs) / 1000).toFixed(1)}`,
+            label: t.event.distance,
+            value: `~${num((v * event.airtimeMs) / 1000, 1)}`,
             unit: "m",
           });
       }
@@ -660,8 +597,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       );
       if (landing != null)
         metrics.push({
-          label: "Aterragem",
-          value: landing.toFixed(1),
+          label: t.event.landing,
+          value: num(landing, 1),
           unit: "G",
         });
       // The same landing as the high-g sensor caught it, over the same
@@ -669,8 +606,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       const landingShock = highGNear(ctx.highG, event.landingMs + 100, 200);
       if (landingShock)
         metrics.push({
-          label: "Aterragem high-G",
-          value: landingShock.peakG.toFixed(1),
+          label: t.event.landingHighG,
+          value: num(landingShock.peakG, 1),
           unit: "G",
         });
       const energy = impactEnergy(
@@ -681,13 +618,13 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       );
       if (energy != null)
         metrics.push({
-          label: "Severidade",
+          label: t.event.severity,
           value: String(impactSeverityIndex(energy)),
           unit: "/100",
         });
       return event.kind === "drop"
-        ? { title: "Drop", Icon: DropIcon, metrics }
-        : { title: "Salto", Icon: JumpIcon, metrics };
+        ? { title: t.event.dropTitle, Icon: DropIcon, metrics }
+        : { title: t.event.jumpTitle, Icon: JumpIcon, metrics };
     }
     case "impact": {
       const metrics: EventMetric[] = [];
@@ -707,11 +644,11 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
               )
             : null;
         metrics.push({
-          label: "Pico",
-          value: peak.toFixed(2),
+          label: t.event.peak,
+          value: num(peak, 2),
           unit: "G",
           ...(nowPeak != null && {
-            now: `${nowPeak.toFixed(2)} G`,
+            now: `${num(nowPeak, 2)} G`,
             progress: peak > 0 ? Math.min(1, nowPeak / peak) : 0,
           }),
         });
@@ -723,8 +660,8 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       const shock = highGNear(ctx.highG, event.timeMs);
       if (shock)
         metrics.push({
-          label: "Pico high-G",
-          value: shock.peakG.toFixed(1),
+          label: t.event.peakHighG,
+          value: num(shock.peakG, 1),
           unit: "G",
         });
       const energy = impactEnergy(
@@ -735,15 +672,18 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       );
       if (energy != null)
         metrics.push({
-          label: "Severidade",
+          label: t.event.severity,
           value: String(impactSeverityIndex(energy)),
           unit: "/100",
         });
+      // The file's own word for the severity when the dictionary knows it,
+      // the raw value when it does not — a new grade would still be shown.
       const severity = event.severity
-        ? (SEVERITY_LABEL[event.severity] ?? event.severity)
+        ? (t.severity[event.severity as keyof typeof t.severity] ??
+          event.severity)
         : null;
       return {
-        title: severity ? `Impacto ${severity}` : "Impacto",
+        title: t.event.impactTitle(severity),
         Icon: Zap,
         metrics,
       };
@@ -760,11 +700,11 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       if (decel != null && decel > 0) {
         const now = cursorIndex >= 0 ? ctx.axMean[cursorIndex] : null;
         metrics.push({
-          label: "Travagem máx",
-          value: decel.toFixed(2),
+          label: t.event.brakingMax,
+          value: num(decel, 2),
           unit: "G",
           ...(now != null && {
-            now: `${now.toFixed(2)} G`,
+            now: `${num(now, 2)} G`,
             progress: Math.min(1, Math.max(0, -now) / decel),
           }),
         });
@@ -778,28 +718,28 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
         const v1 = speedAt(event.endMs);
         if (v0 != null && v1 != null)
           metrics.push({
-            label: "Velocidade",
+            label: t.event.speed,
             value: `${Math.round(v0 * 3.6)} → ${Math.round(v1 * 3.6)}`,
             unit: "km/h",
           });
         const dist = gpsDistance(gps, event.startMs, event.endMs);
         if (dist != null)
           metrics.push({
-            label: "Distância",
+            label: t.event.distance,
             value: String(Math.round(dist)),
             unit: "m",
           });
       }
       metrics.push(seconds(event.startMs, event.endMs));
-      return { title: "Travagem", Icon: BrakingIcon, metrics };
+      return { title: t.event.brakingTitle, Icon: BrakingIcon, metrics };
     }
     case "rough_section": {
       const metrics: EventMetric[] = [];
       const rms = windowRms(tMs, g, event.startMs, event.endMs, 1);
       if (rms != null)
         metrics.push({
-          label: "Vibração",
-          value: rms.toFixed(2),
+          label: t.event.vibration,
+          value: num(rms, 2),
           unit: "G RMS",
           // The rolling roughness at this instant — the same quantity over a
           // 0.5 s window, so it compares with the section's whole-window RMS.
@@ -819,7 +759,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
           const before = gpsMeanSpeed(gps, beforeFrom, event.startMs);
           if (inside != null && before != null && before > 0.5) {
             metrics.push({
-              label: "Vel. retida",
+              label: t.event.retainedSpeed,
               value: String(Math.round((inside / before) * 100)),
               unit: "%",
             });
@@ -828,7 +768,7 @@ function describeEvent(event: ImuEvent, ctx: EventContext): EventDescription {
       }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
-        title: "Zona muito acidentada",
+        title: t.event.roughTitle,
         Icon: RoughSectionIcon,
         metrics,
       };
@@ -876,6 +816,12 @@ export function ImuSessionAnalysis({
    * here, where both halves are in hand. */
   header: ReactNode;
 }) {
+  // The reader's language: every word on the page comes from the Pro
+  // dictionary, and the figures are written the way that language writes
+  // them (proNumber) — read once here and handed to whatever runs outside
+  // render, describeEvent above all.
+  const t = useProDict().analysis;
+  const locale = useProLocale();
   // The file, downloaded, parsed and read in the bike's frame — the same
   // hook the report page uses, so the two pages never disagree.
   const {
@@ -1014,6 +960,7 @@ export function ImuSessionAnalysis({
         candidate.storagePath,
         candidate.mountOrientation,
         candidate.trim,
+        locale,
       ).then((result) =>
         result.data === null
           ? { data: null, error: result.error }
@@ -1027,7 +974,7 @@ export function ImuSessionAnalysis({
         snapshotCache.delete(snapshotCache.keys().next().value!);
       return loading;
     },
-    [sessionId, snapshotSession, snapshotCache],
+    [sessionId, snapshotSession, snapshotCache, locale],
   );
 
   const seriesValues = useMemo(() => {
@@ -1220,7 +1167,7 @@ export function ImuSessionAnalysis({
     return (
       <SessionCards header={header}>
         <p className="py-10 text-center text-sm text-muted-foreground">
-          A carregar a sessão…
+          {t.loading}
         </p>
       </SessionCards>
     );
@@ -1232,11 +1179,17 @@ export function ImuSessionAnalysis({
   const win = windowMs ?? full;
   const zoomed = win[0] > full[0] || win[1] < full[1];
 
+  // The series with their words joined on, in the reader's language — the
+  // list every consumer below reads.
+  const seriesDefs: LabelledSeriesDef[] = SERIES_DEFS.map((def) => ({
+    ...def,
+    ...t.series[def.id],
+  }));
   // The GPS series are real pills only when this file recorded a track;
   // without one they stay the disabled pills they always were, with their
-  // "sem dados" hint.
+  // "no data" hint.
   const hasGps = data.gps != null;
-  const availableSeriesDefs = SERIES_DEFS.filter(
+  const availableSeriesDefs = seriesDefs.filter(
     (def) => !GPS_SERIES_IDS.has(def.id) || hasGps,
   );
   const activeSeriesDefs = availableSeriesDefs.filter((def) =>
@@ -1301,7 +1254,7 @@ export function ImuSessionAnalysis({
     cursorIndex,
   };
   const primaryDesc = primaryEvent
-    ? describeEvent(primaryEvent, eventContext)
+    ? describeEvent(primaryEvent, eventContext, t, locale)
     : null;
   // The shock within reach of the cursor, for a card of its own under the
   // app's events: the same hit is often an impact above and a shock here,
@@ -1638,7 +1591,7 @@ export function ImuSessionAnalysis({
         // it. On a phone the menu is alone and has to say what is on. From
         // `sm` the legend on the plot's head says it, in the series' own
         // colours, so the trigger goes back to naming what it opens —
-        // otherwise "Força G" would be printed twice, a chip apart.
+        // otherwise "G force" would be printed twice, a chip apart.
         <>
           <span className="truncate sm:hidden">
             {activeSeriesDefs.length === 1 ? (
@@ -1651,12 +1604,12 @@ export function ImuSessionAnalysis({
                 {activeSeriesDefs[0].label}
               </>
             ) : activeSeriesDefs.length === 0 ? (
-              "Métricas"
+              t.menus.metrics
             ) : (
-              `${activeSeriesDefs.length} métricas`
+              t.menus.metricsCount(activeSeriesDefs.length)
             )}
           </span>
-          <span className="hidden truncate sm:inline">Métricas</span>
+          <span className="hidden truncate sm:inline">{t.menus.metrics}</span>
         </>
       }
       items={[
@@ -1670,12 +1623,12 @@ export function ImuSessionAnalysis({
         })),
         ...(hasGps
           ? []
-          : ["Velocidade", "Altitude"].map((label) => ({
+          : [t.series.speed.label, t.series.altitude.label].map((label) => ({
               key: label,
               label,
               checked: false,
               disabled: true,
-              hint: "sem dados",
+              hint: t.menus.noData,
               onToggle: () => {},
             }))),
       ]}
@@ -1686,31 +1639,31 @@ export function ImuSessionAnalysis({
       summary={
         !eventsOn ? (
           <span className="truncate text-muted-foreground">
-            Eventos ocultos
+            {t.menus.eventsHidden}
           </span>
         ) : soleKind ? (
           <>
             <soleKind.Icon className="size-4 shrink-0" />
-            <span className="truncate">{soleKind.label}</span>
+            <span className="truncate">{t.kinds[soleKind.kind]}</span>
           </>
         ) : (
           <span className="truncate">
             {activeKindDefs.length === kindDefs.length
-              ? "Eventos"
-              : `${activeKindDefs.length} de ${kindDefs.length} eventos`}
+              ? t.menus.events
+              : t.menus.eventsOf(activeKindDefs.length, kindDefs.length)}
           </span>
         )
       }
       items={[
         {
           key: "events-master",
-          label: "Mostrar eventos",
+          label: t.menus.showEvents,
           checked: eventsOn,
           onToggle: toggleEvents,
         },
         ...kindDefs.map((def) => ({
           key: def.kind,
-          label: def.label,
+          label: t.kinds[def.kind],
           Icon: def.Icon,
           checked: activeKinds.has(def.kind),
           onToggle: () => toggleKind(def.kind),
@@ -1728,10 +1681,10 @@ export function ImuSessionAnalysis({
     <>
       <RealignmentBadge session={data} />
       <MountingBadge session={data} />
-      <PanelToggle label="Rider" on={dashOn} onToggle={toggleDash} />
+      <PanelToggle label={t.panels.rider} on={dashOn} onToggle={toggleDash} />
       {hasGps && (
         <PanelToggle
-          label="Mapa"
+          label={t.panels.map}
           on={mapOn}
           onToggle={() => setMapOn((v) => !v)}
         />
@@ -1796,7 +1749,7 @@ export function ImuSessionAnalysis({
             >
               <Stat
                 Icon={StatClockIcon}
-                label="Duração"
+                label={t.resume.duration}
                 value={formatSessionTime(summary.durationMs)}
               />
               {/* The ride-level GPS figures ride next to the duration —
@@ -1806,41 +1759,41 @@ export function ImuSessionAnalysis({
               {summary.distanceM != null && (
                 <Stat
                   Icon={StatRouteIcon}
-                  label="Distância"
-                  value={formatTrackDistance(summary.distanceM)}
+                  label={t.resume.distance}
+                  value={formatTrackDistance(summary.distanceM, locale)}
                 />
               )}
               {summary.maxSpeedKmh != null && (
                 <Stat
                   Icon={StatGaugeIcon}
-                  label="Vel. máx"
-                  value={`${summary.maxSpeedKmh.toFixed(1)} km/h`}
+                  label={t.resume.maxSpeed}
+                  value={`${proNumber(summary.maxSpeedKmh, locale, 1)} km/h`}
                 />
               )}
               <Stat
                 Icon={StatMetricIcon}
-                label="G máx"
-                value={summary.maxG.toFixed(2)}
+                label={t.resume.maxG}
+                value={proNumber(summary.maxG, locale, 2)}
               />
               <Stat
                 Icon={StatImpactIcon}
-                label="Impactos"
+                label={t.resume.impacts}
                 value={String(summary.impactCount)}
               />
               <Stat
                 Icon={StatTurnIcon}
-                label="Curvas"
+                label={t.resume.curves}
                 value={String(summary.curveCount)}
               />
               <Stat
                 Icon={StatJumpIcon}
-                label="Saltos"
+                label={t.resume.jumps}
                 value={String(summary.jumpCount)}
               />
               <Stat
                 Icon={StatStopwatchIcon}
-                label="No ar"
-                value={`${(summary.airtimeMs / 1000).toFixed(1)} s`}
+                label={t.resume.airtime}
+                value={`${proNumber(summary.airtimeMs / 1000, locale, 1)} s`}
               />
             </div>
           </div>
@@ -1952,11 +1905,11 @@ export function ImuSessionAnalysis({
               showValues={valuesOn}
             />
             <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
-              <ZoomButton label="Aproximar" onClick={() => zoomAround(0.5)}>
+              <ZoomButton label={t.zoom.in} onClick={() => zoomAround(0.5)}>
                 <Plus className="size-3.5" />
               </ZoomButton>
               <ZoomButton
-                label="Afastar"
+                label={t.zoom.out}
                 onClick={() => zoomAround(2)}
                 disabled={!zoomed}
               >
@@ -1969,7 +1922,7 @@ export function ImuSessionAnalysis({
                   className="flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium transition-colors hover:bg-muted"
                 >
                   <Undo2 className="size-3.5" />
-                  Repor zoom
+                  {t.zoom.reset}
                 </button>
               )}
               {whole && trimOpen && (
@@ -2010,7 +1963,7 @@ export function ImuSessionAnalysis({
                 // same weight as the axis figures around it.
                 className="ml-auto flex h-8 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
               >
-                Valores
+                {t.zoom.values}
                 <span
                   aria-hidden
                   className={cn(
@@ -2036,8 +1989,8 @@ export function ImuSessionAnalysis({
                 <button
                   type="button"
                   onClick={() => setTrimOpen(true)}
-                  aria-label={trim ? "Recorte da sessão" : "Recortar a sessão"}
-                  title={trim ? "Recorte da sessão" : "Recortar a sessão"}
+                  aria-label={trim ? t.zoom.trimSet : t.zoom.trim}
+                  title={trim ? t.zoom.trimSet : t.zoom.trim}
                   className="ml-3 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted"
                 >
                   <Scissors className="size-3.5" />
@@ -2056,7 +2009,7 @@ export function ImuSessionAnalysis({
             progress={dashProgress}
             headline={
               dashSpeedKmh != null
-                ? dashSpeedKmh.toFixed(1)
+                ? proNumber(dashSpeedKmh, locale, 1)
                 : formatSessionTime(tMs[dashIndex])
             }
             headlineUnit={dashSpeedKmh != null ? "km/h" : undefined}
@@ -2141,7 +2094,7 @@ export function ImuSessionAnalysis({
               onSeek={(ms) => {
                 if (!cursorLocked) setCursorMs(ms);
               }}
-              title="Mapa"
+              title={t.map.title}
               // The hairline reaches the map too. Its surface is `--sidebar`
               // rather than `--card` — a fixed dark panel in both themes — so
               // in the light theme it is already a dark card on a light page
@@ -2165,7 +2118,7 @@ export function ImuSessionAnalysis({
               type="button"
               role="separator"
               aria-orientation="vertical"
-              aria-label="Redimensionar o mapa"
+              aria-label={t.map.resizeWidth}
               aria-valuenow={Math.round(mapWidth)}
               aria-valuemin={MAP_MIN_W}
               onPointerDown={startMapResize}
@@ -2227,7 +2180,7 @@ export function ImuSessionAnalysis({
               type="button"
               role="separator"
               aria-orientation="horizontal"
-              aria-label="Redimensionar a altura do mapa"
+              aria-label={t.map.resizeHeight}
               aria-valuenow={Math.round(mapHeight)}
               aria-valuemin={MAP_MIN_H}
               aria-valuemax={MAP_MAX_H}
@@ -2305,9 +2258,7 @@ export function ImuSessionAnalysis({
           )}
         >
           {cursorIndex < 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Toca ou arrasta sobre o gráfico para ler um instante.
-            </p>
+            <p className="text-sm text-muted-foreground">{t.reading.prompt}</p>
           ) : (
             // Desktop reads the two side by side — the channels on the left, the
             // event on the right — because they answer the same instant from two
@@ -2381,7 +2332,7 @@ export function ImuSessionAnalysis({
                   },
                   {
                     key: "derived",
-                    heading: "Derivadas (calculadas)",
+                    heading: t.reading.derived,
                     defs: activeSeriesDefs.filter((def) =>
                       DERIVED_IDS.has(def.id),
                     ),
@@ -2477,7 +2428,7 @@ export function ImuSessionAnalysis({
                                   finger does. */}
                                 <Popover>
                                   <PopoverTrigger
-                                    aria-label={`O que é ${def.label}`}
+                                    aria-label={t.reading.whatIs(def.label)}
                                     className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
                                   >
                                     <Info className="size-3.5" />
@@ -2499,6 +2450,7 @@ export function ImuSessionAnalysis({
                             <SessionStatLine
                               stats={seriesStats[def.id]}
                               unit={def.unit}
+                              locale={locale}
                             />
                           </div>
 
@@ -2520,7 +2472,11 @@ export function ImuSessionAnalysis({
                                 Written as a value because the scale has no
                                 rung there — `text-xl` is 20. */}
                             <span className="min-w-[132px] text-[22px] leading-none font-semibold tabular-nums whitespace-nowrap sm:min-w-[164px]">
-                              {seriesValues[def.id][cursorIndex].toFixed(4)}{" "}
+                              {proNumber(
+                                seriesValues[def.id][cursorIndex],
+                                locale,
+                                4,
+                              )}{" "}
                               <span className="text-sm font-normal text-muted-foreground">
                                 {def.unit}
                               </span>
@@ -2567,7 +2523,9 @@ export function ImuSessionAnalysis({
                 )}
               >
                 {!eventsOn && (
-                  <ReadingPlaceholder>Eventos ocultos</ReadingPlaceholder>
+                  <ReadingPlaceholder>
+                    {t.menus.eventsHidden}
+                  </ReadingPlaceholder>
                 )}
                 {eventsOn && (
                   // A fragment because the switch guards two things — the
@@ -2603,8 +2561,12 @@ export function ImuSessionAnalysis({
                           ? primaryDesc.metrics
                           : [
                               {
-                                label: "Força G",
-                                value: gForce[cursorIndex].toFixed(2),
+                                label: t.event.gforce,
+                                value: proNumber(
+                                  gForce[cursorIndex],
+                                  locale,
+                                  2,
+                                ),
                                 unit: "G",
                               },
                             ]
@@ -2621,7 +2583,12 @@ export function ImuSessionAnalysis({
                       .slice(1)
                       .filter(({ offsetMs }) => offsetMs === 0)
                       .map(({ event, offsetMs }, i) => {
-                        const desc = describeEvent(event, eventContext);
+                        const desc = describeEvent(
+                          event,
+                          eventContext,
+                          t,
+                          locale,
+                        );
                         return (
                           <EventCard
                             key={i}
@@ -2656,20 +2623,24 @@ export function ImuSessionAnalysis({
                     {cursorShock && (
                       <EventCard
                         className="mt-2 lg:mt-0"
-                        title="Choque high-G"
+                        title={t.event.shockTitle}
                         Icon={Activity}
                         timeMs={cursorShock.timeMs}
                         confidence={null}
                         action={<ShockWindow hit={cursorShock} />}
                         metrics={[
                           {
-                            label: "Pico",
-                            value: cursorShock.peakG.toFixed(1),
+                            label: t.event.peak,
+                            value: proNumber(cursorShock.peakG, locale, 1),
                             unit: "G",
                           },
                           {
-                            label: "Largura",
-                            value: highGWidthMs(cursorShock).toFixed(1),
+                            label: t.event.width,
+                            value: proNumber(
+                              highGWidthMs(cursorShock),
+                              locale,
+                              1,
+                            ),
                             unit: "ms",
                           },
                           // What the main IMU read of the same hit — the
@@ -2684,8 +2655,8 @@ export function ImuSessionAnalysis({
                             return peak != null
                               ? [
                                   {
-                                    label: "IMU principal",
-                                    value: peak.toFixed(1),
+                                    label: t.event.mainImu,
+                                    value: proNumber(peak, locale, 1),
                                     unit: "G",
                                   },
                                 ]
@@ -2707,7 +2678,7 @@ export function ImuSessionAnalysis({
                   type="button"
                   role="separator"
                   aria-orientation="vertical"
-                  aria-label="Repartir a leitura"
+                  aria-label={t.reading.split}
                   // Only once the reader has moved it: at rest the split is
                   // `1fr` and its width lives in the DOM, and reading a ref
                   // during render is exactly what this project's lint rule
@@ -2825,6 +2796,7 @@ function SessionCards({
   resume?: ReactNode;
   children: ReactNode;
 }) {
+  const t = useProDict().analysis;
   return (
     <div className="space-y-[18px]">
       {/* Identity and its figures: stacked while there is no room, side by
@@ -2879,7 +2851,7 @@ function SessionCards({
             filters and the plot they configure — see the twin below. */}
         <div className="flex items-center gap-2.5 px-5 pt-5 sm:hidden">
           <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
-          <h2 className="font-display text-xl font-semibold">Telemetria</h2>
+          <h2 className="font-display text-xl font-semibold">{t.telemetry}</h2>
         </div>
         {children}
       </div>
@@ -2908,16 +2880,17 @@ function SessionCards({
  * fault. Nothing when the file was clean.
  */
 function RealignmentBadge({ session }: { session: ImuSessionData }) {
+  const t = useProDict().analysis.realignment;
   const r = session.realignment;
   if (!r || (r.rotatedMs <= 0 && r.unresolvedMs <= 0)) return null;
   const pct = Math.round((r.rotatedMs / r.totalMs) * 100);
   const lost = Math.round((r.unresolvedMs / r.totalMs) * 100);
   const stretches = r.segments.filter((s) => s.k !== 0).length;
-  let text = `IMU realinhado · ${pct}% do tempo`;
-  let title = `O logger gravou ${stretches} troço${stretches === 1 ? "" : "s"} com as seis palavras de cada amostra rodadas — giroscópio nos canais do acelerómetro e vice-versa. A app pô-las no sítio pela física (1 g no acelerómetro, quase nada no giroscópio, em janelas de ${Math.round(r.windowMs / 100) / 10} s). Em andamento forte a correção é aproximada.`;
+  let text = t.text(pct);
+  let title = t.title(stretches, Math.round(r.windowMs / 100) / 10);
   if (lost >= 5) {
-    text += ` · ${lost}% irrecuperável`;
-    title += ` ⚠ Em ${lost}% do tempo a rotação muda mais depressa do que uma janela consegue seguir e a correção não pegou: esses troços não são de confiança, nem os máximos que saem deles.`;
+    text += t.lost(lost);
+    title += t.lostTitle(lost);
   }
   return (
     <span className="text-xs text-destructive tabular-nums" title={title}>
@@ -2927,14 +2900,12 @@ function RealignmentBadge({ session }: { session: ImuSessionData }) {
 }
 
 function MountingBadge({ session }: { session: ImuSessionData }) {
+  const t = useProDict().analysis.mounting;
   const { aligned, mounting } = session;
   if (!aligned) {
     return (
-      <span
-        className="text-xs text-muted-foreground"
-        title="O ficheiro não traz calibração — os ângulos são os do sensor, não os da bicicleta."
-      >
-        Referencial: sensor
+      <span className="text-xs text-muted-foreground" title={t.sensorTitle}>
+        {t.sensor}
       </span>
     );
   }
@@ -2944,29 +2915,24 @@ function MountingBadge({ session }: { session: ImuSessionData }) {
   let title: string;
   let warn = false;
   if (!mounting) {
-    text = "Bicicleta · frente por definir";
-    title =
-      "Gravidade alinhada pela calibração. Sem GPS, ou sem acelerações e travagens suficientes, para descobrir a frente.";
+    text = t.frontUndefined;
+    title = t.frontUndefinedTitle;
   } else if (mounting.source === "logger") {
     const from = session.orientation?.inheritedFrom;
-    text = from
-      ? `Bicicleta · orientação de ${from} (${pct}%)`
-      : `Bicicleta · frente pelo logger (${pct}%)`;
-    title = `Calibração em dois passos no logger: parado para a gravidade, a andar a direito para a frente, com ${mounting.intervals} votos de aceleração e travagem do GPS e ${pct}% de confiança. O sensor está a ${yaw}° da frente. Eixos: X frente, Y esquerda, Z cima.`;
-    if (from)
-      title += ` Esta sessão não trazia orientação própria: usa a de "${from}", por o sensor ter estado na mesma posição.`;
+    text = from ? t.orientationFrom(from, pct) : t.frontByLogger(pct);
+    title = t.loggerTitle(mounting.intervals, pct, yaw);
+    if (from) title += t.inheritedTitle(from);
   } else if (mounting.applied) {
-    text = `Bicicleta · frente a ${yaw}° do sensor (${pct}%)`;
-    title = `A frente foi encontrada em ${mounting.intervals} intervalos de aceleração e travagem do GPS; confiança ${pct}%.`;
+    text = t.frontAt(yaw, pct);
+    title = t.gpsTitle(mounting.intervals, pct);
   } else {
-    text = `Bicicleta · frente incerta (${pct}%)`;
-    title = `A volta votou ${yaw}° com ${pct}% de confiança em ${mounting.intervals} intervalos — pouco para rodar os eixos. A frente fica a do sensor.`;
+    text = t.frontUncertain(pct);
+    title = t.uncertainTitle(yaw, pct, mounting.intervals);
   }
   if (mounting && mounting.headingCheck === "inverted") {
     warn = true;
-    text += " · eixos invertidos";
-    title +=
-      " ⚠ Nas curvas, o giroscópio de guinada roda contra o rumo do GPS — os eixos do sensor não são os de um sensor destro. Verificar o firmware antes de confiar no lean.";
+    text += t.invertedAxes;
+    title += t.invertedTitle;
   }
   return (
     <span
@@ -3088,6 +3054,7 @@ function ChartCardHeading({
   legend?: React.ReactNode;
   controls?: React.ReactNode;
 }) {
+  const t = useProDict().analysis;
   return (
     // `flex-wrap` and a row gap: the legend never shortens a name, so when
     // the title, four chips and two menus do not fit — the middle column is
@@ -3097,7 +3064,7 @@ function ChartCardHeading({
     <div className="mb-4 hidden flex-wrap items-center gap-x-2.5 gap-y-2 sm:flex">
       <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
       <h2 className="font-display text-xl font-semibold whitespace-nowrap">
-        Telemetria
+        {t.telemetry}
       </h2>
       {legend}
       {controls && (
@@ -3181,14 +3148,18 @@ function ReadingPlaceholder({
 function SessionStatLine({
   stats,
   unit,
+  locale,
 }: {
   stats: { min: number; max: number; avg: number };
   unit: string;
+  /** The reader's language, for the decimal separator. */
+  locale: Locale;
 }) {
+  const t = useProDict().analysis.reading;
   const figures = [
-    { label: "Mín", value: stats.min },
-    { label: "Máx", value: stats.max },
-    { label: "Média", value: stats.avg },
+    { label: t.min, value: stats.min },
+    { label: t.max, value: stats.max },
+    { label: t.avg, value: stats.avg },
   ];
   return (
     // Three cells in an outlined box, told apart by rules rather than by the
@@ -3217,7 +3188,7 @@ function SessionStatLine({
         >
           {figure.label}{" "}
           <span className="font-medium text-foreground tabular-nums">
-            {figure.value.toFixed(2)}
+            {proNumber(figure.value, locale, 2)}
             {unit}
           </span>
         </span>
@@ -3338,6 +3309,7 @@ function MetricGauge({
  * peak, with a tick where the trigger fell — enough to see whether the hit
  * was one sharp sample or a pulse with a body. */
 function ShockWindow({ hit }: { hit: ImuHighGEvent }) {
+  const t = useProDict().analysis;
   const n = hit.x.length;
   if (n < 2 || !(hit.peakG > 0)) return null;
   const width = 96;
@@ -3352,7 +3324,10 @@ function ShockWindow({ hit }: { hit: ImuHighGEvent }) {
       viewBox={`0 0 ${width} ${height}`}
       className="h-9 w-24 shrink-0 text-foreground"
       role="img"
-      aria-label={`A janela do choque: ${((n * 1000) / hit.sampleRateHz).toFixed(0)} ms a ${hit.sampleRateHz} Hz`}
+      aria-label={t.shockWindow(
+        ((n * 1000) / hit.sampleRateHz).toFixed(0),
+        hit.sampleRateHz,
+      )}
     >
       <line
         x1={triggerX}
@@ -3402,6 +3377,8 @@ function EventCard({
    * the head's far end, before the confidence. */
   action?: ReactNode;
 }) {
+  const t = useProDict().analysis.card;
+  const locale = useProLocale();
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
   const outside = title != null && outsideMs !== 0;
@@ -3477,19 +3454,20 @@ function EventCard({
                 {formatSessionTime(timeMs, true)}
                 {outside && (
                   // Where the instant stands against the event, in the
-                  // reader's words: "0,4 s antes", "0,8 s depois". One
+                  // reader's words: "0,4 s antes", "0.8 s after". One
                   // decimal — the reach is half a second to a few, and a
                   // millisecond here would be noise dressed as precision.
                   <span className="truncate">
                     {" · "}
                     {/* Rounded UP to the tenth: 20 ms outside is "0,1 s",
                         never "0,0 s antes", which contradicts itself. */}
-                    {(Math.ceil(Math.abs(outsideMs) / 100) / 10).toLocaleString(
-                      "pt-PT",
-                      { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                    {(outsideMs < 0 ? t.before : t.after)(
+                      proNumber(
+                        Math.ceil(Math.abs(outsideMs) / 100) / 10,
+                        locale,
+                        1,
+                      ),
                     )}
-                    {" s "}
-                    {outsideMs < 0 ? "antes" : "depois"}
                   </span>
                 )}
               </p>
@@ -3505,7 +3483,7 @@ function EventCard({
               // about — how much of the ride was a jump, say — when it is
               // the detector's own certainty that this IS a jump.
               <span className="text-sm text-muted-foreground">
-                Confiança{" "}
+                {t.confidence}{" "}
                 <span className="tabular-nums">
                   {Math.round(confidence * 100)}%
                 </span>
@@ -3518,7 +3496,7 @@ function EventCard({
             carries ONE number, and a ruled box around a single cell is a
             container drawn for nothing — the row is the card. No label
             either: the reading panel beside it names the channel, and here
-            "Força G" under a lone 1.05 would say what the whole card is
+            "G force" under a lone 1.05 would say what the whole card is
             about twice. */}
         {title == null && soleFigure && (
           <p className="shrink-0 leading-tight font-semibold tabular-nums">
@@ -3678,7 +3656,7 @@ function EventCard({
                         // grey it was the faintest thing in the module while
                         // being the only one worth watching.
                         <p className="truncate text-sm tabular-nums">
-                          Agora {metric.now}
+                          {t.now(metric.now)}
                         </p>
                       )}
                       {/* Where the instant sits between the module's floor
@@ -3843,9 +3821,12 @@ function StatDropIcon({ className }: { className?: string }) {
   return <TrendingDown strokeWidth={1.5} className={className} />;
 }
 
-/** Metres below a kilometre, kilometres with two decimals above it. */
-function formatTrackDistance(m: number): string {
-  return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
+/** Metres below a kilometre, kilometres with two decimals above it — the
+ * decimals written the way the reader's language writes them. */
+function formatTrackDistance(m: number, locale: Locale): string {
+  return m >= 1000
+    ? `${proNumber(m / 1000, locale, 2)} km`
+    : `${Math.round(m)} m`;
 }
 
 function Stat({
@@ -3897,12 +3878,13 @@ function PanelToggle({
   on: boolean;
   onToggle: () => void;
 }) {
+  const t = useProDict().analysis;
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
-      aria-label={`Mostrar ${label}`}
+      aria-label={t.panels.show(label)}
       onClick={onToggle}
       // A pill on the heading row now, name first and the switch at its
       // end — read left to right as "this panel: on". 40px and not the

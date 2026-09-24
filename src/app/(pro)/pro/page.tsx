@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
 import { formatSessionTime } from "@/lib/imu/derive";
 import { formatGroupDay } from "@/lib/imu/groups";
@@ -19,9 +21,9 @@ import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
  * but the owner, the same call the sensor lab makes — to an account that may
- * not see this, the route does not exist. Untranslated on purpose: a
- * dictionary key is a promise that this is a feature, and this is a probe
- * for developing the motion algorithms.
+ * not see this, the route does not exist. The words come from Pro's own
+ * dictionary (`sessions.list`, since 2026-09-24), read in the language the
+ * account's settings name.
  */
 /** The riders the sessions were ridden by, newest first, each once. */
 function riderNames(sessions: { rider_name: string | null }[]): string[] {
@@ -42,6 +44,8 @@ export default async function ImuLabPage() {
   const metadata = userData?.claims?.user_metadata as
     { full_name?: string } | undefined;
   const riderDefault = metadata?.full_name?.trim() || email || "";
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  const t = getProDictionary(locale);
 
   const [{ data: sessions }, { data: bikes }, { data: groups }] =
     await Promise.all([
@@ -73,9 +77,9 @@ export default async function ImuLabPage() {
   type SessionRow = NonNullable<typeof sessions>[number];
 
   // Sessions under their group, in the groups' order; the rest — imported
-  // before groups existed, or deliberately left out — fold under "Sem grupo"
+  // before groups existed, or deliberately left out — fold under "No group"
   // at the end. With no groups at all the list is flat, as it always was: a
-  // lone "Sem grupo" header over everything would be a label for nothing.
+  // lone "No group" header over everything would be a label for nothing.
   const groupIds = new Set((groups ?? []).map((g) => g.id));
   const byGroup = new Map<string, SessionRow[]>();
   const ungrouped: SessionRow[] = [];
@@ -114,7 +118,7 @@ export default async function ImuLabPage() {
               aria-hidden
             />
           )}
-          <span>{bike?.name ?? "Sem bicicleta"}</span>
+          <span>{bike?.name ?? t.sessions.list.noBike}</span>
           {/* Who rode it, beside what carried the sensor: two facts of the
               same kind, and the list is where sessions are told apart from
               each other. */}
@@ -127,12 +131,12 @@ export default async function ImuLabPage() {
         </p>
         <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
           <p>
-            {formatDate(session.created_at)} ·{" "}
+            {formatDate(session.created_at, locale)} ·{" "}
             {Math.round(session.sample_rate_hz)} Hz ·{" "}
             <span className="tabular-nums">
-              {session.sample_count.toLocaleString("pt-PT")}
+              {proNumber(session.sample_count, locale)}
             </span>{" "}
-            amostras
+            {t.common.units.samples}
           </p>
           <p className="shrink-0 tabular-nums">
             {formatSessionTime(session.duration_ms)}
@@ -157,11 +161,13 @@ export default async function ImuLabPage() {
           page is mounted. Renders nothing of its own. */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          {/* "Sessões" and not "Sessões IMU": the lockup above it already
+          {/* "Sessions" and not "IMU sessions": the lockup above it already
               says which lab this is, and the page was naming itself twice. */}
-          <h1 className="font-display text-2xl font-bold">Sessões</h1>
+          <h1 className="font-display text-2xl font-bold">
+            {t.sessions.list.title}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Importe e analise sessões gravadas pelo sensor IMU.
+            {t.sessions.list.subtitle}
           </p>
         </div>
         <ImuSessionImport
@@ -180,8 +186,7 @@ export default async function ImuLabPage() {
       <div className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-4")}>
         {(sessions ?? []).length === 0 && !hasGroups && (
           <p className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
-            Ainda não há sessões. Ligue o dispositivo ou importe um ficheiro
-            .BKT para começar.
+            {t.sessions.list.empty}
           </p>
         )}
 
@@ -192,7 +197,10 @@ export default async function ImuLabPage() {
                 <ImuSessionGroupSection
                   key={group.id}
                   storageKey={group.id}
-                  title={`Grupo · ${group.name} · ${formatGroupDay(group.day)}`}
+                  title={t.sessions.list.groupHeading(
+                    group.name,
+                    formatGroupDay(group.day, locale),
+                  )}
                   count={list.length}
                   deletableGroup={{ id: group.id, name: group.name }}
                 >
@@ -209,7 +217,7 @@ export default async function ImuLabPage() {
         {hasGroups && ungrouped.length > 0 && (
           <ImuSessionGroupSection
             storageKey="ungrouped"
-            title="Sem grupo"
+            title={t.sessions.list.ungrouped}
             count={ungrouped.length}
           >
             {ungrouped.map((session) => (

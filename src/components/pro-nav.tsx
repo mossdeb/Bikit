@@ -7,6 +7,8 @@ import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { BikitLockup, LogoMark } from "@/components/logo";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { MenuBikesIcon, MenuSettingsIcon } from "@/components/menu-icons";
+import { useProDict } from "@/components/pro-locale";
+import type { ProDictionary } from "@/lib/i18n/pro";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,10 +21,11 @@ import { cn } from "@/lib/utils";
  * is no door back — neither the rail nor the account menu under Pro
  * lists Bikit (by request, 2026-09-23 and 2026-09-24).
  *
- * Untranslated on purpose, like everything in the lab: the words are
- * literals and not dictionary keys. Same shape, same rail colours and the
- * same collapse switch as AppSidebar, and the same localStorage key, so
- * a rail left open on one side is open on the other.
+ * The words come from Pro's dictionary (`nav`, since 2026-09-24): each
+ * entry names its key, and the label is looked up at render in the
+ * reader's language. Same shape, same rail colours and the same collapse
+ * switch as AppSidebar, and the same localStorage key, so a rail left
+ * open on one side is open on the other.
  */
 
 const STORAGE_KEY = "bikelog_sidebar_expanded";
@@ -38,7 +41,8 @@ function useMounted() {
 
 interface ProNavItem {
   href: string;
-  label: string;
+  /** The entry's word, as a key of the `nav` namespace. */
+  label: "sessions" | "bikes" | "settings";
   Icon: ComponentType<{ className?: string }>;
   /** Which paths light it: the home also owns the sessions under it. */
   isActive: (pathname: string) => boolean;
@@ -50,29 +54,35 @@ interface ProNavItem {
 export const PRO_NAV_ITEMS: ProNavItem[] = [
   {
     href: "/pro",
-    label: "Sessões",
+    label: "sessions",
     Icon: ImuChartGlyph,
     isActive: (p) => p === "/pro" || p.startsWith("/pro/sessoes"),
     iconClassName: "size-7",
   },
   {
     href: "/pro/bicicletas",
-    label: "Bicicletas",
+    label: "bikes",
     Icon: MenuBikesIcon,
     isActive: (p) => p.startsWith("/pro/bicicletas"),
     iconClassName: "size-[36.4px]",
   },
   {
     href: "/pro/definicoes",
-    label: "Definições",
+    label: "settings",
     Icon: MenuSettingsIcon,
     isActive: (p) => p.startsWith("/pro/definicoes"),
     iconClassName: "size-7",
   },
 ];
 
+/** The entry's word in the reader's language. */
+function labelOf(item: ProNavItem, t: ProDictionary): string {
+  return t.nav[item.label];
+}
+
 export function ProSidebar() {
   const pathname = usePathname();
+  const t = useProDict();
   const mounted = useMounted();
   const [override, setOverride] = useState<boolean | null>(null);
   const expanded =
@@ -86,11 +96,12 @@ export function ProSidebar() {
 
   const entry = (item: ProNavItem) => {
     const active = item.isActive(pathname);
+    const label = labelOf(item, t);
     return (
       <Link
         key={item.href}
         href={item.href}
-        aria-label={item.label}
+        aria-label={label}
         className={cn(
           "flex h-11 items-center gap-3 rounded-[12px] text-sm font-semibold transition-colors",
           expanded ? "justify-start px-3.5" : "w-11 justify-center",
@@ -100,7 +111,7 @@ export function ProSidebar() {
         )}
       >
         <item.Icon className="size-5 shrink-0" />
-        {expanded && <span>{item.label}</span>}
+        {expanded && <span>{label}</span>}
       </Link>
     );
   };
@@ -129,7 +140,7 @@ export function ProSidebar() {
       <button
         type="button"
         onClick={toggle}
-        title={expanded ? "Recolher menu" : "Expandir menu"}
+        title={expanded ? t.nav.collapseMenu : t.nav.expandMenu}
         className={cn(
           "mt-1.5 flex h-11 shrink-0 items-center gap-3 rounded-2xl text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground",
           expanded ? "justify-start px-3.5" : "w-11 justify-center",
@@ -140,7 +151,7 @@ export function ProSidebar() {
         ) : (
           <PanelLeft className="size-5 shrink-0" />
         )}
-        {expanded && <span>Recolher</span>}
+        {expanded && <span>{t.nav.collapse}</span>}
       </button>
     </aside>
   );
@@ -148,6 +159,7 @@ export function ProSidebar() {
 
 export function ProMobileNav() {
   const pathname = usePathname();
+  const t = useProDict();
 
   // The session analysis is read by scrubbing a chart with a thumb, with
   // the readout underneath it: a floating bar across the bottom sits
@@ -159,13 +171,13 @@ export function ProMobileNav() {
     <nav
       className="fixed inset-x-4 z-40 flex items-center justify-between rounded-[22px] bg-sidebar px-5 text-sidebar-foreground shadow-lg sm:hidden"
       style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
-      aria-label="Primary"
+      aria-label={t.nav.primary}
     >
       {PRO_NAV_ITEMS.map((item) => (
         <Link
           key={item.href}
           href={item.href}
-          aria-label={item.label}
+          aria-label={labelOf(item, t)}
           className={cn(
             "flex items-center justify-center py-3.5",
             item.isActive(pathname)

@@ -2,6 +2,9 @@
 
 import { cn } from "@/lib/utils";
 import { ImuRiderGlyph } from "@/components/imu-pro-logo";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { proNumber } from "@/lib/i18n/pro";
+import type { Locale } from "@/lib/i18n";
 
 /**
  * The instant dashboard: the ride read as instruments instead of curves.
@@ -12,11 +15,11 @@ import { ImuRiderGlyph } from "@/components/imu-pro-logo";
  *   with GPS, elapsed time without), the mint arc growing clockwise from
  *   the bottom-left the way the supplied art draws it. Inside, the figure
  *   and the current G force.
- * - **Acelerar e travar** — the band under the ring: longitudinal
+ * - **Accelerate and brake** — the band under the ring: longitudinal
  *   acceleration as a needle-and-fill gauge, blue to the right when
  *   accelerating, to the left when braking, scaled to the session's own
  *   peak like every gauge in the lab.
- * - **Movimento lateral / Empinar e mergulhar** — the two attitude tiles:
+ * - **Lateral movement / Nose up and dive** — the two attitude tiles:
  *   the bike seen from behind and from the side, a mint horizon line
  *   rotated by the estimated lean and pitch, the ticked arc art behind.
  *   Both angles are ESTIMATES (the corner's balance angle, and the average
@@ -117,9 +120,10 @@ function ringSegmentPath(
 }
 
 /** Angles read to one decimal while small, whole degrees once they are
- * not — "0.2°" and "12°", never "12.0°". */
-function formatAngle(deg: number): string {
-  return Math.abs(deg) >= 10 ? deg.toFixed(0) : deg.toFixed(1);
+ * not — "0.2°" and "12°", never "12.0°". The decimal mark follows the
+ * reader's language ("0,2°" in Portuguese). */
+function formatAngle(deg: number, locale: Locale): string {
+  return proNumber(deg, locale, Math.abs(deg) >= 10 ? 0 : 1);
 }
 
 /**
@@ -153,6 +157,8 @@ function RideGauge({
   ax: number;
   axPeak: number;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const p = Math.min(1, Math.max(0, progress));
   // Signed fill against the session's own peak — the gauge idiom. Clamped:
   // the peak is by definition the largest magnitude, but a float can kiss
@@ -259,20 +265,21 @@ function RideGauge({
             )}
           </p>
           <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground tabular-nums">
-            {gForce.toFixed(2)} G
+            {proNumber(gForce, locale, 2)} G
           </p>
         </div>
       </div>
 
       <p className="-mt-1 text-base leading-tight font-semibold tabular-nums">
-        {ax.toFixed(2)} <span className="text-sm text-muted-foreground">G</span>
+        {proNumber(ax, locale, 2)}{" "}
+        <span className="text-sm text-muted-foreground">G</span>
       </p>
       {/* The same hairline the ring's own G already wears: figure above,
           what it is below, a rule between them. All four figures on the
           panel carry it now, so they read as one idiom instead of the ring
           having a private one. */}
       <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground">
-        Acelerar e travar
+        {t.sessions.dashboard.accelerateBrake}
       </p>
     </div>
   );
@@ -425,6 +432,7 @@ function AttitudeTile({
   bike: "rear" | "side";
   className?: string;
 }) {
+  const locale = useProLocale();
   return (
     // The bikes say what each tile measures, so the written title came
     // out — it survives as the tile's accessible name and its hover title.
@@ -492,11 +500,11 @@ function AttitudeTile({
           arcs reach the bottom corners only, and this number is short and
           centred, so it rises into that empty band without meeting them. */}
       <p className="-mt-2 text-base leading-tight font-semibold tabular-nums">
-        {formatAngle(angleDeg)}
+        {formatAngle(angleDeg, locale)}
         <span className="text-sm">°</span>
       </p>
       <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground tabular-nums">
-        {subValue.toFixed(2)} G
+        {proNumber(subValue, locale, 2)} G
       </p>
     </div>
   );
@@ -536,6 +544,7 @@ export function ImuSessionDashboard({
   pitchDeg: number;
   className?: string;
 }) {
+  const t = useProDict();
   return (
     // A column so the last band can absorb whatever height the card is
     // given. Beside the chart the card is stretched to the chart's height,
@@ -570,7 +579,7 @@ export function ImuSessionDashboard({
             it, and the name is the part that can run long. */}
         <div className="min-w-0">
           <p className="text-xs leading-tight text-muted-foreground uppercase">
-            Rider
+            {t.sessions.dashboard.rider}
           </p>
           {riderName && (
             // Pulled up 4px: the two boxes already touch, so what is left
@@ -613,14 +622,14 @@ export function ImuSessionDashboard({
             runs, and the rule between them turns with it. */}
         <div className="flex flex-col border-l border-border lg:flex-1 lg:flex-row lg:border-t lg:border-l-0">
           <AttitudeTile
-            title="Movimento lateral"
+            title={t.sessions.dashboard.lateral}
             angleDeg={leanDeg}
             subValue={ay}
             bike="rear"
             className="flex-1 border-b border-border lg:border-r lg:border-b-0"
           />
           <AttitudeTile
-            title="Empinar e mergulhar"
+            title={t.sessions.dashboard.pitch}
             angleDeg={pitchDeg}
             subValue={ax}
             bike="side"

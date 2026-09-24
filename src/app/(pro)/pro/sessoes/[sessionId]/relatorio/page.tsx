@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
@@ -49,6 +51,8 @@ export default async function ImuSessionReportPage({
   const email = userData?.claims?.email as string | undefined;
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  const t = getProDictionary(locale);
 
   const sessionColumns =
     "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index, trim_start_ms, trim_end_ms";
@@ -107,7 +111,10 @@ export default async function ImuSessionReportPage({
   ]);
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
-    (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
+    (groups ?? []).map((g) => [
+      g.id,
+      `${g.name} · ${formatGroupDay(g.day, locale)}`,
+    ]),
   );
   const setupById = new Map(
     (setups ?? [])
@@ -218,16 +225,16 @@ export default async function ImuSessionReportPage({
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
             <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-foreground uppercase">
-              Relatório
+              {t.report.page.report}
             </p>
             <h1 className="mt-0.5 font-display text-3xl font-semibold">
               {session.name}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               {session.rider_name ? `${session.rider_name} · ` : ""}
-              {formatDate(session.created_at)} ·{" "}
+              {formatDate(session.created_at, locale)} ·{" "}
               {Math.round(session.sample_rate_hz)} Hz ·{" "}
-              {session.sample_count.toLocaleString("pt-PT")} amostras
+              {proNumber(session.sample_count, locale)} {t.common.units.samples}
             </p>
           </div>
         }

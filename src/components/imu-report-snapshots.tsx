@@ -6,6 +6,9 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
+import type { Locale } from "@/lib/i18n";
+import { proNumber } from "@/lib/i18n/pro";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import type { ImuSessionData } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
@@ -28,11 +31,8 @@ import {
 import { ImuSnapshotMiniMap } from "@/components/imu-snapshot-mini-map";
 import { SnapshotKindMark } from "@/components/imu-event-icons";
 
-const seconds = (ms: number) =>
-  (ms / 1000).toLocaleString("pt-PT", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
+/** A duration in seconds to a tenth, with the reader's decimal mark. */
+const seconds = (ms: number, locale: Locale) => proNumber(ms / 1000, locale, 1);
 
 /**
  * The Snapshots this recording passes through, under the report's three
@@ -62,6 +62,8 @@ export function ImuReportSnapshots({
   /** The other sessions the Snapshots' references live in, by id. */
   referenceSessions: Record<string, ImuSnapshotCandidate>;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const prepared = useMemo(() => prepareSnapshotSession(data), [data]);
   const [open, setOpen] = useState(true);
 
@@ -126,6 +128,7 @@ export function ImuReportSnapshots({
           candidate.storagePath,
           candidate.mountOrientation,
           candidate.trim,
+          locale,
         );
         if (cancelled) return;
         setRefs((prev) =>
@@ -142,7 +145,7 @@ export function ImuReportSnapshots({
       cancelled = true;
       for (const id of mine) startedSet.delete(id);
     };
-  }, [neededIds, referenceSessions]);
+  }, [neededIds, referenceSessions, locale]);
 
   // Each card's inputs, worked out once per change of what is loaded —
   // the reference pass in particular has to keep its identity between
@@ -206,9 +209,7 @@ export function ImuReportSnapshots({
         <p className="text-sm">
           <span className="font-semibold">Snapshots</span>{" "}
           <span className="text-muted-foreground">
-            {shown.length === 1
-              ? "1 troço de referência nesta gravação"
-              : `${shown.length} troços de referência nesta gravação`}
+            {t.snapshots.report.count(shown.length)}
           </span>
         </p>
         {/* The list folds away: a recording can pass a dozen Snapshots,
@@ -217,7 +218,7 @@ export function ImuReportSnapshots({
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          aria-label={open ? "Esconder os Snapshots" : "Mostrar os Snapshots"}
+          aria-label={open ? t.snapshots.report.hide : t.snapshots.report.show}
           className="ml-auto flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground tabular-nums transition-colors hover:text-foreground"
         >
           ({shown.length})
@@ -258,6 +259,8 @@ function SnapshotCard({
   refPass: SnapshotPass | null;
   refDurationMs: number | null;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   // Built once per reference, not per render: the map redraws (and
   // refetches its tiles) whenever these arrays change identity.
   const mapData = useMemo(() => {
@@ -291,10 +294,10 @@ function SnapshotCard({
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {referenceSession
-            ? `${formatDate(referenceSession.createdAt)} · entre ${formatSessionTime(snapshot.referenceEntryMs)} e ${formatSessionTime(snapshot.referenceExitMs)}`
+            ? `${formatDate(referenceSession.createdAt, locale)} · ${t.snapshots.view.between(formatSessionTime(snapshot.referenceEntryMs), formatSessionTime(snapshot.referenceExitMs))}`
             : referenceState === "loading"
-              ? "A ler a sessão de referência…"
-              : "A passagem de referência já não existe"}
+              ? t.snapshots.report.readingReference
+              : t.snapshots.report.referenceGone}
         </p>
         {/* Where this recording stands against the reference: the
             reference itself, or each pass's time against it in the
@@ -315,7 +318,9 @@ function SnapshotCard({
       </div>
       <div className="flex shrink-0 items-stretch gap-4">
         <div className="flex w-[100px] flex-col items-center justify-center rounded-[14px] border border-border px-2 py-3 text-center">
-          <p className="text-xs leading-tight">Sessões em comparação</p>
+          <p className="text-xs leading-tight">
+            {t.snapshots.report.sessionsCompared}
+          </p>
           <p className="mt-2 text-base leading-tight font-semibold tabular-nums">
             {snapshot.sessionCount ?? "—"}
           </p>
@@ -334,7 +339,7 @@ function SnapshotCard({
   );
 }
 
-/** One pass of this recording as a pill: "Referência" when it is the
+/** One pass of this recording as a pill: "Reference" when it is the
  * reference pass, otherwise its time against the reference's — until the
  * reference is read, its own time in a clear pill. */
 function PassPill({
@@ -350,7 +355,9 @@ function PassPill({
   refDurationMs: number | null;
   stopped: boolean;
 }) {
-  const prefix = order != null ? `${order}.ª · ` : "";
+  const t = useProDict();
+  const locale = useProLocale();
+  const prefix = order != null ? `${t.snapshots.report.ordinal(order)} · ` : "";
   const base =
     "rounded-full border px-2 py-0.5 font-medium whitespace-nowrap tabular-nums";
   let pill;
@@ -359,7 +366,8 @@ function PassPill({
       <span
         className={cn(base, "border-foreground bg-foreground text-background")}
       >
-        {prefix}Referência
+        {prefix}
+        {t.snapshots.view.referencePill}
       </span>
     );
   else if (refDurationMs == null)
@@ -368,7 +376,7 @@ function PassPill({
         className={cn(base, "border-foreground bg-transparent text-foreground")}
       >
         {prefix}
-        {seconds(durationMs)} s
+        {seconds(durationMs, locale)} s
       </span>
     );
   else {
@@ -376,7 +384,10 @@ function PassPill({
     const tie = Math.abs(diff) <= SNAPSHOT_TIE_MS;
     pill = (
       <span
-        title={`${seconds(durationMs)} s nesta volta, ${seconds(refDurationMs)} s na referência`}
+        title={t.snapshots.report.passTimes(
+          seconds(durationMs, locale),
+          seconds(refDurationMs, locale),
+        )}
         className={cn(
           base,
           tie
@@ -388,8 +399,8 @@ function PassPill({
       >
         {prefix}
         {tie
-          ? "≈ referência"
-          : `${diff < 0 ? "−" : "+"}${seconds(Math.abs(diff))} s`}
+          ? t.snapshots.report.tieReference
+          : `${diff < 0 ? "−" : "+"}${seconds(Math.abs(diff), locale)} s`}
       </span>
     );
   }
@@ -403,7 +414,7 @@ function PassPill({
             "border-transparent bg-[#FFEEBE] text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]",
           )}
         >
-          parou
+          {t.snapshots.view.stopped}
         </span>
       )}
     </>

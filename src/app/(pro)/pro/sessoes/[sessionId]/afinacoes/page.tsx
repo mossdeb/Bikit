@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
 import { ImuSetupCompareView } from "@/components/imu-setup-compare-view";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
@@ -30,6 +31,7 @@ export default async function ImuSetupComparePage({
   const { data: userData } = await supabase.auth.getClaims();
   const email = userData?.claims?.email as string | undefined;
   const userId = userData?.claims?.sub as string | undefined;
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
   if (!userId || !hasLabAccess(email)) notFound();
 
   const sessionColumns =
@@ -90,7 +92,10 @@ export default async function ImuSetupComparePage({
   };
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
-    (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
+    (groups ?? []).map((g) => [
+      g.id,
+      `${g.name} · ${formatGroupDay(g.day, locale)}`,
+    ]),
   );
   const setupById = new Map(
     (setups ?? [])

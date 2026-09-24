@@ -24,17 +24,24 @@ import {
 } from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { ImuSetupDynamics } from "@/components/imu-setup-dynamics";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import type { Locale } from "@/lib/i18n";
+import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
+import type { CompareColumnKey } from "@/lib/i18n/pro/compare";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
 import { dynamicsMetricRules, scoreDynamics } from "@/lib/imu/setup-dynamics";
 import {
   buildSessionReport,
   type ReportMetric,
+  type ReportMetricKey,
   type SessionReport,
 } from "@/lib/imu/report";
 import {
   circuitMode,
   damperSpring,
+  changeDirection,
   formatSetupChange,
+  type SetupChange,
   setupDiff,
   setupKey,
   setupSummary,
@@ -65,119 +72,52 @@ import {
  * the margin beats the spread between two runs on the same setup.
  *
  * The files are read here, in the browser, as they arrive.
+ *
+ * The words — the headings, the "i"s' explanations, the sentences — are
+ * the Pro dictionary's (`compare`), read through useProDict(); what stays
+ * here is the structure: which report figure each column reads, its
+ * mark, its band.
  */
 
-/** RMS, for the "i"s that lean on it (by request, 2026-09-12). */
-const RMS_NOTE =
-  "*RMS: a raiz da média dos quadrados — o nível médio de uma força que oscila, contando igual o que sobe e o que desce. Um valor de pico diz quão alto foi o pior instante; o RMS diz quanto houve ao todo.";
-
+/**
+ * The table's columns, each reading one figure of the report by that
+ * figure's key (ReportMetricKey, the same in every language). The words
+ * for each are `t.compare.columns[key]`.
+ */
 const COLUMNS: {
-  label: string;
-  short: string;
+  key: CompareColumnKey;
+  /** The report's key for the figure. */
+  metric: ReportMetricKey;
   Icon: ComponentType<{ className?: string }>;
-  /** What the figure is and which way is better, for the "i" beside the
-   * heading (by request, 2026-09-12). */
-  description: string;
-  /** How the figure is computed, under "Como é calculado:". */
-  method?: string;
-  /** A last line for a term the description leans on. */
-  footnote?: string;
   /** The band, printed light in brackets after the name (by request,
    * 2026-09-12: "[2–12 Hz] fonte light"). */
   band?: string;
 }[] = [
+  { key: "speed", metric: "avgSpeed", Icon: SpeedGaugeIcon },
+  { key: "retention", metric: "cornerRetention", Icon: RetentionIcon },
+  { key: "harshness", metric: "harshness", Icon: HarshnessIcon },
   {
-    label: "Velocidade média",
-    short: "Velocidade média",
-    Icon: SpeedGaugeIcon,
-    description:
-      "A velocidade média em andamento, acima de 3 km/h, lida da série que funde o GPS com o acelerómetro. Não tem lado melhor: é do rider e do dia, não da afinação.",
-  },
-  {
-    label: "Retenção nas curvas",
-    short: "Retenção",
-    Icon: RetentionIcon,
-    description:
-      "Quanto da velocidade de entrada é mantida à saída das curvas, corrigindo o efeito da gravidade da descida. O valor representa a média de todas as curvas da volta. Mais é melhor: indica maior conservação de velocidade ao longo das curvas.",
-  },
-  {
-    label: "Harshness",
-    short: "Harshness",
-    Icon: HarshnessIcon,
-    description:
-      "Quanto dos impactos mais fortes do terreno chega ao quadro, em relação à vibração normal da bicicleta nas zonas acidentadas. Menos é melhor: significa que a suspensão está a absorver melhor os impactos em vez de os transmitir ao quadro.",
-    method:
-      "Compara o percentil 99 dos impactos com o nível médio (RMS) da força dinâmica nas zonas acidentadas. Um valor mais alto indica impactos mais destacados em relação à vibração normal.",
-    footnote: RMS_NOTE,
-  },
-  {
-    label: "Chassis Movement 2–12 Hz",
-    short: "Chassis Movement",
+    key: "chassis",
+    metric: "chassisMovement",
     band: "2–12 Hz",
     Icon: ChassisBandIcon,
-    description:
-      "Quanto a bicicleta se movimenta e oscila nas zonas acidentadas, nas frequências mais associadas ao movimento do chassis e da suspensão. Menos é melhor: significa uma bicicleta mais estável e controlada sobre o terreno.",
-    method:
-      "Mede o RMS da força dinâmica entre 2 e 12 Hz nas zonas acidentadas. Esta banda representa movimentos relativamente lentos do chassis, onde a compressão da suspensão tem maior influência.",
-    footnote: RMS_NOTE,
   },
   {
-    label: "Chatter 12–60 Hz",
-    short: "Chatter",
+    key: "chatter",
+    metric: "chatter",
     band: "12–60 Hz",
     Icon: ChatterBandIcon,
-    description:
-      "Quanto das vibrações rápidas e dos pequenos impactos do terreno chega ao quadro nas zonas acidentadas. Menos é melhor: significa que pneus e suspensão estão a filtrar melhor as irregularidades rápidas do terreno.",
-    method:
-      "Mede o RMS da força dinâmica entre 12 e 60 Hz nas zonas acidentadas. Esta banda representa vibrações rápidas provocadas por pequenas pedras, raízes, irregularidades sucessivas e outras fontes de chatter.",
-    footnote: RMS_NOTE,
   },
-  {
-    label: "Oscilação residual",
-    short: "Oscilação residual",
-    Icon: SettleIcon,
-    description:
-      "Quanto movimento continua no quadro depois de um impacto. Menos é melhor: significa que a suspensão estabiliza a bicicleta mais rapidamente após cada pancada.",
-    method:
-      "Mede a energia que permanece na banda de 2–12 Hz durante os 300 ms após cada impacto, relativamente à intensidade do próprio impacto. O resultado representa a mediana de todos os impactos analisados na volta.",
-  },
-  {
-    label: "Impactos",
-    short: "Impactos",
-    Icon: ImpactIcon,
-    description:
-      "Quantos impactos fortes a bicicleta recebe por quilómetro. Este valor descreve a intensidade da passagem, mas mais ou menos impactos não significa necessariamente melhor ou pior.",
-    method:
-      "Conta os impactos que ultrapassam um limiar definido para cada volta — 1,5× o percentil 99 da própria gravação — e normaliza o resultado pela distância percorrida. Como o limiar se adapta a cada volta, esta métrica é mais útil para caracterizar a sessão do que para comparar diretamente diferentes setups.",
-  },
+  { key: "settle", metric: "residualOscillation", Icon: SettleIcon },
+  { key: "impacts", metric: "impacts", Icon: ImpactIcon },
 ];
-
-/** The knobs in full, for the detail cards' titles (the supplied layout
- * says "High-Speed Compression", not "HSC"). */
-const KNOB_FULL: Record<string, string> = {
-  LSC: "Low-Speed Compression",
-  HSC: "High-Speed Compression",
-  LSR: "Low-Speed Rebound",
-  HSR: "High-Speed Rebound",
-  C: "Compressão",
-  R: "Rebound",
-  pressão: "Pressão",
-  mola: "Mola",
-  curso: "Curso",
-  sag: "SAG",
-  "pneu dt.": "Pneu da frente",
-  "pneu tr.": "Pneu de trás",
-  rider: "Peso",
-};
-
-const SETUP_DESCRIPTION =
-  "A afinação da bicicleta nessa volta. A mesma letra é o mesmo conjunto de valores; as cápsulas dizem o que difere da referência e para que lado. Clica no setup para ver todos os valores.";
 
 /** The figure the best setup is picked by: what the corners kept, the
  * one figure on the table that is the bike's grip more than the trail's
- * hits. Ties go to the lower harshness. */
-const BEST_BY = "Retenção nas curvas";
-const BEST_TIE_BREAK = "Harshness";
+ * hits. Ties go to the lower harshness. Both by the report's key, the
+ * columns' way. */
+const BEST_BY = COLUMNS.find((c) => c.key === "retention")!.metric;
+const BEST_TIE_BREAK = COLUMNS.find((c) => c.key === "harshness")!.metric;
 
 type Loaded =
   | { status: "loading" }
@@ -186,15 +126,14 @@ type Loaded =
 
 type Tone = "better" | "worse" | "tie" | "neutral";
 
-const nf = (value: number, digits: number) =>
-  value.toLocaleString("pt-PT", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-const signed = (value: number, digits: number) =>
-  `${value > 0 ? "+" : value < 0 ? "−" : ""}${nf(Math.abs(value), digits)}`;
+const nf = (value: number, digits: number, locale: Locale) =>
+  proNumber(value, locale, digits);
+const signed = (value: number, digits: number, locale: Locale) =>
+  `${value > 0 ? "+" : value < 0 ? "−" : ""}${nf(Math.abs(value), digits, locale)}`;
+/** How many decimals the report printed the figure with — whichever
+ * separator its language uses. */
 const digitsOf = (m: ReportMetric) =>
-  (m.value.split(",")[1] ?? "").replace(/\D/g, "").length;
+  (m.value.match(/[.,](\d+)/)?.[1] ?? "").length;
 const unitOf = (m: ReportMetric) => m.unit ?? (/%$/.test(m.value) ? "%" : "");
 /** "[11.9.26]" — the supplied layout's date. */
 const bracketDate = (iso: string) => {
@@ -202,11 +141,14 @@ const bracketDate = (iso: string) => {
   return `[${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(-2)}]`;
 };
 
-function metricOf(report: SessionReport, label: string): ReportMetric | null {
+function metricOf(
+  report: SessionReport,
+  key: ReportMetricKey,
+): ReportMetric | null {
   return (
     [...report.rider.metrics, ...report.bike.metrics, ...report.trail.metrics]
       .filter((m) => m.raw != null)
-      .find((m) => m.label === label) ?? null
+      .find((m) => m.key === key) ?? null
   );
 }
 
@@ -244,6 +186,12 @@ export function ImuSetupCompareView({
   /** What the page does not show, and why — for one honest line. */
   leftOut: { otherTrail: number; otherRider: number; noGps: boolean };
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
+  const words = t.compare;
+  // The numbers as the reader's language writes them.
+  const n = (value: number, digits: number) => nf(value, digits, locale);
+  const sg = (value: number, digits: number) => signed(value, digits, locale);
   const all = useMemo(() => [reference, ...runs], [reference, runs]);
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(all.map((c) => [c.id, { status: "loading" }])),
@@ -262,19 +210,23 @@ export function ImuSetupCompareView({
           c.storagePath,
           c.mountOrientation,
           c.trim,
+          locale,
         );
         if (cancelled) return;
         const next: Loaded =
           result.data === null
             ? { status: "error", message: result.error }
-            : { status: "done", report: buildSessionReport(result.data) };
+            : {
+                status: "done",
+                report: buildSessionReport(result.data, locale),
+              };
         setLoaded((prev) => new Map(prev).set(c.id, next));
       })();
     }
     return () => {
       cancelled = true;
     };
-  }, [all]);
+  }, [all, locale]);
 
   const pending = [...loaded.values()].filter(
     (l) => l.status === "loading",
@@ -321,7 +273,7 @@ export function ImuSetupCompareView({
         ...r.trail.metrics,
       ])
         if (m.raw != null)
-          values.set(m.label, [...(values.get(m.label) ?? []), m.raw]);
+          values.set(m.key, [...(values.get(m.key) ?? []), m.raw]);
     }
     const medians = new Map<string, number>();
     for (const [label, list] of values) medians.set(label, median(list)!);
@@ -342,7 +294,7 @@ export function ImuSetupCompareView({
   const list = (items: string[]) =>
     items.length <= 1
       ? items.join("")
-      : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+      : `${items.slice(0, -1).join(", ")} ${t.common.and} ${items[items.length - 1]}`;
 
   // The rows: the reference first whatever the filter — it is what every
   // other row is read against — then the runs the setup filter keeps,
@@ -396,18 +348,11 @@ export function ImuSetupCompareView({
   const shown = groups.length === 1 ? groups[0] : best;
 
   const leftOutBits: string[] = [];
-  if (leftOut.noGps)
-    leftOutBits.push(
-      "esta gravação não tem GPS, por isso não há como saber quais das outras voltas foram nesta pista",
-    );
+  if (leftOut.noGps) leftOutBits.push(words.header.leftOutNoGps);
   else if (leftOut.otherTrail > 0)
-    leftOutBits.push(
-      `${leftOut.otherTrail} ${leftOut.otherTrail === 1 ? "volta desta bicicleta ficou" : "voltas desta bicicleta ficaram"} de fora por ${leftOut.otherTrail === 1 ? "ser" : "serem"} noutra pista ou sem GPS`,
-    );
+    leftOutBits.push(words.header.leftOutOtherTrail(leftOut.otherTrail));
   if (leftOut.otherRider > 0)
-    leftOutBits.push(
-      `${leftOut.otherRider} ${leftOut.otherRider === 1 ? "foi" : "foram"} com outro rider`,
-    );
+    leftOutBits.push(words.header.leftOutOtherRider(leftOut.otherRider));
 
   // "Em detalhe": each other setup against the reference's, knob by knob —
   // what moved, by how much, and what the two figures the choice rests on
@@ -419,35 +364,41 @@ export function ImuSetupCompareView({
     ? groups
         .filter((g) => g !== referenceGroup)
         .map((g) => {
-          const changes = setupDiff(referenceGroup.setup, g.setup);
+          const changes = setupDiff(referenceGroup.setup, g.setup, locale);
           // The card's title, the supplied layout's way: the component
           // light, the knob in full and bold, the setup — "Fox X2 ·
-          // High-Speed Compression · Setup B".
-          const component = (label: string) =>
-            /^garfo /.test(label)
-              ? labels.fork || "Garfo"
-              : /^amort\. /.test(label)
-                ? labels.shock || "Amortecedor"
-                : /^pneu /.test(label)
-                  ? "Pneus"
-                  : "Rider";
-          const knobOf = (label: string) =>
-            KNOB_FULL[label.replace(/^(garfo|amort\.) /, "")] ??
-            label.replace(/^(garfo|amort\.) /, "");
-          const components = [
-            ...new Set(changes.map((c) => component(c.label))),
-          ];
-          const knobs = changes.map((c) => knobOf(c.label));
+          // High-Speed Compression · Setup B". Which component a change
+          // belongs to is the change's own block; the knob's full name
+          // comes from the dictionary's table by the change's field.
+          const component = (c: SetupChange) =>
+            c.block === "fork"
+              ? labels.fork || words.parts.fork
+              : c.block === "shock"
+                ? labels.shock || words.parts.shock
+                : c.block === "tires"
+                  ? words.parts.tires
+                  : words.parts.rider;
+          const knobOf = (c: SetupChange) => words.knobs[c.knob] ?? c.knob;
+          const components = [...new Set(changes.map(component))];
+          const knobs = changes.map(knobOf);
           const boxes = changes.map((c) => {
-            const unit = c.kind === "clicks" ? "cliques" : c.unit.trim();
-            const num = (n: number | null) => (n == null ? "—" : nf(n, 0));
+            const steps =
+              c.from != null && c.to != null ? Math.abs(c.to - c.from) : 0;
+            const unit =
+              c.kind === "clicks" ? words.clicks(steps) : c.unit.trim();
+            const num = (x: number | null) => (x == null ? "—" : n(x, 0));
             const delta =
               c.from != null && c.to != null
-                ? `${signed(c.to - c.from, 0)}${unit ? ` ${unit}` : ""}`
+                ? `${sg(c.to - c.from, 0)}${unit ? ` ${unit}` : ""}`
                 : null;
-            const direction = formatSetupChange(c).split(" · ")[1] ?? null;
+            // The direction in words ("mais aberto") is setup.ts's, in
+            // the reader's language — the pills on the table say the same.
+            const direction =
+              c.from != null && c.to != null
+                ? changeDirection(c.kind, c.to - c.from, locale)
+                : null;
             return {
-              knob: knobOf(c.label),
+              knob: knobOf(c),
               text: `${num(c.from)} → ${num(c.to)}`,
               delta,
               direction: direction
@@ -486,34 +437,44 @@ export function ImuSetupCompareView({
               const tone: Tone =
                 Math.abs(diff) <= noise ? "tie" : toneOf(ref, diff);
               const fmt = (x: number) =>
-                `${nf(x, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
-              const column = COLUMNS.find((c) => c.label === metricLabel)!;
+                `${n(x, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
+              // A difference's unit: percentage points for a share, else
+              // the figure's own.
+              const deltaUnit =
+                unit === "%"
+                  ? " pp"
+                  : unit
+                    ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}`
+                    : "";
+              const column = COLUMNS.find((c) => c.metric === metricLabel)!;
               return {
-                name: column.short,
+                name: words.columns[column.key].short,
                 ref: fmt(ref.raw),
                 value: fmt(to),
                 runs: values.length,
                 range: range
-                  ? `${nf(range.min, digits)}–${fmt(range.max)}`
+                  ? `${n(range.min, digits)}–${fmt(range.max)}`
                   : null,
-                delta: `${signed(diff, digits)}${unit === "%" ? " pp" : unit ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}` : ""}`,
+                delta: `${sg(diff, digits)}${deltaUnit}`,
                 tone,
                 verdict:
                   tone === "tie"
                     ? range
-                      ? "dentro da variação entre voltas"
-                      : `dentro do ruído entre voltas iguais (${nf(noise, digits)}${unit === "%" ? " pp" : unit ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}` : ""})`
+                      ? words.details.withinSpread
+                      : words.details.withinNoise(
+                          `${n(noise, digits)}${deltaUnit}`,
+                        )
                     : tone === "better"
-                      ? "acima da variação entre voltas · melhor"
+                      ? words.details.aboveBetter
                       : tone === "worse"
-                        ? "acima da variação entre voltas · pior"
-                        : "acima da variação entre voltas",
+                        ? words.details.aboveWorse
+                        : words.details.above,
               };
             })
             .filter((x): x is NonNullable<typeof x> => x != null);
           return {
             letter: g.letter,
-            component: components.join(" e "),
+            component: components.join(` ${t.common.and} `),
             knobs: list(knobs),
             boxes,
             changes,
@@ -532,25 +493,20 @@ export function ImuSetupCompareView({
           <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
           <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
             <Bike className="size-4" strokeWidth={2} aria-hidden />
-            {reference.bikeName ?? "Afinações"}
+            {reference.bikeName ?? words.header.fallbackBike}
           </p>
           <h1 className="mt-1 font-display text-3xl font-semibold">
-            Comparar afinações
+            {words.header.title}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Referência:{" "}
+            {words.header.reference}{" "}
             <Link
               href={`/pro/sessoes/${reference.id}`}
               className="text-foreground underline underline-offset-2"
             >
               {reference.name}
             </Link>{" "}
-            ·{" "}
-            {runs.length === 1
-              ? "1 outra volta"
-              : `${runs.length} outras voltas`}{" "}
-            da mesma bicicleta{reference.riderName && " e do mesmo rider"} na
-            mesma pista
+            · {words.header.otherRuns(runs.length, !!reference.riderName)}
             {leftOutBits.length > 0 && ` · ${leftOutBits.join(" · ")}`}
           </p>
         </div>
@@ -559,7 +515,7 @@ export function ImuSetupCompareView({
       <ImuSetupDynamics
         setups={groups.map((g) => ({
           letter: g.letter,
-          summary: setupSummary(g.setup, labels) ?? "",
+          summary: setupSummary(g.setup, labels, locale) ?? "",
           runs: g.members.length,
         }))}
         scores={dynamicsScores}
@@ -574,40 +530,41 @@ export function ImuSetupCompareView({
             <NativeSelect
               wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
               className="h-11 bg-card text-sm"
-              aria-label="Afinação"
+              aria-label={words.filters.setup}
               value={setupFilter}
               onChange={(e) => setSetupFilter(e.target.value)}
             >
-              <option value="">Todas as afinações</option>
+              <option value="">{words.filters.allSetups}</option>
               {groups.map((g) => {
-                const summary = setupSummary(g.setup, labels);
+                const summary = setupSummary(g.setup, labels, locale);
                 return (
                   <option key={g.letter} value={g.letter}>
-                    Afinação {g.letter}
+                    {words.filters.setupOption(g.letter)}
                     {summary && ` · ${summary}`}
                   </option>
                 );
               })}
-              {unset.length > 0 && <option value="none">Sem afinação</option>}
+              {unset.length > 0 && (
+                <option value="none">{words.filters.noSetup}</option>
+              )}
             </NativeSelect>
           )}
           <NativeSelect
             wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
             className="h-11 bg-card text-sm"
-            aria-label="Ordem"
+            aria-label={words.filters.order}
             value={sort}
             onChange={(e) => setSort(e.target.value as "setup" | "date")}
           >
-            <option value="setup">Agrupadas por afinação</option>
-            <option value="date">Mais recentes primeiro</option>
+            <option value="setup">{words.filters.groupedBySetup}</option>
+            <option value="date">{words.filters.newestFirst}</option>
           </NativeSelect>
         </div>
       )}
 
       {pending > 0 && (
         <p className="px-1 text-sm text-muted-foreground" aria-live="polite">
-          A ler {all.length - pending + 1} de {all.length}{" "}
-          {all.length === 1 ? "sessão" : "sessões"}…
+          {words.reading(all.length - pending + 1, all.length)}
         </p>
       )}
       {failed.map((c) => (
@@ -624,10 +581,9 @@ export function ImuSetupCompareView({
         )}
       >
         <section className="px-5 py-6 sm:px-6 sm:py-8">
-          <p className="text-lg font-semibold">Comparação dos setups</p>
+          <p className="text-lg font-semibold">{words.table.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compara os setups para perceber qual oferece o melhor equilíbrio
-            entre velocidade, controlo e absorção do terreno.
+            {words.table.intro}
           </p>
 
           {/* Wider than a phone, the table scrolls inside the card. */}
@@ -636,36 +592,39 @@ export function ImuSetupCompareView({
               <thead>
                 <tr className="text-left">
                   <th className="pr-4 pb-3 align-bottom font-semibold">
-                    Sessão
+                    {words.table.session}
                   </th>
                   <th className="px-4 pb-3 align-bottom font-semibold">
                     <SetupSlidersIcon className="mb-2" />
                     <span className="flex items-center gap-1">
-                      Afinação
+                      {words.table.setup}
                       <MetricInfo
-                        label="Afinação"
-                        description={SETUP_DESCRIPTION}
+                        label={words.table.setup}
+                        description={words.table.setupDescription}
                       />
                     </span>
                   </th>
-                  {COLUMNS.map((c) => (
-                    <th
-                      key={c.label}
-                      className="px-4 pb-3 align-bottom font-semibold whitespace-nowrap"
-                    >
-                      <c.Icon className="mb-2" />
-                      <span className="flex items-center gap-1">
-                        {c.short}
-                        <MetricInfo
-                          label={c.label}
-                          description={c.description}
-                          method={c.method}
-                          footnote={c.footnote}
-                          band={c.band}
-                        />
-                      </span>
-                    </th>
-                  ))}
+                  {COLUMNS.map((c) => {
+                    const column = words.columns[c.key];
+                    return (
+                      <th
+                        key={c.key}
+                        className="px-4 pb-3 align-bottom font-semibold whitespace-nowrap"
+                      >
+                        <c.Icon className="mb-2" />
+                        <span className="flex items-center gap-1">
+                          {column.short}
+                          <MetricInfo
+                            label={column.name}
+                            description={column.description}
+                            method={column.method}
+                            footnote={column.footnote}
+                            band={c.band}
+                          />
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -685,23 +644,21 @@ export function ImuSetupCompareView({
           </div>
           {runs.length > 0 && others.length === 0 && (
             <p className="mt-4 text-sm text-muted-foreground">
-              Nenhuma outra volta com esta afinação.
+              {words.table.noOtherWithSetup}
             </p>
           )}
           {runs.length === 0 && (
             <p className="mt-4 text-sm text-muted-foreground">
-              Só esta volta, por enquanto. As que importares desta bicicleta
-              nesta pista entram sozinhas.
+              {words.table.onlyThisRun}
             </p>
           )}
         </section>
 
         {details.length > 0 && (
           <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">Em detalhe</p>
+            <p className="text-lg font-semibold">{words.details.title}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cada afinação face à referência, botão a botão, e o que as duas
-              figuras da escolha fizeram com ela.
+              {words.details.intro}
             </p>
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               {details.map((d) => (
@@ -715,7 +672,7 @@ export function ImuSetupCompareView({
                     {d.letter}
                     {d.runs > 1 && (
                       <span className="ml-2 text-xs font-medium text-muted-foreground">
-                        {d.runs} voltas
+                        {t.common.run(d.runs)}
                       </span>
                     )}
                   </p>
@@ -729,7 +686,7 @@ export function ImuSetupCompareView({
                           className="flex flex-1 flex-col items-center justify-center rounded-[12px] border border-border px-3 py-4 text-center"
                         >
                           <p className="text-sm text-muted-foreground">
-                            Alteração de
+                            {words.details.changeOf}
                             {d.boxes.length > 1 && (
                               <span className="block text-xs">{box.knob}</span>
                             )}
@@ -762,25 +719,25 @@ export function ImuSetupCompareView({
                                 {effect.name}
                               </p>
                               <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                Referência{" "}
+                                {words.details.reference}{" "}
                                 <span className="font-semibold">
                                   {effect.ref}
                                 </span>
                               </span>
                               <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                setup {d.letter}{" "}
+                                {words.details.setupValue(d.letter)}{" "}
                                 <span className="font-semibold">
                                   {effect.value}
                                 </span>
                                 {effect.runs > 1 && (
                                   <span className="ml-1 text-xs text-muted-foreground">
-                                    mediana de {effect.runs}
+                                    {words.details.medianOf(effect.runs)}
                                   </span>
                                 )}
                               </span>
                               {effect.range && (
                                 <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                  voltas{" "}
+                                  {words.details.runsRange}{" "}
                                   <span className="font-semibold">
                                     {effect.range}
                                   </span>
@@ -805,7 +762,7 @@ export function ImuSetupCompareView({
                       </div>
                     ) : (
                       <p className="self-center text-sm text-muted-foreground">
-                        Aparece quando as sessões estiverem lidas.
+                        {words.waitingForSessions}
                       </p>
                     )}
                   </div>
@@ -818,15 +775,30 @@ export function ImuSetupCompareView({
         {/* The best so far — or the only one known, said as such. */}
         {shown && (
           <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">O melhor setup até agora</p>
+            <p className="text-lg font-semibold">{words.best.title}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {groups.length === 1
-                ? "É a única afinação registada nesta pista. Ainda não foi testada nem comparada com outra, por isso não há como dizer se é a melhor."
+                ? words.best.onlyOne
                 : !best
-                  ? "Aparece quando as sessões estiverem lidas."
+                  ? words.waitingForSessions
                   : bestMargin != null && Math.abs(bestMargin) <= bestNoise
-                    ? `Setup ${best.letter}, pela retenção mediana nas curvas — mas a diferença para o ${runnerUp!.letter} (${signed(bestMargin, 1)} pontos) não passa o ruído entre voltas iguais (${nf(bestNoise, 1)} pontos). Ainda não separa os dois.`
-                    : `Setup ${best.letter}, pela retenção mediana nas curvas: ${nf(best.medians.get(BEST_BY)!, 0)} % em ${best.members.length === 1 ? "uma volta" : `${best.members.length} voltas`}${runnerUp ? `, ${signed(bestMargin!, 0)} pontos sobre o ${runnerUp.letter}` : ""}.${best.members.length === 1 ? " Com uma volta só, a diferença pode ser o dia e não a afinação." : ""}`}
+                    ? words.best.withinNoise(
+                        best.letter,
+                        runnerUp!.letter,
+                        sg(bestMargin, 1),
+                        n(bestNoise, 1),
+                      )
+                    : words.best.clear(
+                        best.letter,
+                        proPercent(best.medians.get(BEST_BY)!, locale, 0),
+                        best.members.length,
+                        runnerUp
+                          ? {
+                              letter: runnerUp.letter,
+                              margin: sg(bestMargin!, 0),
+                            }
+                          : null,
+                      )}
             </p>
             <SetupTiles setup={shown.setup} labels={labels} />
           </section>
@@ -853,10 +825,11 @@ export function MetricInfo({
   /** The band, light after the name (by request, 2026-09-12). */
   band?: string;
 }) {
+  const t = useProDict();
   return (
     <Popover>
       <PopoverTrigger
-        aria-label={`O que é ${label}`}
+        aria-label={t.compare.metricInfo.whatIs(label)}
         className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <Info className="size-3.5" />
@@ -872,7 +845,7 @@ export function MetricInfo({
         {method && (
           <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
             <span className="font-medium text-foreground">
-              Como é calculado:
+              {t.compare.metricInfo.method}
             </span>{" "}
             {method}
           </p>
@@ -902,10 +875,12 @@ function RunRow({
   referenceReport: SessionReport | null;
   labels: ImuSetupCompareLabels;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const isReference = run.id === reference.id;
   const changes =
     !isReference && reference.setup && run.setup
-      ? setupDiff(reference.setup, run.setup)
+      ? setupDiff(reference.setup, run.setup, locale)
       : [];
   return (
     <tr className="h-[90px] border-t border-border">
@@ -934,7 +909,7 @@ function RunRow({
             // phone, where hover is not a thing a finger does.
             <Popover>
               <PopoverTrigger
-                aria-label={`A afinação ${letter} completa`}
+                aria-label={t.compare.row.fullSetup(letter)}
                 className="flex cursor-pointer items-center gap-2 rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <FileText
@@ -960,7 +935,7 @@ function RunRow({
                 strokeWidth={1.75}
                 aria-hidden
               />
-              <span className="whitespace-nowrap">Sem afinação</span>
+              <span className="whitespace-nowrap">{t.compare.row.noSetup}</span>
             </>
           )}
           {changes.map((change) => (
@@ -968,20 +943,20 @@ function RunRow({
               key={change.label}
               className="rounded-full border border-foreground bg-card px-2 py-0.5 text-xs font-medium whitespace-nowrap text-foreground tabular-nums"
             >
-              {formatSetupChange(change)}
+              {formatSetupChange(change, locale)}
             </span>
           ))}
         </div>
       </td>
-      {COLUMNS.map(({ label }) => {
-        const m = report ? metricOf(report, label) : null;
+      {COLUMNS.map(({ key, metric }) => {
+        const m = report ? metricOf(report, metric) : null;
         const ref =
           !isReference && referenceReport
-            ? metricOf(referenceReport, label)
+            ? metricOf(referenceReport, metric)
             : null;
         return (
           <td
-            key={label}
+            key={key}
             className="px-4 py-2 align-middle whitespace-nowrap tabular-nums"
           >
             {!report ? (
@@ -1012,10 +987,12 @@ export function ImuSetupDetails({
   note: string | null;
   labels: ImuSetupCompareLabels;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   return (
     <>
       <p className="text-sm font-semibold">{title}</p>
-      {setupBlocks(setup, labels).map((block) => (
+      {setupBlocks(setup, labels, t, locale).map((block) => (
         <div key={block.kind} className="mt-3">
           <p className="text-xs font-medium text-muted-foreground">
             {block.kind}
@@ -1052,6 +1029,7 @@ function Figure({
   metric: ReportMetric;
   reference: ReportMetric | null;
 }) {
+  const locale = useProLocale();
   const diff =
     reference?.raw != null && metric.raw != null
       ? metric.raw - reference.raw
@@ -1085,7 +1063,7 @@ function Figure({
             tone === "neutral" && "bg-transparent text-foreground",
           )}
         >
-          {signed(diff, digitsOf(metric))}
+          {signed(diff, digitsOf(metric), locale)}
         </span>
       )}
     </span>
@@ -1108,14 +1086,17 @@ type SetupBlock = {
 function setupBlocks(
   setup: ImuSetupValues,
   labels: ImuSetupCompareLabels,
+  t: ProDictionary,
+  locale: Locale,
 ): SetupBlock[] {
-  const pt = (n: number) => nf(n, Number.isInteger(n) ? 0 : 1);
+  const num = (n: number) => nf(n, Number.isInteger(n) ? 0 : 1, locale);
   // The supplied layout's words (2026-09-14): the knobs by their English
   // names, as the dampers' own manuals and the detail cards above say them,
-  // the number apart from its unit so the number can be bold.
+  // the number apart from its unit so the number can be bold. The clicks'
+  // unit is English in both languages the same way — the layout's word.
   const clicks = (label: string, n: number) => ({
     label,
-    value: pt(n),
+    value: num(n),
     unit: n === 1 ? "click" : "clicks",
   });
   const damperTiles = (
@@ -1128,13 +1109,13 @@ function setupBlocks(
       if (d.springRateLbs != null)
         tiles.push({
           label: "Spring",
-          value: pt(d.springRateLbs),
+          value: num(d.springRateLbs),
           unit: "Lbs",
         });
     } else if (d.pressurePsi != null)
       tiles.push({
         label: "Air spring",
-        value: pt(d.pressurePsi),
+        value: num(d.pressurePsi),
         unit: "PSI",
       });
     if (circuitMode(d, "compression") === "simple") {
@@ -1159,14 +1140,14 @@ function setupBlocks(
     if (d.travelMm != null)
       tiles.push({
         label: block === "fork" ? "Travel" : "Stroke",
-        value: pt(d.travelMm),
+        value: num(d.travelMm),
         unit: "mm",
       });
     if (d.sagMm != null) {
-      tiles.push({ label: "SAG", value: pt(d.sagMm), unit: "mm" });
+      tiles.push({ label: "SAG", value: num(d.sagMm), unit: "mm" });
       const share = sagPercent(d);
       if (share != null)
-        tiles.push({ label: "SAG %", value: pt(share), unit: "%" });
+        tiles.push({ label: "SAG %", value: num(share), unit: "%" });
     }
     return tiles;
   };
@@ -1182,23 +1163,29 @@ function setupBlocks(
       tiles: damperTiles(setup.shock, "shock"),
     },
     {
-      kind: "Pneus",
-      name: "Pressão",
+      kind: t.compare.blocks.tires,
+      name: t.compare.blocks.pressure,
       tiles: [
         ...(setup.tires?.frontPsi != null
           ? [
               {
-                label: "Frente",
-                value: nf(setup.tires.frontPsi, 0),
+                label: t.compare.blocks.front,
+                value: nf(setup.tires.frontPsi, 0, locale),
                 unit: "PSI",
               },
             ]
           : []),
         ...(setup.tires?.rearPsi != null
-          ? [{ label: "Trás", value: nf(setup.tires.rearPsi, 0), unit: "PSI" }]
+          ? [
+              {
+                label: t.compare.blocks.rear,
+                value: nf(setup.tires.rearPsi, 0, locale),
+                unit: "PSI",
+              },
+            ]
           : []),
         ...(setup.rider?.weightKg != null
-          ? [{ label: "Rider", value: pt(setup.rider.weightKg), unit: "Kg" }]
+          ? [{ label: "Rider", value: num(setup.rider.weightKg), unit: "Kg" }]
           : []),
       ],
     },
@@ -1213,7 +1200,9 @@ function SetupTiles({
   setup: ImuSetupValues;
   labels: ImuSetupCompareLabels;
 }) {
-  const blocks = setupBlocks(setup, labels);
+  const t = useProDict();
+  const locale = useProLocale();
+  const blocks = setupBlocks(setup, labels, t, locale);
   return (
     // The setup form's own hatched plate (imu-event-band), holding a white
     // card per block — fork, shock, tyres — each with its knobs in a box of

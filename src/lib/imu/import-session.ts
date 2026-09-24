@@ -9,6 +9,8 @@
  * is a binary whether it was picked from disk or received over the air.
  */
 
+import type { Locale } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import { createClient } from "@/lib/supabase/client";
 import { createImuSession } from "@/lib/actions/imu";
 import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
@@ -29,6 +31,9 @@ export async function uploadAndRegisterImuSession(input: {
   riderName: string;
   bike: ImuSessionBikeRef;
   group: ImuSessionGroupRef;
+  /** The reader's language, for the one message this side writes; the
+   * server action's come back in it too, from the session's own setting. */
+  locale: Locale;
 }): Promise<ImportOutcome> {
   const { session, summary } = input;
   const isBkt = session.format === BKT_FORMAT;
@@ -41,7 +46,12 @@ export async function uploadAndRegisterImuSession(input: {
       upsert: false,
     });
   if (uploadError)
-    return { ok: false, error: `O upload falhou: ${uploadError.message}` };
+    return {
+      ok: false,
+      error: getProDictionary(input.locale).importing.upload.failed(
+        uploadError.message,
+      ),
+    };
 
   const result = await createImuSession({
     name: input.name,

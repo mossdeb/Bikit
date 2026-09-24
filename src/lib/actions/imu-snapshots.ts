@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import {
   isSnapshotDefinition,
   type SnapshotDefinition,
@@ -15,7 +17,9 @@ import type { Json } from "@/types/database.types";
  * Snapshots (see src/lib/imu/snapshot.ts and migration 00046). These
  * actions write the definition and nothing measured: the passes are found
  * and their figures read from the files, in the browser, every time.
- * Gated like the rest of the lab.
+ * Gated like the rest of the lab. The messages come back in the caller's
+ * language, read off the same claims the gate reads (i18n pass,
+ * 2026-09-24).
  */
 
 export type ImuSnapshotResult =
@@ -39,10 +43,12 @@ export async function listImuSnapshotCandidates(input: {
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  const t = getProDictionary(locale);
   if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+    return { status: "error", message: t.common.noAccess };
   if (!isSnapshotDefinition(input.definition))
-    return { status: "error", message: "Definição do Snapshot inválida." };
+    return { status: "error", message: t.snapshots.errors.invalidDefinition };
   return {
     status: "ok",
     candidates: await loadSnapshotCandidates(
@@ -50,6 +56,7 @@ export async function listImuSnapshotCandidates(input: {
       userId,
       input.definition,
       input.sessionId,
+      locale,
     ),
   };
 }
@@ -66,20 +73,23 @@ export async function createImuSnapshot(input: {
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
+  const t = getProDictionary(
+    localeFromMetadata(userData?.claims?.user_metadata),
+  );
   if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+    return { status: "error", message: t.common.noAccess };
 
   const name = input.name.trim();
   if (!name)
-    return { status: "error", message: "O Snapshot precisa de um nome." };
+    return { status: "error", message: t.snapshots.errors.nameRequired };
   if (!isSnapshotDefinition(input.definition))
-    return { status: "error", message: "Definição do Snapshot inválida." };
+    return { status: "error", message: t.snapshots.errors.invalidDefinition };
   if (
     !Number.isFinite(input.referenceEntryMs) ||
     !Number.isFinite(input.referenceExitMs) ||
     input.referenceExitMs <= input.referenceEntryMs
   )
-    return { status: "error", message: "Passagem de referência inválida." };
+    return { status: "error", message: t.snapshots.errors.invalidReference };
 
   // The reference has to be the caller's own session; RLS would refuse a
   // foreign id at the foreign key, but the message would be Postgres's.
@@ -89,7 +99,8 @@ export async function createImuSnapshot(input: {
     .eq("id", input.referenceSessionId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!session) return { status: "error", message: "Sessão não encontrada." };
+  if (!session)
+    return { status: "error", message: t.snapshots.errors.sessionNotFound };
 
   const { data, error } = await supabase
     .from("imu_snapshots")
@@ -105,7 +116,10 @@ export async function createImuSnapshot(input: {
     .select("id")
     .single();
   if (error || !data)
-    return { status: "error", message: error?.message ?? "Sem resposta." };
+    return {
+      status: "error",
+      message: error?.message ?? t.snapshots.errors.noResponse,
+    };
 
   revalidatePath(`/pro/sessoes/${session.id}/relatorio`);
   return { status: "ok", id: data.id };
@@ -119,11 +133,14 @@ export async function renameImuSnapshot(input: {
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
+  const t = getProDictionary(
+    localeFromMetadata(userData?.claims?.user_metadata),
+  );
   if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+    return { status: "error", message: t.common.noAccess };
   const name = input.name.trim();
   if (!name)
-    return { status: "error", message: "O Snapshot precisa de um nome." };
+    return { status: "error", message: t.snapshots.errors.nameRequired };
 
   // Scoped to the owner as well as the id: an update that matched nothing
   // would otherwise report success.
@@ -135,7 +152,8 @@ export async function renameImuSnapshot(input: {
     .select("id, reference_session_id")
     .maybeSingle();
   if (error) return { status: "error", message: error.message };
-  if (!data) return { status: "error", message: "Snapshot não encontrado." };
+  if (!data)
+    return { status: "error", message: t.snapshots.errors.snapshotNotFound };
   if (data.reference_session_id) {
     revalidatePath(
       `/pro/sessoes/${data.reference_session_id}/snapshots/${data.id}`,
@@ -152,8 +170,11 @@ export async function deleteImuSnapshot(
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
+  const t = getProDictionary(
+    localeFromMetadata(userData?.claims?.user_metadata),
+  );
   if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+    return { status: "error", message: t.common.noAccess };
 
   const { data, error } = await supabase
     .from("imu_snapshots")
@@ -163,6 +184,7 @@ export async function deleteImuSnapshot(
     .select("id")
     .maybeSingle();
   if (error) return { status: "error", message: error.message };
-  if (!data) return { status: "error", message: "Snapshot não encontrado." };
+  if (!data)
+    return { status: "error", message: t.snapshots.errors.snapshotNotFound };
   return { status: "ok", id: data.id };
 }

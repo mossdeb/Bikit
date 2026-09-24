@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary, type ProDictionary } from "@/lib/i18n/pro";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
 import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
 import { getUserSubscription } from "@/lib/subscription";
@@ -13,6 +15,45 @@ import type { Json } from "@/types/database.types";
 
 export type ImuActionResult =
   { status: "ok" } | { status: "error"; message: string };
+
+/**
+ * Who is calling, and in which language: every action starts here. The
+ * claims carry user_metadata (it rides in the JWT), so the account's
+ * language and its name cost no extra query. The dictionary is picked
+ * BEFORE the gate, so whoever is refused is refused in their own words.
+ * A refusal is returned in the shape the actions answer with, so a caller
+ * hands it straight back.
+ */
+async function labCaller(): Promise<
+  | {
+      status: "ok";
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      userId: string;
+      email: string | undefined;
+      /** The account's own name, trimmed — what a blank rider becomes. */
+      fullName: string | undefined;
+      t: ProDictionary;
+    }
+  | { status: "error"; message: string }
+> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const claims = userData?.claims;
+  const t = getProDictionary(localeFromMetadata(claims?.user_metadata));
+  const userId = claims?.sub as string | undefined;
+  const email = claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: t.common.noAccess };
+  const metadata = claims?.user_metadata as { full_name?: string } | undefined;
+  return {
+    status: "ok",
+    supabase,
+    userId,
+    email,
+    fullName: metadata?.full_name?.trim() || undefined,
+    t,
+  };
+}
 
 export interface CreateImuSessionInput {
   name: string;
@@ -51,51 +92,46 @@ export interface CreateImuSessionInput {
 export async function createImuSession(
   input: CreateImuSessionInput,
 ): Promise<ImuActionResult> {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getClaims();
-  const userId = userData?.claims?.sub as string | undefined;
-  const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+  const caller = await labCaller();
+  if (caller.status === "error") return caller;
+  const { supabase, userId, t } = caller;
 
   // The row must point inside the caller's own folder — the folder the
   // storage policies scope every read and write to.
   if (!input.storagePath.startsWith(`${userId}/`)) {
-    return { status: "error", message: "Caminho de ficheiro inválido." };
+    return { status: "error", message: t.sessions.actions.invalidPath };
   }
   const name = input.name.trim();
   if (!name)
-    return { status: "error", message: "A sessão precisa de um nome." };
+    return { status: "error", message: t.sessions.actions.sessionNeedsName };
 
   // Left blank, the rider is whoever is importing: the overwhelmingly common
   // case is the account's owner recording their own ride, and a blank field
   // should not cost a recording its provenance. Decided here and not in the
   // form because this is the side that actually knows the account — and a
-  // form field can always be cleared on the way out. The claims carry
-  // user_metadata (it rides in the JWT), so this costs no extra query.
-  const metadata = userData?.claims?.user_metadata as
-    { full_name?: string } | undefined;
+  // form field can always be cleared on the way out. The name comes with
+  // the claims (labCaller), so this costs no extra query.
   const riderName =
-    input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
+    input.riderName?.trim() || caller.fullName || caller.email || null;
   if (
     !Number.isFinite(input.durationMs) ||
     !Number.isFinite(input.sampleRateHz) ||
     !Number.isInteger(input.sampleCount) ||
     input.sampleCount <= 0
   ) {
-    return { status: "error", message: "Metadados da sessão inválidos." };
+    return { status: "error", message: t.sessions.actions.invalidMetadata };
   }
   // A malformed index is refused, not dropped: a session registered without
   // one would silently never show up in any Snapshot.
   if (input.trackIndex != null && !isTrackIndex(input.trackIndex)) {
-    return { status: "error", message: "Índice do traçado inválido." };
+    return { status: "error", message: t.sessions.actions.invalidTrackIndex };
   }
 
-  const bike = await resolveBike(supabase, userId, input.bike);
+  const bike = await resolveBike(supabase, userId, input.bike, t);
   if (bike.status === "error") return bike;
   const bikeId = bike.id;
 
-  const group = await resolveGroup(supabase, userId, input.group);
+  const group = await resolveGroup(supabase, userId, input.group, t);
   if (group.status === "error") return group;
 
   // The bike's latest setup rides along: five descents on one setup are
@@ -154,6 +190,7 @@ async function resolveBike(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   ref: ImuSessionBikeRef,
+  t: ProDictionary,
 ): Promise<
   { status: "ok"; id: string | null } | { status: "error"; message: string }
 > {
@@ -166,13 +203,14 @@ async function resolveBike(
       .eq("id", ref.id)
       .eq("user_id", userId)
       .maybeSingle();
-    if (!data) return { status: "error", message: "Bicicleta não encontrada." };
+    if (!data)
+      return { status: "error", message: t.sessions.actions.bikeNotFound };
     return { status: "ok", id: data.id };
   }
 
   const name = ref.name.trim();
   if (!name)
-    return { status: "error", message: "A bicicleta precisa de um nome." };
+    return { status: "error", message: t.sessions.actions.bikeNeedsName };
 
   const { data: existing } = await supabase
     .from("bikes")
@@ -192,7 +230,7 @@ async function resolveBike(
     if ((count ?? 0) >= maxBikes)
       return {
         status: "error",
-        message: `O plano ${plan} permite ${maxBikes} ${maxBikes === 1 ? "bicicleta" : "bicicletas"}. Escolhe uma da lista ou muda de plano nas definições.`,
+        message: t.sessions.actions.planBikeLimit(plan, maxBikes),
       };
   }
 
@@ -204,7 +242,7 @@ async function resolveBike(
   if (error || !created)
     return {
       status: "error",
-      message: error?.message ?? "Não foi possível criar a bicicleta.",
+      message: error?.message ?? t.sessions.actions.createBikeFailed,
     };
   return { status: "ok", id: created.id };
 }
@@ -220,6 +258,7 @@ async function resolveGroup(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   ref: ImuSessionGroupRef,
+  t: ProDictionary,
 ): Promise<
   { status: "ok"; id: string | null } | { status: "error"; message: string }
 > {
@@ -232,14 +271,16 @@ async function resolveGroup(
       .eq("id", ref.id)
       .eq("user_id", userId)
       .maybeSingle();
-    if (!data) return { status: "error", message: "Grupo não encontrado." };
+    if (!data)
+      return { status: "error", message: t.sessions.actions.groupNotFound };
     return { status: "ok", id: data.id };
   }
 
   const name = ref.name.trim();
-  if (!name) return { status: "error", message: "O grupo precisa de um nome." };
+  if (!name)
+    return { status: "error", message: t.sessions.actions.groupNeedsName };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ref.day))
-    return { status: "error", message: "Dia do grupo inválido." };
+    return { status: "error", message: t.sessions.actions.invalidGroupDay };
 
   const { data: existing } = await supabase
     .from("imu_session_groups")
@@ -258,7 +299,7 @@ async function resolveGroup(
   if (error || !created)
     return {
       status: "error",
-      message: error?.message ?? "Não foi possível criar o grupo.",
+      message: error?.message ?? t.sessions.actions.createGroupFailed,
     };
   return { status: "ok", id: created.id };
 }
@@ -273,7 +314,7 @@ export async function deleteImuSessionGroup(
   groupId: string,
 ): Promise<ImuActionResult> {
   const caller = await labCaller();
-  if (!caller) return { status: "error", message: "Sem acesso." };
+  if (caller.status === "error") return caller;
 
   const { count } = await caller.supabase
     .from("imu_sessions")
@@ -281,7 +322,10 @@ export async function deleteImuSessionGroup(
     .eq("group_id", groupId)
     .eq("user_id", caller.userId);
   if (count && count > 0)
-    return { status: "error", message: "O grupo ainda tem sessões." };
+    return {
+      status: "error",
+      message: caller.t.sessions.actions.groupHasSessions,
+    };
 
   const { error } = await caller.supabase
     .from("imu_session_groups")
@@ -302,12 +346,9 @@ export async function deleteImuSessionGroup(
 export async function deleteImuSession(
   sessionId: string,
 ): Promise<ImuActionResult> {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getClaims();
-  const userId = userData?.claims?.sub as string | undefined;
-  const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+  const caller = await labCaller();
+  if (caller.status === "error") return caller;
+  const { supabase, userId, t } = caller;
 
   const { data: session } = await supabase
     .from("imu_sessions")
@@ -315,7 +356,8 @@ export async function deleteImuSession(
     .eq("id", sessionId)
     .eq("user_id", userId)
     .single();
-  if (!session) return { status: "error", message: "Sessão não encontrada." };
+  if (!session)
+    return { status: "error", message: t.sessions.actions.sessionNotFound };
 
   const { error: rowError } = await supabase
     .from("imu_sessions")
@@ -333,7 +375,7 @@ export async function deleteImuSession(
     revalidatePath("/pro");
     return {
       status: "error",
-      message: `A sessão foi apagada mas o ficheiro ficou: ${fileError.message}`,
+      message: t.sessions.actions.deletedButFileStayed(fileError.message),
     };
   }
 
@@ -359,25 +401,20 @@ export async function updateImuSession(input: {
   /** Same shape as at import: an existing group, a new one, or none. */
   group: ImuSessionGroupRef;
 }): Promise<ImuActionResult> {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getClaims();
-  const userId = userData?.claims?.sub as string | undefined;
-  const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+  const caller = await labCaller();
+  if (caller.status === "error") return caller;
+  const { supabase, userId, t } = caller;
 
   const name = input.name.trim();
   if (!name)
-    return { status: "error", message: "A sessão precisa de um nome." };
-  const metadata = userData?.claims?.user_metadata as
-    { full_name?: string } | undefined;
+    return { status: "error", message: t.sessions.actions.sessionNeedsName };
   const riderName =
-    input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
+    input.riderName?.trim() || caller.fullName || caller.email || null;
 
-  const bike = await resolveBike(supabase, userId, input.bike);
+  const bike = await resolveBike(supabase, userId, input.bike, t);
   if (bike.status === "error") return bike;
 
-  const group = await resolveGroup(supabase, userId, input.group);
+  const group = await resolveGroup(supabase, userId, input.group, t);
   if (group.status === "error") return group;
 
   // Scoped to the owner as well as the id: RLS would refuse anyway, but an
@@ -395,7 +432,8 @@ export async function updateImuSession(input: {
     .select("id")
     .maybeSingle();
   if (error) return { status: "error", message: error.message };
-  if (!data) return { status: "error", message: "Sessão não encontrada." };
+  if (!data)
+    return { status: "error", message: t.sessions.actions.sessionNotFound };
 
   revalidatePath("/pro");
   revalidatePath(`/pro/sessoes/${input.sessionId}`);
@@ -432,8 +470,8 @@ export async function setImuSessionTrim(input: {
   trackIndex: SnapshotTrackIndex | null;
 }): Promise<ImuActionResult> {
   const caller = await labCaller();
-  if (!caller) return { status: "error", message: "Sem acesso." };
-  const { supabase, userId } = caller;
+  if (caller.status === "error") return caller;
+  const { supabase, userId, t } = caller;
 
   const trim = input.trim;
   if (
@@ -443,15 +481,15 @@ export async function setImuSessionTrim(input: {
       trim.startMs < 0 ||
       trim.endMs <= trim.startMs)
   )
-    return { status: "error", message: "Janela de recorte inválida." };
+    return { status: "error", message: t.sessions.actions.invalidTrimWindow };
   if (
     !Number.isFinite(input.durationMs) ||
     !Number.isInteger(input.sampleCount) ||
     input.sampleCount <= 0
   )
-    return { status: "error", message: "Resumo da sessão inválido." };
+    return { status: "error", message: t.sessions.actions.invalidSummary };
   if (input.trackIndex != null && !isTrackIndex(input.trackIndex))
-    return { status: "error", message: "Índice do traçado inválido." };
+    return { status: "error", message: t.sessions.actions.invalidTrackIndex };
 
   const { data: session } = await supabase
     .from("imu_sessions")
@@ -459,7 +497,8 @@ export async function setImuSessionTrim(input: {
     .eq("id", input.sessionId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!session) return { status: "error", message: "Sessão não encontrada." };
+  if (!session)
+    return { status: "error", message: t.sessions.actions.sessionNotFound };
 
   // The Snapshots' gates move with the start of the window.
   const oldStart = session.trim_start_ms ?? 0;
@@ -484,9 +523,9 @@ export async function setImuSessionTrim(input: {
   if (outside.length > 0)
     return {
       status: "error",
-      message: `A janela deixa de fora ${outside.length === 1 ? "o Snapshot" : "os Snapshots"} ${outside
-        .map((s) => `«${s.name}»`)
-        .join(", ")}. Alarga o recorte ou apaga-o primeiro.`,
+      message: t.sessions.actions.trimLeavesOutSnapshots(
+        outside.map((s) => s.name),
+      ),
     };
 
   const { error } = await supabase
@@ -521,7 +560,10 @@ export async function setImuSessionTrim(input: {
       if (moveError)
         return {
           status: "error",
-          message: `O recorte ficou guardado, mas o Snapshot «${s.name}» não acompanhou: ${moveError.message}`,
+          message: t.sessions.actions.snapshotDidNotFollow(
+            s.name,
+            moveError.message,
+          ),
         };
     }
   }
@@ -552,7 +594,8 @@ export async function setGroupMountOrientation(input: {
   sourceName: string;
 }): Promise<ImuOrientationShareResult> {
   const caller = await labCaller();
-  if (!caller) return { status: "error", message: "Sem acesso." };
+  if (caller.status === "error") return caller;
+  const { t } = caller;
 
   const o = input.orientation;
   const vec = (v: unknown): v is [number, number, number] =>
@@ -571,7 +614,7 @@ export async function setGroupMountOrientation(input: {
     Math.abs(dot(o.front, o.left)) > 0.02 ||
     !(o.confidence >= 0 && o.confidence <= 1)
   )
-    return { status: "error", message: "Orientação inválida." };
+    return { status: "error", message: t.sessions.actions.invalidOrientation };
 
   const { data: group } = await caller.supabase
     .from("imu_session_groups")
@@ -579,7 +622,8 @@ export async function setGroupMountOrientation(input: {
     .eq("id", input.groupId)
     .eq("user_id", caller.userId)
     .maybeSingle();
-  if (!group) return { status: "error", message: "Grupo não encontrado." };
+  if (!group)
+    return { status: "error", message: t.sessions.actions.groupNotFound };
 
   const stored = {
     up: o.up,
@@ -608,20 +652,11 @@ export async function setGroupMountOrientation(input: {
  * every connection; this only saves the typing. Row per (user, device name),
  * RLS-scoped — see migration 00042.
  */
-async function labCaller() {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getClaims();
-  const userId = userData?.claims?.sub as string | undefined;
-  const email = userData?.claims?.email as string | undefined;
-  if (!userId || !hasLabAccess(email)) return null;
-  return { supabase, userId };
-}
-
 export async function getImuDevicePin(
   deviceName: string,
 ): Promise<string | null> {
   const caller = await labCaller();
-  if (!caller || !deviceName.trim()) return null;
+  if (caller.status === "error" || !deviceName.trim()) return null;
   const { data } = await caller.supabase
     .from("imu_device_pins")
     .select("pin")
@@ -636,10 +671,11 @@ export async function saveImuDevicePin(
   pin: string,
 ): Promise<ImuActionResult> {
   const caller = await labCaller();
-  if (!caller) return { status: "error", message: "Sem acesso." };
+  if (caller.status === "error") return caller;
   const name = deviceName.trim();
   const value = pin.trim();
-  if (!name || !value) return { status: "error", message: "PIN vazio." };
+  if (!name || !value)
+    return { status: "error", message: caller.t.sessions.actions.emptyPin };
   const { error } = await caller.supabase.from("imu_device_pins").upsert(
     {
       user_id: caller.userId,
@@ -657,7 +693,7 @@ export async function forgetImuDevicePin(
   deviceName: string,
 ): Promise<ImuActionResult> {
   const caller = await labCaller();
-  if (!caller) return { status: "error", message: "Sem acesso." };
+  if (caller.status === "error") return caller;
   const { error } = await caller.supabase
     .from("imu_device_pins")
     .delete()

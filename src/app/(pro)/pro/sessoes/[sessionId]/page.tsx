@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { ArrowLeftRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
 import {
   BIKE_ICON_FALLBACK,
@@ -100,8 +103,8 @@ export default async function ImuSessionPage({
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
   ]);
-  // The reference sessions' names, for "já existe … feito de Run 1" — one
-  // query for all of them.
+  // The reference sessions' names, for "one already exists … made from
+  // Run 1" — one query for all of them.
   const snapshotDefs = (snapshotRows ?? []).filter((row) =>
     isSnapshotDefinition(row.definition),
   );
@@ -167,6 +170,8 @@ export default async function ImuSessionPage({
   const metadata = userData?.claims?.user_metadata as
     { full_name?: string } | undefined;
   const riderDefault = metadata?.full_name?.trim() || email || "";
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  const t = getProDictionary(locale);
 
   return (
     // 15px of side margin on a phone instead of the app's 20: the plot inside
@@ -225,13 +230,15 @@ export default async function ImuSessionPage({
                 storagePath={session.storage_path}
               />
             </div>
-            {/* The identity and, beside it, the door to the report (by
-                request, 2026-09-10 — it had been a ninth tile, then a card
-                beside the plate): a row from `sm`, the button sat on the
-                block's baseline — the provenance line's foot — and 40px off
-                the words (aligned to the base by request); stacked on a phone. A
-                `min-w-0` column so the provenance keeps wrapping. */}
-            <div className="flex flex-col gap-5 pr-10 sm:flex-row sm:items-end sm:gap-10 2xl:pr-0">
+            {/* The identity and, under it, the doors: the run's setup, the
+                report and the comparison of setups. They stood beside the
+                words from `sm` (2026-09-10, on the provenance line's foot);
+                with three of them the row grew wider than the words, and
+                the owner asked for them under the summary on desktop too
+                (2026-09-24) — one column at every width, the pills in a
+                wrapping row below the provenance. A `min-w-0` column so the
+                provenance keeps wrapping. */}
+            <div className="flex flex-col gap-5 pr-10 2xl:pr-0">
               <div className="min-w-0">
                 {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
@@ -278,21 +285,23 @@ export default async function ImuSessionPage({
                     belongs beside what carried the sensor, ahead of the
                     facts that describe the file rather than the ride. */}
                     {session.rider_name ? `${session.rider_name} · ` : ""}
-                    {formatDate(session.created_at)} ·{" "}
+                    {formatDate(session.created_at, locale)} ·{" "}
                     {Math.round(session.sample_rate_hz)} Hz ·{" "}
-                    {session.sample_count.toLocaleString("pt-PT")} amostras
+                    {proNumber(session.sample_count, locale)}{" "}
+                    {t.common.units.samples}
                   </span>
                 </p>
                 {/* The run's setup used to stand here in one line — the
                     fork, the shock and the tyres as they were set. Hidden
                     by request (2026-09-24): three lines of knobs under the
                     name were more than a header should carry, and the
-                    "Afinação" door beside it opens the whole thing. */}
+                    "Bike setup" door beside it opens the whole thing. */}
               </div>
-              {/* Two doors, side by side: the report, and the run's setup.
+              {/* Three doors, side by side: the run's setup, the report and
+                  the comparison of setups (added by request, 2026-09-24).
                   Outlined pills — controls, not figures, so they wear the
                   page's outline and not a tile's rules. */}
-              <div className="flex shrink-0 flex-wrap gap-3 self-start sm:self-end">
+              <div className="flex shrink-0 flex-wrap gap-3 self-start">
                 <ImuSessionSetup
                   sessionId={session.id}
                   values={setupValues}
@@ -308,7 +317,21 @@ export default async function ImuSessionPage({
                   )}
                 >
                   <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
-                  Relatório
+                  {t.sessions.page.report}
+                </Link>
+                <Link
+                  href={`/pro/sessoes/${session.id}/afinacoes`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold",
+                    CLICKABLE_CARD_HOVER,
+                  )}
+                >
+                  <ArrowLeftRight
+                    className="size-[18px] text-foreground"
+                    strokeWidth={2.1}
+                    aria-hidden
+                  />
+                  {t.report.compareSetups}
                 </Link>
               </div>
             </div>

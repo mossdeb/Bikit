@@ -14,6 +14,9 @@ import { ArrowRight, Ellipsis, Trash2 } from "lucide-react";
 import { SnapshotKindMark } from "@/components/imu-event-icons";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
+import type { Locale } from "@/lib/i18n";
+import { proNumber, type ProDictionary } from "@/lib/i18n/pro";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +49,7 @@ import {
   findSnapshotPasses,
   prepareSnapshotSession,
   SNAPSHOT_GATE_OFFSET_M,
-  SNAPSHOT_KIND_LABEL,
+  snapshotKindLabel,
   snapshotPassMetrics,
   snapshotPassPath,
   type SnapshotDefinition,
@@ -108,7 +111,7 @@ export interface ImuSnapshotRow {
   referenceExitMs: number;
   createdAt: string;
   /** How many of the account's sessions come near both gates (the
-   * reference included) — the report's "Sessões em comparação". Only the
+   * reference included) — the report's "Sessions compared". Only the
    * report fills it. */
   sessionCount?: number;
 }
@@ -146,19 +149,19 @@ export const SNAPSHOT_TIE_MS = 200;
 const TIE_KMH = 1;
 const TIE_RETENTION = 0.02;
 
-const nf = (value: number, digits: number) =>
-  value.toLocaleString("pt-PT", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-const signed = (value: number, digits: number) =>
-  `${value > 0 ? "+" : value < 0 ? "−" : ""}${nf(Math.abs(value), digits)}`;
+/** A difference with its sign, in the reader's decimal mark. */
+const signed = (value: number, digits: number, locale: Locale) =>
+  `${value > 0 ? "+" : value < 0 ? "−" : ""}${proNumber(Math.abs(value), locale, digits)}`;
 
 type Tone = "better" | "worse" | "neutral" | "tie";
 
+/** The figures' labels live in the dictionary (`snapshots.columns`),
+ * keyed like the columns; a column names its label by that key. */
+type ColumnLabelKey = keyof ProDictionary["snapshots"]["columns"];
+
 export interface Column {
   key: string;
-  label: string;
+  label: ColumnLabelKey;
   unit?: string;
   /** Needs a speed, and so is only compared between passes whose speed
    * was read the same way. */
@@ -172,7 +175,7 @@ export interface Column {
 
 const TIME: Column = {
   key: "time",
-  label: "Tempo",
+  label: "time",
   unit: "s",
   value: (m) => m.durationMs / 1000,
   digits: 1,
@@ -181,7 +184,7 @@ const TIME: Column = {
 };
 const ENTRY: Column = {
   key: "entry",
-  label: "Entrada",
+  label: "entry",
   unit: "km/h",
   speed: true,
   value: (m) => m.entryKmh,
@@ -190,7 +193,7 @@ const ENTRY: Column = {
 };
 const MIN: Column = {
   key: "min",
-  label: "Mínima",
+  label: "min",
   unit: "km/h",
   speed: true,
   value: (m) => m.minKmh,
@@ -200,7 +203,7 @@ const MIN: Column = {
 };
 const EXIT: Column = {
   key: "exit",
-  label: "Saída",
+  label: "exit",
   unit: "km/h",
   speed: true,
   value: (m) => m.exitKmh,
@@ -209,7 +212,7 @@ const EXIT: Column = {
 };
 const RETENTION: Column = {
   key: "retention",
-  label: "Retenção",
+  label: "retention",
   unit: "%",
   speed: true,
   value: (m) => (m.retention == null ? null : 100 * m.retention),
@@ -219,7 +222,7 @@ const RETENTION: Column = {
 };
 const RETENTION_CORRECTED: Column = {
   key: "retentionCorrected",
-  label: "Ret. corrigida",
+  label: "retentionCorrected",
   unit: "%",
   speed: true,
   value: (m) =>
@@ -232,7 +235,7 @@ const RETENTION_CORRECTED: Column = {
  * request, 2026-09-14: one unit for one thing across the lab). */
 const DECEL: Column = {
   key: "decel",
-  label: "Travagem máx",
+  label: "decel",
   unit: "G",
   speed: true,
   value: (m) => (m.maxDecelMps2 == null ? null : m.maxDecelMps2 / 9.81),
@@ -242,7 +245,7 @@ const DECEL: Column = {
 /** What a brake took off: the entry speed less the exit speed. */
 const SPEED_LOST: Column = {
   key: "speedLost",
-  label: "Vel. perdida",
+  label: "speedLost",
   unit: "km/h",
   speed: true,
   value: (m) =>
@@ -253,7 +256,7 @@ const SPEED_LOST: Column = {
 /** The speed off the lip — what a jump carried into the air. */
 const TAKEOFF: Column = {
   key: "takeoff",
-  label: "Descolagem",
+  label: "takeoff",
   unit: "km/h",
   speed: true,
   value: (m) => m.takeoffKmh,
@@ -262,14 +265,14 @@ const TAKEOFF: Column = {
 };
 const IMPACTS: Column = {
   key: "impacts",
-  label: "Impactos",
+  label: "impacts",
   value: (m) => m.impacts,
   digits: 0,
   tie: 0,
 };
 const PEAK_G: Column = {
   key: "peakG",
-  label: "G máx",
+  label: "peakG",
   unit: "G",
   value: (m) => m.peakG,
   digits: 1,
@@ -277,7 +280,7 @@ const PEAK_G: Column = {
 };
 const AIRTIME: Column = {
   key: "airtime",
-  label: "No ar",
+  label: "airtime",
   unit: "s",
   value: (m) => m.airtimeMs / 1000,
   digits: 2,
@@ -323,11 +326,13 @@ export type ImuSnapshotSessionLoader = (
 
 async function downloadSnapshotSession(
   c: ImuSnapshotCandidate,
+  locale: Locale,
 ): ReturnType<ImuSnapshotSessionLoader> {
   const result = await loadImuSession(
     c.storagePath,
     c.mountOrientation,
     c.trim,
+    locale,
   );
   return result.data === null
     ? { data: null, error: result.error }
@@ -339,7 +344,7 @@ export function ImuSnapshotView({
   candidates,
   fromSessionId,
   draft = false,
-  loadSession = downloadSnapshotSession,
+  loadSession,
 }: {
   snapshot: ImuSnapshotRow;
   candidates: ImuSnapshotCandidate[];
@@ -352,6 +357,15 @@ export function ImuSnapshotView({
   draft?: boolean;
   loadSession?: ImuSnapshotSessionLoader;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
+  // Without a loader of its own (the analysis page lends its cache), the
+  // view downloads each session itself, with the errors in the reader's
+  // language.
+  const load = useMemo<ImuSnapshotSessionLoader>(
+    () => loadSession ?? ((c) => downloadSnapshotSession(c, locale)),
+    [loadSession, locale],
+  );
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(candidates.map((c) => [c.id, { status: "loading" }])),
   );
@@ -426,7 +440,7 @@ export function ImuSnapshotView({
     let cancelled = false;
     for (const c of candidates) {
       (async () => {
-        const result = await loadSession(c);
+        const result = await load(c);
         if (cancelled) return;
         let next: Loaded;
         if (result.data === null)
@@ -450,7 +464,7 @@ export function ImuSnapshotView({
     return () => {
       cancelled = true;
     };
-  }, [candidates, snapshot.definition, loadSession]);
+  }, [candidates, snapshot.definition, load]);
 
   const pending = [...loaded.values()].filter(
     (l) => l.status === "loading",
@@ -531,6 +545,8 @@ export function ImuSnapshotView({
     summary: setupSummary(
       rows.find((r) => r.session.setup && setupKey(r.session.setup) === key)!
         .session.setup!,
+      {},
+      locale,
     ),
   }));
   const unsetCount = rows.filter((r) => !r.session.setup).length;
@@ -597,8 +613,8 @@ export function ImuSnapshotView({
           <div className="min-w-0 pr-10 sm:pr-0">
             <SnapshotKindMark kind={snapshot.definition.kind} />
             <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-              {draft ? "Comparação" : "Snapshot"} ·{" "}
-              {SNAPSHOT_KIND_LABEL[snapshot.definition.kind]}
+              {draft ? t.snapshots.view.comparison : "Snapshot"} ·{" "}
+              {snapshotKindLabel(snapshot.definition.kind, locale)}
             </p>
             <h1 className="mt-0.5 font-display text-2xl font-semibold">
               {snapshot.name}
@@ -606,20 +622,28 @@ export function ImuSnapshotView({
             <p className="mt-1.5 text-sm text-muted-foreground">
               {referenceSession ? (
                 <>
-                  Referência:{" "}
+                  {t.snapshots.view.referenceLabel}{" "}
                   <Link
                     href={`/pro/sessoes/${referenceSession.id}`}
                     className="text-foreground underline-offset-2 hover:underline"
                   >
                     {referenceSession.name}
                   </Link>{" "}
-                  aos {formatSessionTime(snapshot.referenceEntryMs)} ·{" "}
+                  {t.snapshots.view.atTime(
+                    formatSessionTime(snapshot.referenceEntryMs),
+                  )}{" "}
+                  ·{" "}
                 </>
               ) : (
-                "A sessão de referência foi apagada · "
+                `${t.snapshots.view.referenceDeleted} · `
               )}
-              {!draft && <>criado a {formatDate(snapshot.createdAt)} · </>}
-              portas a {SNAPSHOT_GATE_OFFSET_M} m do evento
+              {!draft && (
+                <>
+                  {t.common.createdOn(formatDate(snapshot.createdAt, locale))}{" "}
+                  ·{" "}
+                </>
+              )}
+              {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
             </p>
           </div>
           {/* A fixed picture of the stretch (by request, 2026-09-10) — a
@@ -648,11 +672,11 @@ export function ImuSnapshotView({
             <NativeSelect
               wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
               className="h-11 bg-card text-sm"
-              aria-label="Bicicleta"
+              aria-label={t.snapshots.view.filters.bike}
               value={bikeFilter}
               onChange={(e) => setBikeFilter(e.target.value)}
             >
-              <option value="">Todas as bicicletas</option>
+              <option value="">{t.snapshots.view.filters.allBikes}</option>
               {bikes.map((b) => (
                 <option key={b.bikeId!} value={b.bikeId!}>
                   {b.bikeName}
@@ -664,11 +688,11 @@ export function ImuSnapshotView({
             <NativeSelect
               wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
               className="h-11 bg-card text-sm"
-              aria-label="Rider"
+              aria-label={t.snapshots.view.filters.rider}
               value={riderFilter}
               onChange={(e) => setRiderFilter(e.target.value)}
             >
-              <option value="">Todos os riders</option>
+              <option value="">{t.snapshots.view.filters.allRiders}</option>
               {riders.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -680,33 +704,39 @@ export function ImuSnapshotView({
             <NativeSelect
               wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
               className="h-11 bg-card text-sm"
-              aria-label="Afinação"
+              aria-label={t.snapshots.view.filters.setup}
               value={setupFilter}
               onChange={(e) => setSetupFilter(e.target.value)}
             >
-              <option value="">Todas as afinações</option>
+              <option value="">{t.snapshots.view.filters.allSetups}</option>
               {setupGroups.map((g) => (
                 <option key={g.letter} value={g.letter}>
-                  Afinação {g.letter}
+                  {t.snapshots.view.setupLetter(g.letter)}
                   {g.summary && ` · ${g.summary}`}
                 </option>
               ))}
-              {unsetCount > 0 && <option value="none">Sem afinação</option>}
+              {unsetCount > 0 && (
+                <option value="none">{t.snapshots.view.filters.noSetup}</option>
+              )}
             </NativeSelect>
           )}
           <NativeSelect
             wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
             className="h-11 bg-card text-sm"
-            aria-label="Ordem"
+            aria-label={t.snapshots.view.filters.order}
             value={sort}
             onChange={(e) =>
               setSort(e.target.value as "date" | "time" | "setup")
             }
           >
-            <option value="date">Mais recentes primeiro</option>
-            <option value="time">Mais rápidas primeiro</option>
+            <option value="date">{t.snapshots.view.filters.newestFirst}</option>
+            <option value="time">
+              {t.snapshots.view.filters.fastestFirst}
+            </option>
             {setupGroups.length > 0 && (
-              <option value="setup">Agrupadas por afinação</option>
+              <option value="setup">
+                {t.snapshots.view.filters.groupedBySetup}
+              </option>
             )}
           </NativeSelect>
         </div>
@@ -714,8 +744,10 @@ export function ImuSnapshotView({
 
       {pending > 0 && (
         <p className="text-sm text-muted-foreground" aria-live="polite">
-          A ler {candidates.length - pending + 1} de {candidates.length}{" "}
-          {candidates.length === 1 ? "sessão" : "sessões"}…
+          {t.snapshots.view.reading(
+            candidates.length - pending + 1,
+            candidates.length,
+          )}
         </p>
       )}
       {failed.map((c) => (
@@ -725,8 +757,7 @@ export function ImuSnapshotView({
       ))}
       {referenceLost && (
         <p className="text-sm text-muted-foreground">
-          A passagem de referência já não existe; a mais antiga fica no seu
-          lugar.
+          {t.snapshots.view.referenceLost}
         </p>
       )}
 
@@ -767,14 +798,14 @@ export function ImuSnapshotView({
         ))}
         {pending === 0 && rows.length === 0 && (
           <p className="px-5 py-6 text-sm text-muted-foreground sm:px-6">
-            Nenhuma sessão passa por estas portas.
+            {t.snapshots.view.noSessions}
           </p>
         )}
         {pending === 0 && rows.length > 0 && others.length === 0 && (
           <p className="border-t border-border px-5 py-5 text-sm text-muted-foreground sm:px-6">
             {rows.length === 1
-              ? "Só a passagem de referência, por enquanto. As sessões que importares por aqui entram sozinhas."
-              : "Nenhuma outra passagem com estes filtros."}
+              ? t.snapshots.view.onlyReference
+              : t.snapshots.view.noOtherWithFilters}
           </p>
         )}
       </div>
@@ -793,7 +824,7 @@ function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
 }
 
 /** A Snapshot page has no bike at hand to name the dampers after; the
- * setup's popover says "Garfo" and "Amortecedor" and nothing more. */
+ * setup's popover says "Fork" and "Shock" and nothing more. */
 const NO_DAMPER_NAMES = { fork: null, shock: null };
 
 /** The speeds that read as one movement — in, the slowest, out — and so
@@ -859,6 +890,8 @@ export function SnapshotPassLine({
   /** Whether the band is showing. */
   focusBandOn?: boolean;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const { session, metrics } = row;
   const sameSpeed =
     reference != null && reference.metrics.speedSource === metrics.speedSource;
@@ -867,9 +900,9 @@ export function SnapshotPassLine({
   // silent row never means "unknown".
   const setupChanges =
     reference?.session.setup && session.setup
-      ? setupDiff(reference.session.setup, session.setup)
+      ? setupDiff(reference.session.setup, session.setup, locale)
       : [];
-  const setupTitle = setupLetter ? `Afinação ${setupLetter}` : "Afinação";
+  const setupTitle = t.snapshots.view.setupLetter(setupLetter);
   // A figure cell's part in the hover isolation: faded when another
   // column has the mouse, tinted when it has it and there is no band.
   const focusClass = (colKey: string) =>
@@ -898,12 +931,15 @@ export function SnapshotPassLine({
               on the analysis plot — by request, 2026-09-14. */}
           <p
             className="text-sm text-muted-foreground tabular-nums"
-            title="O dia da gravação e quando atravessou a porta de entrada e a de saída, no relógio da sessão"
+            title={t.snapshots.view.dayAndGatesTitle}
           >
-            {formatDate(session.createdAt)} ·{" "}
-            {row.count > 1 && `passagem ${row.index} de ${row.count} · `}
-            entre {formatSessionTime(row.pass.entryMs)} e{" "}
-            {formatSessionTime(row.pass.exitMs)}
+            {formatDate(session.createdAt, locale)} ·{" "}
+            {row.count > 1 &&
+              `${t.snapshots.view.passOf(row.index, row.count)} · `}
+            {t.snapshots.view.between(
+              formatSessionTime(row.pass.entryMs),
+              formatSessionTime(row.pass.exitMs),
+            )}
           </p>
           {/* Who rode it and on what, right under the day and the gates'
               times — the group was dropped (by request, 2026-09-14). */}
@@ -917,12 +953,12 @@ export function SnapshotPassLine({
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             {pinned && (
               <span className="rounded-full border border-foreground bg-foreground px-2 py-0.5 font-medium text-background">
-                Referência
+                {t.snapshots.view.referencePill}
               </span>
             )}
             {metrics.stopped && (
               <span className="rounded-full border border-transparent bg-[#FFEEBE] px-2 py-0.5 font-medium text-[#5b4a00] dark:bg-[#FFEEBE]/15 dark:text-[#F7E4AA]">
-                parou
+                {t.snapshots.view.stopped}
               </span>
             )}
             {session.setup ? (
@@ -932,7 +968,7 @@ export function SnapshotPassLine({
               // this is read on a phone too.
               <Popover>
                 <PopoverTrigger
-                  aria-label={`${setupTitle} completa`}
+                  aria-label={t.snapshots.view.setupFull(setupTitle)}
                   className="cursor-pointer rounded-full border border-foreground bg-foreground px-2 py-0.5 font-medium text-background outline-none transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {setupTitle}
@@ -948,7 +984,7 @@ export function SnapshotPassLine({
               </Popover>
             ) : (
               <span className="text-muted-foreground">
-                Sem afinação registada
+                {t.snapshots.view.noSetupRecorded}
               </span>
             )}
             {setupChanges.map((change) => (
@@ -956,14 +992,14 @@ export function SnapshotPassLine({
                 key={change.label}
                 className="rounded-full border border-foreground bg-card px-2 py-0.5 font-medium text-foreground tabular-nums"
               >
-                {formatSetupChange(change)}
+                {formatSetupChange(change, locale)}
               </span>
             ))}
             {reference?.session.setup &&
               session.setup &&
               setupChanges.length === 0 && (
                 <span className="text-muted-foreground">
-                  igual à referência
+                  {t.snapshots.view.sameAsReference}
                 </span>
               )}
           </div>
@@ -1048,11 +1084,11 @@ export function SnapshotPassLine({
           </div>
           {reference != null && !sameSpeed && (
             <p className="relative z-10 mt-2 text-xs text-muted-foreground">
-              Velocidade lida de outra forma (
-              {metrics.speedSource === "gps"
-                ? "GPS em linha reta"
-                : "fundida com o acelerómetro"}
-              ) — as velocidades não se comparam com a referência.
+              {t.snapshots.view.speedOtherWay(
+                metrics.speedSource === "gps"
+                  ? t.snapshots.view.speedSourceGps
+                  : t.snapshots.view.speedSourceFused,
+              )}
             </p>
           )}
         </div>
@@ -1081,6 +1117,8 @@ function PassStat({
   reference: SnapshotPassRow | null;
   sameSpeed: boolean;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const value = column.value(row.metrics);
   const refValue = reference ? column.value(reference.metrics) : null;
   const comparable =
@@ -1093,10 +1131,10 @@ function PassStat({
   return (
     <div className="relative z-10 flex min-w-0 flex-col items-center text-center">
       <p className="text-xs leading-tight whitespace-nowrap text-foreground">
-        {column.label}
+        {t.snapshots.columns[column.label]}
       </p>
       <p className="text-base leading-tight font-semibold whitespace-nowrap tabular-nums">
-        {value == null ? "—" : nf(value, column.digits)}
+        {value == null ? "—" : proNumber(value, locale, column.digits)}
         {value != null && column.unit && (
           <span className="ml-1 text-sm font-normal text-foreground">
             {column.unit}
@@ -1105,11 +1143,7 @@ function PassStat({
       </p>
       {diff != null && tone && (
         <span
-          title={
-            tone === "tie"
-              ? "Dentro da precisão das portas — conta como empate"
-              : undefined
-          }
+          title={tone === "tie" ? t.snapshots.view.tieTitle : undefined}
           className={cn(
             "mt-1.5 rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums",
             tone === "better" && "bg-foreground text-primary",
@@ -1118,7 +1152,7 @@ function PassStat({
               "bg-transparent text-foreground",
           )}
         >
-          {tone === "tie" ? "≈" : signed(diff, column.digits)}
+          {tone === "tie" ? "≈" : signed(diff, column.digits, locale)}
         </span>
       )}
     </div>
@@ -1150,6 +1184,7 @@ function SnapshotSettings({
   afterDeleteHref: string;
 }) {
   const router = useRouter();
+  const t = useProDict();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
@@ -1183,17 +1218,16 @@ function SnapshotSettings({
       }}
     >
       <DialogTrigger
-        aria-label="Definições do Snapshot"
+        aria-label={t.snapshots.view.settings.title}
         className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Ellipsis className="size-5" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Definições do Snapshot</DialogTitle>
+          <DialogTitle>{t.snapshots.view.settings.title}</DialogTitle>
           <DialogDescription className="mt-1">
-            O nome. As portas e a passagem de referência ficam como foram
-            criadas.
+            {t.snapshots.view.settings.description}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -1204,7 +1238,9 @@ function SnapshotSettings({
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="snapshot-rename">Nome</Label>
+            <Label htmlFor="snapshot-rename">
+              {t.snapshots.view.settings.name}
+            </Label>
             <Input
               id="snapshot-rename"
               value={draft}
@@ -1218,7 +1254,7 @@ function SnapshotSettings({
             variant="inverted"
             disabled={busy || !draft.trim() || draft.trim() === name}
           >
-            {busy ? "A guardar…" : "Guardar"}
+            {busy ? t.common.saving : t.common.save}
           </Button>
         </form>
         <div className="border-t border-border pt-4">
@@ -1231,14 +1267,14 @@ function SnapshotSettings({
               }
               router.push(afterDeleteHref);
             }}
-            title="Apagar este Snapshot?"
-            description="As portas deixam de existir. As sessões e as suas gravações ficam como estão."
-            confirmLabel="Apagar"
-            cancelLabel="Cancelar"
+            title={t.snapshots.view.settings.deleteTitle}
+            description={t.snapshots.view.settings.deleteDescription}
+            confirmLabel={t.common.delete}
+            cancelLabel={t.common.cancel}
             triggerContent={
               <>
                 <Trash2 className="size-4" />
-                Apagar Snapshot
+                {t.snapshots.view.settings.deleteSnapshot}
               </>
             }
           />

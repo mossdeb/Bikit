@@ -2,9 +2,13 @@
  * What the bike calls the parts a setup is about — its fork and shock by
  * brand and model, its tyres front and rear — from the components the
  * rider registered on it. The setup form heads its blocks with them, and
- * a page that shows a setup says "Fox 38" instead of "Garfo". Null where
- * the bike has none registered. Shared by the analysis page and the
- * report (2026-09-14), which both open the setup form.
+ * a page that shows a setup says "Fox 38" instead of "Garfo" or "Fork".
+ * Null where the bike has none registered. Shared by the analysis page
+ * and the report (2026-09-14), which both open the setup form.
+ *
+ * Nothing here is shown to the reader, so nothing is translated: the
+ * names are the rider's own, and the front/rear test below reads them in
+ * whichever language they were typed in — English and Portuguese both.
  */
 export interface SetupComponentRow {
   category: string | null;

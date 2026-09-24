@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
   createImuSnapshot,
   listImuSnapshotCandidates,
@@ -32,7 +33,7 @@ import {
   createSnapshot,
   findSnapshotTwins,
   SNAPSHOT_GATE_OFFSET_M,
-  SNAPSHOT_KIND_LABEL,
+  snapshotKindLabel,
   snapshotKindOf,
   type SnapshotDefinition,
   type SnapshotSession,
@@ -63,7 +64,7 @@ export interface ImuSnapshotTwin {
  * of opening this.
  *
  * A Snapshot already standing on the same gates (findSnapshotTwins) turns
- * the foot into "open it", with "guardar outro" a click away — two
+ * the foot into "open it", with "save another" a click away — two
  * Snapshots of one corner with different references are a legitimate
  * thing to want. Saving stays here: the reader came to look at a corner
  * and keeps their place in the analysis; the saved page is a link away.
@@ -86,6 +87,8 @@ export function ImuSnapshotCreate({
   loadSession: ImuSnapshotSessionLoader;
 }) {
   const router = useRouter();
+  const t = useProDict();
+  const locale = useProLocale();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -107,9 +110,11 @@ export function ImuSnapshotCreate({
     () => (made ? findSnapshotTwins(made.definition, existing) : []),
     [made, existing],
   );
+  // The suggested name is in the reader's language: it is what gets saved
+  // when the field is left blank, and a name is the reader's own text.
   const suggested =
     kind && made
-      ? `${SNAPSHOT_KIND_LABEL[kind]} · ${formatSessionTime(made.reference.entryMs)}`
+      ? `${snapshotKindLabel(kind, locale)} · ${formatSessionTime(made.reference.entryMs)}`
       : "";
   // The row the view reads, for gates that have no row: stable while the
   // gates are, because the view re-reads every file when it changes.
@@ -187,7 +192,7 @@ export function ImuSnapshotCreate({
       }}
     >
       <DialogTrigger
-        title="Comparar todas as passagens por este troço"
+        title={t.snapshots.create.compareTitle}
         // The report door's pill, on the event's card: outlined, the mark
         // and the word (the supplied layout, 2026-09-10) — a control, not a
         // figure, so it wears the page's outline and not a tile's rules.
@@ -197,7 +202,7 @@ export function ImuSnapshotCreate({
         )}
       >
         <ArrowLeftRight className="size-5" strokeWidth={1.75} aria-hidden />
-        Comparar
+        {t.snapshots.create.compare}
       </DialogTrigger>
       <DialogContent
         // Nearly the whole window (by request, 2026-09-20): the comparison
@@ -210,17 +215,14 @@ export function ImuSnapshotCreate({
       >
         <div className="min-h-0 overflow-y-auto overscroll-contain px-[15px] pt-12 pb-6 sm:px-6">
           <DialogTitle className="sr-only">
-            Comparar as passagens por este troço
+            {t.snapshots.create.dialogTitle}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Todas as passagens pelas duas portas deste troço, nesta sessão e nas
-            outras, lado a lado.
+            {t.snapshots.create.dialogDescription}
           </DialogDescription>
           {!made ? (
             <p className="mx-auto max-w-md pt-10 text-center text-sm text-destructive">
-              Não dá para comparar este evento: precisa de trilho GPS uns{" "}
-              {SNAPSHOT_GATE_OFFSET_M} m para cada lado, e a gravação não os tem
-              aqui.
+              {t.snapshots.create.cannotCompare(SNAPSHOT_GATE_OFFSET_M)}
             </p>
           ) : draftRow && candidates ? (
             <ImuSnapshotView
@@ -236,7 +238,7 @@ export function ImuSnapshotCreate({
                 className="pt-10 text-center text-sm text-muted-foreground"
                 aria-live="polite"
               >
-                A procurar as sessões que passam por aqui…
+                {t.snapshots.create.searching}
               </p>
             )
           )}
@@ -257,35 +259,35 @@ export function ImuSnapshotCreate({
               )}
               {savedId ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm">
-                    Guardado como Snapshot. As sessões que importares depois
-                    entram sozinhas.
-                  </p>
+                  <p className="text-sm">{t.snapshots.create.saved}</p>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() =>
-                      router.push(`/pro/sessoes/${sessionId}/snapshots/${savedId}`)
+                      router.push(
+                        `/pro/sessoes/${sessionId}/snapshots/${savedId}`,
+                      )
                     }
                   >
-                    Abrir o Snapshot
+                    {t.snapshots.create.openSnapshot}
                   </Button>
                 </div>
               ) : twin && !another ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="min-w-0 text-sm">
-                    Este troço já está guardado:{" "}
+                    {t.snapshots.create.alreadySaved}{" "}
                     <span className="font-medium">{twin.name}</span>
                     {twin.referenceSessionName && (
                       <span className="text-muted-foreground">
                         {" "}
-                        · feito de {twin.referenceSessionName}
+                        ·{" "}
+                        {t.snapshots.create.madeFrom(twin.referenceSessionName)}
                       </span>
                     )}
                     {twins.length > 1 && (
                       <span className="text-muted-foreground">
                         {" "}
-                        · e mais {twins.length - 1}
+                        · {t.snapshots.create.andMore(twins.length - 1)}
                       </span>
                     )}
                   </p>
@@ -295,7 +297,7 @@ export function ImuSnapshotCreate({
                       variant="outline"
                       onClick={() => setAnother(true)}
                     >
-                      Guardar outro
+                      {t.snapshots.create.saveAnother}
                     </Button>
                     <Button
                       type="button"
@@ -306,7 +308,7 @@ export function ImuSnapshotCreate({
                         )
                       }
                     >
-                      Abrir
+                      {t.snapshots.create.open}
                     </Button>
                   </div>
                 </div>
@@ -320,7 +322,7 @@ export function ImuSnapshotCreate({
                 >
                   <div className="min-w-[200px] flex-1 space-y-1 sm:w-[300px] sm:min-w-0 sm:flex-none">
                     <Label htmlFor="snapshot-name" className="text-xs">
-                      Guardar este troço como Snapshot
+                      {t.snapshots.create.saveAsSnapshot}
                     </Label>
                     <Input
                       id="snapshot-name"
@@ -331,7 +333,7 @@ export function ImuSnapshotCreate({
                   </div>
                   <Button type="submit" variant="inverted" disabled={busy}>
                     <ImuSnapshotGlyph className="size-4" sizePx={16} />
-                    {busy ? "A guardar…" : "Snapshot"}
+                    {busy ? t.common.saving : "Snapshot"}
                   </Button>
                 </form>
               )}

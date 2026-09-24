@@ -5,6 +5,8 @@
  * group.
  */
 
+import type { Locale } from "@/lib/i18n";
+
 export interface ImuGroupOption {
   id: string;
   name: string;
@@ -30,16 +32,21 @@ export function localDay(now = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-/** "2026-09-06" → "6.9.26": the short form the group header uses, no
- * zero padding, because the header is a label and not a table column. */
-export function formatGroupDay(day: string): string {
+/** "2026-09-06" → "6.9.26" in Portuguese, "9/6/26" in English: the short
+ * form the group header uses, no zero padding, because the header is a
+ * label and not a table column. Numeric in both languages, but each
+ * language's own order and separator — "6.9.26" reads as June the 9th to
+ * an English eye, so the English side takes the month-first form its
+ * number locale (en-US) writes. */
+export function formatGroupDay(day: string, locale: Locale): string {
   const [y, m, d] = day.split("-").map(Number);
   if (!y || !m || !d) return day;
-  return `${d}.${m}.${String(y).slice(-2)}`;
+  const yy = String(y).slice(-2);
+  return locale === "pt" ? `${d}.${m}.${yy}` : `${m}/${d}/${yy}`;
 }
 
-export function groupLabel(group: ImuGroupOption): string {
-  return `${group.name} · ${formatGroupDay(group.day)}`;
+export function groupLabel(group: ImuGroupOption, locale: Locale): string {
+  return `${group.name} · ${formatGroupDay(group.day, locale)}`;
 }
 
 /**

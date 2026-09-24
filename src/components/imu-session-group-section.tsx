@@ -6,6 +6,7 @@ import { ChevronUp, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible } from "@/components/collapsible";
 import { ConfirmActionButton } from "@/components/delete-confirm-button";
+import { useProDict } from "@/components/pro-locale";
 import { deleteImuSessionGroup } from "@/lib/actions/imu";
 
 /**
@@ -42,8 +43,8 @@ function writeOpen(key: string, open: boolean) {
 }
 
 /**
- * One group of the sessions list: a header that names the outing — "Grupo ·
- * Fonte Ferrea · 6.9.26" — with the cards folded under it. The fold is the
+ * One group of the sessions list: a header that names the outing — "Group ·
+ * Fonte Ferrea · 9/6/26" — with the cards folded under it. The fold is the
  * whole point: a list of forty recordings across eight outings is eight
  * lines, and the one you came for opens.
  *
@@ -72,6 +73,7 @@ export function ImuSessionGroupSection({
     () => true,
   );
   const router = useRouter();
+  const t = useProDict();
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -107,11 +109,13 @@ export function ImuSessionGroupSection({
         </button>
         {deletableGroup && count === 0 && (
           <ConfirmActionButton
-            title="Apagar grupo?"
-            description={`"${deletableGroup.name}" não tem sessões. O grupo deixa de existir.`}
-            confirmLabel="Apagar"
-            cancelLabel="Cancelar"
-            triggerAriaLabel={`Apagar o grupo ${deletableGroup.name}`}
+            title={t.sessions.group.deleteTitle}
+            description={t.sessions.group.deleteDescription(
+              deletableGroup.name,
+            )}
+            confirmLabel={t.common.delete}
+            cancelLabel={t.common.cancel}
+            triggerAriaLabel={t.sessions.group.deleteAria(deletableGroup.name)}
             triggerClassName="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
             triggerContent={<Trash2 className="size-4" />}
             action={async () => {
@@ -125,7 +129,7 @@ export function ImuSessionGroupSection({
       {error && <p className="text-sm text-destructive">{error}</p>}
       {count === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-5 py-6 text-center text-sm text-muted-foreground">
-          Sem sessões neste grupo.
+          {t.sessions.group.empty}
         </p>
       ) : (
         <Collapsible show={open}>

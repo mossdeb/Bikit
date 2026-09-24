@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ConfirmActionButton } from "@/components/delete-confirm-button";
+import { useProDict } from "@/components/pro-locale";
 import {
   ImuSessionDetailsFields,
   type BikeOption,
@@ -65,6 +66,7 @@ export function ImuSessionSettings({
   riders: string[];
 }) {
   const router = useRouter();
+  const t = useProDict();
   const [open, setOpen] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftRider, setDraftRider] = useState(riderName ?? "");
@@ -102,12 +104,16 @@ export function ImuSessionSettings({
     setDownloading(false);
     if (downloadFailure || !data) {
       setDownloadError(
-        `Não foi possível obter o ficheiro: ${downloadFailure?.message ?? "sem resposta do Storage"}.`,
+        t.sessions.settings.downloadFailed(
+          downloadFailure?.message ?? t.sessions.settings.noStorageResponse,
+        ),
       );
       return;
     }
     // The session's name as the file name, minus what a file system rejects.
-    const safeName = name.replace(/[\\/:*?"<>|]+/g, "_").trim() || "sessao";
+    const safeName =
+      name.replace(/[\\/:*?"<>|]+/g, "_").trim() ||
+      t.sessions.settings.fileFallbackName;
     const url = URL.createObjectURL(data);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -159,18 +165,16 @@ export function ImuSessionSettings({
       }}
     >
       <DialogTrigger
-        aria-label="Definições da sessão"
+        aria-label={t.sessions.settings.title}
         className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Ellipsis className="size-5" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Definições da sessão</DialogTitle>
+          <DialogTitle>{t.sessions.settings.title}</DialogTitle>
           <DialogDescription className="mt-1">
-            O nome, quem pedalou, que bicicleta levou o sensor e a que grupo
-            pertence. A gravação em si não muda, e pode ser descarregada tal
-            como foi guardada.
+            {t.sessions.settings.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +213,7 @@ export function ImuSessionSettings({
             variant="inverted"
             disabled={busy || !dirty || !valid}
           >
-            {busy ? "A guardar…" : "Guardar"}
+            {busy ? t.common.saving : t.common.save}
           </Button>
         </form>
 
@@ -227,8 +231,8 @@ export function ImuSessionSettings({
           >
             <Download className="size-4" />
             {downloading
-              ? "A preparar…"
-              : `Descarregar ficheiro (${fileExtension.toUpperCase()})`}
+              ? t.sessions.settings.preparing
+              : t.sessions.settings.download(fileExtension.toUpperCase())}
           </button>
           {downloadError && (
             <p className="mt-2 text-center text-sm text-destructive">
@@ -242,16 +246,16 @@ export function ImuSessionSettings({
             list is where to land. */}
         <div className="border-t border-border pt-4">
           <ConfirmActionButton
-            title="Apagar sessão?"
-            description={`"${name}" e o ficheiro original deixam de existir. Não há forma de os repor.`}
-            confirmLabel="Apagar"
-            cancelLabel="Cancelar"
-            triggerAriaLabel={`Apagar a sessão ${name}`}
+            title={t.sessions.deleteSession.title}
+            description={t.sessions.deleteSession.description(name)}
+            confirmLabel={t.common.delete}
+            cancelLabel={t.common.cancel}
+            triggerAriaLabel={t.sessions.deleteSession.aria(name)}
             triggerClassName="flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
             triggerContent={
               <>
                 <Trash2 className="size-4" />
-                Apagar sessão
+                {t.sessions.deleteSession.trigger}
               </>
             }
             action={async () => {

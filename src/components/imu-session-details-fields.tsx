@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { NEW_GROUP, groupLabel, type ImuGroupOption } from "@/lib/imu/groups";
 import { NEW_BIKE } from "@/lib/imu/bike-ref";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 
 export interface BikeOption {
   id: string;
@@ -43,11 +44,13 @@ export function riderOptions(
  * The rider is prefilled with the account's name; left empty, the server
  * writes that same name back, so a blank field never costs a session its
  * rider. With `riders` given — the names the account's sessions were
- * ridden by — the field is a list of them with "Novo rider…" at the end,
+ * ridden by — the field is a list of them with "New rider…" at the end,
  * which opens a name field, the group select's own shape (by request,
  * 2026-09-24); without, a plain text field.
  *
- * The group fields render only when `groups` is given.
+ * The group fields render only when `groups` is given. The labels come
+ * from the Pro dictionary (`importing.fields`), read off the provider the
+ * Pro layout mounts — the three callers pass no strings.
  */
 export function ImuSessionDetailsFields({
   idPrefix,
@@ -91,10 +94,12 @@ export function ImuSessionDetailsFields({
   newGroupName?: string;
   onNewGroupNameChange?: (value: string) => void;
 }) {
+  const t = useProDict().importing.fields;
+  const locale = useProLocale();
   return (
     <>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-name`}>Nome</Label>
+        <Label htmlFor={`${idPrefix}-name`}>{t.name}</Label>
         <Input
           id={`${idPrefix}-name`}
           value={name}
@@ -102,7 +107,7 @@ export function ImuSessionDetailsFields({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-rider`}>Rider</Label>
+        <Label htmlFor={`${idPrefix}-rider`}>{t.rider}</Label>
         {riders ? (
           <RiderPicker
             id={`${idPrefix}-rider`}
@@ -120,13 +125,13 @@ export function ImuSessionDetailsFields({
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-bike`}>Bicicleta (opcional)</Label>
+        <Label htmlFor={`${idPrefix}-bike`}>{t.bike}</Label>
         <NativeSelect
           id={`${idPrefix}-bike`}
           value={bikeId}
           onChange={(event) => onBikeIdChange(event.target.value)}
         >
-          <option value="">Sem bicicleta</option>
+          <option value="">{t.noBike}</option>
           {bikes.map((bike) => (
             <option key={bike.id} value={bike.id}>
               {bike.name}
@@ -134,12 +139,12 @@ export function ImuSessionDetailsFields({
           ))}
           {/* A bike not registered yet, by name — created on save, the
               group's way (by request, 2026-09-24). */}
-          <option value={NEW_BIKE}>Nova bicicleta…</option>
+          <option value={NEW_BIKE}>{t.newBike}</option>
         </NativeSelect>
         {bikeId === NEW_BIKE && (
           <Input
             id={`${idPrefix}-bike-name`}
-            aria-label="Nome da nova bicicleta"
+            aria-label={t.newBikeName}
             value={newBikeName}
             onChange={(event) => onNewBikeNameChange?.(event.target.value)}
             placeholder="YT Decoy"
@@ -149,7 +154,7 @@ export function ImuSessionDetailsFields({
       </div>
       {groups && (
         <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-group`}>Grupo (opcional)</Label>
+          <Label htmlFor={`${idPrefix}-group`}>{t.group}</Label>
           {/* The day's outing this session belongs to. Existing groups
               first, newest at the top — the one from today is preselected
               by the caller — and "new" at the end, which opens a name
@@ -159,18 +164,18 @@ export function ImuSessionDetailsFields({
             value={groupId}
             onChange={(event) => onGroupIdChange?.(event.target.value)}
           >
-            <option value="">Sem grupo</option>
+            <option value="">{t.noGroup}</option>
             {groups.map((group) => (
               <option key={group.id} value={group.id}>
-                {groupLabel(group)}
+                {groupLabel(group, locale)}
               </option>
             ))}
-            <option value={NEW_GROUP}>Novo grupo…</option>
+            <option value={NEW_GROUP}>{t.newGroup}</option>
           </NativeSelect>
           {groupId === NEW_GROUP && (
             <Input
               id={`${idPrefix}-group-name`}
-              aria-label="Nome do novo grupo"
+              aria-label={t.newGroupName}
               value={newGroupName}
               onChange={(event) => onNewGroupNameChange?.(event.target.value)}
               placeholder="Fonte Ferrea"
@@ -184,7 +189,7 @@ export function ImuSessionDetailsFields({
 }
 
 /**
- * The list of known riders with "Novo rider…" at its end. The value the
+ * The list of known riders with "New rider…" at its end. The value the
  * parent holds is the rider's NAME either way: a pick sets it to the
  * name picked, "new" clears it and opens the field, and what is typed
  * there is the name. `naming` remembers that "new" was chosen, since an
@@ -201,6 +206,7 @@ function RiderPicker({
   onRiderChange: (value: string) => void;
   options: string[];
 }) {
+  const t = useProDict().importing.fields;
   const [naming, setNaming] = useState(false);
   const known = options.includes(rider.trim());
   // A name the list does not have — a session's rider from before the
@@ -227,15 +233,15 @@ function RiderPicker({
             {name}
           </option>
         ))}
-        <option value={NEW_RIDER}>Novo rider…</option>
+        <option value={NEW_RIDER}>{t.newRider}</option>
       </NativeSelect>
       {typing && (
         <Input
           id={`${id}-name`}
-          aria-label="Nome do novo rider"
+          aria-label={t.newRiderName}
           value={rider}
           onChange={(event) => onRiderChange(event.target.value)}
-          placeholder="Nome do rider"
+          placeholder={t.riderNamePlaceholder}
           autoFocus
         />
       )}

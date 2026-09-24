@@ -1,10 +1,21 @@
 import { format, parseISO } from "date-fns";
+import { pt as datePt } from "date-fns/locale";
 import type { Locale } from "@/lib/i18n";
 
-const NUMBER_LOCALE: Record<Locale, string> = { en: "en-US", pt: "pt-PT" };
+export const NUMBER_LOCALE: Record<Locale, string> = {
+  en: "en-US",
+  pt: "pt-PT",
+};
 
-export function formatDate(dateStr: string): string {
-  return format(parseISO(dateStr), "d MMM yyyy");
+/** "6 Sep 2026", or "6 set 2026" when the reader's language is known to
+ * be Portuguese (2026-09-24, for Bikit Pro). The English default keeps
+ * the app's call sites as they were. */
+export function formatDate(dateStr: string, locale: Locale = "en"): string {
+  return format(
+    parseISO(dateStr),
+    "d MMM yyyy",
+    locale === "pt" ? { locale: datePt } : undefined,
+  );
 }
 
 /** Defaults to English for the handful of call sites with no locale in hand;
@@ -23,14 +34,19 @@ function formatNumber(n: number, locale: Locale = "en"): string {
  * between a short ride and none, whole hours above.
  */
 export function formatHours(hours: number, locale: Locale = "en"): string {
-  const rounded = Math.abs(hours) < 10 ? Math.round(hours * 10) / 10 : Math.round(hours);
+  const rounded =
+    Math.abs(hours) < 10 ? Math.round(hours * 10) / 10 : Math.round(hours);
   return `${formatNumber(rounded, locale)} h`;
 }
 
 const KM_TO_MI = 0.621371;
 
 /** Distances are always stored in km; this is display-only conversion. */
-export function formatDistance(km: number, unit: "km" | "mi", locale: Locale = "en"): string {
+export function formatDistance(
+  km: number,
+  unit: "km" | "mi",
+  locale: Locale = "en",
+): string {
   return `${formatNumber(Math.round(kmToUnit(km, unit)), locale)} ${unit}`;
 }
 
@@ -46,7 +62,10 @@ export function formatDistance(km: number, unit: "km" | "mi", locale: Locale = "
  * bike's distance have to store the very same string or each one replays the
  * same ride.
  */
-export function splitFigureUnit(text: string): { figure: string; unit: string | null } {
+export function splitFigureUnit(text: string): {
+  figure: string;
+  unit: string | null;
+} {
   const at = text.lastIndexOf(" ");
   if (at < 0) return { figure: text, unit: null };
   return { figure: text.slice(0, at), unit: text.slice(at + 1) };

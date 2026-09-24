@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
@@ -33,6 +35,8 @@ export default async function ProBikePage({
   const email = userData?.claims?.email as string | undefined;
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
+  const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  const t = getProDictionary(locale);
 
   const { data: bike } = await supabase
     .from("bikes")
@@ -92,14 +96,16 @@ export default async function ProBikePage({
               .join(" · ")}
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {setups.length} {setups.length === 1 ? "setup" : "setups"} em{" "}
-            {sessionCount} {sessionCount === 1 ? "sessão" : "sessões"}
+            {t.report.bikes.setupsInSessions(
+              t.common.setup(setups.length),
+              t.common.session(sessionCount),
+            )}
             {" · "}
             <Link
               href={`/bikes/${bike.id}`}
               className="text-foreground underline-offset-2 hover:underline"
             >
-              a bicicleta no Bikit
+              {t.report.bikes.bikeInApp}
             </Link>
           </p>
         </div>
@@ -107,8 +113,7 @@ export default async function ProBikePage({
 
       {setups.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Nenhuma sessão desta bicicleta tem afinação registada. Abre uma sessão
-          e regista o setup dela; aparece aqui.
+          {t.report.bikes.noSetups}
         </p>
       ) : (
         <ImuBikeSetups

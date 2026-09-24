@@ -12,6 +12,7 @@ import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
+import { ProLocaleProvider } from "@/components/pro-locale";
 
 /**
  * Bikit Pro's shell (2026-09-23): the same account as the app, a
@@ -41,35 +42,38 @@ export default async function ProLayout({
   if (!user) redirect("/login");
   if (!hasLabAccess(user.email as string | undefined)) notFound();
 
-  const dict = getDictionary(localeFromMetadata(user.user_metadata));
+  const locale = localeFromMetadata(user.user_metadata);
+  const dict = getDictionary(locale);
 
   return (
-    <ToastProvider>
-      <ImuLabTexture />
-      {/* `data-app-shell`: the element that paints the background, which
+    <ProLocaleProvider locale={locale}>
+      <ToastProvider>
+        <ImuLabTexture />
+        {/* `data-app-shell`: the element that paints the background, which
           the texture's rule in globals.css reaches. */}
-      <div data-app-shell className="flex min-h-dvh bg-background">
-        <ProSidebar />
-        <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-1 flex-col">
-          <AppHeader>
-            <HeaderBackButton />
-            <BikitLockup pro className="h-8 w-auto sm:hidden" />
-            <div className="hidden items-center gap-3 sm:flex">
-              <ThemeToggle />
-              <NotificationBell notifications={dict.notifications} />
-              <UserMenu
-                name={user.user_metadata?.full_name}
-                email={user.email as string}
-                common={dict.common}
-                settingsHref="/pro/definicoes"
-              />
-            </div>
-          </AppHeader>
-          <AppMain>{children}</AppMain>
+        <div data-app-shell className="flex min-h-dvh bg-background">
+          <ProSidebar />
+          <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-1 flex-col">
+            <AppHeader>
+              <HeaderBackButton />
+              <BikitLockup pro className="h-8 w-auto sm:hidden" />
+              <div className="hidden items-center gap-3 sm:flex">
+                <ThemeToggle />
+                <NotificationBell notifications={dict.notifications} />
+                <UserMenu
+                  name={user.user_metadata?.full_name}
+                  email={user.email as string}
+                  common={dict.common}
+                  settingsHref="/pro/definicoes"
+                />
+              </div>
+            </AppHeader>
+            <AppMain>{children}</AppMain>
+          </div>
+          <ProMobileNav />
         </div>
-        <ProMobileNav />
-      </div>
-      <Toaster />
-    </ToastProvider>
+        <Toaster />
+      </ToastProvider>
+    </ProLocaleProvider>
   );
 }

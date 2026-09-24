@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useProDict } from "@/components/pro-locale";
 import type { ImuSessionData } from "@/lib/imu/format";
 import { formatSessionTime, sessionSummary } from "@/lib/imu/derive";
 import { buildTrackIndex } from "@/lib/imu/snapshot";
@@ -31,7 +32,7 @@ import { setImuSessionTrim } from "@/lib/actions/imu";
  * run starts and ends on the whole recording's timeline, typed as the
  * axis shows them (mm:ss, with millis if wanted). Opens on the window the
  * plot is showing — zooming onto the run and pressing the scissors is the
- * whole gesture — and can also take a guess from the GPS ("Sugerir"), the
+ * whole gesture — and can also take a guess from the GPS ("Suggest"), the
  * longest stretch above walking pace. Both are starting points; the
  * numbers are the rider's to edit.
  *
@@ -66,6 +67,7 @@ export function ImuSessionTrimDialog({
   visibleMs: [number, number];
 }) {
   const router = useRouter();
+  const t = useProDict();
   const fullMs = whole.durationMs;
   const [startText, setStartText] = useState(() =>
     formatSessionTime(visibleMs[0], true),
@@ -108,17 +110,10 @@ export function ImuSessionTrimDialog({
   function suggest() {
     const guess = suggestTrim(whole);
     if (!guess) {
-      setNotice(
-        whole.gps
-          ? "A gravação não tem um troço em andamento longo o suficiente para sugerir."
-          : "Sem GPS não há velocidade para adivinhar onde a descida começa.",
-      );
+      setNotice(whole.gps ? t.sessions.trim.noStretch : t.sessions.trim.noGps);
       return;
     }
-    set(
-      guess,
-      "O troço mais longo acima de 3 km/h, com pausas até 10 s incluídas.",
-    );
+    set(guess, t.sessions.trim.suggested);
   }
 
   async function save(next: ImuSessionTrim | null) {
@@ -159,13 +154,10 @@ export function ImuSessionTrimDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Scissors className="size-5" />
-            Recortar a sessão
+            {t.sessions.trim.title}
           </DialogTitle>
           <DialogDescription className="mt-1">
-            Fica só o troço entre os dois instantes: a descida sem a subida a pé
-            nem o rolar até ao carro. O ficheiro não muda e o recorte pode ser
-            reposto a qualquer altura. Os tempos são os da gravação inteira, que
-            dura {formatSessionTime(fullMs)}.
+            {t.sessions.trim.description(formatSessionTime(fullMs))}
           </DialogDescription>
         </DialogHeader>
 
@@ -178,7 +170,7 @@ export function ImuSessionTrimDialog({
         >
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="trim-start">Início</Label>
+              <Label htmlFor="trim-start">{t.sessions.trim.start}</Label>
               <Input
                 id="trim-start"
                 inputMode="numeric"
@@ -193,7 +185,7 @@ export function ImuSessionTrimDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="trim-end">Fim</Label>
+              <Label htmlFor="trim-end">{t.sessions.trim.end}</Label>
               <Input
                 id="trim-end"
                 inputMode="numeric"
@@ -221,30 +213,35 @@ export function ImuSessionTrimDialog({
                 )
               }
             >
-              Janela visível
+              {t.sessions.trim.visibleWindow}
             </TrimChip>
             <TrimChip onClick={suggest}>
               <Wand2 className="size-3.5" />
-              Sugerir
+              {t.sessions.trim.suggest}
             </TrimChip>
             <TrimChip onClick={() => set({ startMs: 0, endMs: fullMs }, null)}>
-              Gravação inteira
+              {t.sessions.trim.wholeRecording}
             </TrimChip>
           </div>
 
           <p className="text-sm text-muted-foreground">
             {window == null
-              ? "Escreve os tempos como mm:ss, com o fim depois do início."
+              ? t.sessions.trim.hintFormat
               : tooShort
-                ? `O troço tem de durar pelo menos ${formatSessionTime(TRIM_MIN_MS)}.`
+                ? t.sessions.trim.tooShort(formatSessionTime(TRIM_MIN_MS))
                 : isWhole
-                  ? "A gravação inteira — o mesmo que repor o original."
-                  : `Ficam ${formatSessionTime(keptMs!)} de ${formatSessionTime(fullMs)}. O tempo passa a contar do início do recorte.`}
+                  ? t.sessions.trim.isWhole
+                  : t.sessions.trim.kept(
+                      formatSessionTime(keptMs!),
+                      formatSessionTime(fullMs),
+                    )}
             {trim && (
               <>
                 {" "}
-                Recorte atual: {formatSessionTime(trim.startMs)}–
-                {formatSessionTime(trim.endMs)}.
+                {t.sessions.trim.current(
+                  formatSessionTime(trim.startMs),
+                  formatSessionTime(trim.endMs),
+                )}
               </>
             )}
           </p>
@@ -258,7 +255,7 @@ export function ImuSessionTrimDialog({
               className="rounded-full sm:flex-1"
               disabled={busy || !valid}
             >
-              {busy ? "A guardar…" : "Recortar"}
+              {busy ? t.common.saving : t.sessions.trim.submit}
             </Button>
             {trim && (
               <Button
@@ -269,7 +266,7 @@ export function ImuSessionTrimDialog({
                 onClick={() => void save(null)}
               >
                 <Undo2 className="size-4" />
-                Repor original
+                {t.sessions.trim.restore}
               </Button>
             )}
           </div>

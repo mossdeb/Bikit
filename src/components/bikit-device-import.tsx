@@ -44,6 +44,13 @@ import {
   ImuSessionDetailsFields,
   type BikeOption,
 } from "@/components/imu-session-details-fields";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import {
+  PRO_NUMBER_LOCALE,
+  proNumber,
+  type ProDictionary,
+} from "@/lib/i18n/pro";
+import type { Locale } from "@/lib/i18n";
 
 /**
  * The device tab of the import dialog: connect to the BIKIT logger over BLE,
@@ -51,8 +58,8 @@ import {
  * flow inside the dialog, beside the file tab.
  *
  * Five steps, each its own screen in the same box:
- *   idle → connected (list) → transferring (bar + Cancelar)
- *        → ready (validated; name/rider/bike, then Importar) → saved.
+ *   idle → connected (list) → transferring (bar + Cancel)
+ *        → ready (validated; name/rider/bike, then Import) → saved.
  *
  * The transfer completing is not the ride being imported. The bytes go
  * through the same `.BKT` parser as a file picked from disk — every block's
@@ -61,7 +68,11 @@ import {
  *
  * Progress is unique bytes over the file size, never packet counts:
  * duplicates and retransmissions are normal protocol behaviour and must not
- * move the bar. The protocol's own counters stay behind "Detalhes".
+ * move the bar. The protocol's own counters stay behind "Transfer details".
+ *
+ * Every string here comes from the Pro dictionary (`importing.device`),
+ * except what the BLE layer itself throws: a BikitDeviceError's message is
+ * the protocol's own and is shown as it comes.
  */
 
 type Phase =
@@ -95,52 +106,59 @@ type Phase =
 
 const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const formatBytes = (n: number) =>
+/** The decimal separator follows the reader's language; the units do not. */
+const formatBytes = (n: number, locale: Locale) =>
   n >= 1_000_000
-    ? `${(n / 1_000_000).toFixed(2)} MB`
+    ? `${proNumber(n / 1_000_000, locale, 2)} MB`
     : n >= 1000
       ? `${Math.round(n / 1000)} KB`
       : `${n} B`;
 
 const sessionLabel = (id: number) => `S${String(id).padStart(4, "0")}`;
 
+type DeviceInfoWords = ProDictionary["importing"]["device"]["info"];
+
 /**
  * The receiver's snapshot in one line, saying only what means something in
  * that state: with a fix, satellites, HDOP, signal and age; without one, the
  * fields the firmware fills with sentinels (HDOP 9999 → 99.99, signal NONE,
- * 0 satellites) are left out — "Sem fix · há 1,0 s" is the whole truth.
+ * 0 satellites) are left out — "No fix · 1.0 s ago" is the whole truth.
  */
-function describeGps(gps: NonNullable<BikitDeviceInfo["gps"]>): string {
+function describeGps(
+  gps: NonNullable<BikitDeviceInfo["gps"]>,
+  t: DeviceInfoWords,
+  locale: Locale,
+): string {
   const parts: string[] = [];
   parts.push(
     gps.state === "FIX"
-      ? "Fix"
+      ? t.gpsFix
       : gps.state === "NO_FIX"
-        ? "Sem fix"
+        ? t.gpsNoFix
         : gps.state === "NO_DATA"
-          ? "Sem dados"
+          ? t.gpsNoData
           : gps.state,
   );
   if (gps.state === "FIX") {
-    parts.push(`${gps.satellites} sat`);
+    parts.push(t.satellites(gps.satellites));
     if (Number.isFinite(gps.hdop) && gps.hdop < 50)
-      parts.push(`HDOP ${gps.hdop.toFixed(2)}`);
+      parts.push(t.hdop(proNumber(gps.hdop, locale, 2)));
     const signal =
       gps.signal === "GOOD"
-        ? "sinal bom"
+        ? t.signalGood
         : gps.signal === "FAIR"
-          ? "sinal médio"
+          ? t.signalFair
           : gps.signal === "WEAK"
-            ? "sinal fraco"
+            ? t.signalWeak
             : gps.signal === "NONE"
               ? null
               : gps.signal;
     if (signal) parts.push(signal);
   } else if (gps.satellites > 0) {
-    parts.push(`${gps.satellites} sat`);
+    parts.push(t.satellites(gps.satellites));
   }
   if (Number.isFinite(gps.ageMs) && gps.state !== "NO_DATA")
-    parts.push(`há ${(gps.ageMs / 1000).toFixed(1)} s`);
+    parts.push(t.ago(proNumber(gps.ageMs / 1000, locale, 1)));
   return parts.join(" · ");
 }
 
@@ -162,6 +180,9 @@ export function BikitDeviceImport({
   /** The session is in Storage and registered; the dialog decides what next. */
   onImported: () => void;
 }) {
+  const dict = useProDict();
+  const t = dict.importing.device;
+  const locale = useProLocale();
   const supported = useSyncExternalStore(
     () => () => {},
     () => hasWebBluetooth(),
@@ -226,7 +247,7 @@ export function BikitDeviceImport({
         setPhase((p) =>
           p.kind === "ready" || p.kind === "saving" ? p : { kind: "idle" },
         );
-        setNotice("O dispositivo desligou-se.");
+        setNotice(t.deviceDisconnected);
       });
       await device.ping();
       await authenticate(device);
@@ -252,7 +273,7 @@ export function BikitDeviceImport({
       } catch (e) {
         if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
           void forgetDevicePin(device.name);
-          setNotice("O PIN guardado deixou de ser aceite — introduz o atual.");
+          setNotice(t.savedPinRefused);
           setPhase({ kind: "auth", hadSaved: true });
           return;
         }
@@ -294,7 +315,7 @@ export function BikitDeviceImport({
       await afterAuth(device);
     } catch (e) {
       if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
-        setError("PIN incorreto.");
+        setError(t.wrongPin);
         setPhase({ kind: "auth", hadSaved: false });
         return;
       }
@@ -383,11 +404,9 @@ export function BikitDeviceImport({
       // Arrived whole is not the same as valid: the full .BKT validation —
       // header, calibration and every block's CRC — runs here, exactly as
       // for a file picked from disk.
-      const parsed = parseImuBytes(bytes);
+      const parsed = parseImuBytes(bytes, locale);
       if (!parsed.ok) {
-        setError(
-          `A transferência chegou inteira mas o ficheiro não passou a validação: ${parsed.error}`,
-        );
+        setError(t.failedValidation(parsed.error));
         setPhase({ kind: "connected", sessions, listing: false });
         return;
       }
@@ -435,6 +454,7 @@ export function BikitDeviceImport({
       riderName: rider,
       bike: bikeRefFromForm(bikeId, newBikeName),
       group: groupRefFromForm(groupId, newGroupName),
+      locale,
     });
     if (!outcome.ok) {
       setError(outcome.error);
@@ -452,11 +472,11 @@ export function BikitDeviceImport({
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 text-sm text-muted-foreground">
           {!supported ? (
-            "Este browser não tem Web Bluetooth. Usa Chrome ou Edge (ou Bluefy em iOS)."
+            t.noWebBluetooth
           ) : phase.kind === "idle" ? (
-            "Liga ao logger por Bluetooth e escolhe a sessão no cartão."
+            t.idleHint
           ) : phase.kind === "connecting" ? (
-            "A ligar…"
+            t.connecting
           ) : (
             <>
               <span className="font-medium text-foreground">{deviceName}</span>
@@ -471,7 +491,7 @@ export function BikitDeviceImport({
             onClick={disconnect}
             disabled={phase.kind === "saving"}
           >
-            Desligar
+            {t.disconnect}
           </Button>
         ) : (
           <Button
@@ -481,7 +501,7 @@ export function BikitDeviceImport({
             disabled={!supported || phase.kind === "connecting"}
           >
             <Bluetooth data-icon="inline-start" />
-            Ligar
+            {t.connect}
           </Button>
         )}
       </div>
@@ -497,15 +517,15 @@ export function BikitDeviceImport({
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
             {info.battery && (
               <>
-                <dt>Bateria</dt>
+                <dt>{t.info.battery}</dt>
                 {"unavailable" in info.battery ? (
                   // The line came but the ADC gave nothing — say so, rather
                   // than leaving the row out as if the firmware were old.
-                  <dd>sem leitura ({info.battery.raw})</dd>
+                  <dd>{t.info.noReading(info.battery.raw)}</dd>
                 ) : (
                   <dd className="text-foreground">
                     {info.battery.percent}% ·{" "}
-                    {info.battery.millivolts.toLocaleString("pt-PT")} mV
+                    {proNumber(info.battery.millivolts, locale)} mV
                   </dd>
                 )}
               </>
@@ -513,12 +533,14 @@ export function BikitDeviceImport({
             {info.gps && (
               <>
                 <dt>GPS</dt>
-                <dd className="text-foreground">{describeGps(info.gps)}</dd>
+                <dd className="text-foreground">
+                  {describeGps(info.gps, t.info, locale)}
+                </dd>
               </>
             )}
             {info.sd && (
               <>
-                <dt>Cartão</dt>
+                <dt>{t.info.card}</dt>
                 <dd
                   className={
                     info.sd === "OK" ? "text-foreground" : "text-destructive"
@@ -554,7 +576,7 @@ export function BikitDeviceImport({
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="ble-pin">PIN do dispositivo</Label>
+            <Label htmlFor="ble-pin">{t.pinLabel}</Label>
             <Input
               id="ble-pin"
               type="password"
@@ -575,7 +597,7 @@ export function BikitDeviceImport({
               checked={rememberPin}
               onCheckedChange={(checked) => setRememberPin(checked === true)}
             />
-            Guardar na minha conta — no computador e no telemóvel
+            {t.rememberPin}
           </label>
           <Button
             type="submit"
@@ -583,7 +605,7 @@ export function BikitDeviceImport({
             className="w-full"
             disabled={!pin.trim()}
           >
-            Autenticar
+            {t.authenticate}
           </Button>
         </form>
       )}
@@ -594,7 +616,7 @@ export function BikitDeviceImport({
             className="size-4 shrink-0 motion-safe:animate-spin"
             aria-hidden
           />
-          A autenticar…
+          {t.authenticating}
         </p>
       )}
 
@@ -609,7 +631,7 @@ export function BikitDeviceImport({
             className="size-4 shrink-0 motion-safe:animate-spin"
             aria-hidden
           />
-          A ler a lista de sessões…
+          {t.listing}
         </p>
       )}
 
@@ -617,7 +639,7 @@ export function BikitDeviceImport({
         <div className="rounded-[12px] border border-border">
           {phase.sessions.length === 0 ? (
             <p className="px-3.5 py-3 text-sm text-muted-foreground">
-              O cartão não tem sessões.
+              {t.emptyCard}
             </p>
           ) : (
             <ul className="max-h-64 overflow-y-auto divide-y divide-border">
@@ -631,7 +653,7 @@ export function BikitDeviceImport({
                       {sessionLabel(entry.id)}
                     </span>
                     <span className="text-sm text-muted-foreground tabular-nums">
-                      {formatBytes(entry.sizeBytes)}
+                      {formatBytes(entry.sizeBytes, locale)}
                     </span>
                   </div>
                   <Button
@@ -639,7 +661,7 @@ export function BikitDeviceImport({
                     variant="outline"
                     onClick={() => transfer(entry, phase.sessions!)}
                   >
-                    Transferir
+                    {t.transfer}
                   </Button>
                 </li>
               ))}
@@ -651,7 +673,7 @@ export function BikitDeviceImport({
               onClick={refreshSessions}
               className="text-sm text-muted-foreground underline-offset-4 hover:underline"
             >
-              Atualizar lista
+              {t.refreshList}
             </button>
           </div>
         </div>
@@ -672,7 +694,7 @@ export function BikitDeviceImport({
           }}
         >
           <div className="min-w-0 flex-1 space-y-1.5">
-            <Label htmlFor="ble-manual-id">Ou transferir a sessão nº</Label>
+            <Label htmlFor="ble-manual-id">{t.manualIdLabel}</Label>
             <Input
               id="ble-manual-id"
               inputMode="numeric"
@@ -684,14 +706,14 @@ export function BikitDeviceImport({
             />
           </div>
           <Button type="submit" variant="outline" disabled={!manualId}>
-            Transferir
+            {t.transfer}
           </Button>
         </form>
       )}
 
       {phase.kind === "transferring" && (
         <TransferProgressView
-          label={`A transferir ${sessionLabel(phase.sessionId)}`}
+          label={t.transferring(sessionLabel(phase.sessionId))}
           uniqueBytes={phase.uniqueBytes}
           totalBytes={phase.totalBytes}
           onCancel={() => abortRef.current?.abort()}
@@ -704,16 +726,17 @@ export function BikitDeviceImport({
               validated, and what it holds. */}
           <div className="rounded-[12px] border border-border px-3 py-2.5 text-sm">
             <p className="font-medium">
-              {sessionLabel(phase.sessionId)} · validada
+              {t.validated(sessionLabel(phase.sessionId))}
             </p>
             {phase.kind === "ready" && (
               <p className="mt-0.5 text-muted-foreground">
                 {formatSessionTime(phase.summary.durationMs)} ·{" "}
                 {Math.round(phase.summary.sampleRateHz)} Hz ·{" "}
                 <span className="tabular-nums">
-                  {phase.summary.sampleCount.toLocaleString("pt-PT")}
+                  {proNumber(phase.summary.sampleCount, locale)}
                 </span>{" "}
-                amostras{phase.session.gps ? " · GPS" : ""}
+                {dict.common.units.samples}
+                {phase.session.gps ? " · GPS" : ""}
               </p>
             )}
           </div>
@@ -749,7 +772,7 @@ export function BikitDeviceImport({
                 })
               }
             >
-              Voltar à lista
+              {t.backToList}
             </Button>
             <Button
               variant="inverted"
@@ -762,7 +785,9 @@ export function BikitDeviceImport({
               }
               onClick={save}
             >
-              {phase.kind === "saving" ? "A importar…" : "Importar"}
+              {phase.kind === "saving"
+                ? dict.importing.importingButton
+                : dict.importing.importButton}
             </Button>
           </div>
         </>
@@ -779,7 +804,7 @@ export function BikitDeviceImport({
             onClick={() => setShowLog((s) => !s)}
             className="text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
-            {showLog ? "Ocultar registo" : `Registo BLE (${logLines.length})`}
+            {showLog ? t.hideLog : t.bleLog(logLines.length)}
           </button>
           {showLog && (
             // `max-w-full` and the `min-w-0` up the tree: a <pre> with long
@@ -790,7 +815,7 @@ export function BikitDeviceImport({
               {logLines
                 .map(
                   (line) =>
-                    `${new Date(line.at).toLocaleTimeString("pt-PT", { hour12: false })}.${String(line.at % 1000).padStart(3, "0")} ${line.direction === "out" ? "→" : "←"} ${line.text}`,
+                    `${new Date(line.at).toLocaleTimeString(PRO_NUMBER_LOCALE[locale], { hour12: false })}.${String(line.at % 1000).padStart(3, "0")} ${line.direction === "out" ? "→" : "←"} ${line.text}`,
                 )
                 .join("\n")}
             </pre>
@@ -805,20 +830,26 @@ export function BikitDeviceImport({
             onClick={() => setShowDetails((s) => !s)}
             className="text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
-            {showDetails ? "Ocultar detalhes" : "Detalhes da transferência"}
+            {showDetails ? t.hideDetails : t.transferDetails}
           </button>
           {showDetails && (
             <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground tabular-nums">
-              <Diag label="Pacotes" value={diagnostics.packets} />
-              <Diag label="Duplicados" value={diagnostics.duplicates} />
-              <Diag label="Janelas" value={diagnostics.windows} />
-              <Diag label="ACKs" value={diagnostics.acks} />
-              <Diag label="Re-ACKs" value={diagnostics.reAcks} />
-              <Diag label="Payload" value={`${diagnostics.payloadSize} B`} />
-              <Diag label="Janela" value={`${diagnostics.windowSize} B`} />
+              <Diag label={t.diag.packets} value={diagnostics.packets} />
+              <Diag label={t.diag.duplicates} value={diagnostics.duplicates} />
+              <Diag label={t.diag.windows} value={diagnostics.windows} />
+              <Diag label={t.diag.acks} value={diagnostics.acks} />
+              <Diag label={t.diag.reAcks} value={diagnostics.reAcks} />
               <Diag
-                label="Tempo"
-                value={`${(diagnostics.elapsedMs / 1000).toFixed(1)} s`}
+                label={t.diag.payload}
+                value={`${diagnostics.payloadSize} B`}
+              />
+              <Diag
+                label={t.diag.window}
+                value={`${diagnostics.windowSize} B`}
+              />
+              <Diag
+                label={t.diag.time}
+                value={`${proNumber(diagnostics.elapsedMs / 1000, locale, 1)} s`}
               />
             </dl>
           )}
@@ -829,11 +860,12 @@ export function BikitDeviceImport({
 }
 
 function Diag({ label, value }: { label: string; value: number | string }) {
+  const locale = useProLocale();
   return (
     <div className="flex justify-between gap-2">
       <dt>{label}</dt>
       <dd className="text-foreground">
-        {typeof value === "number" ? value.toLocaleString("pt-PT") : value}
+        {typeof value === "number" ? proNumber(value, locale) : value}
       </dd>
     </div>
   );
@@ -850,6 +882,8 @@ function TransferProgressView({
   totalBytes: number;
   onCancel: () => void;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const fraction = totalBytes > 0 ? Math.min(1, uniqueBytes / totalBytes) : 0;
   return (
     <div>
@@ -857,7 +891,7 @@ function TransferProgressView({
         <p className="text-sm font-medium">{label}</p>
         <Button size="sm" variant="outline" onClick={onCancel}>
           <X data-icon="inline-start" />
-          Cancelar
+          {t.common.cancel}
         </Button>
       </div>
       <div
@@ -873,8 +907,8 @@ function TransferProgressView({
         />
       </div>
       <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
-        {Math.round(fraction * 100)}% · {formatBytes(uniqueBytes)} /{" "}
-        {formatBytes(totalBytes)}
+        {Math.round(fraction * 100)}% · {formatBytes(uniqueBytes, locale)} /{" "}
+        {formatBytes(totalBytes, locale)}
       </p>
     </div>
   );

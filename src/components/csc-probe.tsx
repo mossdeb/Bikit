@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CSC_MEASUREMENT, CSC_SERVICE, parseCsc } from "@/lib/csc";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { PRO_NUMBER_LOCALE } from "@/lib/i18n/pro";
 
 /**
  * A probe for a BLE Cycling Speed and Cadence sensor. Not a feature.
@@ -25,6 +27,10 @@ import { CSC_MEASUREMENT, CSC_SERVICE, parseCsc } from "@/lib/csc";
  * Everything that can throw is caught and put on screen. This runs on a phone
  * in a garage, where there is no console to open — an error nobody can see is
  * an error nobody can report.
+ *
+ * Its strings live in the Pro dictionary under `importing.probe` (the i18n
+ * pass of 2026-09-24), the status line included: what the screen says is
+ * the whole report, so it says it in the reader's language.
  */
 
 interface Sample {
@@ -44,12 +50,17 @@ interface Sample {
 // shared by the pairing field and the sync button.
 
 const hex = (view: DataView) =>
-  Array.from({ length: view.byteLength }, (_, i) => view.getUint8(i).toString(16).padStart(2, "0")).join(" ");
+  Array.from({ length: view.byteLength }, (_, i) =>
+    view.getUint8(i).toString(16).padStart(2, "0"),
+  ).join(" ");
 
-const describe = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+const describe = (e: unknown) =>
+  e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 
 export function CscProbe() {
-  const [status, setStatus] = useState("Pronto.");
+  const t = useProDict().importing.probe;
+  const locale = useProLocale();
+  const [status, setStatus] = useState(t.ready);
   const [deviceName, setDeviceName] = useState<string | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   /** The reading this session opened with, pinned so the capped list can never
@@ -67,15 +78,18 @@ export function CscProbe() {
   const supported = useSyncExternalStore(
     () => () => {},
     () => "bluetooth" in navigator,
-    () => true
+    () => true,
   );
 
   // Anything that escapes lands on screen. There is no console on a phone in a
   // garage, and "a página deu erro" is not something anyone can act on.
   useEffect(() => {
-    const onError = (e: ErrorEvent) => setErrors((prev) => [`window: ${e.message}`, ...prev].slice(0, 6));
+    const onError = (e: ErrorEvent) =>
+      setErrors((prev) => [`window: ${e.message}`, ...prev].slice(0, 6));
     const onRejection = (e: PromiseRejectionEvent) =>
-      setErrors((prev) => [`promise: ${describe(e.reason)}`, ...prev].slice(0, 6));
+      setErrors((prev) =>
+        [`promise: ${describe(e.reason)}`, ...prev].slice(0, 6),
+      );
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     return () => {
@@ -96,7 +110,7 @@ export function CscProbe() {
   async function connect() {
     try {
       setErrors([]);
-      setStatus("A abrir o seletor do browser…");
+      setStatus(t.openingPicker);
 
       const nav = navigator as unknown as {
         bluetooth: {
@@ -107,7 +121,10 @@ export function CscProbe() {
                 getPrimaryService: (s: number) => Promise<{
                   getCharacteristic: (c: number) => Promise<{
                     startNotifications: () => Promise<unknown>;
-                    addEventListener: (t: string, h: (e: Event) => void) => void;
+                    addEventListener: (
+                      t: string,
+                      h: (e: Event) => void,
+                    ) => void;
                   }>;
                 }>;
               }>;
@@ -132,47 +149,60 @@ export function CscProbe() {
       setConnectedAt(null);
       lastRef.current = null;
 
-      const device = await nav.bluetooth.requestDevice({ filters: [{ services: [CSC_SERVICE] }] });
+      const device = await nav.bluetooth.requestDevice({
+        filters: [{ services: [CSC_SERVICE] }],
+      });
       deviceRef.current = device;
-      setDeviceName(device.name ?? "(sem nome)");
+      setDeviceName(device.name ?? t.unnamed);
       device.addEventListener("gattserverdisconnected", () =>
-        setStatus("Ligação caiu. Gira a roda e liga outra vez — a primeira leitura é a resposta.")
+        setStatus(t.linkDropped),
       );
 
-      setStatus("A ligar…");
+      setStatus(t.connecting);
       const gatt = device.gatt;
-      if (!gatt) throw new Error("O dispositivo não expõe GATT.");
+      if (!gatt) throw new Error(t.noGatt);
       const server = await gatt.connect();
       const service = await server.getPrimaryService(CSC_SERVICE);
       const characteristic = await service.getCharacteristic(CSC_MEASUREMENT);
       await characteristic.startNotifications();
 
-      characteristic.addEventListener("characteristicvaluechanged", (event: Event) => {
-        try {
-          const view = (event.target as unknown as { value?: DataView }).value;
-          if (!view) return;
-          const raw = hex(view);
-          setReceived((n) => n + 1);
+      characteristic.addEventListener(
+        "characteristicvaluechanged",
+        (event: Event) => {
+          try {
+            const view = (event.target as unknown as { value?: DataView })
+              .value;
+            if (!view) return;
+            const raw = hex(view);
+            setReceived((n) => n + 1);
 
-          const sample: Sample = { id: (seqRef.current += 1), at: Date.now(), raw, ...parseCsc(view) };
-          setBaseline((b) => b ?? sample);
+            const sample: Sample = {
+              id: (seqRef.current += 1),
+              at: Date.now(),
+              raw,
+              ...parseCsc(view),
+            };
+            setBaseline((b) => b ?? sample);
 
-          // Only distinct readings reach the list. A stationary sensor repeats
-          // the same bytes; sixty of those said nothing and filled the window.
-          if (raw === lastRef.current) return;
-          lastRef.current = raw;
-          setSamples((prev) => [sample, ...prev].slice(0, 60));
-        } catch (e) {
-          setErrors((prev) => [`notificação: ${describe(e)}`, ...prev].slice(0, 6));
-        }
-      });
+            // Only distinct readings reach the list. A stationary sensor repeats
+            // the same bytes; sixty of those said nothing and filled the window.
+            if (raw === lastRef.current) return;
+            lastRef.current = raw;
+            setSamples((prev) => [sample, ...prev].slice(0, 60));
+          } catch (e) {
+            setErrors((prev) =>
+              [t.notificationError(describe(e)), ...prev].slice(0, 6),
+            );
+          }
+        },
+      );
 
       setConnectedAt(Date.now());
       setNow(Date.now());
-      setStatus("Ligado. GIRA A RODA — o sensor só conta em movimento.");
+      setStatus(t.connected);
     } catch (e) {
-      setStatus(`Falhou: ${describe(e)}`);
-      setErrors((prev) => [`ligar: ${describe(e)}`, ...prev].slice(0, 6));
+      setStatus(t.failed(describe(e)));
+      setErrors((prev) => [t.connectError(describe(e)), ...prev].slice(0, 6));
     }
   }
 
@@ -180,26 +210,31 @@ export function CscProbe() {
     try {
       deviceRef.current?.gatt?.disconnect();
       setConnectedAt(null);
-      setStatus("Desligado. Espera 5 min com a roda quieta, depois liga outra vez.");
+      setStatus(t.disconnected);
     } catch (e) {
-      setErrors((prev) => [`desligar: ${describe(e)}`, ...prev].slice(0, 6));
+      setErrors((prev) =>
+        [t.disconnectError(describe(e)), ...prev].slice(0, 6),
+      );
     }
   }
 
   const last = samples[0];
-  const elapsed = connectedAt === null ? null : Math.max(0, Math.round((now - connectedAt) / 1000));
+  const elapsed =
+    connectedAt === null
+      ? null
+      : Math.max(0, Math.round((now - connectedAt) / 1000));
 
   return (
     <div className="space-y-4">
       {!supported && (
         <p className="rounded-sm bg-destructive/10 p-4 text-sm">
-          Este browser não tem Web Bluetooth. É preciso Chrome em Android. O Safari não suporta e não vai suportar.
+          {t.noWebBluetooth}
         </p>
       )}
 
       {errors.length > 0 && (
         <div className="rounded-sm bg-destructive/10 p-4 text-sm">
-          <p className="font-semibold">Erros</p>
+          <p className="font-semibold">{t.errors}</p>
           {errors.map((e, i) => (
             <p key={`${i}-${e}`} className="mt-1 font-mono text-xs break-words">
               {e}
@@ -215,29 +250,30 @@ export function CscProbe() {
           disabled={!supported}
           className="h-11 rounded-full bg-foreground px-5 text-sm font-semibold text-background disabled:opacity-40"
         >
-          Ligar ao sensor
+          {t.connectSensor}
         </button>
         <button
           type="button"
           onClick={disconnect}
           className="h-11 rounded-full border border-border px-5 text-sm font-semibold"
         >
-          Desligar
+          {t.disconnect}
         </button>
       </div>
 
       <div className="rounded-sm bg-muted p-4 text-sm">
         <p>
-          <strong>Estado:</strong> {status}
+          <strong>{t.status}</strong> {status}
         </p>
         {deviceName && (
           <p className="mt-1">
-            <strong>Sensor:</strong> {deviceName}
+            <strong>{t.sensor}</strong> {deviceName}
           </p>
         )}
         <p className="mt-1">
-          <strong>Ligado há:</strong> {elapsed === null ? "—" : `${elapsed} s`} · {received} notificações ·{" "}
-          {samples.length} distintas
+          <strong>{t.connectedFor}</strong>{" "}
+          {elapsed === null ? "—" : `${elapsed} s`} ·{" "}
+          {t.notifications(received)} · {t.distinct(samples.length)}
         </p>
       </div>
 
@@ -246,21 +282,26 @@ export function CscProbe() {
           counter survived. */}
       {baseline && (
         <div className="rounded-sm border border-border p-4 text-sm">
-          <p className="font-semibold">Primeira leitura desta ligação</p>
+          <p className="font-semibold">{t.firstReading}</p>
           <p className="mt-1 font-mono">
-            roda {baseline.wheelRevs ?? "—"} · pedaleira {baseline.crankRevs ?? "—"}
+            {t.wheel} {baseline.wheelRevs ?? "—"} · {t.crank}{" "}
+            {baseline.crankRevs ?? "—"}
           </p>
           {last && (
             <>
-              <p className="mt-3 font-semibold">Agora</p>
+              <p className="mt-3 font-semibold">{t.now}</p>
               <p className="mt-1 font-mono">
-                roda {last.wheelRevs ?? "—"}
+                {t.wheel} {last.wheelRevs ?? "—"}
                 {baseline.wheelRevs != null && last.wheelRevs != null && (
-                  <span className="ml-2 font-semibold">(Δ {last.wheelRevs - baseline.wheelRevs})</span>
+                  <span className="ml-2 font-semibold">
+                    (Δ {last.wheelRevs - baseline.wheelRevs})
+                  </span>
                 )}{" "}
-                · pedaleira {last.crankRevs ?? "—"}
+                · {t.crank} {last.crankRevs ?? "—"}
                 {baseline.crankRevs != null && last.crankRevs != null && (
-                  <span className="ml-2 font-semibold">(Δ {last.crankRevs - baseline.crankRevs})</span>
+                  <span className="ml-2 font-semibold">
+                    (Δ {last.crankRevs - baseline.crankRevs})
+                  </span>
                 )}
               </p>
             </>
@@ -271,8 +312,10 @@ export function CscProbe() {
       <div className="space-y-1">
         {samples.map((s) => (
           <p key={s.id} className="font-mono text-xs">
-            {new Date(s.at).toLocaleTimeString("pt-PT")} · roda {s.wheelRevs ?? "—"}@{s.wheelEventTime ?? "—"} ·
-            pedaleira {s.crankRevs ?? "—"}@{s.crankEventTime ?? "—"} · <span className="opacity-60">{s.raw}</span>
+            {new Date(s.at).toLocaleTimeString(PRO_NUMBER_LOCALE[locale])} ·{" "}
+            {t.wheel} {s.wheelRevs ?? "—"}@{s.wheelEventTime ?? "—"} · {t.crank}{" "}
+            {s.crankRevs ?? "—"}@{s.crankEventTime ?? "—"} ·{" "}
+            <span className="opacity-60">{s.raw}</span>
           </p>
         ))}
       </div>

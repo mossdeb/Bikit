@@ -1,6 +1,7 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import type { Locale } from "@/lib/i18n";
 import { formatGroupDay } from "@/lib/imu/groups";
 import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
 import {
@@ -27,6 +28,7 @@ export async function loadSnapshotCandidates(
   userId: string,
   definition: SnapshotDefinition,
   referenceSessionId: string | null,
+  locale: Locale,
 ): Promise<ImuSnapshotCandidate[]> {
   const [
     { data: sessions },
@@ -55,7 +57,10 @@ export async function loadSnapshotCandidates(
   ]);
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
-    (groups ?? []).map((g) => [g.id, `${g.name} · ${formatGroupDay(g.day)}`]),
+    (groups ?? []).map((g) => [
+      g.id,
+      `${g.name} · ${formatGroupDay(g.day, locale)}`,
+    ]),
   );
   const setupById = new Map(
     (setups ?? [])

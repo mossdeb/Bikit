@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import {
   isSetupEmpty,
   isSetupValues,
@@ -23,7 +25,8 @@ export type ImuSetupResult =
  * row — for the session's bike, so the next import of that bike inherits
  * it — and point the session at it. Nothing filled in unlinks the session.
  * The old row is never deleted here: another session may share it, and
- * history is the point. Gated like the rest of the lab.
+ * history is the point. Gated like the rest of the lab. The refusals are
+ * written in the reader's language, read off the same claims as the gate.
  */
 export async function saveImuSessionSetup(input: {
   sessionId: string;
@@ -34,10 +37,13 @@ export async function saveImuSessionSetup(input: {
   const { data: userData } = await supabase.auth.getClaims();
   const userId = userData?.claims?.sub as string | undefined;
   const email = userData?.claims?.email as string | undefined;
+  const t = getProDictionary(
+    localeFromMetadata(userData?.claims?.user_metadata),
+  );
   if (!userId || !hasLabAccess(email))
-    return { status: "error", message: "Sem acesso." };
+    return { status: "error", message: t.common.noAccess };
   if (!isSetupValues(input.values))
-    return { status: "error", message: "Valores da afinação inválidos." };
+    return { status: "error", message: t.report.setup.errors.invalidValues };
 
   const { data: session } = await supabase
     .from("imu_sessions")
@@ -45,7 +51,8 @@ export async function saveImuSessionSetup(input: {
     .eq("id", input.sessionId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!session) return { status: "error", message: "Sessão não encontrada." };
+  if (!session)
+    return { status: "error", message: t.report.setup.errors.sessionNotFound };
 
   const values = normalizeSetupValues(input.values);
   const note = input.note?.trim() || null;
@@ -92,7 +99,7 @@ export async function saveImuSessionSetup(input: {
   if (insertError || !inserted)
     return {
       status: "error",
-      message: insertError?.message ?? "Sem resposta.",
+      message: insertError?.message ?? t.report.setup.errors.noResponse,
     };
 
   const { error: linkError } = await supabase

@@ -11,6 +11,13 @@ import {
   upperBoundIndex,
 } from "@/lib/imu/downsample";
 import { ImuClockIcon } from "@/components/imu-event-icons";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { PRO_NUMBER_LOCALE, type ProDictionary } from "@/lib/i18n/pro";
+
+/** The plot's own words — the slider's name, the resolution note and what
+ * the event tabs say — in the reader's language. Handed down to the tab
+ * layout, which runs outside render and cannot ask a hook. */
+type ChartLabels = ProDictionary["analysis"]["chart"];
 
 /** The plot's drawing box. Stretched to the container (preserveAspectRatio
  * "none"), so every position is a ratio of these — the trend chart's idiom. */
@@ -151,6 +158,8 @@ export function ImuChart({
    * with several series on they cost real plot. */
   showValues?: boolean;
 }) {
+  const t = useProDict().analysis.chart;
+  const locale = useProLocale();
   const plotRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<[number, number] | null>(null);
   /**
@@ -385,7 +394,7 @@ export function ImuChart({
    * At six minutes and seventy curves the tabs sat on top of each other and
    * read as "C C ( ( Cu Cu" (by request, 2026-09-09). Now they are laid out
    * left to right and any tab that would run into the one before it joins
-   * it: the tab then says "3× Curvas", or "3× Curvas +2" when kinds mix.
+   * it: the tab then says "3× Curves", or "3× Curves +2" when kinds mix.
    * Zooming in spreads them out and the tabs come apart on their own.
    * Impacts are not tabs (they are arrows below) and are left out. */
   const eventTabs = useMemo(
@@ -395,8 +404,9 @@ export function ImuChart({
         w0,
         w1,
         plotWidth ?? W,
+        t,
       ),
-    [visibleEvents, w0, w1, plotWidth],
+    [visibleEvents, w0, w1, plotWidth, t],
   );
 
   /**
@@ -474,7 +484,7 @@ export function ImuChart({
       <div
         ref={plotRef}
         role="slider"
-        aria-label="Cursor da sessão"
+        aria-label={t.cursor}
         aria-valuemin={w0}
         aria-valuemax={w1}
         aria-valuenow={cursorMs ?? w0}
@@ -793,7 +803,7 @@ export function ImuChart({
                 {mark.count > 1 && (
                   <span className="font-normal">{mark.count}×</span>
                 )}
-                {mark.peakG.toLocaleString("pt-PT", {
+                {mark.peakG.toLocaleString(PRO_NUMBER_LOCALE[locale], {
                   maximumFractionDigits: mark.peakG >= 20 ? 0 : 1,
                 })}{" "}
                 g
@@ -828,7 +838,7 @@ export function ImuChart({
 
         {/* The cursor's reading on the plot: one pill per active series —
             its dot and the sample's value, the time pill's idiom. Behind a
-            toggle (the "Valores" switch by the zoom buttons): with several
+            toggle (the "Values" switch by the zoom buttons): with several
             series they cost real plot, and the exact figures also live in
             the panel below — `aria-hidden` for that same reason.
 
@@ -981,8 +991,8 @@ export function ImuChart({
           <span>{formatSessionTime(w0)}</span>
           <span>
             {rawResolution
-              ? "dados brutos"
-              : `envelope ~${Math.max(1, Math.round(span / BUCKETS))} ms`}
+              ? t.rawData
+              : t.envelope(Math.max(1, Math.round(span / BUCKETS)))}
           </span>
           <span>{formatSessionTime(w1)}</span>
         </div>
@@ -1109,31 +1119,26 @@ export function ImuChart({
   );
 }
 
-function eventShortLabel(event: ImuEvent): string {
+/** A lone event's tab, in the reader's language. The plural for several of
+ * one kind ("3× Curves") is `labels.plural`, keyed by the kind. */
+function eventShortLabel(event: ImuEvent, labels: ChartLabels): string {
   switch (event.kind) {
     case "curve":
-      return event.direction === "left" ? "Curva ←" : "Curva →";
+      return event.direction === "left"
+        ? labels.short.curveLeft
+        : labels.short.curveRight;
     case "jump":
-      return "Salto";
+      return labels.short.jump;
     case "drop":
-      return "Drop";
+      return labels.short.drop;
     case "rough_section":
-      return "Acidentado";
+      return labels.short.rough_section;
     case "braking":
-      return "Travagem";
+      return labels.short.braking;
     case "impact":
-      return "Impacto";
+      return labels.short.impact;
   }
 }
-
-/** What a tab says for several events of one kind: "3× Curvas". */
-const EVENT_PLURALS: Record<Exclude<ImuEvent["kind"], "impact">, string> = {
-  curve: "Curvas",
-  jump: "Saltos",
-  drop: "Drops",
-  rough_section: "Acidentados",
-  braking: "Travagens",
-};
 
 /** How wide a tab is for its text, px: `px-1.5` on both sides and about
  * 5.6px a character at 10px medium. An estimate — measuring seventy spans
@@ -1173,6 +1178,7 @@ function clusterEventTabs(
   w0: number,
   w1: number,
   widthPx: number,
+  labels: ChartLabels,
 ): EventTab[] {
   const span = Math.max(1, w1 - w0);
   const pxPerMs = widthPx / span;
@@ -1187,11 +1193,12 @@ function clusterEventTabs(
   for (const single of singles) {
     const last = clusters[clusters.length - 1];
     if (last) {
-      const lastLabel = clusterLabel(last.members);
+      const lastLabel = clusterLabel(last.members, labels);
       const lastMid = (last.minMs + last.maxMs) / 2;
       const lastRight = lastMid * pxPerMs + tabWidthPx(lastLabel) / 2;
       const left =
-        single.midMs * pxPerMs - tabWidthPx(eventShortLabel(single.event)) / 2;
+        single.midMs * pxPerMs -
+        tabWidthPx(eventShortLabel(single.event, labels)) / 2;
       if (left < lastRight + TAB_GAP_PX) {
         last.members.push(single.event);
         last.maxMs = single.midMs;
@@ -1206,16 +1213,16 @@ function clusterEventTabs(
   }
   return clusters.map((cluster) => ({
     midMs: (cluster.minMs + cluster.maxMs) / 2,
-    label: clusterLabel(cluster.members),
+    label: clusterLabel(cluster.members, labels),
   }));
 }
 
-/** A tab's name: the event's own for one; "3× Curvas" for several of a
- * kind; the commonest kind and "+N" for a mix ("3× Curvas +2"). Ties go to
+/** A tab's name: the event's own for one; "3× Curves" for several of a
+ * kind; the commonest kind and "+N" for a mix ("3× Curves +2"). Ties go to
  * the kind seen first. Curves keep their arrow only while every curve in
  * the tab turns the same way. */
-function clusterLabel(members: ImuEvent[]): string {
-  if (members.length === 1) return eventShortLabel(members[0]);
+function clusterLabel(members: ImuEvent[], labels: ChartLabels): string {
+  if (members.length === 1) return eventShortLabel(members[0], labels);
   const counts = new Map<Exclude<ImuEvent["kind"], "impact">, number>();
   for (const event of members) {
     if (event.kind === "impact") continue;
@@ -1231,9 +1238,12 @@ function clusterLabel(members: ImuEvent[]): string {
   if (topKind == null) return "";
   let label: string;
   if (topCount === 1) {
-    label = eventShortLabel(members.find((e) => e.kind === topKind)!);
+    label = eventShortLabel(
+      members.find((e) => e.kind === topKind)!,
+      labels,
+    );
   } else {
-    label = `${topCount}× ${EVENT_PLURALS[topKind]}`;
+    label = `${topCount}× ${labels.plural[topKind]}`;
     if (topKind === "curve") {
       const dirs = new Set(
         members

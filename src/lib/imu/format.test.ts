@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseImuFile } from "./format";
+import { parseImuFile as parseImuFileIn } from "./format";
+
+// The parser takes the reader's language for its recusals; these tests
+// read them in Portuguese, the copy they were written against.
+const parseImuFile = (json: unknown) => parseImuFileIn(json, "pt");
 
 function sample(t: number, overrides: Record<string, number> = {}) {
   return {

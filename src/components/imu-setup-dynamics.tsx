@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { NativeSelect } from "@/components/ui/native-select";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import { proNumber, proPercent } from "@/lib/i18n/pro";
 import {
   DYNAMICS_AXES,
   DYNAMICS_NOISE_SPAN,
@@ -42,12 +44,6 @@ const DIRECTIONS: Record<DynamicsAxisKey, [number, number]> = {
   recovery: [-1, 0],
 };
 
-const nf = (value: number, digits: number) =>
-  value.toLocaleString("pt-PT", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-
 export interface ImuSetupDynamicsSetup {
   letter: string;
   /** The setup in one line, for the dropdown. */
@@ -71,6 +67,9 @@ export function ImuSetupDynamics({
   /** Files still being read: the chart fills in as they arrive. */
   pending: boolean;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
+  const words = t.compare.dynamics;
   const letters = setups.map((s) => s.letter);
   const [picked, setPicked] = useState<[string | null, string | null]>([
     null,
@@ -92,20 +91,21 @@ export function ImuSetupDynamics({
   const ready = chosen.every((s) => s != null);
 
   const pct = (score: number | null) =>
-    score == null ? "—" : `${nf(score, 0)} %`;
+    score == null ? "—" : proPercent(score, locale, 0);
   // A figure in its own unit and decimals — read off how the report prints
-  // it. The one composite figure, "Estabilidade" (±5° · ±4°), carries its
-  // number as the pitch alone: printed ± with a decimal, since two setups
-  // a degree apart can still score differently.
-  const figure = (label: string, value: number) => {
-    const rule = rules.get(label);
+  // it, whichever decimal separator that is. The one composite figure,
+  // the stability (±5° · ±4°), carries its number as the pitch alone:
+  // printed ± with a decimal, since two setups a degree apart can still
+  // score differently.
+  const figure = (key: string, value: number) => {
+    const rule = rules.get(key);
     const printed = rule?.value ?? "";
     const unit = rule?.unit ?? printed.match(/[°%×]$/)?.[0] ?? "";
     const composite = /^±/.test(printed);
     const digits = composite
       ? 1
-      : (printed.split(",")[1] ?? "").replace(/\D/g, "").length;
-    return `${composite ? "±" : ""}${nf(value, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
+      : (printed.match(/[.,](\d+)/)?.[1] ?? "").length;
+    return `${composite ? "±" : ""}${proNumber(value, locale, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
   };
 
   return (
@@ -116,9 +116,9 @@ export function ImuSetupDynamics({
         <div className="px-5 py-5 sm:px-6 sm:py-6">
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
             <div>
-              <p className="text-lg font-semibold">Dinâmica do setup</p>
+              <p className="text-lg font-semibold">{words.title}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Equilíbrio e comportamento do setup
+                {words.subtitle}
               </p>
             </div>
             {enough && (
@@ -127,17 +127,17 @@ export function ImuSetupDynamics({
                   colour={SETUP_COLOURS[0]}
                   value={a ?? ""}
                   setups={setups}
-                  label="Primeiro setup"
+                  label={words.firstSetup}
                   onChange={(l) => setPicked([l, picked[1]])}
                 />
                 <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  vs
+                  {words.vs}
                 </span>
                 <SetupPicker
                   colour={SETUP_COLOURS[1]}
                   value={b ?? ""}
                   setups={setups}
-                  label="Segundo setup"
+                  label={words.secondSetup}
                   onChange={(l) => setPicked([picked[0], l])}
                 />
               </div>
@@ -148,20 +148,18 @@ export function ImuSetupDynamics({
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
-                  ? "Aparece quando as sessões estiverem lidas."
+                  ? t.compare.waitingForSessions
                   : setups.length === 0
-                    ? "Regista a afinação das voltas desta pista para as ver aqui."
-                    : "Aparece quando houver duas afinações nesta pista: cada eixo mede um setup contra o outro."}
+                    ? words.noSetups
+                    : words.needTwo}
               </p>
             ) : (
-              <Radar scores={chosen} letters={[a, b]} ready={ready} pct={pct} />
+              <Radar scores={chosen} letters={[a, b]} ready={ready} />
             )}
           </div>
           {enough && (
             <p className="mt-3 text-xs text-muted-foreground">
-              100 % é o melhor dos setups em cada eixo. Cada anel é um ruído
-              entre voltas iguais: dentro do primeiro a contar do aro é empate;
-              a {DYNAMICS_NOISE_SPAN} ruídos o eixo chega a zero.
+              {words.scale(DYNAMICS_NOISE_SPAN)}
             </p>
           )}
         </div>
@@ -171,7 +169,7 @@ export function ImuSetupDynamics({
       <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
         <div className="px-5 py-5 sm:px-6 sm:py-6">
           <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-end gap-x-3">
-            <p className="text-sm text-muted-foreground">Explicação</p>
+            <p className="text-sm text-muted-foreground">{words.explanation}</p>
             {[a, b].map((l, i) => (
               <div key={i} className="flex flex-col items-end">
                 <span
@@ -194,16 +192,19 @@ export function ImuSetupDynamics({
               const per = chosen.map(
                 (s) => s?.axes.find((x) => x.key === axis.key) ?? null,
               );
+              // The axis in words — its name, what it reads, what it is
+              // made of — from the dictionary, by the axis's key.
+              const axisWords = t.compare.axes[axis.key];
               // The figures behind the score, one line each, both setups.
-              const labels = [
+              const keys = [
                 ...new Set(
-                  per.flatMap((x) => x?.parts.map((p) => p.label) ?? []),
+                  per.flatMap((x) => x?.parts.map((p) => p.key) ?? []),
                 ),
               ];
               return (
                 <li key={axis.key} className="py-4 first:pt-3 last:pb-0">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3">
-                    <p className="text-sm font-semibold">{axis.name}</p>
+                    <p className="text-sm font-semibold">{axisWords.name}</p>
                     {per.map((x, i) => (
                       <p
                         key={i}
@@ -217,21 +218,23 @@ export function ImuSetupDynamics({
                     ))}
                   </div>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {axis.description}
+                    {axisWords.description}
                   </p>
-                  <p className="mt-1 text-sm font-medium">• {axis.parts}</p>
-                  {enough && labels.length > 0 && (
+                  <p className="mt-1 text-sm font-medium">
+                    • {axisWords.parts}
+                  </p>
+                  {enough && keys.length > 0 && (
                     <ul className="mt-1.5 space-y-0.5">
-                      {labels.map((label) => (
+                      {keys.map((key) => (
                         <li
-                          key={label}
+                          key={key}
                           className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 text-xs text-muted-foreground tabular-nums"
                         >
-                          <span className="truncate">{label}</span>
+                          <span className="truncate">
+                            {t.report.metric[key]}
+                          </span>
                           {per.map((x, i) => {
-                            const part = x?.parts.find(
-                              (p) => p.label === label,
-                            );
+                            const part = x?.parts.find((p) => p.key === key);
                             return (
                               <span
                                 key={i}
@@ -240,7 +243,7 @@ export function ImuSetupDynamics({
                                   part && !part.tie && "text-foreground",
                                 )}
                               >
-                                {part ? figure(label, part.value) : "—"}
+                                {part ? figure(key, part.value) : "—"}
                               </span>
                             );
                           })}
@@ -271,6 +274,7 @@ function SetupPicker({
   label: string;
   onChange: (letter: string) => void;
 }) {
+  const t = useProDict();
   return (
     <div className="relative">
       <span
@@ -290,7 +294,7 @@ function SetupPicker({
         {setups.map((s) => (
           <option key={s.letter} value={s.letter}>
             Setup {s.letter}
-            {s.runs > 1 ? ` · ${s.runs} voltas` : ""}
+            {s.runs > 1 ? ` · ${t.common.run(s.runs)}` : ""}
           </option>
         ))}
       </NativeSelect>
@@ -345,13 +349,13 @@ function Radar({
   scores,
   letters,
   ready,
-  pct,
 }: {
   scores: (DynamicsScore | null)[];
   letters: (string | null)[];
   ready: boolean;
-  pct: (score: number | null) => string;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   const point = (key: DynamicsAxisKey, r: number): [number, number] => {
     const [dx, dy] = DIRECTIONS[key];
     return [CENTRE + dx * r, CENTRE + dy * r];
@@ -380,10 +384,9 @@ function Radar({
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className="block h-full w-full"
         role="img"
-        aria-label={`Dinâmica do setup: ${letters
-          .filter(Boolean)
-          .map((l) => `Setup ${l}`)
-          .join(" contra ")}`}
+        aria-label={t.compare.dynamics.chartLabel(
+          letters.filter(Boolean).map((l) => `Setup ${l}`),
+        )}
       >
         {/* Four rings, one noise apart: the first in from the rim is the
             tie. (A shaded band said the same and came off by request.) */}
@@ -481,7 +484,7 @@ function Radar({
             style={dx === 0 ? { top: `${(100 * y) / SIZE}%` } : undefined}
           >
             <span className="inline-flex rounded-full bg-card px-2 py-0.5 text-sm font-semibold whitespace-nowrap text-foreground">
-              {axis.name}
+              {t.compare.axes[axis.key].name}
             </span>
           </div>
         );
@@ -523,7 +526,9 @@ function Radar({
                     className="size-1.5 rounded-full"
                     style={{ background: SETUP_COLOURS[i] }}
                   />
-                  {pct(value).replace(" %", "")}
+                  {/* The score without its sign — the chip is small, and
+                      the caption says the scale is a percentage. */}
+                  {proNumber(value, locale, 0)}
                 </span>
               </div>
             );
@@ -531,7 +536,7 @@ function Radar({
         })}
       {!ready && (
         <p className="absolute inset-x-0 bottom-0 text-center text-xs text-muted-foreground">
-          A ler as sessões…
+          {t.compare.dynamics.readingSessions}
         </p>
       )}
     </div>

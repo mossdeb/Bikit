@@ -14,6 +14,7 @@ import {
 } from "@/lib/imu/report";
 import type { ImuSetupValues } from "@/lib/imu/setup";
 import { useImuSession } from "@/lib/imu/use-imu-session";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
@@ -71,14 +72,16 @@ export function ImuSessionReport({
     labels: ImuSetupLabels;
   } | null;
 }) {
+  const t = useProDict().report;
+  const locale = useProLocale();
   const { data, error } = useImuSession(
     storagePath,
     mountOrientation,
     session.trim,
   );
   const report = useMemo(
-    () => (data ? buildSessionReport(data) : null),
-    [data],
+    () => (data ? buildSessionReport(data, locale) : null),
+    [data, locale],
   );
   const BikeGlyph =
     (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
@@ -94,17 +97,14 @@ export function ImuSessionReport({
         </p>
       )}
       {!error && !report && (
-        <p className="text-sm text-muted-foreground">A carregar a sessão…</p>
+        <p className="text-sm text-muted-foreground">{t.loadingSession}</p>
       )}
       {report && (
         <div className="grid gap-[18px] lg:grid-cols-3">
           <SectionCard
             section={report.bike}
             mark={<BikeGlyph className="h-[52px] w-auto text-foreground" />}
-            info={
-              report.bike.caveat ??
-              "Como a bicicleta respondeu ao terreno, lido pelo sensor no quadro."
-            }
+            info={report.bike.caveat ?? t.info.bike}
             actions={
               session.bikeId ? (
                 <>
@@ -115,7 +115,7 @@ export function ImuSessionReport({
                       note={setup.note}
                       labels={setup.labels}
                       bikeType={bikeType}
-                      triggerLabel="Afinação da bicicleta nesta sessão"
+                      triggerLabel={t.setupTrigger}
                       triggerIcon={
                         <FileText
                           className="size-[18px]"
@@ -137,7 +137,7 @@ export function ImuSessionReport({
                       strokeWidth={1.75}
                       aria-hidden
                     />
-                    Comparar afinações
+                    {t.compareSetups}
                   </Link>
                 </>
               ) : null
@@ -146,20 +146,14 @@ export function ImuSessionReport({
           <SectionCard
             section={report.rider}
             mark={<ImuRiderGlyph className="h-[48px] w-auto text-foreground" />}
-            info={
-              report.rider.caveat ??
-              "Como a volta foi conduzida: a velocidade, as curvas e as travagens, lidas do GPS fundido com o acelerómetro."
-            }
+            info={report.rider.caveat ?? t.info.rider}
           />
           <SectionCard
             section={report.trail}
             mark={
               <TrailPeaksIcon className="h-[40px] w-auto text-foreground" />
             }
-            info={
-              report.trail.caveat ??
-              "O que o percurso pediu: a distância, o desnível, o terreno, os impactos, as curvas e os saltos."
-            }
+            info={report.trail.caveat ?? t.info.trail}
           />
         </div>
       )}
@@ -186,7 +180,9 @@ function withUnit(metric: ReportMetric) {
 }
 
 /** The numbers in a headline, with their unit when one follows, set in
- * bold (the supplied layout: "Reteve em média **76 %** nas curvas"). */
+ * bold (the supplied layout: "Reteve em média **76 %** nas curvas"). The
+ * percent sign is caught with or without the space before it, so the
+ * English "76%" reads the same way. */
 const HEADLINE_FIGURE =
   /(\d+(?:[.,]\d+)?(?:\s?%|\s?(?:G|km|m)(?![A-Za-zÀ-ÿ]))?)/g;
 function emphasize(text: string): ReactNode[] {

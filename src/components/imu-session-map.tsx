@@ -4,6 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { Crosshair, Minus, Plus } from "lucide-react";
 import { ImuMapNorthBadge } from "@/components/imu-map-north-badge";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import type { Locale } from "@/lib/i18n";
 import type {
   CircleMarker,
   LatLngBounds,
@@ -174,22 +176,24 @@ function paintTrack(
  * The key a ride's place name is cached under — the middle of the track,
  * rounded to ~100 m of ground. Nominatim's terms ask that results be cached
  * rather than re-requested, and two sessions on the same trail should cost
- * one lookup.
+ * one lookup. The language is part of the key: the name is asked for in the
+ * reader's language, and a Portuguese answer must not be served to an
+ * English reader of the same ground.
  */
-function placeCacheKey(gps: GpsChannels): string | null {
+function placeCacheKey(gps: GpsChannels, locale: Locale): string | null {
   const m = gps.tMs.length;
   if (m === 0) return null;
   const mid = Math.floor(m / 2);
-  return `imu-place:${gps.latDeg[mid].toFixed(3)},${gps.lonDeg[mid].toFixed(3)}`;
+  return `imu-place:${locale}:${gps.latDeg[mid].toFixed(3)},${gps.lonDeg[mid].toFixed(3)}`;
 }
 
 /** The cached name, read at first render so a revisit paints it with the
  * map rather than a beat later. Nothing on the server, where there is no
  * sessionStorage — and nothing is rendered there either, since the label
  * only appears once the map is up. */
-function readCachedPlace(gps: GpsChannels): string | null {
+function readCachedPlace(gps: GpsChannels, locale: Locale): string | null {
   if (typeof window === "undefined") return null;
-  const key = placeCacheKey(gps);
+  const key = placeCacheKey(gps, locale);
   return key ? sessionStorage.getItem(key) || null : null;
 }
 
@@ -322,6 +326,10 @@ export function ImuSessionMap({
   title?: string;
   className?: string;
 }) {
+  // The reader's language: the controls' names, the credit line's word,
+  // and the language the ground's name is asked for in.
+  const t = useProDict().analysis.map;
+  const locale = useProLocale();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   /** The cursor's mark: three circles that move as one. */
@@ -396,7 +404,7 @@ export function ImuSessionMap({
    * ground under the track. Null until it resolves, and it may never: the
    * label falls back to the given title. */
   const [placeName, setPlaceName] = useState<string | null>(() =>
-    readCachedPlace(gps),
+    readCachedPlace(gps, locale),
   );
 
   useEffect(() => {
@@ -820,7 +828,7 @@ export function ImuSessionMap({
    * two sessions on the same trail should cost one lookup.
    */
   useEffect(() => {
-    const key = placeCacheKey(gps);
+    const key = placeCacheKey(gps, locale);
     // Already answered for this ground — the initial state read it.
     if (!key || sessionStorage.getItem(key) != null) return;
     const mid = Math.floor(gps.tMs.length / 2);
@@ -829,8 +837,10 @@ export function ImuSessionMap({
     const ctrl = new AbortController();
     (async () => {
       try {
+        // Asked for in the reader's language: Nominatim carries the names
+        // OpenStreetMap has in each, and falls back to the local one.
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=16&accept-language=pt`,
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=16&accept-language=${locale}`,
           { signal: ctrl.signal },
         );
         if (!res.ok) return;
@@ -863,7 +873,7 @@ export function ImuSessionMap({
       }
     })();
     return () => ctrl.abort();
-  }, [gps]);
+  }, [gps, locale]);
 
   /** How tall Leaflet's credit line is right now, so the place name can sit
    * on top of the corner it owns without landing on it. Measured and not
@@ -884,12 +894,12 @@ export function ImuSessionMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !placeName) return;
-    const credit = "Nomes &copy; OpenStreetMap";
+    const credit = t.namesCredit;
     map.attributionControl?.addAttribution(credit);
     return () => {
       map.attributionControl?.removeAttribution(credit);
     };
-  }, [placeName, ready]);
+  }, [placeName, ready, t.namesCredit]);
 
   // The dimmed whole track — repainted only when the colour mode flips.
   useEffect(() => {
@@ -976,7 +986,7 @@ export function ImuSessionMap({
     >
       <div
         ref={containerRef}
-        aria-label="Percurso da sessão no mapa"
+        aria-label={t.route}
         // Interactive at every width — drag, pinch, tap-to-seek. It was deaf
         // to the pointer on a phone while it was a 104px thumbnail
         // (2026-08-26 to 09-05); a full card is a map you work, and a finger
@@ -992,7 +1002,7 @@ export function ImuSessionMap({
           <div className="flex flex-col overflow-hidden rounded-full bg-white/90 py-0.5 shadow-sm">
             <button
               type="button"
-              aria-label="Aproximar"
+              aria-label={t.zoomIn}
               onClick={() => {
                 framedRef.current = false;
                 mapRef.current?.zoomIn();
@@ -1003,7 +1013,7 @@ export function ImuSessionMap({
             </button>
             <button
               type="button"
-              aria-label="Afastar"
+              aria-label={t.zoomOut}
               onClick={() => {
                 framedRef.current = false;
                 mapRef.current?.zoomOut();
@@ -1015,7 +1025,7 @@ export function ImuSessionMap({
           </div>
           <button
             type="button"
-            aria-label="Enquadrar o percurso"
+            aria-label={t.frame}
             onClick={() => {
               const map = mapRef.current;
               const bounds = boundsRef.current;

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { formatDate } from "@/lib/format";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
   ImuSessionSetup,
   type ImuSetupLabels,
@@ -27,6 +28,8 @@ export function ImuBikeSetups({
   labels: ImuSetupLabels;
   bikeType: BikeType | null;
 }) {
+  const t = useProDict();
+  const locale = useProLocale();
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {setups.map((setup) => {
@@ -52,7 +55,8 @@ export function ImuBikeSetups({
                   Setup {setup.letter}
                 </span>
                 <span className="mt-3 block text-sm leading-relaxed">
-                  {setupSummary(setup.values, labels) ?? "Sem valores"}
+                  {setupSummary(setup.values, labels, locale) ??
+                    t.report.bikes.noValues}
                 </span>
                 {setup.note && (
                   <span className="mt-2 block text-xs text-muted-foreground">
@@ -60,9 +64,10 @@ export function ImuBikeSetups({
                   </span>
                 )}
                 <span className="mt-auto block pt-4 text-sm font-semibold tabular-nums">
-                  {n} {n === 1 ? "sessão" : "sessões"}
+                  {t.common.session(n)}
                   <span className="font-normal text-muted-foreground">
-                    {" · "}última a {formatDate(setup.lastUsedAt)}
+                    {" · "}
+                    {t.common.lastOn(formatDate(setup.lastUsedAt, locale))}
                   </span>
                 </span>
               </>

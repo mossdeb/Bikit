@@ -22,6 +22,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useProDict, useProLocale } from "@/components/pro-locale";
+import type { ProDictionary } from "@/lib/i18n/pro";
+import { proPercent } from "@/lib/i18n/pro";
+import type { Locale } from "@/lib/i18n";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
 import {
   circuitMode,
@@ -36,7 +40,8 @@ import {
 } from "@/lib/imu/setup";
 
 /** What the bike calls its dampers, for the blocks' headings; null falls
- * back to "Garfo" and "Amortecedor". Null for both on a hardtail is still
+ * back to "Garfo" and "Amortecedor" ("Fork" and "Shock" in English). Null
+ * for both on a hardtail is still
  * two blocks — the form does not know what the bike lacks, only what it
  * has, and an unfilled block costs nothing. */
 export interface ImuSetupLabels {
@@ -79,10 +84,15 @@ function toDraft(values: ImuSetupValues): Draft {
   return draft;
 }
 
-/** "30 % do curso" under the sag field, from the two strings as typed —
- * the same arithmetic the summary prints (sagPercent). Null until both
- * numbers are in. */
-function sagShare(draft: Draft, block: "fork" | "shock"): string | null {
+/** "30 % do curso" ("30% of the travel") under the sag field, from the
+ * two strings as typed — the same arithmetic the summary prints
+ * (sagPercent). Null until both numbers are in. */
+function sagShare(
+  draft: Draft,
+  block: "fork" | "shock",
+  t: ProDictionary["report"]["setup"]["form"],
+  locale: Locale,
+): string | null {
   const num = (key: string) => {
     const n = Number(draft[key]?.trim().replace(",", "."));
     return draft[key]?.trim() && Number.isFinite(n) ? n : undefined;
@@ -91,7 +101,7 @@ function sagShare(draft: Draft, block: "fork" | "shock"): string | null {
     travelMm: num(damperKey(block, "travelMm")),
     sagMm: num(damperKey(block, "sagMm")),
   });
-  return share != null ? `${share} % do curso` : null;
+  return share != null ? t.sagShare(proPercent(share, locale)) : null;
 }
 
 /** Back from the strings the inputs hold — a comma is a decimal point
@@ -151,7 +161,7 @@ export function ImuSessionSetup({
   triggerIcon,
   triggerContent,
   readOnly = false,
-  title = "Afinação nesta volta",
+  title,
 }: {
   /** The session the setup is saved to. Unused when `readOnly`. */
   sessionId: string;
@@ -173,8 +183,12 @@ export function ImuSessionSetup({
   /** Looking, not editing (2026-09-24, a bike's setups): the same form
    * with every field held, no note to write and no Guardar. */
   readOnly?: boolean;
+  /** The dialog's title; the dictionary's "Afinação nesta volta" when
+   * not given. */
   title?: string;
 }) {
+  const dict = useProDict();
+  const t = dict.report.setup.form;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(values));
@@ -225,13 +239,13 @@ export function ImuSessionSetup({
       }}
     >
       <DialogTrigger
-        title="A afinação da bicicleta nesta volta"
+        title={t.triggerTitle}
         // The report door's pill, beside it: outlined, the mark and the
         // word — a control, not a figure. A caller can dress it otherwise
         // (the report's Bike card, 2026-09-14).
         className={cn(
           triggerClassName ??
-            "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground sm:self-end",
+            "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
           CLICKABLE_CARD_HOVER,
         )}
       >
@@ -250,11 +264,9 @@ export function ImuSessionSetup({
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl">{title}</DialogTitle>
+          <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
           <DialogDescription className="mt-1">
-            {readOnly
-              ? "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg, tal como foram registados."
-              : "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Só o que preencheres fica guardado; uma alteração cria uma afinação nova para a bicicleta, que as próximas importações herdam."}
+            {readOnly ? t.descriptionReadOnly : t.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -275,7 +287,7 @@ export function ImuSessionSetup({
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
               <DamperBlock
                 block="fork"
-                heading={labels.fork || "Garfo"}
+                heading={labels.fork || dict.report.setup.fork}
                 draft={draft}
                 set={set}
                 choose={choose}
@@ -297,7 +309,7 @@ export function ImuSessionSetup({
               </div>
               <DamperBlock
                 block="shock"
-                heading={labels.shock || "Amortecedor"}
+                heading={labels.shock || dict.report.setup.shock}
                 draft={draft}
                 set={set}
                 choose={choose}
@@ -312,14 +324,14 @@ export function ImuSessionSetup({
           <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr] sm:gap-4">
               <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
-                <p className="text-lg font-semibold">Pneus</p>
+                <p className="text-lg font-semibold">{t.tyres}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
                   <NumberField
                     id="setup-tires-front"
                     label={
                       labels.tireFront
-                        ? `À frente · ${labels.tireFront}`
-                        : "Pressão à frente"
+                        ? t.front(labels.tireFront)
+                        : t.frontPressure
                     }
                     unit="psi"
                     value={draft[tireKey("frontPsi")]}
@@ -329,9 +341,7 @@ export function ImuSessionSetup({
                   <NumberField
                     id="setup-tires-rear"
                     label={
-                      labels.tireRear
-                        ? `Atrás · ${labels.tireRear}`
-                        : "Pressão atrás"
+                      labels.tireRear ? t.rear(labels.tireRear) : t.rearPressure
                     }
                     unit="psi"
                     value={draft[tireKey("rearPsi")]}
@@ -345,7 +355,7 @@ export function ImuSessionSetup({
                 <div className="mt-3">
                   <NumberField
                     id="setup-rider-weight"
-                    label="Peso equipado"
+                    label={t.riderWeight}
                     unit="kg"
                     value={draft[RIDER_WEIGHT_KEY]}
                     onChange={set(RIDER_WEIGHT_KEY)}
@@ -359,11 +369,11 @@ export function ImuSessionSetup({
           {/* Read-only, the note shows only when there is one to read. */}
           {(!readOnly || draftNote.trim()) && (
             <div className="space-y-1.5">
-              <Label htmlFor="setup-note">Notas</Label>
+              <Label htmlFor="setup-note">{t.notes}</Label>
               <Textarea
                 id="setup-note"
                 value={draftNote}
-                placeholder="algo a lembrar desta afinação"
+                placeholder={t.notesPlaceholder}
                 className="min-h-24"
                 onChange={(e) => setDraftNote(e.target.value)}
                 readOnly={readOnly}
@@ -381,7 +391,7 @@ export function ImuSessionSetup({
               variant="inverted"
               disabled={busy || !dirty}
             >
-              {busy ? "A guardar…" : "Guardar"}
+              {busy ? dict.common.saving : dict.common.save}
             </Button>
           )}
         </form>
@@ -414,6 +424,8 @@ function DamperBlock({
   choose: Chooser;
   readOnly?: boolean;
 }) {
+  const t = useProDict().report.setup.form;
+  const locale = useProLocale();
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
   return (
@@ -421,7 +433,7 @@ function DamperBlock({
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-semibold">{heading}</p>
         <ModeSwitch
-          label={air ? "Ar" : "Mola"}
+          label={air ? t.air : t.coil}
           checked={air}
           onToggle={() => choose(springKey, air ? "coil" : "air")}
           disabled={readOnly}
@@ -440,7 +452,7 @@ function DamperBlock({
         <div className="grid grid-cols-2 gap-3">
           <NumberField
             id={`setup-${block}-travel`}
-            label={block === "fork" ? "Curso" : "Stroke"}
+            label={block === "fork" ? t.travel : "Stroke"}
             unit="mm"
             value={draft[damperKey(block, "travelMm")]}
             onChange={set(damperKey(block, "travelMm"))}
@@ -453,7 +465,7 @@ function DamperBlock({
             unit="mm"
             value={draft[damperKey(block, "sagMm")]}
             onChange={set(damperKey(block, "sagMm"))}
-            hint={sagShare(draft, block)}
+            hint={sagShare(draft, block, t, locale)}
             small
             readOnly={readOnly}
           />
@@ -462,7 +474,7 @@ function DamperBlock({
           {air ? (
             <NumberField
               id={`setup-${block}-pressure`}
-              label="Pressão"
+              label={t.pressure}
               unit="psi"
               value={draft[damperKey(block, "pressurePsi")]}
               onChange={set(damperKey(block, "pressurePsi"))}
@@ -472,7 +484,7 @@ function DamperBlock({
           ) : (
             <NumberField
               id={`setup-${block}-spring`}
-              label="Mola"
+              label={t.spring}
               unit="lbs"
               value={draft[damperKey(block, "springRateLbs")]}
               onChange={set(damperKey(block, "springRateLbs"))}
@@ -485,7 +497,7 @@ function DamperBlock({
       <Circuit
         block={block}
         circuit="compression"
-        name="Compressão"
+        name={t.compression}
         draft={draft}
         set={set}
         choose={choose}
@@ -527,6 +539,7 @@ function Circuit({
   choose: Chooser;
   readOnly?: boolean;
 }) {
+  const t = useProDict().report.setup.form;
   const modeKey = damperKey(block, `${circuit}Mode`);
   const dual = draft[modeKey] !== "simple";
   const lowField: keyof ImuDamperSetup = `${circuit}Low`;
@@ -536,7 +549,7 @@ function Circuit({
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium">{name}</p>
         <ModeSwitch
-          label={dual ? "Alta/baixa" : "Simples"}
+          label={dual ? t.dual : t.single}
           checked={dual}
           onToggle={() => choose(modeKey, dual ? "simple" : "dual")}
           disabled={readOnly}
@@ -546,8 +559,8 @@ function Circuit({
         <div className="mt-2 grid grid-cols-2 gap-3">
           <NumberField
             id={`setup-${block}-${lowField}`}
-            label="Baixa velocidade"
-            unit="cliques"
+            label={t.lowSpeed}
+            unit={t.clicksUnit}
             value={draft[damperKey(block, lowField)]}
             onChange={set(damperKey(block, lowField))}
             small
@@ -555,8 +568,8 @@ function Circuit({
           />
           <NumberField
             id={`setup-${block}-${highField}`}
-            label="Alta velocidade"
-            unit="cliques"
+            label={t.highSpeed}
+            unit={t.clicksUnit}
             value={draft[damperKey(block, highField)]}
             onChange={set(damperKey(block, highField))}
             small
@@ -567,8 +580,8 @@ function Circuit({
         <div className="mt-2 grid grid-cols-2 gap-3">
           <NumberField
             id={`setup-${block}-${circuit}`}
-            label="Cliques"
-            unit="cliques"
+            label={t.clicks}
+            unit={t.clicksUnit}
             value={draft[damperKey(block, circuit)]}
             onChange={set(damperKey(block, circuit))}
             small

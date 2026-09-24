@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 import { formatDistance, formatHours } from "@/lib/format";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
@@ -22,7 +23,10 @@ export default async function ProBikesPage() {
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
   const locale = localeFromMetadata(userData?.claims?.user_metadata);
+  // The app's dictionary for the words the app's own bike cards use, and
+  // Pro's for what is Pro's: the title, the empty state, the sessions.
   const dict = getDictionary(locale);
+  const t = getProDictionary(locale);
   const distanceUnit = ((userData?.claims?.user_metadata?.distance_unit as
     string | undefined) ?? "km") as "km" | "mi";
 
@@ -45,16 +49,16 @@ export default async function ProBikesPage() {
   return (
     <div className="pt-4 sm:pt-8">
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold">Bicicletas</h1>
+        <h1 className="font-display text-2xl font-bold">
+          {t.report.bikes.title}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {dict.bikes.fleetCount(bikes?.length ?? 0)}
         </p>
       </div>
 
       {!bikes || bikes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Ainda não há bicicletas. Regista uma no Bikit e ela aparece aqui.
-        </p>
+        <p className="text-sm text-muted-foreground">{t.report.bikes.empty}</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bikes.map((bike) => {
@@ -97,9 +101,7 @@ export default async function ProBikesPage() {
                     <span aria-hidden className="text-muted-foreground">
                       ·
                     </span>
-                    <span>
-                      {count} {count === 1 ? "sessão" : "sessões"}
-                    </span>
+                    <span>{t.common.session(count)}</span>
                   </p>
                   <span className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold">
                     {dict.bikes.viewBike}

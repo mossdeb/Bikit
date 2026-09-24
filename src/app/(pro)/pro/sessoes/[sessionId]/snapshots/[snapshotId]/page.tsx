@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
 import { ImuSnapshotView } from "@/components/imu-snapshot-view";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 import { loadSnapshotCandidates } from "@/lib/imu/snapshot-candidates";
@@ -47,6 +48,7 @@ export default async function ImuSnapshotPage({
     userId,
     definition,
     snapshot.reference_session_id,
+    localeFromMetadata(userData?.claims?.user_metadata),
   );
 
   return (

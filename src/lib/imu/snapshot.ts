@@ -7,6 +7,10 @@ import {
   windowPeak,
 } from "./derive";
 import { lowerBoundIndex, upperBoundIndex } from "./downsample";
+// Relative, like the rest of this file's imports: vitest has no config
+// for the `@/` alias, and the tests import this module.
+import type { Locale } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 
 /**
  * Snapshots — a stretch of trail kept as a reference, and every pass through
@@ -45,13 +49,12 @@ import { lowerBoundIndex, upperBoundIndex } from "./downsample";
 
 export type SnapshotKind = "curve" | "jump" | "rough_section" | "braking";
 
-/** The kinds in words, for names and headings. */
-export const SNAPSHOT_KIND_LABEL: Record<SnapshotKind, string> = {
-  curve: "Curva",
-  jump: "Salto",
-  rough_section: "Zona acidentada",
-  braking: "Travagem",
-};
+/** A kind in words, for names and headings, in the reader's language
+ * (the Pro dictionary's `snapshots.kind`, since the i18n pass of
+ * 2026-09-24 — it was a Portuguese table here). */
+export function snapshotKindLabel(kind: SnapshotKind, locale: Locale): string {
+  return getProDictionary(locale).snapshots.kind[kind];
+}
 
 export function isSnapshotKind(value: unknown): value is SnapshotKind {
   return (

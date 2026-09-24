@@ -19,7 +19,7 @@
  * nothing: the caller shows the chart from two setups up.
  */
 
-import type { ReportMetric, SessionReport } from "./report";
+import type { ReportMetric, SessionReport, ReportMetricKey } from "./report";
 
 export const DYNAMICS_NOISE_SPAN = 4;
 
@@ -27,58 +27,38 @@ export type DynamicsAxisKey = "absorption" | "control" | "recovery" | "support";
 
 export interface DynamicsAxis {
   key: DynamicsAxisKey;
-  name: string;
-  /** What the axis reads, in one line (the supplied layout's). */
-  description: string;
-  /** The figures it is made of, by the report's labels. */
-  metrics: string[];
-  /** Those figures in words, for the bullet under the description. */
-  parts: string;
+  /** The figures it is made of, by the report's keys. */
+  metrics: ReportMetricKey[];
 }
 
-/** Clockwise from the top: absorption, control, support, recovery — the
- * supplied layout's compass. */
+/**
+ * Clockwise from the top: absorption, control, support, recovery — the
+ * supplied layout's compass. Only the structure lives here; the axes'
+ * names, descriptions and the figures in words are the Pro dictionary's
+ * (`compare.axes`, by the same keys), read by the component that draws
+ * them.
+ *
+ * The metrics are the report's keys (ReportMetricKey), the same in every
+ * language, which scoreDynamics matches a SessionReport's metrics on.
+ */
 export const DYNAMICS_AXES: DynamicsAxis[] = [
-  {
-    key: "absorption",
-    name: "Absorção",
-    description: "Quanto do terreno chega ao chassis e ao rider",
-    metrics: ["Harshness", "Chatter 12–60 Hz"],
-    parts: "Harshness e chatter em terreno acidentado",
-  },
-  {
-    key: "control",
-    name: "Controlo",
-    description: "Capacidade de estabilizar depois de cada pancada",
-    metrics: ["Oscilação residual"],
-    parts: "Oscilação residual depois de um impacto",
-  },
-  {
-    key: "support",
-    name: "Suporte",
-    description: "Quanto o chassis resiste a transferências e compressões",
-    metrics: ["Estabilidade"],
-    parts: "Pitch do quadro em terreno acidentado",
-  },
-  {
-    key: "recovery",
-    name: "Recuperação",
-    description: "Capacidade de lidar com impactos sucessivos",
-    metrics: ["Recuperação"],
-    parts: "O que sobra de um impacto quando chega o seguinte",
-  },
+  { key: "absorption", metrics: ["harshness", "chatter"] },
+  { key: "control", metrics: ["residualOscillation"] },
+  { key: "support", metrics: ["stability"] },
+  { key: "recovery", metrics: ["recovery"] },
 ];
 
 export interface DynamicsSetup {
   letter: string;
-  /** The median of each figure across the setup's runs, by label. */
+  /** The median of each figure across the setup's runs, by key. */
   medians: Map<string, number>;
   /** Every run's value of each figure, for the spread. */
   values: Map<string, number[]>;
 }
 
 export interface DynamicsPart {
-  label: string;
+  /** The figure, by its key; its name in words is `report.metric[key]`. */
+  key: ReportMetricKey;
   /** The setup's median, in the figure's own unit. */
   value: number;
   /** 0–100 against the best of the setups. */
@@ -109,8 +89,8 @@ export function dynamicsMetricRules(
   >();
   for (const r of reports)
     for (const m of [...r.rider.metrics, ...r.bike.metrics, ...r.trail.metrics])
-      if (m.raw != null && !rules.has(m.label))
-        rules.set(m.label, {
+      if (m.raw != null && !rules.has(m.key))
+        rules.set(m.key, {
           better: m.better,
           tie: m.tie,
           unit: m.unit,
@@ -129,7 +109,8 @@ export function dynamicsNoise(
   let spread = 0;
   for (const s of setups) {
     const v = s.values.get(label) ?? [];
-    if (v.length > 1) spread = Math.max(spread, Math.max(...v) - Math.min(...v));
+    if (v.length > 1)
+      spread = Math.max(spread, Math.max(...v) - Math.min(...v));
   }
   return Math.max(tie ?? 0, spread);
 }
@@ -170,7 +151,12 @@ export function scoreDynamics(
               : 0;
         // Exactly one noise away is a tie — with the slack a float needs
         // for 3,2 − 3,0 to be 0,2.
-        parts.push({ label, value, score, tie: away <= b.noise * (1 + 1e-9) });
+        parts.push({
+          key: label,
+          value,
+          score,
+          tie: away <= b.noise * (1 + 1e-9),
+        });
       }
       return {
         key: axis.key,

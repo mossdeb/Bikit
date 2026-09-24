@@ -27,7 +27,18 @@
  *
  * Setups are immutable rows shared by sessions (migration 00047): equal
  * values on save keep the row, changed values make a new one.
+ *
+ * The functions that write words — the summary line, the differences, the
+ * spread — take the reader's `locale` (2026-09-24) and read them from the
+ * Pro dictionary's `report.setup`; the numbers follow the language too.
  */
+
+import type { Locale } from "@/lib/i18n";
+import {
+  getProDictionary,
+  PRO_NUMBER_LOCALE,
+  proPercent,
+} from "@/lib/i18n/pro";
 
 export type ImuSpringKind = "air" | "coil";
 export type ImuCircuitMode = "simple" | "dual";
@@ -272,39 +283,52 @@ export function setupValuesEqual(
   return setupKey(a) === setupKey(b);
 }
 
-const pt = (n: number) =>
-  n.toLocaleString("pt-PT", { maximumFractionDigits: 1 });
+/** A knob's number as the reader's language writes it, to one decimal at
+ * most: "82,5" in Portuguese, "82.5" in English, "78" in both. */
+const num = (n: number, locale: Locale) =>
+  n.toLocaleString(PRO_NUMBER_LOCALE[locale], { maximumFractionDigits: 1 });
 
 function circuitSummary(
   letter: string,
   d: ImuDamperSetup,
   circuit: ImuCircuit,
+  locale: Locale,
 ): string | null {
   if (circuitMode(d, circuit) === "simple") {
     const v = d[CIRCUIT_FIELDS[circuit].simple[0]];
-    return v != null ? `${letter} ${pt(v)}` : null;
+    return v != null ? `${letter} ${num(v, locale)}` : null;
   }
   const [low, high] = CIRCUIT_FIELDS[circuit].dual;
   const lo = d[low];
   const hi = d[high];
   if (lo == null && hi == null) return null;
-  return `${letter} ${lo != null ? pt(lo) : "–"}/${hi != null ? pt(hi) : "–"}`;
+  return `${letter} ${lo != null ? num(lo, locale) : "–"}/${hi != null ? num(hi, locale) : "–"}`;
 }
 
-function damperSummary(label: string, d: ImuDamperSetup): string | null {
+function damperSummary(
+  label: string,
+  d: ImuDamperSetup,
+  locale: Locale,
+): string | null {
+  const t = getProDictionary(locale).report.setup;
   const bits: string[] = [];
   if (damperSpring(d) === "coil") {
-    if (d.springRateLbs != null) bits.push(`${pt(d.springRateLbs)} lbs`);
-  } else if (d.pressurePsi != null) bits.push(`${pt(d.pressurePsi)} psi`);
+    if (d.springRateLbs != null)
+      bits.push(`${num(d.springRateLbs, locale)} lbs`);
+  } else if (d.pressurePsi != null)
+    bits.push(`${num(d.pressurePsi, locale)} psi`);
   if (d.sagMm != null) {
     const share = sagPercent(d);
     bits.push(
-      `sag ${pt(d.sagMm)} mm${share != null ? ` (${pt(share)} %)` : ""}`,
+      t.sag(
+        num(d.sagMm, locale),
+        share != null ? proPercent(share, locale) : null,
+      ),
     );
   }
-  const c = circuitSummary("C", d, "compression");
+  const c = circuitSummary("C", d, "compression", locale);
   if (c) bits.push(c);
-  const r = circuitSummary("R", d, "rebound");
+  const r = circuitSummary("R", d, "rebound", locale);
   if (r) bits.push(r);
   return bits.length > 0 ? `${label} ${bits.join(" · ")}` : null;
 }
@@ -316,47 +340,40 @@ function damperSummary(label: string, d: ImuDamperSetup): string | null {
  * pair was not filled in; a single dial is one number. A coil damper
  * gives its spring rate where an air one gives its pressure. The labels
  * are the bike's own component names when it has them, "Garfo" and
- * "Amortecedor" otherwise. Null when nothing was filled in.
+ * "Amortecedor" ("Fork" and "Shock" in English) otherwise. Null when
+ * nothing was filled in.
  */
 export function setupSummary(
   values: ImuSetupValues,
   labels: { fork?: string | null; shock?: string | null } = {},
+  locale: Locale,
 ): string | null {
+  const t = getProDictionary(locale).report.setup;
   const v = normalizeSetupValues(values);
   const parts: string[] = [];
   if (v.fork) {
-    const s = damperSummary(labels.fork || "Garfo", v.fork);
+    const s = damperSummary(labels.fork || t.fork, v.fork, locale);
     if (s) parts.push(s);
   }
   if (v.shock) {
-    const s = damperSummary(labels.shock || "Amortecedor", v.shock);
+    const s = damperSummary(labels.shock || t.shock, v.shock, locale);
     if (s) parts.push(s);
   }
   if (v.tires) {
-    const f = v.tires.frontPsi != null ? pt(v.tires.frontPsi) : "–";
-    const r = v.tires.rearPsi != null ? pt(v.tires.rearPsi) : "–";
-    parts.push(`Pneus ${f}/${r} psi`);
+    const f = v.tires.frontPsi != null ? num(v.tires.frontPsi, locale) : "–";
+    const r = v.tires.rearPsi != null ? num(v.tires.rearPsi, locale) : "–";
+    parts.push(t.tyres(f, r));
   }
-  if (v.rider?.weightKg != null) parts.push(`Rider ${pt(v.rider.weightKg)} kg`);
+  if (v.rider?.weightKg != null)
+    parts.push(`Rider ${num(v.rider.weightKg, locale)} kg`);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** What each knob is called in a difference — the trade's own letters
- * (LSC, HSR…) for the two-dial circuits, C and R for the single ones (by
- * request, 2026-09-12: "corrige o sinal nas cápsulas para que fique mais
- * perceptível"). */
-const DAMPER_FIELD_SHORT: Record<DamperField, string> = {
-  pressurePsi: "pressão",
-  springRateLbs: "mola",
-  travelMm: "curso",
-  sagMm: "sag",
-  compression: "C",
-  compressionHigh: "HSC",
-  compressionLow: "LSC",
-  rebound: "R",
-  reboundHigh: "HSR",
-  reboundLow: "LSR",
-};
+// What each knob is called in a difference — the trade's own letters
+// (LSC, HSR…) for the two-dial circuits, C and R for the single ones (by
+// request, 2026-09-12: "corrige o sinal nas cápsulas para que fique mais
+// perceptível") — lives in the dictionary, `report.setup.knob`, keyed by
+// DamperField.
 const DAMPER_FIELD_UNIT: Record<DamperField, string> = {
   pressurePsi: " psi",
   springRateLbs: " lbs",
@@ -388,9 +405,20 @@ const DAMPER_FIELD_KIND: Record<DamperField, SetupChangeKind> = {
   reboundLow: "clicks",
 };
 
+/** Which part of the bike a change is on. */
+export type SetupChangeBlock = "fork" | "shock" | "tires" | "rider";
+/** The knob a change is of, by its field: the same in every language. */
+export type SetupKnob =
+  (typeof DAMPER_FIELDS)[number] | (typeof TIRE_FIELDS)[number] | "weightKg";
+
 export interface SetupChange {
-  /** The knob, in words: "garfo LSR", "pneu tr.". */
+  /** The knob, in words: "garfo LSR", "pneu tr." ("fork LSR", "rear
+   * tyre") — in the language setupDiff was given. */
   label: string;
+  /** The same knob, structurally, for a reader that wants to name it in
+   * its own words (the comparison's detail cards). */
+  block: SetupChangeBlock;
+  knob: SetupKnob;
   from: number | null;
   to: number | null;
   unit: string;
@@ -408,18 +436,22 @@ export interface SetupChange {
 export function setupDiff(
   from: ImuSetupValues,
   to: ImuSetupValues,
+  locale: Locale,
 ): SetupChange[] {
+  const t = getProDictionary(locale).report.setup;
   const a = normalizeSetupValues(from);
   const b = normalizeSetupValues(to);
   const changes: SetupChange[] = [];
   for (const block of ["fork", "shock"] as const) {
-    const word = block === "fork" ? "garfo" : "amort.";
+    const word = block === "fork" ? t.diffFork : t.diffShock;
     for (const field of DAMPER_FIELDS) {
       const x = a[block]?.[field] ?? null;
       const y = b[block]?.[field] ?? null;
       if (x === y) continue;
       changes.push({
-        label: `${word} ${DAMPER_FIELD_SHORT[field]}`,
+        label: `${word} ${t.knob[field]}`,
+        block,
+        knob: field,
         from: x,
         to: y,
         unit: DAMPER_FIELD_UNIT[field],
@@ -432,7 +464,9 @@ export function setupDiff(
     const y = b.tires?.[field] ?? null;
     if (x === y) continue;
     changes.push({
-      label: field === "frontPsi" ? "pneu dt." : "pneu tr.",
+      label: field === "frontPsi" ? t.diffTyreFront : t.diffTyreRear,
+      block: "tires",
+      knob: field,
       from: x,
       to: y,
       unit: " psi",
@@ -443,7 +477,9 @@ export function setupDiff(
   const wb = b.rider?.weightKg ?? null;
   if (wa !== wb)
     changes.push({
-      label: "rider",
+      label: t.diffRider,
+      block: "rider",
+      knob: "weightKg",
       from: wa,
       to: wb,
       unit: " kg",
@@ -455,17 +491,22 @@ export function setupDiff(
 /** The direction a change went, in the words a mechanic uses: clicks
  * counted from closed open as they grow; more pressure or a stiffer
  * spring firms; more sag softens; a harder tyre is a harder tyre. */
-function changeDirection(kind: SetupChangeKind, delta: number): string | null {
+export function changeDirection(
+  kind: SetupChangeKind,
+  delta: number,
+  locale: Locale,
+): string | null {
+  const t = getProDictionary(locale).report.setup.direction;
   const up = delta > 0;
   switch (kind) {
     case "clicks":
-      return up ? "mais aberto" : "mais fechado";
+      return up ? t.clicksUp : t.clicksDown;
     case "spring":
-      return up ? "mais firme" : "mais macio";
+      return up ? t.springUp : t.springDown;
     case "sag":
-      return up ? "mais macio" : "mais firme";
+      return up ? t.sagUp : t.sagDown;
     case "tire":
-      return up ? "mais duro" : "mais mole";
+      return up ? t.tireUp : t.tireDown;
     case "travel":
     case "rider":
       return null;
@@ -474,16 +515,17 @@ function changeDirection(kind: SetupChangeKind, delta: number): string | null {
 
 /** "garfo LSR +2 · mais aberto", "pneu tr. −2 psi · mais mole", "amort.
  * pressão → 205 psi" when the reference had none, "garfo HSC 2 → —" when
- * this pass has none. */
-export function formatSetupChange(change: SetupChange): string {
+ * this pass has none. The change's label was written by setupDiff in a
+ * language; this must be the same one. */
+export function formatSetupChange(change: SetupChange, locale: Locale): string {
   const { label, from, to, unit, kind } = change;
   if (from != null && to != null) {
     const d = to - from;
-    const direction = changeDirection(kind, d);
-    return `${label} ${d > 0 ? "+" : "−"}${pt(Math.abs(d))}${unit}${direction ? ` · ${direction}` : ""}`;
+    const direction = changeDirection(kind, d, locale);
+    return `${label} ${d > 0 ? "+" : "−"}${num(Math.abs(d), locale)}${unit}${direction ? ` · ${direction}` : ""}`;
   }
-  if (to != null) return `${label} → ${pt(to)}${unit}`;
-  return `${label} ${pt(from!)}${unit} → —`;
+  if (to != null) return `${label} → ${num(to, locale)}${unit}`;
+  return `${label} ${num(from!, locale)}${unit} → —`;
 }
 
 /** The knobs a set of setups agree on and the ones they differ in — the
@@ -497,7 +539,9 @@ export function formatSetupChange(change: SetupChange): string {
 export function setupSpread(
   setups: ImuSetupValues[],
   labels: { fork?: string | null; shock?: string | null } = {},
+  locale: Locale,
 ): { constant: string[]; varying: string[]; constantClicks: number } {
+  const t = getProDictionary(locale).report.setup;
   const all = setups.map(normalizeSetupValues);
   if (all.length === 0) return { constant: [], varying: [], constantClicks: 0 };
   const constant: string[] = [];
@@ -506,23 +550,27 @@ export function setupSpread(
   const same = (values: (number | null)[]) =>
     values.every((v) => v === values[0]);
   for (const block of ["fork", "shock"] as const) {
-    const name = labels[block] || (block === "fork" ? "garfo" : "amortecedor");
+    const name =
+      labels[block] || (block === "fork" ? t.spread.fork : t.spread.shock);
     for (const field of DAMPER_FIELDS) {
       const values = all.map((v) => v[block]?.[field] ?? null);
       if (values.every((v) => v == null)) continue;
-      const knob = DAMPER_FIELD_SHORT[field];
+      const knob = t.knob[field];
       if (same(values)) {
-        const v = pt(values[0]!);
+        const v = num(values[0]!, locale);
         if (DAMPER_FIELD_KIND[field] === "clicks") constantClicks++;
         else
           constant.push(
             field === "sagMm"
-              ? `o sag do ${name} a ${v} mm`
+              ? t.spread.sagConstant(name, v)
               : field === "travelMm"
-                ? `o curso do ${name} a ${v} mm`
-                : `o ${name} a ${v}${DAMPER_FIELD_UNIT[field]}`,
+                ? t.spread.travelConstant(name, v)
+                : t.spread.damperConstant(
+                    name,
+                    `${v}${DAMPER_FIELD_UNIT[field]}`,
+                  ),
           );
-      } else varying.push(`${knob} do ${name}`);
+      } else varying.push(t.spread.knobVaries(knob, name));
     }
   }
   const front = all.map((v) => v.tires?.frontPsi ?? null);
@@ -532,17 +580,21 @@ export function setupSpread(
   if (hasTires) {
     if (same(front) && same(rear))
       constant.push(
-        `os pneus a ${front[0] != null ? pt(front[0]) : "–"}/${rear[0] != null ? pt(rear[0]) : "–"} psi`,
+        t.spread.tyresConstant(
+          front[0] != null ? num(front[0], locale) : "–",
+          rear[0] != null ? num(rear[0], locale) : "–",
+        ),
       );
     else {
-      if (!same(front)) varying.push("pneu da frente");
-      if (!same(rear)) varying.push("pneu de trás");
+      if (!same(front)) varying.push(t.spread.tyreFrontVaries);
+      if (!same(rear)) varying.push(t.spread.tyreRearVaries);
     }
   }
   const weight = all.map((v) => v.rider?.weightKg ?? null);
   if (!weight.every((v) => v == null)) {
-    if (same(weight)) constant.push(`o peso a ${pt(weight[0]!)} kg`);
-    else varying.push("peso do rider");
+    if (same(weight))
+      constant.push(t.spread.weightConstant(num(weight[0]!, locale)));
+    else varying.push(t.spread.weightVaries);
   }
   return { constant, varying, constantClicks };
 }
