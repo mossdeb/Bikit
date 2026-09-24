@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -10,7 +11,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useProDict, useProLocale } from "@/components/pro-locale";
-import { proNumber, proPercent } from "@/lib/i18n/pro";
+import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
+import type { ReportMetricKey } from "@/lib/imu/report";
 import {
   DYNAMICS_AXES,
   DYNAMICS_NOISE_SPAN,
@@ -172,8 +174,9 @@ export function ImuSetupDynamics({
                       2026-09-24): the layout's bike-over-a-wave is not
                       drawn yet, and the bike alone crowded the name. */}
                   <div className="flex min-w-0 items-center gap-3">
-                    <p className="truncate text-base font-semibold">
-                      {axisWords.name}
+                    <p className="flex min-w-0 items-center gap-1 text-base font-semibold">
+                      <span className="truncate">{axisWords.name}</span>
+                      <AxisInfo words={axisWords} metrics={axis.metrics} />
                     </p>
                     {delta != null && Math.round(delta) !== 0 && (
                       <span
@@ -210,6 +213,20 @@ export function ImuSetupDynamics({
                   <p className="mt-4 text-sm text-muted-foreground">
                     {axisWords.description}
                   </p>
+                  {/* The figures the axis is scored on (by request,
+                      2026-09-24), as chips, from the axis's own list —
+                      so the words never drift from what scoreDynamics
+                      reads. */}
+                  <ul className="mt-3 flex flex-wrap gap-1.5">
+                    {axis.metrics.map((key) => (
+                      <li
+                        key={key}
+                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
+                      >
+                        {t.report.metric[key]}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               );
             })}
@@ -222,6 +239,55 @@ export function ImuSetupDynamics({
         )}
       </div>
     </div>
+  );
+}
+
+/** The "i" beside an axis's name (by request, 2026-09-24): the table's
+ * own pattern — a popover, not a tooltip, since this is read on a phone
+ * — with what the axis reads, the figures it is made of, and the
+ * settings that move it, the main one first. */
+function AxisInfo({
+  words,
+  metrics,
+}: {
+  words: ProDictionary["compare"]["axes"][DynamicsAxisKey];
+  metrics: ReportMetricKey[];
+}) {
+  const t = useProDict();
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={t.compare.metricInfo.whatIs(words.name)}
+        className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Info className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-4">
+        <p className="text-sm font-semibold">{words.name}</p>
+        <p className="mt-1.5 text-sm font-normal text-muted-foreground">
+          {words.description}.{" "}
+          {metrics.map((key) => t.report.metric[key]).join(" · ")}.
+        </p>
+        <p className="mt-2 border-t border-border pt-2 text-xs font-medium text-foreground">
+          {t.compare.metricInfo.tuning}
+        </p>
+        <ul className="mt-1.5 space-y-1.5 text-xs font-normal text-muted-foreground">
+          {words.tuning.map((item, i) => (
+            <li key={item.knob}>
+              <span
+                className={cn("text-foreground", i === 0 && "font-semibold")}
+              >
+                {item.knob}:
+              </span>{" "}
+              {item.effect}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
+          {t.compare.metricInfo.tuningNote}
+        </p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

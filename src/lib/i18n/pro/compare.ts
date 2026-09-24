@@ -62,6 +62,10 @@ export interface CompareAxisWords {
   /** The figures it is made of, in words, for the bullet under the
    * description. */
   parts: string;
+  /** The "i" beside the axis's name (by request, 2026-09-24): the
+   * settings that weigh on it, the main one first, each with what it
+   * does to the figure. */
+  tuning: { knob: string; effect: string }[];
 }
 
 /** RMS, for the "i"s that lean on it (by request, 2026-09-12). */
@@ -194,22 +198,110 @@ const axesEn: Record<CompareAxisKey, CompareAxisWords> = {
     name: "Absorption",
     description: "How much of the trail reaches the chassis and the rider",
     parts: "Harshness and chatter in rough terrain",
+    tuning: [
+      {
+        knob: "High-speed compression (HSC)",
+        effect:
+          "the fast hits — rocks, roots — go through the high-speed circuit. Closed too far, the suspension chokes on them, and that is what harshness reads. Opening it lowers harshness.",
+      },
+      {
+        knob: "Air pressure or spring rate",
+        effect:
+          "a spring that is too hard passes everything to the frame: both harshness and chatter go up.",
+      },
+      {
+        knob: "Tyre pressure",
+        effect:
+          "the tyre is the first high-frequency filter. It moves chatter more than anything else on broken ground.",
+      },
+      {
+        knob: "Rebound too slow",
+        effect:
+          "over a run of hits the suspension does not return in time, sits low in its travel and stiffens (packing): chatter rises even with the compression right.",
+      },
+    ],
   },
   control: {
     name: "Control",
     description: "How well it settles after each hit",
     parts: "Residual oscillation after an impact",
+    tuning: [
+      {
+        knob: "Low-speed rebound (LSR)",
+        effect:
+          "what checks the return after the hit. Too fast and the frame bounces and keeps oscillating; a click or two slower is the first move.",
+      },
+      {
+        knob: "Low-speed compression (LSC)",
+        effect:
+          "after the bounce comes a recompression; more LSC damps that second movement.",
+      },
+      {
+        knob: "Fork and shock in step",
+        effect:
+          "when the two return at different rates the frame rocks in pitch after every hit — the problem is the difference between the two rebounds, not either one.",
+      },
+      {
+        knob: "Tyre pressure",
+        effect:
+          "tyres pumped too hard bounce on their own, and that counts as oscillation.",
+      },
+    ],
   },
   support: {
     name: "Support",
     description:
       "How much the chassis resists weight transfers and compressions",
     parts: "Frame pitch in rough terrain",
+    tuning: [
+      {
+        knob: "Low-speed compression (LSC)",
+        effect:
+          "the fork's dive under braking and the shock's squat in compressions are slow movements; LSC is what holds them. More LSC lowers the pitch deviation.",
+      },
+      {
+        knob: "Sag and spring pressure",
+        effect:
+          "more sag or a softer spring lets the frame sink further and change attitude more.",
+      },
+      {
+        knob: "Progression (volume spacers)",
+        effect:
+          "support at the end of the travel without a harder start — helps here without costing absorption, unlike more pressure.",
+      },
+      {
+        knob: "High-speed rebound (HSR)",
+        effect:
+          "the return after a deep compression; too open and the frame lifts suddenly after a big hole.",
+      },
+      {
+        knob: "Front and rear balance",
+        effect:
+          "different sag front and rear changes the bike's attitude and amplifies the pitch — compare the two sags in percent.",
+      },
+    ],
   },
   recovery: {
     name: "Recovery",
     description: "How well it copes with successive impacts",
     parts: "What is left of one impact when the next arrives",
+    tuning: [
+      {
+        knob: "Rebound (LSR and HSR)",
+        effect:
+          "too slow is packing: each hit leaves less travel for the next, and the figure rises. Too fast is bouncing between hits, and it rises too. The right value is in between, and this axis is the best way to find it.",
+      },
+      {
+        knob: "High-speed compression (HSC)",
+        effect:
+          "over fast root sections a closed HSC worsens packing: each hit goes in less and comes out less.",
+      },
+      {
+        knob: "Spring pressure",
+        effect:
+          "a spring that is too soft sinks on the first hit and has no travel left for the ones after.",
+      },
+    ],
   },
 };
 
@@ -218,21 +310,109 @@ const axesPt: Record<CompareAxisKey, CompareAxisWords> = {
     name: "Absorção",
     description: "Quanto do terreno chega ao chassis e ao rider",
     parts: "Harshness e chatter em terreno acidentado",
+    tuning: [
+      {
+        knob: "Compressão de alta velocidade (HSC)",
+        effect:
+          "os impactos rápidos, pedras e raízes, passam pelo circuito de alta velocidade. HSC muito fechada faz a suspensão engasgar nesses impactos, e é isso que o Harshness lê. Abrir a HSC baixa o Harshness.",
+      },
+      {
+        knob: "Pressão da mola de ar ou dureza da mola",
+        effect:
+          "mola demasiado dura transmite tudo ao quadro: sobe o Harshness e o Chatter.",
+      },
+      {
+        knob: "Pressão dos pneus",
+        effect:
+          "o pneu é o primeiro filtro de alta frequência. É o que mais mexe no Chatter em terreno picado.",
+      },
+      {
+        knob: "Rebound demasiado lento",
+        effect:
+          "numa sucessão de pancadas a suspensão não volta a tempo, fica encolhida no curso e endurece (packing): o Chatter sobe mesmo com a compressão bem afinada.",
+      },
+    ],
   },
   control: {
     name: "Controlo",
     description: "Capacidade de estabilizar depois de cada pancada",
     parts: "Oscilação residual depois de um impacto",
+    tuning: [
+      {
+        knob: "Rebound de baixa velocidade (LSR)",
+        effect:
+          "é o que trava o retorno depois da pancada. Muito rápido, o quadro ressalta e continua a oscilar; fechar um ou dois clicks é o primeiro ajuste.",
+      },
+      {
+        knob: "Compressão de baixa velocidade (LSC)",
+        effect:
+          "depois do ressalto vem uma recompressão; mais LSC amortece esse segundo movimento.",
+      },
+      {
+        knob: "Garfo e amortecedor ao mesmo ritmo",
+        effect:
+          "se os dois voltam a ritmos diferentes, o quadro balança em pitch depois de cada impacto — o problema é a diferença entre os dois rebounds, não um valor.",
+      },
+      {
+        knob: "Pressão dos pneus",
+        effect:
+          "pneus demasiado cheios ressaltam por si, e isso conta como oscilação.",
+      },
+    ],
   },
   support: {
     name: "Suporte",
     description: "Quanto o chassis resiste a transferências e compressões",
     parts: "Pitch do quadro em terreno acidentado",
+    tuning: [
+      {
+        knob: "Compressão de baixa velocidade (LSC)",
+        effect:
+          "o mergulho do garfo nas travagens e o afundar do amortecedor nas compressões são movimentos lentos, e é a LSC que os segura. Mais LSC baixa o desvio do pitch.",
+      },
+      {
+        knob: "Sag e pressão da mola",
+        effect:
+          "sag alto ou mola mole deixam o quadro afundar mais e mudar mais de atitude.",
+      },
+      {
+        knob: "Progressividade (tokens)",
+        effect:
+          "apoio no fim do curso sem endurecer o início — ajuda aqui sem custar Absorção, ao contrário de subir a pressão.",
+      },
+      {
+        knob: "Rebound de alta velocidade (HSR)",
+        effect:
+          "o retorno depois de uma compressão profunda; muito aberto, o quadro levanta de repente a seguir a um buraco grande.",
+      },
+      {
+        knob: "Equilíbrio frente e trás",
+        effect:
+          "sag diferente à frente e atrás muda a atitude da bicicleta e amplifica o pitch — compara os dois sags em percentagem.",
+      },
+    ],
   },
   recovery: {
     name: "Recuperação",
     description: "Capacidade de lidar com impactos sucessivos",
     parts: "O que sobra de um impacto quando chega o seguinte",
+    tuning: [
+      {
+        knob: "Rebound (LSR e HSR)",
+        effect:
+          "muito lento é packing: a cada pancada sobra menos curso para a seguinte, e o valor sobe. Muito rápido é ressalto entre pancadas, e também sobe. O bom valor está no meio, e este eixo é a melhor forma de o encontrar.",
+      },
+      {
+        knob: "Compressão de alta velocidade (HSC)",
+        effect:
+          "em sequências rápidas de raízes a HSC fechada agrava o packing: cada pancada entra menos e sai menos.",
+      },
+      {
+        knob: "Pressão da mola",
+        effect:
+          "mola demasiado mole afunda com a primeira pancada e não tem curso para as seguintes.",
+      },
+    ],
   },
 };
 
@@ -476,6 +656,10 @@ const en = {
   metricInfo: {
     whatIs: (label: string): string => `What is ${label}`,
     method: "How it is computed:",
+    /** The axis popover's second block: the settings that move it. */
+    tuning: "What moves it:",
+    tuningNote:
+      "The figures do not say which setting it was: change one at a time and compare setups on the same trail.",
   },
 
   /** The tiles' blocks: fork and shock keep their English names by the
@@ -488,7 +672,7 @@ const en = {
   },
 
   dynamics: {
-    title: "Setup dynamics",
+    title: "Dynamics",
     subtitle: "Balance and behaviour of the setup",
     firstSetup: "First setup",
     secondSetup: "Second setup",
@@ -733,6 +917,9 @@ const pt: typeof en = {
   metricInfo: {
     whatIs: (label) => `O que é ${label}`,
     method: "Como é calculado:",
+    tuning: "O que o faz mexer:",
+    tuningNote:
+      "As métricas não dizem qual foi a regulação: muda uma de cada vez e compara setups na mesma pista.",
   },
 
   blocks: {
@@ -743,7 +930,7 @@ const pt: typeof en = {
   },
 
   dynamics: {
-    title: "Dinâmica do setup",
+    title: "Dinâmica",
     subtitle: "Equilíbrio e comportamento do setup",
     firstSetup: "Primeiro setup",
     secondSetup: "Segundo setup",
