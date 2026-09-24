@@ -5,7 +5,10 @@ import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
 import { hasLabAccess } from "@/lib/lab-access";
 import { formatDate } from "@/lib/format";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
 import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
@@ -15,11 +18,7 @@ import {
   ImuSessionSetup,
   type ImuSetupLabels,
 } from "@/components/imu-session-setup";
-import {
-  isSetupValues,
-  setupSummary,
-  type ImuSetupValues,
-} from "@/lib/imu/setup";
+import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { trimOf } from "@/lib/imu/trim";
 import {
@@ -35,6 +34,13 @@ import { isSnapshotDefinition } from "@/lib/imu/snapshot";
  * The page serves only the row; the raw file is downloaded by the client
  * component straight from Storage, where RLS guards it a second time.
  */
+/** The riders the sessions were ridden by, newest first, each once. */
+function riderNames(sessions: { rider_name: string | null }[]): string[] {
+  return [
+    ...new Set(sessions.map((s) => s.rider_name?.trim() ?? "").filter(Boolean)),
+  ];
+}
+
 export default async function ImuSessionPage({
   params,
 }: {
@@ -60,29 +66,40 @@ export default async function ImuSessionPage({
   // Every bike and every group, not just the session's own: the settings
   // dialog lets the rider pick another of each. The session's bike is
   // looked up in the same list rather than fetched a second time.
-  const [{ data: bikes }, { data: groups }, { data: snapshotRows }] =
-    await Promise.all([
-      supabase
-        .from("bikes")
-        .select("id, name, type")
-        .eq("user_id", userId)
-        .order("name"),
-      supabase
-        .from("imu_session_groups")
-        .select("id, name, day")
-        .eq("user_id", userId)
-        .order("day", { ascending: false })
-        .order("created_at", { ascending: false }),
-      // Every Snapshot of the account: the "Snapshot" dialog on an event's
-      // card checks whether one already stands on the same gates before it
-      // makes another (findSnapshotTwins). Definitions only; nothing is
-      // measured here.
-      supabase
-        .from("imu_snapshots")
-        .select("id, name, definition, reference_session_id")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: bikes },
+    { data: groups },
+    { data: snapshotRows },
+    { data: riderRows },
+  ] = await Promise.all([
+    supabase
+      .from("bikes")
+      .select("id, name, type")
+      .eq("user_id", userId)
+      .order("name"),
+    supabase
+      .from("imu_session_groups")
+      .select("id, name, day")
+      .eq("user_id", userId)
+      .order("day", { ascending: false })
+      .order("created_at", { ascending: false }),
+    // Every Snapshot of the account: the "Snapshot" dialog on an event's
+    // card checks whether one already stands on the same gates before it
+    // makes another (findSnapshotTwins). Definitions only; nothing is
+    // measured here.
+    supabase
+      .from("imu_snapshots")
+      .select("id, name, definition, reference_session_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    // The riders the account's sessions were ridden by, for the
+    // settings dialog's list (newest first, each once — riderNames).
+    supabase
+      .from("imu_sessions")
+      .select("rider_name")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+  ]);
   // The reference sessions' names, for "já existe … feito de Run 1" — one
   // query for all of them.
   const snapshotDefs = (snapshotRows ?? []).filter((row) =>
@@ -142,9 +159,8 @@ export default async function ImuSessionPage({
     setupRow && isSetupValues(setupRow.values) ? setupRow.values : {};
   const setupNote = setupRow?.note ?? null;
   const setupLabels: ImuSetupLabels = setupLabelsOf(dampers);
-  const setupLine = setupSummary(setupValues, setupLabels);
-  const BikeGlyph = bike?.type
-    ? BIKE_TYPE_ICON[bike.type as BikeType]
+  const BikeGlyph = bike
+    ? (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK)
     : undefined;
   // What a blank rider becomes on save — the same fallback the import and
   // the update action use, so the dialog's placeholder tells the truth.
@@ -205,6 +221,7 @@ export default async function ImuSessionPage({
                 groupId={session.group_id}
                 groups={groups ?? []}
                 riderDefault={riderDefault}
+                riders={riderNames(riderRows ?? [])}
                 storagePath={session.storage_path}
               />
             </div>
@@ -266,13 +283,11 @@ export default async function ImuSessionPage({
                     {session.sample_count.toLocaleString("pt-PT")} amostras
                   </span>
                 </p>
-                {/* The run's setup in one line under the provenance — the
-                    fork, the shock and the tyres as they were set — or the
-                    absence of one, so the reader knows the door beside it
-                    is worth opening. */}
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {setupLine ?? "Sem afinação registada"}
-                </p>
+                {/* The run's setup used to stand here in one line — the
+                    fork, the shock and the tyres as they were set. Hidden
+                    by request (2026-09-24): three lines of knobs under the
+                    name were more than a header should carry, and the
+                    "Afinação" door beside it opens the whole thing. */}
               </div>
               {/* Two doors, side by side: the report, and the run's setup.
                   Outlined pills — controls, not figures, so they wear the

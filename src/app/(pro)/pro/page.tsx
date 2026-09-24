@@ -7,7 +7,10 @@ import { formatSessionTime } from "@/lib/imu/derive";
 import { formatGroupDay } from "@/lib/imu/groups";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
 import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
@@ -20,6 +23,13 @@ import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
  * dictionary key is a promise that this is a feature, and this is a probe
  * for developing the motion algorithms.
  */
+/** The riders the sessions were ridden by, newest first, each once. */
+function riderNames(sessions: { rider_name: string | null }[]): string[] {
+  return [
+    ...new Set(sessions.map((s) => s.rider_name?.trim() ?? "").filter(Boolean)),
+  ];
+}
+
 export default async function ImuLabPage() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
@@ -81,8 +91,8 @@ export default async function ImuLabPage() {
 
   function SessionCard({ session }: { session: SessionRow }) {
     const bike = session.bike_id ? bikeById.get(session.bike_id) : undefined;
-    const BikeGlyph = bike?.type
-      ? BIKE_TYPE_ICON[bike.type as BikeType]
+    const BikeGlyph = bike
+      ? (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK)
       : undefined;
     return (
       <div
@@ -163,6 +173,7 @@ export default async function ImuLabPage() {
             day,
           }))}
           riderDefault={riderDefault}
+          riders={riderNames(sessions ?? [])}
         />
       </div>
 

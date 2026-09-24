@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { hasLabAccess } from "@/lib/lab-access";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
+import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
+import { getUserSubscription } from "@/lib/subscription";
+import { PLAN_LIMITS } from "@/lib/plans";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isTrackIndex, type SnapshotTrackIndex } from "@/lib/imu/snapshot";
 import type { Json } from "@/types/database.types";
@@ -15,7 +18,9 @@ export interface CreateImuSessionInput {
   name: string;
   /** Who rode it. Blank falls back to the account's own name — see below. */
   riderName: string | null;
-  bikeId: string | null;
+  /** The bike it rode on: one of the account's, a new one by name, or
+   * none. See resolveBike. */
+  bike: ImuSessionBikeRef;
   /** The group it lands in: an existing one, a new one by name and local
    * day, or none. See resolveGroup. */
   group: ImuSessionGroupRef;
@@ -86,15 +91,9 @@ export async function createImuSession(
     return { status: "error", message: "Índice do traçado inválido." };
   }
 
-  if (input.bikeId) {
-    const { data: bike } = await supabase
-      .from("bikes")
-      .select("id")
-      .eq("id", input.bikeId)
-      .eq("user_id", userId)
-      .single();
-    if (!bike) return { status: "error", message: "Bicicleta não encontrada." };
-  }
+  const bike = await resolveBike(supabase, userId, input.bike);
+  if (bike.status === "error") return bike;
+  const bikeId = bike.id;
 
   const group = await resolveGroup(supabase, userId, input.group);
   if (group.status === "error") return group;
@@ -103,12 +102,12 @@ export async function createImuSession(
   // five sessions pointing at one row, and only a change makes a new one
   // (see src/lib/imu/setup.ts). Nothing to inherit, nothing linked.
   let setupId: string | null = null;
-  if (input.bikeId) {
+  if (bikeId) {
     const { data: latest } = await supabase
       .from("imu_setups")
       .select("id")
       .eq("user_id", userId)
-      .eq("bike_id", input.bikeId)
+      .eq("bike_id", bikeId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -117,7 +116,7 @@ export async function createImuSession(
 
   const { error } = await supabase.from("imu_sessions").insert({
     user_id: userId,
-    bike_id: input.bikeId,
+    bike_id: bikeId,
     group_id: group.id,
     setup_id: setupId,
     name,
@@ -141,6 +140,73 @@ export async function createImuSession(
 
   revalidatePath("/pro");
   return { status: "ok" };
+}
+
+/**
+ * Which bike a session rode on. An id is checked to be the caller's; a
+ * name makes a new bike with that name alone (by request, 2026-09-24: a
+ * bike the rider has not registered can be named at import) — under the
+ * plan's bike limit, the same rule the app's own form applies, and never
+ * twice: a bike of the caller's that already has the name is the one
+ * meant. Type, brand and year are for the bike's page in the app.
+ */
+async function resolveBike(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  ref: ImuSessionBikeRef,
+): Promise<
+  { status: "ok"; id: string | null } | { status: "error"; message: string }
+> {
+  if (!ref) return { status: "ok", id: null };
+
+  if ("id" in ref) {
+    const { data } = await supabase
+      .from("bikes")
+      .select("id")
+      .eq("id", ref.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!data) return { status: "error", message: "Bicicleta não encontrada." };
+    return { status: "ok", id: data.id };
+  }
+
+  const name = ref.name.trim();
+  if (!name)
+    return { status: "error", message: "A bicicleta precisa de um nome." };
+
+  const { data: existing } = await supabase
+    .from("bikes")
+    .select("id")
+    .eq("user_id", userId)
+    .ilike("name", name)
+    .maybeSingle();
+  if (existing) return { status: "ok", id: existing.id };
+
+  const { plan } = await getUserSubscription(userId);
+  const maxBikes = PLAN_LIMITS[plan].maxBikes;
+  if (maxBikes !== null) {
+    const { count } = await supabase
+      .from("bikes")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if ((count ?? 0) >= maxBikes)
+      return {
+        status: "error",
+        message: `O plano ${plan} permite ${maxBikes} ${maxBikes === 1 ? "bicicleta" : "bicicletas"}. Escolhe uma da lista ou muda de plano nas definições.`,
+      };
+  }
+
+  const { data: created, error } = await supabase
+    .from("bikes")
+    .insert({ user_id: userId, name })
+    .select("id")
+    .single();
+  if (error || !created)
+    return {
+      status: "error",
+      message: error?.message ?? "Não foi possível criar a bicicleta.",
+    };
+  return { status: "ok", id: created.id };
 }
 
 /**
@@ -287,7 +353,9 @@ export async function updateImuSession(input: {
   sessionId: string;
   name: string;
   riderName: string | null;
-  bikeId: string | null;
+  /** Same shape as at import: one of the account's bikes, a new one by
+   * name, or none. */
+  bike: ImuSessionBikeRef;
   /** Same shape as at import: an existing group, a new one, or none. */
   group: ImuSessionGroupRef;
 }): Promise<ImuActionResult> {
@@ -306,15 +374,8 @@ export async function updateImuSession(input: {
   const riderName =
     input.riderName?.trim() || metadata?.full_name?.trim() || email || null;
 
-  if (input.bikeId) {
-    const { data: bike } = await supabase
-      .from("bikes")
-      .select("id")
-      .eq("id", input.bikeId)
-      .eq("user_id", userId)
-      .single();
-    if (!bike) return { status: "error", message: "Bicicleta não encontrada." };
-  }
+  const bike = await resolveBike(supabase, userId, input.bike);
+  if (bike.status === "error") return bike;
 
   const group = await resolveGroup(supabase, userId, input.group);
   if (group.status === "error") return group;
@@ -326,7 +387,7 @@ export async function updateImuSession(input: {
     .update({
       name,
       rider_name: riderName,
-      bike_id: input.bikeId,
+      bike_id: bike.id,
       group_id: group.id,
     })
     .eq("id", input.sessionId)

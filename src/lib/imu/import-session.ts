@@ -15,6 +15,7 @@ import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
 import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
+import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
 import { buildTrackIndex } from "@/lib/imu/snapshot";
 
 export type ImportOutcome = { ok: true } | { ok: false; error: string };
@@ -26,7 +27,7 @@ export async function uploadAndRegisterImuSession(input: {
   summary: ImuSessionSummary;
   name: string;
   riderName: string;
-  bikeId: string | null;
+  bike: ImuSessionBikeRef;
   group: ImuSessionGroupRef;
 }): Promise<ImportOutcome> {
   const { session, summary } = input;
@@ -45,7 +46,7 @@ export async function uploadAndRegisterImuSession(input: {
   const result = await createImuSession({
     name: input.name,
     riderName: input.riderName,
-    bikeId: input.bikeId,
+    bike: input.bike,
     group: input.group,
     storagePath,
     format: session.format,

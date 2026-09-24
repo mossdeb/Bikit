@@ -33,6 +33,7 @@ import {
   groupRefFromForm,
   type ImuGroupOption,
 } from "@/lib/imu/groups";
+import { bikeFormValid, bikeRefFromForm } from "@/lib/imu/bike-ref";
 
 /**
  * The one door for sessions, with two ways through it: the logger over
@@ -54,6 +55,7 @@ export function ImuSessionImport({
   bikes,
   groups,
   riderDefault,
+  riders,
 }: {
   userId: string;
   bikes: BikeOption[];
@@ -61,6 +63,8 @@ export function ImuSessionImport({
   groups: ImuGroupOption[];
   /** The account's own name, offered as the rider before anyone types. */
   riderDefault: string;
+  /** The riders the account's sessions know, most recent first. */
+  riders: string[];
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -76,6 +80,7 @@ export function ImuSessionImport({
   const [name, setName] = useState("");
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
+  const [newBikeName, setNewBikeName] = useState("");
   const [groupId, setGroupId] = useState(() => defaultGroupId(groups));
   const [newGroupName, setNewGroupName] = useState("");
 
@@ -136,7 +141,7 @@ export function ImuSessionImport({
       summary: parsed.summary,
       name,
       riderName: rider,
-      bikeId: bikeId || null,
+      bike: bikeRefFromForm(bikeId, newBikeName),
       group: groupRefFromForm(groupId, newGroupName),
     });
     if (!outcome.ok) {
@@ -196,6 +201,7 @@ export function ImuSessionImport({
             <BikitDeviceImport
               userId={userId}
               riderDefault={riderDefault}
+              riders={riders}
               bikes={bikes}
               groups={groups}
               onImported={finish}
@@ -237,9 +243,12 @@ export function ImuSessionImport({
                     rider={rider}
                     onRiderChange={setRider}
                     riderDefault={riderDefault}
+                    riders={riders}
                     bikeId={bikeId}
                     onBikeIdChange={setBikeId}
                     bikes={bikes}
+                    newBikeName={newBikeName}
+                    onNewBikeNameChange={setNewBikeName}
                     groups={groups}
                     groupId={groupId}
                     onGroupIdChange={setGroupId}
@@ -259,6 +268,7 @@ export function ImuSessionImport({
                   !parsed ||
                   !name.trim() ||
                   !groupFormValid(groupId, newGroupName) ||
+                  !bikeFormValid(bikeId, newBikeName) ||
                   busy
                 }
                 onClick={handleImport}

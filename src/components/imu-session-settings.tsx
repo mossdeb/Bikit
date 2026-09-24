@@ -24,6 +24,7 @@ import {
   groupRefFromForm,
   type ImuGroupOption,
 } from "@/lib/imu/groups";
+import { bikeFormValid, bikeRefFromForm } from "@/lib/imu/bike-ref";
 
 /**
  * The session's settings, behind the three dots in the identity card's
@@ -45,6 +46,7 @@ export function ImuSessionSettings({
   groupId,
   groups,
   riderDefault,
+  riders,
   storagePath,
 }: {
   sessionId: string;
@@ -59,12 +61,15 @@ export function ImuSessionSettings({
   groups: ImuGroupOption[];
   /** The account's own name — what a blank rider becomes on save. */
   riderDefault: string;
+  /** The riders the account's sessions know, most recent first. */
+  riders: string[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftRider, setDraftRider] = useState(riderName ?? "");
   const [draftBike, setDraftBike] = useState(bikeId ?? "");
+  const [newBikeName, setNewBikeName] = useState("");
   const [draftGroup, setDraftGroup] = useState(groupId ?? "");
   const [newGroupName, setNewGroupName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -74,6 +79,7 @@ export function ImuSessionSettings({
     setDraftName(name);
     setDraftRider(riderName ?? "");
     setDraftBike(bikeId ?? "");
+    setNewBikeName("");
     setDraftGroup(groupId ?? "");
     setNewGroupName("");
     setBusy(false);
@@ -119,7 +125,9 @@ export function ImuSessionSettings({
     (draftBike || null) !== (bikeId ?? null) ||
     (draftGroup || null) !== (groupId ?? null);
   const valid =
-    draftName.trim().length > 0 && groupFormValid(draftGroup, newGroupName);
+    draftName.trim().length > 0 &&
+    groupFormValid(draftGroup, newGroupName) &&
+    bikeFormValid(draftBike, newBikeName);
 
   async function save() {
     if (busy || !valid) return;
@@ -129,7 +137,7 @@ export function ImuSessionSettings({
       sessionId,
       name: draftName,
       riderName: draftRider,
-      bikeId: draftBike || null,
+      bike: bikeRefFromForm(draftBike, newBikeName),
       group: groupRefFromForm(draftGroup, newGroupName),
     });
     if (result.status === "error") {
@@ -180,9 +188,12 @@ export function ImuSessionSettings({
             rider={draftRider}
             onRiderChange={setDraftRider}
             riderDefault={riderDefault}
+            riders={riders}
             bikeId={draftBike}
             onBikeIdChange={setDraftBike}
             bikes={bikes}
+            newBikeName={newBikeName}
+            onNewBikeNameChange={setNewBikeName}
             groups={groups}
             groupId={draftGroup}
             onGroupIdChange={setDraftGroup}

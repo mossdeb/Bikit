@@ -39,6 +39,7 @@ import {
   groupRefFromForm,
   type ImuGroupOption,
 } from "@/lib/imu/groups";
+import { bikeFormValid, bikeRefFromForm } from "@/lib/imu/bike-ref";
 import {
   ImuSessionDetailsFields,
   type BikeOption,
@@ -146,12 +147,15 @@ function describeGps(gps: NonNullable<BikitDeviceInfo["gps"]>): string {
 export function BikitDeviceImport({
   userId,
   riderDefault,
+  riders,
   bikes,
   groups,
   onImported,
 }: {
   userId: string;
   riderDefault: string;
+  /** The riders the account's sessions know, most recent first. */
+  riders: string[];
   bikes: BikeOption[];
   /** The account's groups, newest first; today's most recent is preselected. */
   groups: ImuGroupOption[];
@@ -187,6 +191,7 @@ export function BikitDeviceImport({
   const [name, setName] = useState("");
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
+  const [newBikeName, setNewBikeName] = useState("");
   const [groupId, setGroupId] = useState(() => defaultGroupId(groups));
   const [newGroupName, setNewGroupName] = useState("");
   const deviceRef = useRef<BikitDevice | null>(null);
@@ -428,7 +433,7 @@ export function BikitDeviceImport({
       summary,
       name,
       riderName: rider,
-      bikeId: bikeId || null,
+      bike: bikeRefFromForm(bikeId, newBikeName),
       group: groupRefFromForm(groupId, newGroupName),
     });
     if (!outcome.ok) {
@@ -719,9 +724,12 @@ export function BikitDeviceImport({
             rider={rider}
             onRiderChange={setRider}
             riderDefault={riderDefault}
+            riders={riders}
             bikeId={bikeId}
             onBikeIdChange={setBikeId}
             bikes={bikes}
+            newBikeName={newBikeName}
+            onNewBikeNameChange={setNewBikeName}
             groups={groups}
             groupId={groupId}
             onGroupIdChange={setGroupId}
@@ -749,7 +757,8 @@ export function BikitDeviceImport({
               disabled={
                 phase.kind === "saving" ||
                 !name.trim() ||
-                !groupFormValid(groupId, newGroupName)
+                !groupFormValid(groupId, newGroupName) ||
+                !bikeFormValid(bikeId, newBikeName)
               }
               onClick={save}
             >

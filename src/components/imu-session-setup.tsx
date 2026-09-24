@@ -2,8 +2,11 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Bike, SlidersHorizontal } from "lucide-react";
-import { BIKE_TYPE_ICON } from "@/components/bike-type-icon";
+import { SlidersHorizontal } from "lucide-react";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
@@ -146,7 +149,11 @@ export function ImuSessionSetup({
   triggerLabel,
   triggerClassName,
   triggerIcon,
+  triggerContent,
+  readOnly = false,
+  title = "Afinação nesta volta",
 }: {
+  /** The session the setup is saved to. Unused when `readOnly`. */
   sessionId: string;
   /** The session's current setup, or empty. */
   values: ImuSetupValues;
@@ -160,6 +167,13 @@ export function ImuSessionSetup({
   triggerLabel?: string;
   triggerClassName?: string;
   triggerIcon?: ReactNode;
+  /** The trigger's whole content, when it is not a pill with a word — a
+   * bike's setup card (2026-09-24), say. Replaces the icon and the label. */
+  triggerContent?: ReactNode;
+  /** Looking, not editing (2026-09-24, a bike's setups): the same form
+   * with every field held, no note to write and no Guardar. */
+  readOnly?: boolean;
+  title?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -195,7 +209,7 @@ export function ImuSessionSetup({
   const choose = (key: string, value: string) =>
     setDraft((d) => ({ ...d, [key]: value }));
 
-  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || Bike;
+  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
 
   return (
     <Dialog
@@ -221,23 +235,26 @@ export function ImuSessionSetup({
           CLICKABLE_CARD_HOVER,
         )}
       >
-        {triggerIcon ?? (
-          <SlidersHorizontal
-            className="size-[18px]"
-            strokeWidth={2.1}
-            aria-hidden
-          />
+        {triggerContent ?? (
+          <>
+            {triggerIcon ?? (
+              <SlidersHorizontal
+                className="size-[18px]"
+                strokeWidth={2.1}
+                aria-hidden
+              />
+            )}
+            {triggerLabel ?? "Bike setup"}
+          </>
         )}
-        {triggerLabel ?? "Afinação"}
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Afinação nesta volta</DialogTitle>
+          <DialogTitle className="text-2xl">{title}</DialogTitle>
           <DialogDescription className="mt-1">
-            Pressões em psi, cliques contados a partir de fechado e o peso do
-            rider equipado em kg. Só o que preencheres fica guardado; uma
-            alteração cria uma afinação nova para a bicicleta, que as próximas
-            importações herdam.
+            {readOnly
+              ? "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg, tal como foram registados."
+              : "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Só o que preencheres fica guardado; uma alteração cria uma afinação nova para a bicicleta, que as próximas importações herdam."}
           </DialogDescription>
         </DialogHeader>
 
@@ -245,7 +262,7 @@ export function ImuSessionSetup({
           className="space-y-5"
           onSubmit={(e) => {
             e.preventDefault();
-            void save();
+            if (!readOnly) void save();
           }}
         >
           {/* The supplied layout (2026-09-11, second pass): the suspension
@@ -262,6 +279,7 @@ export function ImuSessionSetup({
                 draft={draft}
                 set={set}
                 choose={choose}
+                readOnly={readOnly}
               />
               <div
                 aria-hidden
@@ -283,6 +301,7 @@ export function ImuSessionSetup({
                 draft={draft}
                 set={set}
                 choose={choose}
+                readOnly={readOnly}
               />
             </div>
           </div>
@@ -305,6 +324,7 @@ export function ImuSessionSetup({
                     unit="psi"
                     value={draft[tireKey("frontPsi")]}
                     onChange={set(tireKey("frontPsi"))}
+                    readOnly={readOnly}
                   />
                   <NumberField
                     id="setup-tires-rear"
@@ -316,6 +336,7 @@ export function ImuSessionSetup({
                     unit="psi"
                     value={draft[tireKey("rearPsi")]}
                     onChange={set(tireKey("rearPsi"))}
+                    readOnly={readOnly}
                   />
                 </div>
               </div>
@@ -328,34 +349,41 @@ export function ImuSessionSetup({
                     unit="kg"
                     value={draft[RIDER_WEIGHT_KEY]}
                     onChange={set(RIDER_WEIGHT_KEY)}
+                    readOnly={readOnly}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="setup-note">Notas</Label>
-            <Textarea
-              id="setup-note"
-              value={draftNote}
-              placeholder="algo a lembrar desta afinação"
-              className="min-h-24"
-              onChange={(e) => setDraftNote(e.target.value)}
-            />
-          </div>
+          {/* Read-only, the note shows only when there is one to read. */}
+          {(!readOnly || draftNote.trim()) && (
+            <div className="space-y-1.5">
+              <Label htmlFor="setup-note">Notas</Label>
+              <Textarea
+                id="setup-note"
+                value={draftNote}
+                placeholder="algo a lembrar desta afinação"
+                className="min-h-24"
+                onChange={(e) => setDraftNote(e.target.value)}
+                readOnly={readOnly}
+              />
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           {/* A pill in the middle, not a bar across — the supplied layout. */}
-          <Button
-            type="submit"
-            className="mx-auto flex w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
-            variant="inverted"
-            disabled={busy || !dirty}
-          >
-            {busy ? "A guardar…" : "Guardar"}
-          </Button>
+          {!readOnly && (
+            <Button
+              type="submit"
+              className="mx-auto flex w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
+              variant="inverted"
+              disabled={busy || !dirty}
+            >
+              {busy ? "A guardar…" : "Guardar"}
+            </Button>
+          )}
         </form>
       </DialogContent>
     </Dialog>
@@ -377,12 +405,14 @@ function DamperBlock({
   draft,
   set,
   choose,
+  readOnly = false,
 }: {
   block: "fork" | "shock";
   heading: string;
   draft: Draft;
   set: Setter;
   choose: Chooser;
+  readOnly?: boolean;
 }) {
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
@@ -394,6 +424,7 @@ function DamperBlock({
           label={air ? "Ar" : "Mola"}
           checked={air}
           onToggle={() => choose(springKey, air ? "coil" : "air")}
+          disabled={readOnly}
         />
       </div>
       {/* The spring's box, level with the circuits' (the supplied layout,
@@ -414,6 +445,7 @@ function DamperBlock({
             value={draft[damperKey(block, "travelMm")]}
             onChange={set(damperKey(block, "travelMm"))}
             small
+            readOnly={readOnly}
           />
           <NumberField
             id={`setup-${block}-sag`}
@@ -423,6 +455,7 @@ function DamperBlock({
             onChange={set(damperKey(block, "sagMm"))}
             hint={sagShare(draft, block)}
             small
+            readOnly={readOnly}
           />
         </div>
         <div className="mt-3">
@@ -434,6 +467,7 @@ function DamperBlock({
               value={draft[damperKey(block, "pressurePsi")]}
               onChange={set(damperKey(block, "pressurePsi"))}
               small
+              readOnly={readOnly}
             />
           ) : (
             <NumberField
@@ -443,6 +477,7 @@ function DamperBlock({
               value={draft[damperKey(block, "springRateLbs")]}
               onChange={set(damperKey(block, "springRateLbs"))}
               small
+              readOnly={readOnly}
             />
           )}
         </div>
@@ -454,6 +489,7 @@ function DamperBlock({
         draft={draft}
         set={set}
         choose={choose}
+        readOnly={readOnly}
       />
       <Circuit
         block={block}
@@ -462,6 +498,7 @@ function DamperBlock({
         draft={draft}
         set={set}
         choose={choose}
+        readOnly={readOnly}
       />
     </div>
   );
@@ -480,6 +517,7 @@ function Circuit({
   draft,
   set,
   choose,
+  readOnly = false,
 }: {
   block: "fork" | "shock";
   circuit: ImuCircuit;
@@ -487,6 +525,7 @@ function Circuit({
   draft: Draft;
   set: Setter;
   choose: Chooser;
+  readOnly?: boolean;
 }) {
   const modeKey = damperKey(block, `${circuit}Mode`);
   const dual = draft[modeKey] !== "simple";
@@ -500,6 +539,7 @@ function Circuit({
           label={dual ? "Alta/baixa" : "Simples"}
           checked={dual}
           onToggle={() => choose(modeKey, dual ? "simple" : "dual")}
+          disabled={readOnly}
         />
       </div>
       {dual ? (
@@ -511,6 +551,7 @@ function Circuit({
             value={draft[damperKey(block, lowField)]}
             onChange={set(damperKey(block, lowField))}
             small
+            readOnly={readOnly}
           />
           <NumberField
             id={`setup-${block}-${highField}`}
@@ -519,6 +560,7 @@ function Circuit({
             value={draft[damperKey(block, highField)]}
             onChange={set(damperKey(block, highField))}
             small
+            readOnly={readOnly}
           />
         </div>
       ) : (
@@ -530,6 +572,7 @@ function Circuit({
             value={draft[damperKey(block, circuit)]}
             onChange={set(damperKey(block, circuit))}
             small
+            readOnly={readOnly}
           />
         </div>
       )}
@@ -543,10 +586,12 @@ function ModeSwitch({
   label,
   checked,
   onToggle,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -554,7 +599,11 @@ function ModeSwitch({
       role="switch"
       aria-checked={checked}
       onClick={onToggle}
-      className="flex h-6 shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
+      disabled={disabled}
+      className={cn(
+        "flex h-6 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground",
+        disabled ? "cursor-default" : "cursor-pointer",
+      )}
     >
       {label}
       <span
@@ -584,6 +633,7 @@ function NumberField({
   small = false,
   className,
   hint,
+  readOnly = false,
 }: {
   id: string;
   label: string;
@@ -594,6 +644,7 @@ function NumberField({
   className?: string;
   /** A reading under the field — the sag's share of the travel. */
   hint?: string | null;
+  readOnly?: boolean;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -607,6 +658,7 @@ function NumberField({
           value={value ?? ""}
           onChange={onChange}
           placeholder="–"
+          readOnly={readOnly}
           className="pr-14 tabular-nums"
         />
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
