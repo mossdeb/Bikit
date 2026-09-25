@@ -297,10 +297,11 @@ export default async function ImuSessionPage({
                     name were more than a header should carry, and the
                     "Bike setup" door beside it opens the whole thing. */}
               </div>
-              {/* Three doors, side by side: the run's setup, the report and
-                  the comparison of setups (added by request, 2026-09-24).
-                  Outlined pills — controls, not figures, so they wear the
-                  page's outline and not a tile's rules. */}
+              {/* Three doors, side by side: the run's setup, the comparison
+                  of setups and the report (the comparison added by request
+                  on 2026-09-24, and moved ahead of the report on
+                  2026-09-25). Outlined pills — controls, not figures, so
+                  they wear the page's outline and not a tile's rules. */}
               <div className="flex shrink-0 flex-wrap gap-3 self-start">
                 <ImuSessionSetup
                   sessionId={session.id}
@@ -309,16 +310,6 @@ export default async function ImuSessionPage({
                   labels={setupLabels}
                   bikeType={(bike?.type as BikeType | undefined) ?? null}
                 />
-                <Link
-                  href={`/pro/sessoes/${session.id}/relatorio`}
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold",
-                    CLICKABLE_CARD_HOVER,
-                  )}
-                >
-                  <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
-                  {t.sessions.page.report}
-                </Link>
                 <Link
                   href={`/pro/sessoes/${session.id}/afinacoes`}
                   className={cn(
@@ -332,6 +323,16 @@ export default async function ImuSessionPage({
                     aria-hidden
                   />
                   {t.report.compareSetups}
+                </Link>
+                <Link
+                  href={`/pro/sessoes/${session.id}/relatorio`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold",
+                    CLICKABLE_CARD_HOVER,
+                  )}
+                >
+                  <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
+                  {t.sessions.page.report}
                 </Link>
               </div>
             </div>
