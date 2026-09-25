@@ -245,3 +245,127 @@ export function ImpactIcon({ className }: Props) {
     </svg>
   );
 }
+
+/** The four axes' marks for the dynamics' boxes (assets/icons/IMU_v2,
+ * by request 2026-09-25): a bike under an arrow pressing down, between
+ * two arrows, under an arrow lifting off a line, and a trace running on.
+ * Each keeps its own box, the art's; all are drawn to one height. */
+const axis = "h-8 w-auto shrink-0";
+const axisStroke = {
+  stroke: "currentColor",
+  strokeWidth: "1.5",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
+
+/** Absorção.svg — a bike on a line, an arrow pressing down onto it. */
+export function AbsorptionAxisIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 35 34"
+      fill="none"
+      className={cn(axis, className)}
+      aria-hidden
+    >
+      <g {...axisStroke}>
+        <path d="M17.5732 10.1019V0.75" />
+        <path d="M22.6273 6.02393L18.3104 10.3408C17.9036 10.7475 17.2441 10.7475 16.8373 10.3408L12.5205 6.02393" />
+        <path
+          d="M9.27945 27.5643C11.671 27.5643 13.6097 25.6256 13.6097 23.234C13.6097 20.8425 11.671 18.9038 9.27945 18.9038C6.88793 18.9038 4.94922 20.8425 4.94922 23.234C4.94922 25.6256 6.88793 27.5643 9.27945 27.5643Z"
+          strokeMiterlimit="10"
+        />
+        <path
+          d="M26.8859 27.5643C29.2774 27.5643 31.2161 25.6256 31.2161 23.234C31.2161 20.8425 29.2774 18.9038 26.8859 18.9038C24.4944 18.9038 22.5557 20.8425 22.5557 23.234C22.5557 25.6256 24.4944 27.5643 26.8859 27.5643Z"
+          strokeMiterlimit="10"
+        />
+        <path d="M26.8859 23.3211L22.5557 12.9067L25.3852 12.7534" />
+        <path d="M17.1658 23.1674L14.0352 15.4585" />
+        <path d="M17.1659 23.2346H9.28027L15.2321 18.4672L23.3186 14.7427L17.1659 23.2346Z" />
+        <path d="M12.4229 15.4404H16.4745" />
+        <path d="M0.75 32.75H33.9497" />
+      </g>
+    </svg>
+  );
+}
+
+/** Control.svg — a bike between an arrow up and an arrow down. */
+export function ControlAxisIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 24 34"
+      fill="none"
+      className={cn(axis, className)}
+      aria-hidden
+    >
+      <g {...axisStroke}>
+        <path d="M12.3086 32.29V24.3867" />
+        <path d="M16.5793 28.8438L12.9312 32.4919C12.5874 32.8357 12.03 32.8357 11.6863 32.4919L8.03809 28.8438" />
+        <path d="M12.3086 1.20947L12.3086 9.11279" />
+        <path d="M8.03809 4.656L11.6863 1.00782C12.03 0.664058 12.5874 0.664058 12.9312 1.00782L16.5793 4.656" />
+        <path
+          d="M4.40949 23.1354C6.43057 23.1354 8.06898 21.497 8.06898 19.4759C8.06898 17.4548 6.43057 15.8164 4.40949 15.8164C2.38841 15.8164 0.75 17.4548 0.75 19.4759C0.75 21.497 2.38841 23.1354 4.40949 23.1354Z"
+          strokeMiterlimit="10"
+        />
+        <path
+          d="M19.2884 23.1354C21.3095 23.1354 22.9479 21.497 22.9479 19.4759C22.9479 17.4548 21.3095 15.8164 19.2884 15.8164C17.2673 15.8164 15.6289 17.4548 15.6289 19.4759C15.6289 21.497 17.2673 23.1354 19.2884 23.1354Z"
+          strokeMiterlimit="10"
+        />
+        <path d="M19.2884 19.5499L15.6289 10.7487L18.0202 10.6191" />
+        <path d="M11.0744 19.4196L8.42871 12.9048" />
+        <path d="M11.0744 19.4763H4.41016L9.44003 15.4474L16.274 12.2998L11.0744 19.4763Z" />
+        <path d="M7.06641 12.8896H10.4904" />
+      </g>
+    </svg>
+  );
+}
+
+/** Support.svg — a bike, and an arrow lifting off a line beside it. */
+export function SupportAxisIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 38 34"
+      fill="none"
+      className={cn(axis, className)}
+      aria-hidden
+    >
+      <g {...axisStroke}>
+        <path
+          d="M5.29826 32.7498C7.8102 32.7498 9.84653 30.7135 9.84653 28.2016C9.84653 25.6896 7.8102 23.6533 5.29826 23.6533C2.78633 23.6533 0.75 25.6896 0.75 28.2016C0.75 30.7135 2.78633 32.7498 5.29826 32.7498Z"
+          strokeMiterlimit="10"
+        />
+        <path
+          d="M23.7905 32.7498C26.3024 32.7498 28.3387 30.7135 28.3387 28.2016C28.3387 25.6896 26.3024 23.6533 23.7905 23.6533C21.2785 23.6533 19.2422 25.6896 19.2422 28.2016C19.2422 30.7135 21.2785 32.7498 23.7905 32.7498Z"
+          strokeMiterlimit="10"
+        />
+        <path d="M23.7905 28.2932L19.2422 17.3544L22.2142 17.1934" />
+        <path d="M13.5812 28.1312L10.293 20.0342" />
+        <path d="M13.5806 28.2017H5.29785L11.5493 23.1942L20.043 19.2822L13.5806 28.2017Z" />
+        <path d="M8.59961 20.0156H12.8552" />
+        <path d="M31.1025 1.3208V11.1436" />
+        <path d="M25.7939 5.60464L30.3281 1.07044C30.7554 0.643186 31.4481 0.643186 31.8754 1.07044L36.4096 5.60464" />
+        <path d="M26.7861 14.8525H35.4181" />
+      </g>
+    </svg>
+  );
+}
+
+/** Recovery.svg — a trace of hits running on, an arrow at its end. Its
+ * box is wider than tall, unlike the three bikes', so at the shared
+ * height it read too large; drawn a step smaller (by request,
+ * 2026-09-25). */
+export function RecoveryAxisIcon({ className }: Props) {
+  return (
+    <svg
+      viewBox="0 0 27 21"
+      fill="none"
+      className={cn(axis, "h-6", className)}
+      aria-hidden
+    >
+      <g {...axisStroke}>
+        <path d="M1.62988 20.25H23.0148" />
+        <path d="M23.666 11.7554L25.9158 14.0051C26.1278 14.2171 26.1278 14.5608 25.9158 14.7728L23.666 17.0226" />
+        <path d="M0.75 14.389L6.98126 0.75L12.8265 14.389L16.7234 8.53306L20.6698 14.389H26.0756" />
+      </g>
+    </svg>
+  );
+}

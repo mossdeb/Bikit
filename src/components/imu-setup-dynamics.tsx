@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
@@ -14,6 +20,12 @@ import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
 import type { ReportMetricKey } from "@/lib/imu/report";
 import {
+  AbsorptionAxisIcon,
+  ControlAxisIcon,
+  RecoveryAxisIcon,
+  SupportAxisIcon,
+} from "@/components/imu-setup-icons";
+import {
   DYNAMICS_AXES,
   DYNAMICS_NOISE_SPAN,
   type DynamicsAxisKey,
@@ -24,8 +36,9 @@ import {
  * The setup dynamics on the setups page (by request, 2026-09-15, from a
  * supplied layout; under the table since 2026-09-24): a four-axis radar
  * of two setups chosen from two dropdowns — absorption at the top,
- * control on the right, support at the foot, recovery on the left — on a
- * plain plate (the lab's hatch came off by request), and beside it the
+ * control on the right, support at the foot, recovery on the left — on
+ * the lab's hatched plate (off from 2026-09-15, back on 2026-09-25, both
+ * by request), and beside it the
  * four axes as cards, each with the two scores as bars and the second
  * setup's gain or loss against the first.
  *
@@ -55,6 +68,18 @@ const DIRECTIONS: Record<DynamicsAxisKey, [number, number]> = {
   control: [1, 0],
   support: [0, 1],
   recovery: [-1, 0],
+};
+
+/** Each axis's mark, before its name on its box (by request,
+ * 2026-09-25, the supplied art). */
+const AXIS_ICONS: Record<
+  DynamicsAxisKey,
+  ComponentType<{ className?: string }>
+> = {
+  absorption: AbsorptionAxisIcon,
+  control: ControlAxisIcon,
+  support: SupportAxisIcon,
+  recovery: RecoveryAxisIcon,
 };
 
 export interface ImuSetupDynamicsSetup {
@@ -161,7 +186,11 @@ export function ImuSetupDynamics({
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-          <div className="@container rounded-[14px] border border-border p-3 sm:p-4">
+          {/* The lab's hatch on the plate (back by request, 2026-09-25 —
+              it had come off on 2026-09-15): the same pattern the report's
+              bands wear, with the labels' pills and the chips lifting off
+              it on the card's white. */}
+          <div className="imu-event-band @container rounded-[14px] border border-border p-3 sm:p-4">
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
@@ -195,10 +224,8 @@ export function ImuSetupDynamics({
                   key={axis.key}
                   className="flex min-w-0 flex-col rounded-[14px] border border-border p-4 sm:p-5"
                 >
-                  {/* No mark before the name for now (hidden by request,
-                      2026-09-24): the layout's bike-over-a-wave is not
-                      drawn yet, and the bike alone crowded the name. */}
                   <div className="flex min-w-0 items-center gap-3">
+                    <AxisMark axisKey={axis.key} />
                     <p className="flex min-w-0 items-center gap-1 text-base font-semibold">
                       <span className="truncate">{axisWords.name}</span>
                       <AxisInfo words={axisWords} metrics={axis.metrics} />
@@ -265,6 +292,11 @@ export function ImuSetupDynamics({
       </div>
     </div>
   );
+}
+
+function AxisMark({ axisKey }: { axisKey: DynamicsAxisKey }) {
+  const Icon = AXIS_ICONS[axisKey];
+  return <Icon className="text-foreground" />;
 }
 
 /** The "i" beside an axis's name (by request, 2026-09-24): the table's
