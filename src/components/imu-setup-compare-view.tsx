@@ -24,8 +24,8 @@ import {
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import {
   ImuSetupDynamics,
+  BAR_COLOURS,
   pickSetupPair,
-  SETUP_COLOURS,
   type SetupPair,
 } from "@/components/imu-setup-dynamics";
 import { ImuSetupDocs } from "@/components/imu-setup-docs";
@@ -124,6 +124,12 @@ const COLUMNS: {
 /** The setup and order filters over the table: hidden for now (by
  * request, 2026-09-24). */
 const SHOW_FILTERS = false;
+
+/** "O melhor setup até agora", the verdict card at the foot with the
+ * winning setup's tiles: hidden for now (by request, 2026-09-25). Its
+ * figures still feed the page — `best`, the margin and the noise — so
+ * the card comes back with the switch alone. */
+const SHOW_BEST = false;
 
 const BEST_BY = COLUMNS.find((c) => c.key === "retention")!.metric;
 const BEST_TIE_BREAK = COLUMNS.find((c) => c.key === "harshness")!.metric;
@@ -466,6 +472,10 @@ export function ImuSetupCompareView({
               return {
                 key,
                 name: words.columns[column.key].short,
+                // The column's own mark before the name (by request,
+                // 2026-09-25), so the figure looks the same as on the
+                // table above.
+                Icon: column.Icon,
                 sides: [
                   {
                     value: fmt(va),
@@ -751,8 +761,9 @@ export function ImuSetupCompareView({
                             key={effect.key}
                             className="rounded-[12px] border border-border px-4 py-3"
                           >
-                            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                              <p className="text-base font-semibold">
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                              <p className="flex items-center gap-2 text-base font-semibold">
+                                <effect.Icon className="size-6 text-foreground" />
                                 {effect.name}
                               </p>
                               <p className="text-sm">
@@ -775,15 +786,18 @@ export function ImuSetupCompareView({
                                   key={i}
                                   className="flex items-center gap-3"
                                 >
-                                  {/* The word, and beside it how many runs
-                                        the value is the median of; the
-                                        pill holds the value alone, so the
-                                        track keeps room on a narrow card. */}
-                                  <span className="shrink-0 text-sm font-semibold">
-                                    Setup {pair[i]}
+                                  {/* The word in a column of one width for
+                                      both rows, so the two tracks start on
+                                      one line; how many runs the value is
+                                      the median of goes under it (by
+                                      request, 2026-09-25). The pill holds
+                                      the value alone, so the track keeps
+                                      room on a narrow card. */}
+                                  <span className="flex w-[92px] shrink-0 flex-col text-sm font-semibold">
+                                    <span>Setup {pair[i]}</span>
                                     {side.runs > 1 && (
-                                      <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                        · {words.details.medianOf(side.runs)}
+                                      <span className="text-xs font-normal whitespace-nowrap text-muted-foreground">
+                                        {words.details.medianOf(side.runs)}
                                       </span>
                                     )}
                                   </span>
@@ -792,7 +806,7 @@ export function ImuSetupCompareView({
                                       className="h-full rounded-full transition-[width] duration-400 ease-out"
                                       style={{
                                         width: `${side.width}%`,
-                                        background: SETUP_COLOURS[i],
+                                        background: BAR_COLOURS[i],
                                       }}
                                     />
                                   </div>
@@ -817,7 +831,7 @@ export function ImuSetupCompareView({
           </section>
         </div>
       )}
-      {shown && (
+      {SHOW_BEST && shown && (
         <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
           <section className="px-5 py-6 sm:px-6 sm:py-8">
             <p className="text-lg font-semibold">{words.best.title}</p>

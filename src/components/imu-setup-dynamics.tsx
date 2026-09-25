@@ -39,6 +39,12 @@ import {
  * wear the same two. */
 export const SETUP_COLOURS = ["var(--chart-1)", "var(--chart-2)"] as const;
 
+/** The bars' colours (the axis boxes here, the detail cards on the
+ * page): the brand green, and black for the second setup (by request,
+ * 2026-09-25 — the supplied layout's), where the radar and the
+ * dropdowns keep the violet as the setup's mark. */
+export const BAR_COLOURS = ["var(--chart-1)", "var(--foreground)"] as const;
+
 /** The chart's geometry, in a 400-square: the 100 % ring's radius, and
  * the four compass directions in the axes' order. */
 const SIZE = 400;
@@ -220,7 +226,7 @@ export function ImuSetupDynamics({
                         <ScoreBar
                           key={i}
                           label={`Setup ${l ?? "—"}`}
-                          colour={SETUP_COLOURS[i]}
+                          colour={BAR_COLOURS[i]}
                           value={enough && ready ? per[i] : null}
                           hidden={!enough || !l}
                           details={setup?.details}
