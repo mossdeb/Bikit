@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Link from "next/link";
 import { Bike, FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -224,6 +231,28 @@ export function ImuSetupCompareView({
   // The two setups the dynamics and "Em detalhe" compare, as picked in
   // the dynamics' dropdowns; resolved against what exists below.
   const [pickedPair, setPickedPair] = useState<SetupPair>([null, null]);
+  /** The table column the mouse is over, for the hover isolation the
+   * Snapshot page has (by request, 2026-09-25): that column, head and
+   * every row, gets a tinted band and every other figure fades. Mouse
+   * only — a finger has no hover. Read by delegation on the table's
+   * scroller, cleared only when the mouse leaves it, so crossing from one
+   * cell to the next never flickers. */
+  const focusColRef = useRef<string | null>(null);
+  const [focusCol, setFocusCol] = useState<string | null>(null);
+  function readFocusCol(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse") return;
+    const cell = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-col]",
+    );
+    const key = cell?.dataset.col ?? null;
+    if (key === focusColRef.current) return;
+    focusColRef.current = key;
+    setFocusCol(key);
+  }
+  function clearFocusCol() {
+    focusColRef.current = null;
+    setFocusCol(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -618,11 +647,22 @@ export function ImuSetupCompareView({
           </p>
 
           {/* Wider than a phone, the table scrolls inside the card. */}
-          <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[960px] border-collapse text-sm">
+          <div
+            className="mt-6 overflow-x-auto"
+            onPointerOver={readFocusCol}
+            onPointerLeave={clearFocusCol}
+          >
+            {/* The session column short — a name, a date and the "Esta
+                volta" badge need no more — and the other eight of one
+                width (by request, 2026-09-25): `table-fixed` shares what is
+                left evenly. No sideways scroll on a desktop: the minimum
+                is low, and just above it the widest cell, a change pill
+                such as "garfo HSC −2 · mais fechado", wraps onto two lines
+                rather than pushing its column wider. */}
+            <table className="w-full min-w-[1280px] table-fixed border-collapse text-sm">
               <thead>
                 <tr className="text-left">
-                  <th className="pr-4 pb-3 align-bottom font-semibold">
+                  <th className="w-[112px] pr-4 pb-3 align-bottom font-semibold">
                     {words.table.session}
                   </th>
                   {/* No mark over "Setup" (removed by request, 2026-09-24):
@@ -641,7 +681,11 @@ export function ImuSetupCompareView({
                     return (
                       <th
                         key={c.key}
-                        className="px-4 pb-3 align-bottom font-semibold whitespace-nowrap"
+                        data-col={c.key}
+                        className={cn(
+                          "px-4 pb-3 align-bottom font-semibold whitespace-nowrap",
+                          focusClass(focusCol, c.key),
+                        )}
                       >
                         <c.Icon className="mb-2" />
                         <span className="flex items-center gap-1">
@@ -669,6 +713,7 @@ export function ImuSetupCompareView({
                     reference={reference}
                     referenceReport={referenceReport}
                     labels={labels}
+                    focusCol={focusCol}
                   />
                 ))}
               </tbody>
@@ -919,6 +964,16 @@ export function MetricInfo({
   );
 }
 
+/** A column's part in the hover isolation: faded when another column
+ * has the mouse, tinted (the Snapshot page's band) when it has it. */
+function focusClass(focusCol: string | null, key: string) {
+  return cn(
+    "transition-[opacity,background-color] duration-150",
+    focusCol != null && focusCol !== key && "opacity-50",
+    focusCol === key && "imu-focus-band",
+  );
+}
+
 function RunRow({
   run,
   report,
@@ -926,6 +981,7 @@ function RunRow({
   reference,
   referenceReport,
   labels,
+  focusCol,
 }: {
   run: ImuSnapshotCandidate;
   report: SessionReport | null;
@@ -933,6 +989,8 @@ function RunRow({
   reference: ImuSnapshotCandidate;
   referenceReport: SessionReport | null;
   labels: ImuSetupCompareLabels;
+  /** The column the mouse is over, by its key (focusClass). */
+  focusCol: string | null;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -941,8 +999,9 @@ function RunRow({
     !isReference && reference.setup && run.setup
       ? setupDiff(reference.setup, run.setup, locale)
       : [];
+  // The rows 110 px tall (by request, 2026-09-25; 90 before).
   return (
-    <tr className="h-[90px] border-t border-border">
+    <tr className="h-[110px] border-t border-border">
       <td className="py-2 pr-4 align-middle whitespace-nowrap">
         <Link
           href={`/pro/sessoes/${run.id}`}
@@ -953,9 +1012,12 @@ function RunRow({
         <span className="text-xs text-muted-foreground">
           {bracketDate(run.createdAt)}
         </span>
+        {/* "Esta volta" on a line of its own under the name (by request,
+            2026-09-25; it was "REF" beside it), as the setup's change pill
+            sits under the setup. */}
         {isReference && (
-          <span className="ml-2 rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold tracking-wide text-background">
-            REF
+          <span className="mt-1.5 block w-fit rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold tracking-wide text-background uppercase">
+            {t.compare.row.thisRun}
           </span>
         )}
       </td>
@@ -997,14 +1059,24 @@ function RunRow({
               <span className="whitespace-nowrap">{t.compare.row.noSetup}</span>
             </>
           )}
-          {changes.map((change) => (
-            <span
-              key={change.label}
-              className="rounded-full border border-foreground bg-card px-2 py-0.5 text-xs font-medium whitespace-nowrap text-foreground tabular-nums"
-            >
-              {formatSetupChange(change, locale)}
-            </span>
-          ))}
+          {/* The knobs that moved, on a line of their own under the
+              setup's name (by request, 2026-09-25): the name reads first,
+              the change beneath it, however many knobs moved. */}
+          {changes.length > 0 && (
+            <div className="flex basis-full flex-wrap gap-2">
+              {changes.map((change) => (
+                <span
+                  key={change.label}
+                  // A size down from the table's text, so the longest
+                  // change ("garfo HSC −2 · mais fechado") stays on one
+                  // line in a column of equal width on a desktop.
+                  className="rounded-full border border-foreground bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground tabular-nums"
+                >
+                  {formatSetupChange(change, locale)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </td>
       {COLUMNS.map(({ key, metric }) => {
@@ -1016,7 +1088,11 @@ function RunRow({
         return (
           <td
             key={key}
-            className="px-4 py-2 align-middle whitespace-nowrap tabular-nums"
+            data-col={key}
+            className={cn(
+              "px-4 py-2 align-middle whitespace-nowrap tabular-nums",
+              focusClass(focusCol, key),
+            )}
           >
             {!report ? (
               <span className="text-muted-foreground">…</span>

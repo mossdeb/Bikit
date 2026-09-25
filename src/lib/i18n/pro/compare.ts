@@ -610,6 +610,9 @@ const en = {
   row: {
     fullSetup: (letter: string): string => `The full setup ${letter}`,
     noSetup: "No setup",
+    /** The badge under the reference run's name (was "REF"; by request,
+     * 2026-09-25). */
+    thisRun: "This run",
   },
 
   details: {
@@ -888,6 +891,7 @@ const pt: typeof en = {
   row: {
     fullSetup: (letter) => `A afinação ${letter} completa`,
     noSetup: "Sem afinação",
+    thisRun: "Esta volta",
   },
 
   details: {
