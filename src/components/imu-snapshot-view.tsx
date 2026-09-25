@@ -595,10 +595,14 @@ export function ImuSnapshotView({
   }, [reference, loaded]);
 
   return (
-    <div className="space-y-[18px]">
-      <div className={cn("relative rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+    // The pages' rhythm (2026-09-25, the setups page's): 28 px between
+    // the cards, 32 under the heading's.
+    <div className="space-y-7">
+      <div
+        className={cn("relative mb-8 rounded-lg bg-card", DARK_CARD_HAIRLINE)}
+      >
         {!draft && (
-          <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
+          <div className="absolute top-3 right-3 sm:top-6 sm:right-6">
             <SnapshotSettings
               id={snapshot.id}
               name={snapshot.name}
@@ -609,17 +613,20 @@ export function ImuSnapshotView({
         {/* The identity on the left and the map on the right from `sm`,
             the map under the words on a phone. The three dots keep the
             corner: the map stops short of it (`sm:mr-12`). */}
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:p-8">
           <div className="min-w-0 pr-10 sm:pr-0">
             <SnapshotKindMark kind={snapshot.definition.kind} />
-            <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            {/* The pages' heading (2026-09-25, the setups page's): the
+                line over the title at 14 px medium, the title at 32 px
+                bold, 26 px between them. */}
+            <p className="mt-[26px] text-sm font-medium text-foreground">
               {draft ? t.snapshots.view.comparison : "Snapshot"} ·{" "}
               {snapshotKindLabel(snapshot.definition.kind, locale)}
             </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold">
+            <h1 className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
               {snapshot.name}
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-[26px] text-sm text-muted-foreground">
               {referenceSession ? (
                 <>
                   {t.snapshots.view.referenceLabel}{" "}
@@ -797,12 +804,12 @@ export function ImuSnapshotView({
           />
         ))}
         {pending === 0 && rows.length === 0 && (
-          <p className="px-5 py-6 text-sm text-muted-foreground sm:px-6">
+          <p className="px-5 py-6 text-sm text-muted-foreground sm:p-8">
             {t.snapshots.view.noSessions}
           </p>
         )}
         {pending === 0 && rows.length > 0 && others.length === 0 && (
-          <p className="border-t border-border px-5 py-5 text-sm text-muted-foreground sm:px-6">
+          <p className="border-t border-border px-5 py-5 text-sm text-muted-foreground sm:px-8">
             {rows.length === 1
               ? t.snapshots.view.onlyReference
               : t.snapshots.view.noOtherWithFilters}
@@ -914,7 +921,7 @@ export function SnapshotPassLine({
   return (
     <div
       className={cn(
-        "@container flex min-h-[180px] flex-col px-5 py-5 sm:p-[22px]",
+        "@container flex min-h-[180px] flex-col px-5 py-5 sm:p-8",
         !pinned && "border-t border-border lg:border-t-0",
       )}
     >

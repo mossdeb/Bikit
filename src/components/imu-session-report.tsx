@@ -87,8 +87,10 @@ export function ImuSessionReport({
     (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
 
   return (
-    <div className="space-y-[18px]">
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+    // The pages' rhythm (2026-09-25, the setups page's): 28 px between
+    // the cards, 32 under the heading's.
+    <div className="space-y-7">
+      <div className={cn("mb-8 rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
         {header}
       </div>
       {error && (
@@ -100,7 +102,7 @@ export function ImuSessionReport({
         <p className="text-sm text-muted-foreground">{t.loadingSession}</p>
       )}
       {report && (
-        <div className="grid gap-[18px] lg:grid-cols-3">
+        <div className="grid gap-7 lg:grid-cols-3">
           <SectionCard
             section={report.bike}
             mark={<BikeGlyph className="h-[52px] w-auto text-foreground" />}
@@ -221,25 +223,32 @@ function SectionCard({
     <section
       className={cn("flex flex-col rounded-lg bg-card", DARK_CARD_HAIRLINE)}
     >
-      <div className="px-5 pt-6 pb-6 sm:px-[22px]">
+      {/* 24 px of padding under 2xl, 32 from it (2026-09-25): three cards
+          a row leave ~363 px each at 1440, and at 32 the Bike card's
+          button broke onto two lines. */}
+      <div className="px-5 py-6 sm:p-6 2xl:p-8">
         <div className="flex h-14 items-end">{mark}</div>
+        {/* The section's title and subtitle, the pages' way (2026-09-25):
+            24 px semibold, the subtitle 2 px under it at 14. */}
         <div className="mt-5 flex items-center gap-1.5">
-          <h2 className="font-display text-xl font-bold tracking-wide uppercase">
+          <h2 className="font-display text-2xl leading-tight font-semibold">
             {section.title}
           </h2>
           <MetricInfo label={section.title} description={info} />
         </div>
-        <p className="text-sm text-muted-foreground">{section.subtitle}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {section.subtitle}
+        </p>
         {/* The conclusion first, in words: what the figures below add up
             to, the figures themselves in bold. */}
-        <p className="mt-6 text-sm leading-relaxed">
+        <p className="mt-8 text-sm leading-relaxed">
           {emphasize(section.headline)}
         </p>
         {actions && <div className="mt-6 space-y-3">{actions}</div>}
       </div>
 
       {section.metrics.length > 0 && (
-        <div className="mt-auto border-t border-border px-5 py-5 sm:px-[22px]">
+        <div className="mt-auto border-t border-border px-5 py-5 sm:p-6 2xl:p-8">
           <div className="grid grid-cols-3 gap-3">
             {section.metrics.map((metric) => (
               <MetricTile key={metric.label} metric={metric} />

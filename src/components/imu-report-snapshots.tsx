@@ -203,11 +203,15 @@ export function ImuReportSnapshots({
   if (shown.length === 0) return null;
 
   return (
-    <section className="space-y-[18px] pt-4">
+    // The pages' rhythm (2026-09-25): 28 px between the cards, the
+    // heading at the section titles' 24 px semibold.
+    <section className="space-y-7">
       <div className="flex items-center gap-3 px-1">
         <ImuSnapshotGlyph className="size-7 text-foreground" sizePx={28} />
         <p className="text-sm">
-          <span className="font-semibold">Snapshots</span>{" "}
+          <span className="font-display text-2xl leading-tight font-semibold">
+            Snapshots
+          </span>{" "}
           <span className="text-muted-foreground">
             {t.snapshots.report.count(shown.length)}
           </span>
@@ -282,7 +286,7 @@ function SnapshotCard({
       // is gone.
       href={`/pro/sessoes/${snapshot.referenceSessionId ?? session.id}/snapshots/${snapshot.id}`}
       className={cn(
-        "flex flex-col gap-4 rounded-lg bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:px-[22px]",
+        "flex flex-col gap-4 rounded-lg bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-8",
         DARK_CARD_HAIRLINE,
         CLICKABLE_CARD_HOVER,
       )}

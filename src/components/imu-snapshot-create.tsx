@@ -248,7 +248,7 @@ export function ImuSnapshotCreate({
           {made && (
             <div
               className={cn(
-                "mt-[18px] rounded-lg bg-card px-5 py-5 sm:px-6",
+                "mt-7 rounded-lg bg-card px-5 py-5 sm:p-8",
                 DARK_CARD_HAIRLINE,
               )}
             >

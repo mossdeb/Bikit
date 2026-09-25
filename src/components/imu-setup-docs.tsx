@@ -77,10 +77,12 @@ export function ImuSetupDocs() {
       >
         <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-10 sm:py-10">
           <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
-          <DialogTitle className="mt-2 font-display text-3xl font-semibold">
+          {/* The pages' heading (2026-09-25, the setups page's): 32 px
+              bold, 26 px apart. */}
+          <DialogTitle className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
             {words.title}
           </DialogTitle>
-          <DialogDescription className="mt-1 text-sm text-muted-foreground">
+          <DialogDescription className="mt-[26px] text-sm text-muted-foreground">
             {words.subtitle}
           </DialogDescription>
 

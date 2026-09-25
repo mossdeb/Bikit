@@ -222,15 +222,18 @@ export default async function ImuSessionReportPage({
             : null
         }
         header={
-          <div className="px-5 py-5 sm:px-6 sm:py-6">
+          // The pages' heading (2026-09-25, the setups page's): the line
+          // over the title at 14 px medium, the title at 32 px bold, 26 px
+          // between them.
+          <div className="px-5 py-5 sm:p-8">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground [&_path]:[stroke-width:1.5]" />
-            <p className="mt-2 text-xs font-semibold tracking-[0.08em] text-foreground uppercase">
+            <p className="mt-[26px] text-sm font-medium text-foreground">
               {t.report.page.report}
             </p>
-            <h1 className="mt-0.5 font-display text-3xl font-semibold">
+            <h1 className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
               {session.name}
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-[26px] text-sm text-muted-foreground">
               {session.rider_name ? `${session.rider_name} · ` : ""}
               {formatDate(session.created_at, locale)} ·{" "}
               {Math.round(session.sample_rate_hz)} Hz ·{" "}
