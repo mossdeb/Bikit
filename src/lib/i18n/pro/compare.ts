@@ -596,8 +596,7 @@ const en = {
 
   table: {
     title: "Setup comparison",
-    intro:
-      "Compare the setups to see which gives the best balance between speed, control and absorption of the terrain.",
+    intro: "The effect of each setup, run by run",
     session: "Session",
     setup: "Setup",
     setupDescription:
@@ -617,10 +616,7 @@ const en = {
 
   details: {
     title: "In detail",
-    /** "Setup B against Setup A, knob by knob…" — the pair the dropdowns
-     * above pick (2026-09-25). */
-    intro: (first: string, second: string): string =>
-      `Setup ${second} against Setup ${first}, knob by knob, and what the two figures the choice rests on did with it.`,
+    intro: "See the impact of each change to the setup.",
     changeOf: "Change of",
     medianOf: (n: number): string => `median of ${n}`,
     withinSpread: "within the spread between runs",
@@ -876,9 +872,8 @@ const pt: typeof en = {
     `A ler ${done} de ${total} ${total === 1 ? "sessão" : "sessões"}…`,
 
   table: {
-    title: "Comparação dos setups",
-    intro:
-      "Compara os setups para perceber qual oferece o melhor equilíbrio entre velocidade, controlo e absorção do terreno.",
+    title: "Comparação de setups",
+    intro: "O efeito de cada afinação volta a volta",
     session: "Sessão",
     setup: "Afinação",
     setupDescription:
@@ -896,8 +891,7 @@ const pt: typeof en = {
 
   details: {
     title: "Em detalhe",
-    intro: (first, second) =>
-      `Setup ${second} face ao Setup ${first}, botão a botão, e o que as duas figuras da escolha fizeram com ela.`,
+    intro: "Vê o impacto de cada alteração no setup.",
     changeOf: "Alteração de",
     medianOf: (n) => `mediana de ${n}`,
     withinSpread: "dentro da variação entre voltas",

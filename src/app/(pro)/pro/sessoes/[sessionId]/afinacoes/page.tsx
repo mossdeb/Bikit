@@ -123,8 +123,6 @@ export default async function ImuSetupComparePage({
   });
 
   // The runs on this trail: the reference's outline covered by theirs.
-  // What is left out is counted, so the page can say the bike has more
-  // runs than it shows and why.
   const index = isTrackIndex(session.track_index) ? session.track_index : null;
   const others = (sessions ?? []).filter((s) => s.id !== session.id);
   const sameRider = others.filter(
@@ -144,11 +142,6 @@ export default async function ImuSetupComparePage({
         reference={candidateOf(session)}
         runs={runs.map(candidateOf)}
         labels={labels}
-        leftOut={{
-          otherTrail: sameRider.length - runs.length,
-          otherRider: others.length - sameRider.length,
-          noGps: index == null,
-        }}
       />
     </div>
   );

@@ -152,16 +152,18 @@ export function ImuSetupDynamics({
     // layout): the heading with the two dropdowns beside it, then the
     // radar's plate on the left and the four axes as boxes on the right.
     <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-      <div className="px-5 py-5 sm:px-6 sm:py-6">
-        <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
+      <div className="px-5 py-6 sm:p-8">
+        <div className="flex flex-wrap items-start gap-x-[22px] gap-y-4">
           <div className="min-w-0">
-            <p className="text-lg font-semibold">{words.title}</p>
+            <p className="text-2xl leading-tight font-semibold">
+              {words.title}
+            </p>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {words.subtitle}
             </p>
           </div>
           {enough && (
-            <div className="flex flex-1 items-center gap-2 sm:flex-none">
+            <div className="flex flex-1 items-center gap-3 sm:flex-none">
               <SetupPicker
                 colour={SETUP_COLOURS[0]}
                 value={a ?? ""}
@@ -170,7 +172,7 @@ export function ImuSetupDynamics({
                 label={words.firstSetup}
                 onChange={(l) => onPairChange([l, b])}
               />
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              <span className="text-sm text-muted-foreground uppercase">
                 {words.vs}
               </span>
               <SetupPicker
@@ -185,12 +187,14 @@ export function ImuSetupDynamics({
           )}
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        {/* The radar and the boxes in two equal halves (the Figma
+            layout, 2026-09-25; 5 to 6 before). */}
+        <div className="mt-8 grid gap-[22px] lg:grid-cols-2">
           {/* The lab's hatch on the plate (back by request, 2026-09-25 —
               it had come off on 2026-09-15): the same pattern the report's
               bands wear, with the labels' pills and the chips lifting off
               it on the card's white. */}
-          <div className="imu-event-band @container rounded-[14px] border border-border p-3 sm:p-4">
+          <div className="imu-event-band @container rounded-[12px] border border-border p-3 sm:p-4">
             {!enough ? (
               <p className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pending
@@ -209,79 +213,85 @@ export function ImuSetupDynamics({
               two scores as bars in the setups' colours, and what the axis
               reads. The figures behind each score stay on the table
               above. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {DYNAMICS_AXES.map((axis) => {
-              const per = chosen.map(
-                (s) => s?.axes.find((x) => x.key === axis.key)?.score ?? null,
-              );
-              const axisWords = t.compare.axes[axis.key];
-              const delta =
-                enough && ready && per[0] != null && per[1] != null
-                  ? per[1] - per[0]
-                  : null;
-              return (
-                <div
-                  key={axis.key}
-                  className="flex min-w-0 flex-col rounded-[14px] border border-border p-4 sm:p-5"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <AxisMark axisKey={axis.key} />
-                    <p className="flex min-w-0 items-center gap-1 text-base font-semibold">
-                      <span className="truncate">{axisWords.name}</span>
-                      <AxisInfo words={axisWords} metrics={axis.metrics} />
+          {/* Two boxes a row only when the half holds them (measured: a
+              box needs ~250 px for "Recuperação", its mark, the "i" and
+              the pill) — counted against the half, not the window, since
+              the half is the window's share. Narrower, one under another. */}
+          <div className="@container">
+            <div className="grid gap-[22px] @min-[520px]:grid-cols-2">
+              {DYNAMICS_AXES.map((axis) => {
+                const per = chosen.map(
+                  (s) => s?.axes.find((x) => x.key === axis.key)?.score ?? null,
+                );
+                const axisWords = t.compare.axes[axis.key];
+                const delta =
+                  enough && ready && per[0] != null && per[1] != null
+                    ? per[1] - per[0]
+                    : null;
+                return (
+                  <div
+                    key={axis.key}
+                    className="flex min-w-0 flex-col rounded-lg border border-border p-4 sm:p-5"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <AxisMark axisKey={axis.key} />
+                      <p className="flex min-w-0 items-center gap-1 text-base font-semibold">
+                        <span className="truncate">{axisWords.name}</span>
+                        <AxisInfo words={axisWords} metrics={axis.metrics} />
+                      </p>
+                      {delta != null && Math.round(delta) !== 0 && (
+                        <span
+                          // The second setup against the first, in points of
+                          // the axis: the table's pill colours — green where
+                          // it gained, the lab's red where it lost.
+                          className={cn(
+                            "shrink-0 rounded-full border border-foreground bg-foreground px-2 text-xs leading-[17px] font-normal tabular-nums",
+                            delta > 0 ? "text-primary" : "text-[#FF5A39]",
+                          )}
+                          title={words.deltaTitle(b ?? "", a ?? "")}
+                        >
+                          {delta > 0 ? "+" : "−"}
+                          {proPercent(Math.abs(delta), locale, 0)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 w-full space-y-1">
+                      {[a, b].map((l, i) => {
+                        const setup = setups.find((s) => s.letter === l);
+                        return (
+                          <ScoreBar
+                            key={i}
+                            label={`Setup ${l ?? "—"}`}
+                            colour={BAR_COLOURS[i]}
+                            value={enough && ready ? per[i] : null}
+                            hidden={!enough || !l}
+                            details={setup?.details}
+                            detailsLabel={setup?.detailsLabel}
+                          />
+                        );
+                      })}
+                    </div>
+                    <p className="mt-[22px] text-sm text-muted-foreground">
+                      {axisWords.description}
                     </p>
-                    {delta != null && Math.round(delta) !== 0 && (
-                      <span
-                        // The second setup against the first, in points of
-                        // the axis: the table's pill colours — green where
-                        // it gained, the lab's red where it lost.
-                        className={cn(
-                          "shrink-0 rounded-full border border-foreground bg-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                          delta > 0 ? "text-primary" : "text-[#FF5A39]",
-                        )}
-                        title={words.deltaTitle(b ?? "", a ?? "")}
-                      >
-                        {delta > 0 ? "+" : "−"}
-                        {proPercent(Math.abs(delta), locale, 0)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-4 w-full space-y-2.5">
-                    {[a, b].map((l, i) => {
-                      const setup = setups.find((s) => s.letter === l);
-                      return (
-                        <ScoreBar
-                          key={i}
-                          label={`Setup ${l ?? "—"}`}
-                          colour={BAR_COLOURS[i]}
-                          value={enough && ready ? per[i] : null}
-                          hidden={!enough || !l}
-                          details={setup?.details}
-                          detailsLabel={setup?.detailsLabel}
-                        />
-                      );
-                    })}
-                  </div>
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    {axisWords.description}
-                  </p>
-                  {/* The figures the axis is scored on (by request,
+                    {/* The figures the axis is scored on (by request,
                       2026-09-24), as chips, from the axis's own list —
                       so the words never drift from what scoreDynamics
                       reads. */}
-                  <ul className="mt-3 flex flex-wrap gap-1.5">
-                    {axis.metrics.map((key) => (
-                      <li
-                        key={key}
-                        className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
-                      >
-                        {t.report.metric[key]}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
+                    <ul className="mt-3 flex flex-wrap gap-1.5">
+                      {axis.metrics.map((key) => (
+                        <li
+                          key={key}
+                          className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground"
+                        >
+                          {t.report.metric[key]}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
         {enough && (
@@ -372,12 +382,12 @@ function ScoreBar({
   detailsLabel?: string;
 }) {
   const locale = useProLocale();
-  const word = "w-[58px] shrink-0 truncate text-left text-sm";
+  const word = "w-[64px] shrink-0 truncate text-left text-base font-medium";
   return (
     <div
       // Tight columns (by request, 2026-09-24): the word and the number
       // take only the room "Setup B" and "100" need, the bar the rest.
-      className={cn("flex w-full items-center gap-2", hidden && "invisible")}
+      className={cn("flex w-full items-center gap-3", hidden && "invisible")}
     >
       {details ? (
         // The setup's name opens the whole setup, as it does on the table
@@ -409,7 +419,7 @@ function ScoreBar({
           }}
         />
       </div>
-      <span className="w-7 shrink-0 text-right text-sm text-muted-foreground tabular-nums">
+      <span className="w-7 shrink-0 text-right text-sm font-medium text-muted-foreground tabular-nums">
         {value == null ? "…" : proNumber(value, locale, 0)}
       </span>
     </div>
@@ -440,12 +450,12 @@ function SetupPicker({
         aria-hidden
         // Over the select: its wrapper is positioned too and, later in
         // the DOM, would paint the field's background across the dot.
-        className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-2 -translate-y-1/2 rounded-full"
+        className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-[7px] -translate-y-1/2 rounded-full"
         style={{ background: colour }}
       />
       <NativeSelect
         aria-label={label}
-        className="h-11 rounded-[12px] bg-card pl-7 text-sm"
+        className="h-12 rounded-[11px] bg-card pl-[27px] text-sm tracking-[-0.15px]"
         wrapperClassName="min-w-[120px] flex-1 sm:flex-none"
         value={value}
         onChange={(e) => onChange(e.target.value)}

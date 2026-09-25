@@ -62,7 +62,7 @@ export function ImuSetupDocs() {
     <Dialog>
       <DialogTrigger
         className={cn(
-          "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
+          "inline-flex h-[50px] shrink-0 items-center gap-3.5 rounded-[18px] border border-border bg-card px-5 leading-5 font-semibold text-foreground",
           CLICKABLE_CARD_HOVER,
         )}
       >

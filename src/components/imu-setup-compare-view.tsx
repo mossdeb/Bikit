@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import Link from "next/link";
-import { Bike, FileText, Info } from "lucide-react";
+import { FileText, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import {
@@ -201,7 +201,6 @@ export function ImuSetupCompareView({
   reference,
   runs,
   labels,
-  leftOut,
 }: {
   /** The session this page was reached from: the row every other is
    * read against. */
@@ -210,8 +209,6 @@ export function ImuSetupCompareView({
   runs: ImuSnapshotCandidate[];
   /** What the bike calls its dampers, for the sentence and the tiles. */
   labels: ImuSetupCompareLabels;
-  /** What the page does not show, and why — for one honest line. */
-  leftOut: { otherTrail: number; otherRider: number; noGps: boolean };
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -394,12 +391,6 @@ export function ImuSetupCompareView({
   const bestNoise = Math.max(bestMetric?.tie ?? 0, withinSetupSpread);
   const shown = groups.length === 1 ? groups[0] : best;
 
-  const leftOutBits: string[] = [];
-  if (leftOut.noGps) leftOutBits.push(words.header.leftOutNoGps);
-  else if (leftOut.otherTrail > 0)
-    leftOutBits.push(words.header.leftOutOtherTrail(leftOut.otherTrail));
-  if (leftOut.otherRider > 0)
-    leftOutBits.push(words.header.leftOutOtherRider(leftOut.otherRider));
 
   // "Em detalhe": the pair's second setup against its first, knob by knob
   // (2026-09-25; it was every setup against the reference) — what moved,
@@ -550,31 +541,39 @@ export function ImuSetupCompareView({
       : [];
 
   return (
-    <div className="space-y-[18px]">
+    // The Figma layout's measures (2026-09-25): 28 px between the cards,
+    // 32 under the heading's.
+    <div className="space-y-7">
       {/* The heading, in a card of its own (the supplied layout), with
           the documentation's door at its right (by request, 2026-09-24):
           under the words on a phone, beside them from `sm`. */}
-      <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:px-6 sm:py-6">
+      <div className={cn("mb-8 rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+        <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:p-8">
           <div className="min-w-0">
             <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
-              <Bike className="size-4" strokeWidth={2} aria-hidden />
-              {reference.bikeName ?? words.header.fallbackBike}
+            {/* "Setup · YT Decoy · Miguel Gomes" (by request,
+                2026-09-25): what the page is, the bike, the rider — the
+                rider only when the session names one. */}
+            <p className="mt-[26px] text-sm font-medium text-foreground">
+              {[
+                "Setup",
+                reference.bikeName ?? words.header.fallbackBike,
+                reference.riderName,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
-            <h1 className="mt-1 font-display text-3xl font-semibold">
+            <h1 className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
               {words.header.title}
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-[26px] text-sm text-muted-foreground">
               {words.header.reference}{" "}
               <Link
                 href={`/pro/sessoes/${reference.id}`}
                 className="text-foreground underline underline-offset-2"
               >
                 {reference.name}
-              </Link>{" "}
-              · {words.header.otherRuns(runs.length, !!reference.riderName)}
-              {leftOutBits.length > 0 && ` · ${leftOutBits.join(" · ")}`}
+              </Link>
             </p>
           </div>
           <div className="shrink-0 self-start">
@@ -640,15 +639,17 @@ export function ImuSetupCompareView({
           come under it (by request, 2026-09-24 — they had stood at the
           head); the details and the best setup close the page. */}
       <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <section className="px-5 py-6 sm:px-6 sm:py-8">
-          <p className="text-lg font-semibold">{words.table.title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <section className="px-5 py-6 sm:p-8">
+          <p className="text-2xl leading-tight font-semibold">
+            {words.table.title}
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {words.table.intro}
           </p>
 
           {/* Wider than a phone, the table scrolls inside the card. */}
           <div
-            className="mt-6 overflow-x-auto"
+            className="mt-8 overflow-x-auto"
             onPointerOver={readFocusCol}
             onPointerLeave={clearFocusCol}
           >
@@ -659,15 +660,15 @@ export function ImuSetupCompareView({
                 is low, and just above it the widest cell, a change pill
                 such as "garfo HSC −2 · mais fechado", wraps onto two lines
                 rather than pushing its column wider. */}
-            <table className="w-full min-w-[1280px] table-fixed border-collapse text-sm">
+            <table className="w-full min-w-[1280px] table-fixed border-collapse text-base">
               <thead>
                 <tr className="text-left">
-                  <th className="w-[112px] pr-4 pb-3 align-bottom font-semibold">
+                  <th className="w-[112px] py-5 pr-4 align-bottom font-semibold">
                     {words.table.session}
                   </th>
                   {/* No mark over "Setup" (removed by request, 2026-09-24):
                       the figures' columns keep theirs. */}
-                  <th className="px-4 pb-3 align-bottom font-semibold">
+                  <th className="px-4 py-5 align-bottom font-semibold">
                     <span className="flex items-center gap-1">
                       {words.table.setup}
                       <MetricInfo
@@ -683,11 +684,16 @@ export function ImuSetupCompareView({
                         key={c.key}
                         data-col={c.key}
                         className={cn(
-                          "px-4 pb-3 align-bottom font-semibold whitespace-nowrap",
+                          "px-4 py-5 align-bottom font-semibold whitespace-nowrap",
                           focusClass(focusCol, c.key),
                         )}
                       >
-                        <c.Icon className="mb-2" />
+                        {/* The mark at 32 px (by request, 2026-09-25; 42,
+                            the art's own scale, read too big) in the
+                            layout's 50-px slot, so the head stays 115. */}
+                        <span className="flex h-[50px] items-center">
+                          <c.Icon className="size-8" />
+                        </span>
                         <span className="flex items-center gap-1">
                           {column.short}
                           <MetricInfo
@@ -758,21 +764,23 @@ export function ImuSetupCompareView({
           request, 2026-09-25 — they shared one, ruled in two). */}
       {details.length > 0 && (
         <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-          <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">{words.details.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {words.details.intro(pair[0] ?? "", pair[1] ?? "")}
+          <section className="px-5 py-6 sm:p-8">
+            <p className="text-2xl leading-tight font-semibold">
+              {words.details.title}
+            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {words.details.intro}
             </p>
             {/* Two columns only from xl: with the change's box and two bar
                 rows inside, a card at lg's width squeezed the bars to a
                 stub. */}
-            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <div className="mt-8 grid gap-8 xl:grid-cols-2">
               {details.map((d) => (
                 <div
                   key={d.knob}
-                  className="rounded-[14px] border border-border p-5"
+                  className="rounded-lg border border-border p-[18px]"
                 >
-                  <p className="text-lg">
+                  <p className="text-base leading-5">
                     {d.title.component} ·{" "}
                     <span className="font-semibold">{d.title.knob}</span> ·{" "}
                     <span className="font-semibold">Setup {pair[1]}</span>
@@ -780,21 +788,21 @@ export function ImuSetupCompareView({
                   {/* The change on the left in a box of its own, the
                         figures on the right, each with the two setups as
                         bars (the supplied layout, 2026-09-25). */}
-                  <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
-                    <div className="flex flex-col items-center justify-center rounded-[12px] bg-muted/40 px-3 py-4 text-center">
-                      <p className="text-sm text-muted-foreground">
+                  <div className="mt-[22px] grid gap-3 sm:grid-cols-[126px_1fr]">
+                    <div className="flex flex-col items-center justify-center gap-[9px] rounded-[12px] border border-border bg-muted/40 px-2.5 py-5 text-center">
+                      <p className="text-xs leading-3 text-muted-foreground">
                         {words.details.changeOf}
                       </p>
-                      <p className="mt-1.5 text-2xl font-semibold tabular-nums">
+                      <p className="text-lg leading-6 font-bold tabular-nums">
                         {d.box.text}
                       </p>
                       {d.box.delta && (
-                        <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
+                        <span className="rounded-full border border-foreground bg-foreground px-2 text-xs leading-[17px] font-normal text-background tabular-nums">
                           {d.box.delta}
                         </span>
                       )}
                       {d.box.direction && (
-                        <p className="mt-1.5 text-sm text-muted-foreground">
+                        <p className="text-xs leading-3 text-muted-foreground">
                           [{d.box.direction}]
                         </p>
                       )}
@@ -804,11 +812,11 @@ export function ImuSetupCompareView({
                         {d.effects.map((effect) => (
                           <div
                             key={effect.key}
-                            className="rounded-[12px] border border-border px-4 py-3"
+                            className="rounded-[12px] border border-border px-5 py-3"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                              <p className="flex items-center gap-2 text-base font-semibold">
-                                <effect.Icon className="size-6 text-foreground" />
+                              <p className="flex items-center gap-3 text-base font-semibold">
+                                <effect.Icon className="size-5 text-foreground" />
                                 {effect.name}
                               </p>
                               <p className="text-sm">
@@ -825,7 +833,7 @@ export function ImuSetupCompareView({
                                 , {effect.verdict}.
                               </p>
                             </div>
-                            <div className="mt-3 space-y-2">
+                            <div className="mt-1 space-y-1">
                               {effect.sides.map((side, i) => (
                                 <div
                                   key={i}
@@ -838,7 +846,14 @@ export function ImuSetupCompareView({
                                       request, 2026-09-25). The pill holds
                                       the value alone, so the track keeps
                                       room on a narrow card. */}
-                                  <span className="flex w-[92px] shrink-0 flex-col text-sm font-semibold">
+                                  <span
+                                    className={cn(
+                                      "flex w-[92px] shrink-0 flex-col text-base",
+                                      // The first setup bold, the second
+                                      // medium: the Figma layout's.
+                                      i === 0 ? "font-bold" : "font-medium",
+                                    )}
+                                  >
                                     <span>Setup {pair[i]}</span>
                                     {side.runs > 1 && (
                                       <span className="text-xs font-normal whitespace-nowrap text-muted-foreground">
@@ -855,7 +870,7 @@ export function ImuSetupCompareView({
                                       }}
                                     />
                                   </div>
-                                  <span className="shrink-0 rounded-[8px] bg-muted px-2 py-0.5 text-sm font-semibold tabular-nums">
+                                  <span className="shrink-0 rounded-[8px] bg-muted px-2.5 text-sm leading-6 font-bold tabular-nums">
                                     {side.value}
                                   </span>
                                 </div>
@@ -878,9 +893,11 @@ export function ImuSetupCompareView({
       )}
       {SHOW_BEST && shown && (
         <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-          <section className="px-5 py-6 sm:px-6 sm:py-8">
-            <p className="text-lg font-semibold">{words.best.title}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <section className="px-5 py-6 sm:px-8 sm:py-[22px]">
+            <p className="text-2xl leading-tight font-semibold">
+              {words.best.title}
+            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {groups.length === 1
                 ? words.best.onlyOne
                 : !best
@@ -999,13 +1016,14 @@ function RunRow({
     !isReference && reference.setup && run.setup
       ? setupDiff(reference.setup, run.setup, locale)
       : [];
-  // The rows 110 px tall (by request, 2026-09-25; 90 before).
+  // The rows 120 px tall (the Figma layout, 2026-09-25; 110 and 90
+  // before).
   return (
-    <tr className="h-[110px] border-t border-border">
+    <tr className="h-[120px] border-t border-border">
       <td className="py-2 pr-4 align-middle whitespace-nowrap">
         <Link
           href={`/pro/sessoes/${run.id}`}
-          className="font-semibold underline-offset-2 hover:underline"
+          className="font-bold underline-offset-2 hover:underline"
         >
           {run.name.split(" - ")[0]}
         </Link>{" "}
@@ -1031,7 +1049,7 @@ function RunRow({
             <Popover>
               <PopoverTrigger
                 aria-label={t.compare.row.fullSetup(letter)}
-                className="flex cursor-pointer items-center gap-2 rounded-[6px] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="flex cursor-pointer items-center gap-2.5 rounded-[6px] font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <FileText
                   className="size-[18px] shrink-0 text-foreground"
@@ -1090,7 +1108,7 @@ function RunRow({
             key={key}
             data-col={key}
             className={cn(
-              "px-4 py-2 align-middle whitespace-nowrap tabular-nums",
+              "px-4 py-2 align-middle font-medium whitespace-nowrap tabular-nums",
               focusClass(focusCol, key),
             )}
           >
@@ -1173,7 +1191,7 @@ function Figure({
   const unit = unitOf(metric);
   const differs = tone != null && tone !== "tie";
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center gap-2.5">
       <span className={cn(differs && "font-bold")}>
         {metric.value.replace(/\s*%$/, "")}
         {unit && (
@@ -1192,7 +1210,9 @@ function Figure({
           // the same outline in their own colour, so both are one size. A
           // tie has no pill here: the figure is simply not bold.
           className={cn(
-            "rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold",
+            // 19 px tall with its outline, 8 px each side, regular weight:
+            // the Figma layout's pill.
+            "rounded-full border border-foreground px-2 text-xs leading-[17px] font-normal",
             tone === "better" && "bg-foreground text-primary",
             tone === "worse" && "bg-foreground text-[#FF5A39]",
             tone === "neutral" && "bg-transparent text-foreground",
@@ -1345,12 +1365,12 @@ function SetupTiles({
     // each cell's top and left edge, the first row's and column's tucked
     // under the box's clipped rim, so a wrapped row on a narrow card is
     // ruled like the first.
-    <div className="imu-event-band mt-6 rounded-[18px] border border-border p-3 sm:p-4">
-      <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+    <div className="imu-event-band mt-[22px] rounded-lg border border-border p-3 sm:p-5">
+      <div className="grid gap-3 sm:gap-x-[22px] sm:gap-y-6 lg:grid-cols-2">
         {blocks.map((block) => (
           <div
             key={block.kind}
-            className="rounded-[14px] border border-border bg-card p-4 sm:p-5"
+            className="rounded-[12px] border border-border bg-card p-4 sm:p-5"
           >
             <p className="text-base">
               {block.kind}.{" "}
@@ -1358,12 +1378,12 @@ function SetupTiles({
                 <span className="font-semibold">{block.name}</span>
               )}
             </p>
-            <div className="mt-4 overflow-hidden rounded-[14px] border border-border">
+            <div className="mt-3 overflow-hidden rounded-[12px] border border-border">
               <div className="-mt-px -ml-px grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))]">
                 {block.tiles.map((tile) => (
                   <div
                     key={tile.label}
-                    className="flex min-h-[76px] flex-col items-center justify-center border-t border-l border-border px-2 py-3 text-center"
+                    className="flex min-h-[100px] flex-col items-center justify-center border-t border-l border-border px-2.5 py-5 text-center"
                   >
                     <p className="text-xs leading-tight text-muted-foreground">
                       {tile.label}
