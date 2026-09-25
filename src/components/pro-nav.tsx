@@ -49,6 +49,9 @@ interface ProNavItem {
   /** The phone bar's glyph size, where the marks are drawn to different
    * boxes (the app's bar sizes each one by hand too). */
   iconClassName: string;
+  /** Off the side bar, kept on the phone's (by request, 2026-09-25): on a
+   * desktop the avatar's menu already opens the settings. */
+  phoneOnly?: boolean;
 }
 
 export const PRO_NAV_ITEMS: ProNavItem[] = [
@@ -72,6 +75,7 @@ export const PRO_NAV_ITEMS: ProNavItem[] = [
     Icon: MenuSettingsIcon,
     isActive: (p) => p.startsWith("/pro/definicoes"),
     iconClassName: "size-7",
+    phoneOnly: true,
   },
 ];
 
@@ -134,7 +138,7 @@ export function ProSidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1.5">
-        {PRO_NAV_ITEMS.map(entry)}
+        {PRO_NAV_ITEMS.filter((item) => !item.phoneOnly).map(entry)}
       </nav>
 
       <button
