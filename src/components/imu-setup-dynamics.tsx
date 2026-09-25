@@ -35,8 +35,9 @@ import {
  */
 
 /** The two setups' colours: the brand green and the chart's violet,
- * theme-aware through the tokens. */
-const SETUP_COLOURS = ["var(--chart-1)", "var(--chart-2)"] as const;
+ * theme-aware through the tokens. Shared with "Em detalhe", whose bars
+ * wear the same two. */
+export const SETUP_COLOURS = ["var(--chart-1)", "var(--chart-2)"] as const;
 
 /** The chart's geometry, in a 400-square: the 100 % ring's radius, and
  * the four compass directions in the axes' order. */
@@ -63,29 +64,20 @@ export interface ImuSetupDynamicsSetup {
   detailsLabel?: string;
 }
 
-export function ImuSetupDynamics({
-  setups,
-  scores,
-  referenceLetter,
-  pending,
-}: {
-  setups: ImuSetupDynamicsSetup[];
-  /** One per setup, in the same order, once its files are read. */
-  scores: DynamicsScore[];
-  referenceLetter: string | null;
-  /** Files still being read: the chart fills in as they arrive. */
-  pending: boolean;
-}) {
-  const t = useProDict();
-  const locale = useProLocale();
-  const words = t.compare.dynamics;
-  const letters = setups.map((s) => s.letter);
-  const [picked, setPicked] = useState<[string | null, string | null]>([
-    null,
-    null,
-  ]);
-  // The reference first, the next setup against it; a pick that no longer
-  // exists falls back the same way.
+/** The two setups a page compares, by letter: the pair the dynamics'
+ * dropdowns pick, shared with "Em detalhe" (2026-09-25) so one choice
+ * drives both. The page holds it (pickSetupPair); this module only
+ * shows and changes it. */
+export type SetupPair = [string | null, string | null];
+
+/** The pair from what was picked and what exists: the reference first,
+ * the next setup against it; a pick that no longer exists falls back
+ * the same way. */
+export function pickSetupPair(
+  picked: SetupPair,
+  letters: string[],
+  referenceLetter: string | null,
+): SetupPair {
   const fallbackA =
     referenceLetter && letters.includes(referenceLetter)
       ? referenceLetter
@@ -93,6 +85,31 @@ export function ImuSetupDynamics({
   const a = picked[0] && letters.includes(picked[0]) ? picked[0] : fallbackA;
   const fallbackB = letters.find((l) => l !== a) ?? null;
   const b = picked[1] && letters.includes(picked[1]) ? picked[1] : fallbackB;
+  return [a, b];
+}
+
+export function ImuSetupDynamics({
+  setups,
+  scores,
+  referenceLetter,
+  pending,
+  pair,
+  onPairChange,
+}: {
+  setups: ImuSetupDynamicsSetup[];
+  /** One per setup, in the same order, once its files are read. */
+  scores: DynamicsScore[];
+  referenceLetter: string | null;
+  /** Files still being read: the chart fills in as they arrive. */
+  pending: boolean;
+  /** The two setups compared, already resolved (pickSetupPair). */
+  pair: SetupPair;
+  onPairChange: (pair: SetupPair) => void;
+}) {
+  const t = useProDict();
+  const locale = useProLocale();
+  const words = t.compare.dynamics;
+  const [a, b] = pair;
   const chosen = [a, b].map((l) =>
     l ? (scores.find((s) => s.letter === l) ?? null) : null,
   );
@@ -118,8 +135,9 @@ export function ImuSetupDynamics({
                 colour={SETUP_COLOURS[0]}
                 value={a ?? ""}
                 setups={setups}
+                referenceLetter={referenceLetter}
                 label={words.firstSetup}
-                onChange={(l) => setPicked([l, picked[1]])}
+                onChange={(l) => onPairChange([l, b])}
               />
               <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 {words.vs}
@@ -128,8 +146,9 @@ export function ImuSetupDynamics({
                 colour={SETUP_COLOURS[1]}
                 value={b ?? ""}
                 setups={setups}
+                referenceLetter={referenceLetter}
                 label={words.secondSetup}
-                onChange={(l) => setPicked([picked[0], l])}
+                onChange={(l) => onPairChange([a, l])}
               />
             </div>
           )}
@@ -363,12 +382,16 @@ function SetupPicker({
   colour,
   value,
   setups,
+  referenceLetter,
   label,
   onChange,
 }: {
   colour: string;
   value: string;
   setups: ImuSetupDynamicsSetup[];
+  /** The setup this page's session rode on, marked in the list (by
+   * request, 2026-09-25). */
+  referenceLetter: string | null;
   label: string;
   onChange: (letter: string) => void;
 }) {
@@ -392,6 +415,9 @@ function SetupPicker({
         {setups.map((s) => (
           <option key={s.letter} value={s.letter}>
             Setup {s.letter}
+            {s.letter === referenceLetter
+              ? ` ${t.compare.dynamics.usedInThisRun}`
+              : ""}
             {s.runs > 1 ? ` · ${t.common.run(s.runs)}` : ""}
           </option>
         ))}

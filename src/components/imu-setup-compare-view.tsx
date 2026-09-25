@@ -22,7 +22,12 @@ import {
   SpeedGaugeIcon,
 } from "@/components/imu-setup-icons";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
-import { ImuSetupDynamics } from "@/components/imu-setup-dynamics";
+import {
+  ImuSetupDynamics,
+  pickSetupPair,
+  SETUP_COLOURS,
+  type SetupPair,
+} from "@/components/imu-setup-dynamics";
 import { ImuSetupDocs } from "@/components/imu-setup-docs";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
@@ -132,8 +137,13 @@ type Tone = "better" | "worse" | "tie" | "neutral";
 
 const nf = (value: number, digits: number, locale: Locale) =>
   proNumber(value, locale, digits);
-const signed = (value: number, digits: number, locale: Locale) =>
-  `${value > 0 ? "+" : value < 0 ? "−" : ""}${nf(Math.abs(value), digits, locale)}`;
+// Signed after rounding to the printed decimals, so a −0.04 printed with
+// one decimal reads "0,0" and not "−0,0".
+const signed = (value: number, digits: number, locale: Locale) => {
+  const scale = 10 ** digits;
+  const rounded = Math.round(value * scale) / scale;
+  return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}${nf(Math.abs(rounded), digits, locale)}`;
+};
 /** How many decimals the report printed the figure with — whichever
  * separator its language uses. */
 const digitsOf = (m: ReportMetric) =>
@@ -205,6 +215,9 @@ export function ImuSetupCompareView({
    * table only — the detail cards and the best setup read every run. */
   const [setupFilter, setSetupFilter] = useState("");
   const [sort, setSort] = useState<"setup" | "date">("setup");
+  // The two setups the dynamics and "Em detalhe" compare, as picked in
+  // the dynamics' dropdowns; resolved against what exists below.
+  const [pickedPair, setPickedPair] = useState<SetupPair>([null, null]);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,11 +308,6 @@ export function ImuSetupCompareView({
   const dynamicsGroups = groups.filter((g) => g.members.every(reportOf));
   const dynamicsScores = scoreDynamics(dynamicsGroups, dynamicsRules);
 
-  const list = (items: string[]) =>
-    items.length <= 1
-      ? items.join("")
-      : `${items.slice(0, -1).join(", ")} ${t.common.and} ${items[items.length - 1]}`;
-
   // The rows: the reference first whatever the filter — it is what every
   // other row is read against — then the runs the setup filter keeps,
   // grouped by setup in the letters' order (the runs without one last) or
@@ -358,88 +366,81 @@ export function ImuSetupCompareView({
   if (leftOut.otherRider > 0)
     leftOutBits.push(words.header.leftOutOtherRider(leftOut.otherRider));
 
-  // "Em detalhe": each other setup against the reference's, knob by knob —
-  // what moved, by how much, and what the two figures the choice rests on
-  // did. Only once both sides' files are read.
-  const referenceGroup = groups.find((g) =>
-    g.members.some((c) => c.id === reference.id),
+  // "Em detalhe": the pair's second setup against its first, knob by knob
+  // (2026-09-25; it was every setup against the reference) — what moved,
+  // by how much, and what the two figures the choice rests on did, each
+  // as two bars in the setups' colours. Only once both sides' files are
+  // read.
+  const pair = pickSetupPair(
+    pickedPair,
+    groups.map((g) => g.letter),
+    letterOf(reference),
   );
-  const details = referenceGroup
-    ? groups
-        .filter((g) => g !== referenceGroup)
-        .map((g) => {
-          const changes = setupDiff(referenceGroup.setup, g.setup, locale);
-          // The card's title, the supplied layout's way: the component
-          // light, the knob in full and bold, the setup — "Fox X2 ·
-          // High-Speed Compression · Setup B". Which component a change
-          // belongs to is the change's own block; the knob's full name
-          // comes from the dictionary's table by the change's field.
-          const component = (c: SetupChange) =>
-            c.block === "fork"
-              ? labels.fork || words.parts.fork
-              : c.block === "shock"
-                ? labels.shock || words.parts.shock
-                : c.block === "tires"
-                  ? words.parts.tires
-                  : words.parts.rider;
-          const knobOf = (c: SetupChange) => words.knobs[c.knob] ?? c.knob;
-          const components = [...new Set(changes.map(component))];
-          const knobs = changes.map(knobOf);
-          const boxes = changes.map((c) => {
-            const steps =
-              c.from != null && c.to != null ? Math.abs(c.to - c.from) : 0;
-            const unit =
-              c.kind === "clicks" ? words.clicks(steps) : c.unit.trim();
-            const num = (x: number | null) => (x == null ? "—" : n(x, 0));
-            const delta =
-              c.from != null && c.to != null
-                ? `${sg(c.to - c.from, 0)}${unit ? ` ${unit}` : ""}`
-                : null;
-            // The direction in words ("mais aberto") is setup.ts's, in
-            // the reader's language — the pills on the table say the same.
-            const direction =
-              c.from != null && c.to != null
-                ? changeDirection(c.kind, c.to - c.from, locale)
-                : null;
-            return {
-              knob: knobOf(c),
-              text: `${num(c.from)} → ${num(c.to)}`,
-              delta,
-              direction: direction
-                ? direction.charAt(0).toUpperCase() + direction.slice(1)
-                : null,
-            };
-          });
-          // Each figure the choice rests on: the reference run's value,
-          // this setup's median, the spread across its runs when it has
-          // more than one — two runs on one setup are the noise every
-          // difference has to beat (by request, 2026-09-12) — and the
-          // verdict against the wider of that spread and the metric's tie.
+  const groupA = groups.find((g) => g.letter === pair[0]) ?? null;
+  const groupB = groups.find((g) => g.letter === pair[1]) ?? null;
+  // The card's title, the supplied layout's way: the component light,
+  // the knob in full and bold, the setup — "Fox X2 · High-Speed
+  // Compression · Setup B". Which component a change belongs to is the
+  // change's own block; the knob's full name comes from the dictionary's
+  // table by the change's field.
+  const componentOf = (c: SetupChange) =>
+    c.block === "fork"
+      ? labels.fork || words.parts.fork
+      : c.block === "shock"
+        ? labels.shock || words.parts.shock
+        : c.block === "tires"
+          ? words.parts.tires
+          : words.parts.rider;
+  const knobOf = (c: SetupChange) => words.knobs[c.knob] ?? c.knob;
+  const spreadOf = (g: (typeof groups)[number], key: string) => {
+    const v = g.values.get(key) ?? [];
+    return v.length > 1 ? Math.max(...v) - Math.min(...v) : 0;
+  };
+  const details =
+    groupA && groupB
+      ? setupDiff(groupA.setup, groupB.setup, locale).map((c) => {
+          const steps =
+            c.from != null && c.to != null ? Math.abs(c.to - c.from) : 0;
+          const unit =
+            c.kind === "clicks" ? words.clicks(steps) : c.unit.trim();
+          const num = (x: number | null) => (x == null ? "—" : n(x, 0));
+          const delta =
+            c.from != null && c.to != null
+              ? `${sg(c.to - c.from, 0)}${unit ? ` ${unit}` : ""}`
+              : null;
+          // The direction in words ("mais aberto") is setup.ts's, in the
+          // reader's language — the pills on the table say the same.
+          const direction =
+            c.from != null && c.to != null
+              ? changeDirection(c.kind, c.to - c.from, locale)
+              : null;
+          // Each figure the choice rests on: both setups' medians, the
+          // spread across each one's runs when it has more than one — two
+          // runs on one setup are the noise every difference has to beat
+          // (by request, 2026-09-12) — and the verdict against the wider
+          // of that spread and the metric's tie. How the figure is printed
+          // (unit, decimals, which way is better) comes from any report
+          // that carries it.
+          const sample =
+            [...groupA.members, ...groupB.members]
+              .map(reportOf)
+              .find((r) => r != null) ?? null;
           const effects = [BEST_BY, BEST_TIE_BREAK]
-            .map((metricLabel) => {
-              const ref = referenceReport
-                ? metricOf(referenceReport, metricLabel)
-                : null;
-              const to = g.medians.get(metricLabel);
-              if (ref?.raw == null || to == null) return null;
-              const digits = digitsOf(ref);
-              const unit = unitOf(ref);
-              const values = g.values.get(metricLabel) ?? [];
-              const range =
-                values.length > 1
-                  ? { min: Math.min(...values), max: Math.max(...values) }
-                  : null;
-              const spreadAll = Math.max(
-                0,
-                ...groups.map((other) => {
-                  const v = other.values.get(metricLabel) ?? [];
-                  return v.length > 1 ? Math.max(...v) - Math.min(...v) : 0;
-                }),
+            .map((key) => {
+              const rule = sample ? metricOf(sample, key) : null;
+              const va = groupA.medians.get(key);
+              const vb = groupB.medians.get(key);
+              if (!rule || va == null || vb == null) return null;
+              const digits = digitsOf(rule);
+              const unit = unitOf(rule);
+              const noise = Math.max(
+                rule.tie ?? 0,
+                spreadOf(groupA, key),
+                spreadOf(groupB, key),
               );
-              const noise = Math.max(ref.tie ?? 0, spreadAll);
-              const diff = to - ref.raw;
+              const diff = vb - va;
               const tone: Tone =
-                Math.abs(diff) <= noise ? "tie" : toneOf(ref, diff);
+                Math.abs(diff) <= noise ? "tie" : toneOf(rule, diff);
               const fmt = (x: number) =>
                 `${n(x, digits)}${/^[°/%×]/.test(unit) ? "" : " "}${unit}`;
               // A difference's unit: percentage points for a share, else
@@ -450,20 +451,38 @@ export function ImuSetupCompareView({
                   : unit
                     ? `${/^[°/×]/.test(unit) ? "" : " "}${unit}`
                     : "";
-              const column = COLUMNS.find((c) => c.metric === metricLabel)!;
+              // The bars: a share fills its track at 100; any other figure
+              // has no ceiling, so the larger of the two fills the track
+              // and the other is its share of that — the gap between the
+              // two bars is the difference.
+              const top = unit === "%" ? 100 : Math.max(va, vb, 1e-9);
+              const width = (x: number) =>
+                Math.max(0, Math.min(100, (100 * x) / top));
+              const column = COLUMNS.find((col) => col.metric === key)!;
+              const spread = Math.max(
+                spreadOf(groupA, key),
+                spreadOf(groupB, key),
+              );
               return {
+                key,
                 name: words.columns[column.key].short,
-                ref: fmt(ref.raw),
-                value: fmt(to),
-                runs: values.length,
-                range: range
-                  ? `${n(range.min, digits)}–${fmt(range.max)}`
-                  : null,
+                sides: [
+                  {
+                    value: fmt(va),
+                    width: width(va),
+                    runs: groupA.members.length,
+                  },
+                  {
+                    value: fmt(vb),
+                    width: width(vb),
+                    runs: groupB.members.length,
+                  },
+                ],
                 delta: `${sg(diff, digits)}${deltaUnit}`,
                 tone,
                 verdict:
                   tone === "tie"
-                    ? range
+                    ? spread > 0
                       ? words.details.withinSpread
                       : words.details.withinNoise(
                           `${n(noise, digits)}${deltaUnit}`,
@@ -477,17 +496,19 @@ export function ImuSetupCompareView({
             })
             .filter((x): x is NonNullable<typeof x> => x != null);
           return {
-            letter: g.letter,
-            component: components.join(` ${t.common.and} `),
-            knobs: list(knobs),
-            boxes,
-            changes,
-            runs: g.members.length,
+            knob: c.knob,
+            title: { component: componentOf(c), knob: knobOf(c) },
+            box: {
+              text: `${num(c.from)} → ${num(c.to)}`,
+              delta,
+              direction: direction
+                ? direction.charAt(0).toUpperCase() + direction.slice(1)
+                : null,
+            },
             effects,
           };
         })
-        .filter((d) => d.changes.length > 0)
-    : [];
+      : [];
 
   return (
     <div className="space-y-[18px]">
@@ -674,108 +695,67 @@ export function ImuSetupCompareView({
         scores={dynamicsScores}
         referenceLetter={letterOf(reference)}
         pending={pending > 0}
+        pair={pair}
+        onPairChange={setPickedPair}
       />
 
-      {(details.length > 0 || shown) && (
-        <div
-          className={cn(
-            "divide-y divide-border rounded-lg bg-card",
-            DARK_CARD_HAIRLINE,
-          )}
-        >
-          {details.length > 0 && (
-            <section className="px-5 py-6 sm:px-6 sm:py-8">
-              <p className="text-lg font-semibold">{words.details.title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {words.details.intro}
-              </p>
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                {details.map((d) => (
-                  <div
-                    key={d.letter}
-                    className="rounded-[14px] border border-border p-5"
-                  >
-                    <p className="text-lg">
-                      {d.component} ·{" "}
-                      <span className="font-semibold">{d.knobs}</span> · Setup{" "}
-                      {d.letter}
-                      {d.runs > 1 && (
-                        <span className="ml-2 text-xs font-medium text-muted-foreground">
-                          {t.common.run(d.runs)}
+      {/* "Em detalhe" and the best setup, each in a card of its own (by
+          request, 2026-09-25 — they shared one, ruled in two). */}
+      {details.length > 0 && (
+        <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+          <section className="px-5 py-6 sm:px-6 sm:py-8">
+            <p className="text-lg font-semibold">{words.details.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {words.details.intro(pair[0] ?? "", pair[1] ?? "")}
+            </p>
+            {/* Two columns only from xl: with the change's box and two bar
+                rows inside, a card at lg's width squeezed the bars to a
+                stub. */}
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {details.map((d) => (
+                <div
+                  key={d.knob}
+                  className="rounded-[14px] border border-border p-5"
+                >
+                  <p className="text-lg">
+                    {d.title.component} ·{" "}
+                    <span className="font-semibold">{d.title.knob}</span> ·{" "}
+                    <span className="font-semibold">Setup {pair[1]}</span>
+                  </p>
+                  {/* The change on the left in a box of its own, the
+                        figures on the right, each with the two setups as
+                        bars (the supplied layout, 2026-09-25). */}
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
+                    <div className="flex flex-col items-center justify-center rounded-[12px] bg-muted/40 px-3 py-4 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        {words.details.changeOf}
+                      </p>
+                      <p className="mt-1.5 text-2xl font-semibold tabular-nums">
+                        {d.box.text}
+                      </p>
+                      {d.box.delta && (
+                        <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
+                          {d.box.delta}
                         </span>
                       )}
-                    </p>
-                    {/* The change on the left in a box of its own, the
-                      figures on the right (the supplied layout). */}
-                    <div className="mt-4 grid gap-3 sm:grid-cols-[168px_1fr]">
+                      {d.box.direction && (
+                        <p className="mt-1.5 text-sm text-muted-foreground">
+                          [{d.box.direction}]
+                        </p>
+                      )}
+                    </div>
+                    {d.effects.length > 0 ? (
                       <div className="flex flex-col gap-3">
-                        {d.boxes.map((box) => (
+                        {d.effects.map((effect) => (
                           <div
-                            key={box.knob}
-                            className="flex flex-1 flex-col items-center justify-center rounded-[12px] border border-border px-3 py-4 text-center"
+                            key={effect.key}
+                            className="rounded-[12px] border border-border px-4 py-3"
                           >
-                            <p className="text-sm text-muted-foreground">
-                              {words.details.changeOf}
-                              {d.boxes.length > 1 && (
-                                <span className="block text-xs">
-                                  {box.knob}
-                                </span>
-                              )}
-                            </p>
-                            <p className="mt-1.5 text-2xl font-semibold tabular-nums">
-                              {box.text}
-                            </p>
-                            {box.delta && (
-                              <span className="mt-2 rounded-full bg-foreground px-2.5 py-0.5 text-xs font-medium text-background tabular-nums">
-                                {box.delta}
-                              </span>
-                            )}
-                            {box.direction && (
-                              <p className="mt-1.5 text-sm text-muted-foreground">
-                                [{box.direction}]
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                              <p className="text-base font-semibold">
+                                {effect.name}
                               </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {d.effects.length > 0 ? (
-                        <div className="flex flex-col gap-3">
-                          {d.effects.map((effect) => (
-                            <div
-                              key={effect.name}
-                              className="flex flex-1 flex-col justify-center rounded-[12px] bg-muted/40 px-4 py-3"
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="mr-1 text-base font-semibold">
-                                  {effect.name}
-                                </p>
-                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                  {words.details.reference}{" "}
-                                  <span className="font-semibold">
-                                    {effect.ref}
-                                  </span>
-                                </span>
-                                <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                  {words.details.setupValue(d.letter)}{" "}
-                                  <span className="font-semibold">
-                                    {effect.value}
-                                  </span>
-                                  {effect.runs > 1 && (
-                                    <span className="ml-1 text-xs text-muted-foreground">
-                                      {words.details.medianOf(effect.runs)}
-                                    </span>
-                                  )}
-                                </span>
-                                {effect.range && (
-                                  <span className="rounded-[8px] bg-card px-2.5 py-1 text-sm tabular-nums">
-                                    {words.details.runsRange}{" "}
-                                    <span className="font-semibold">
-                                      {effect.range}
-                                    </span>
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-2 text-sm">
+                              <p className="text-sm">
                                 <span
                                   className={cn(
                                     "font-semibold tabular-nums",
@@ -789,51 +769,84 @@ export function ImuSetupCompareView({
                                 , {effect.verdict}.
                               </p>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="self-center text-sm text-muted-foreground">
-                          {words.waitingForSessions}
-                        </p>
-                      )}
-                    </div>
+                            <div className="mt-3 space-y-2">
+                              {effect.sides.map((side, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-3"
+                                >
+                                  {/* The word, and beside it how many runs
+                                        the value is the median of; the
+                                        pill holds the value alone, so the
+                                        track keeps room on a narrow card. */}
+                                  <span className="shrink-0 text-sm font-semibold">
+                                    Setup {pair[i]}
+                                    {side.runs > 1 && (
+                                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                        · {words.details.medianOf(side.runs)}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <div className="h-1.5 min-w-[48px] flex-1 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="h-full rounded-full transition-[width] duration-400 ease-out"
+                                      style={{
+                                        width: `${side.width}%`,
+                                        background: SETUP_COLOURS[i],
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="shrink-0 rounded-[8px] bg-muted px-2 py-0.5 text-sm font-semibold tabular-nums">
+                                    {side.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="self-center text-sm text-muted-foreground">
+                        {words.waitingForSessions}
+                      </p>
+                    )}
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* The best so far — or the only one known, said as such. */}
-          {shown && (
-            <section className="px-5 py-6 sm:px-6 sm:py-8">
-              <p className="text-lg font-semibold">{words.best.title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {groups.length === 1
-                  ? words.best.onlyOne
-                  : !best
-                    ? words.waitingForSessions
-                    : bestMargin != null && Math.abs(bestMargin) <= bestNoise
-                      ? words.best.withinNoise(
-                          best.letter,
-                          runnerUp!.letter,
-                          sg(bestMargin, 1),
-                          n(bestNoise, 1),
-                        )
-                      : words.best.clear(
-                          best.letter,
-                          proPercent(best.medians.get(BEST_BY)!, locale, 0),
-                          best.members.length,
-                          runnerUp
-                            ? {
-                                letter: runnerUp.letter,
-                                margin: sg(bestMargin!, 0),
-                              }
-                            : null,
-                        )}
-              </p>
-              <SetupTiles setup={shown.setup} labels={labels} />
-            </section>
-          )}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+      {shown && (
+        <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
+          <section className="px-5 py-6 sm:px-6 sm:py-8">
+            <p className="text-lg font-semibold">{words.best.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {groups.length === 1
+                ? words.best.onlyOne
+                : !best
+                  ? words.waitingForSessions
+                  : bestMargin != null && Math.abs(bestMargin) <= bestNoise
+                    ? words.best.withinNoise(
+                        best.letter,
+                        runnerUp!.letter,
+                        sg(bestMargin, 1),
+                        n(bestNoise, 1),
+                      )
+                    : words.best.clear(
+                        best.letter,
+                        proPercent(best.medians.get(BEST_BY)!, locale, 0),
+                        best.members.length,
+                        runnerUp
+                          ? {
+                              letter: runnerUp.letter,
+                              margin: sg(bestMargin!, 0),
+                            }
+                          : null,
+                      )}
+            </p>
+            <SetupTiles setup={shown.setup} labels={labels} />
+          </section>
         </div>
       )}
     </div>

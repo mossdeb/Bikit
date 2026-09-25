@@ -614,13 +614,12 @@ const en = {
 
   details: {
     title: "In detail",
-    intro:
-      "Each setup against the reference, knob by knob, and what the two figures the choice rests on did with it.",
+    /** "Setup B against Setup A, knob by knob…" — the pair the dropdowns
+     * above pick (2026-09-25). */
+    intro: (first: string, second: string): string =>
+      `Setup ${second} against Setup ${first}, knob by knob, and what the two figures the choice rests on did with it.`,
     changeOf: "Change of",
-    reference: "Reference",
-    setupValue: (letter: string): string => `setup ${letter}`,
     medianOf: (n: number): string => `median of ${n}`,
-    runsRange: "runs",
     withinSpread: "within the spread between runs",
     /** The noise is already formatted, with its unit. */
     withinNoise: (noise: string): string =>
@@ -683,6 +682,9 @@ const en = {
     scale: (span: number): string =>
       `100% is the best of the setups on each axis. Each ring is one noise between runs on one setup: inside the first in from the rim is a tie; at ${span} noises the axis reaches zero.`,
     explanation: "Explanation",
+    /** After the setup's letter in the dropdowns, on the one this page's
+     * session rode on. */
+    usedInThisRun: "[Used in this run]",
     /** The gain pill's title on an axis card: "Setup B against Setup A". */
     deltaTitle: (second: string, first: string): string =>
       `Setup ${second} against Setup ${first}`,
@@ -890,13 +892,10 @@ const pt: typeof en = {
 
   details: {
     title: "Em detalhe",
-    intro:
-      "Cada afinação face à referência, botão a botão, e o que as duas figuras da escolha fizeram com ela.",
+    intro: (first, second) =>
+      `Setup ${second} face ao Setup ${first}, botão a botão, e o que as duas figuras da escolha fizeram com ela.`,
     changeOf: "Alteração de",
-    reference: "Referência",
-    setupValue: (letter) => `setup ${letter}`,
     medianOf: (n) => `mediana de ${n}`,
-    runsRange: "voltas",
     withinSpread: "dentro da variação entre voltas",
     withinNoise: (noise) => `dentro do ruído entre voltas iguais (${noise})`,
     aboveBetter: "acima da variação entre voltas · melhor",
@@ -941,6 +940,7 @@ const pt: typeof en = {
     scale: (span) =>
       `100 % é o melhor dos setups em cada eixo. Cada anel é um ruído entre voltas iguais: dentro do primeiro a contar do aro é empate; a ${span} ruídos o eixo chega a zero.`,
     explanation: "Explicação",
+    usedInThisRun: "[Utilizado nesta volta]",
     deltaTitle: (second, first) => `Setup ${second} contra o Setup ${first}`,
     chartLabel: (setups) => `Dinâmica do setup: ${setups.join(" contra ")}`,
     readingSessions: "A ler as sessões…",
