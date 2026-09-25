@@ -230,7 +230,8 @@ export function ImuSetupCompareView({
   const [pickedPair, setPickedPair] = useState<SetupPair>([null, null]);
   /** The table column the mouse is over, for the hover isolation the
    * Snapshot page has (by request, 2026-09-25): that column, head and
-   * every row, gets a tinted band and every other figure fades. Mouse
+   * every row, gets a tinted band and every other column fades — the
+   * session and the setup too (2026-09-25), though they take no band. Mouse
    * only — a finger has no hover. Read by delegation on the table's
    * scroller, cleared only when the mouse leaves it, so crossing from one
    * cell to the next never flickers. */
@@ -390,7 +391,6 @@ export function ImuSetupCompareView({
   );
   const bestNoise = Math.max(bestMetric?.tie ?? 0, withinSetupSpread);
   const shown = groups.length === 1 ? groups[0] : best;
-
 
   // "Em detalhe": the pair's second setup against its first, knob by knob
   // (2026-09-25; it was every setup against the reference) — what moved,
@@ -659,16 +659,29 @@ export function ImuSetupCompareView({
                 left evenly. No sideways scroll on a desktop: the minimum
                 is low, and just above it the widest cell, a change pill
                 such as "garfo HSC −2 · mais fechado", wraps onto two lines
-                rather than pushing its column wider. */}
-            <table className="w-full min-w-[1280px] table-fixed border-collapse text-base">
-              <thead>
+                rather than pushing its column wider. Separate borders
+                and not collapsed (2026-09-25): a collapsed cell takes no
+                radius, and the hover band rounds its top and foot — the
+                rules between rows ride on the cells for the same reason. */}
+            <table className="w-full min-w-[1280px] table-fixed border-separate border-spacing-0 text-base">
+              <thead className="[&_th]:rounded-t-[12px]">
                 <tr className="text-left">
-                  <th className="w-[112px] py-5 pr-4 align-bottom font-semibold">
+                  <th
+                    className={cn(
+                      "w-[112px] py-5 pr-4 align-bottom font-semibold",
+                      focusClass(focusCol, "session"),
+                    )}
+                  >
                     {words.table.session}
                   </th>
                   {/* No mark over "Setup" (removed by request, 2026-09-24):
                       the figures' columns keep theirs. */}
-                  <th className="px-4 py-5 align-bottom font-semibold">
+                  <th
+                    className={cn(
+                      "px-4 py-5 align-bottom font-semibold",
+                      focusClass(focusCol, "setup"),
+                    )}
+                  >
                     <span className="flex items-center gap-1">
                       {words.table.setup}
                       <MetricInfo
@@ -709,7 +722,7 @@ export function ImuSetupCompareView({
                   })}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="[&>tr:last-child>td]:rounded-b-[12px]">
                 {rows.map((run) => (
                   <RunRow
                     key={run.id}
@@ -1019,8 +1032,13 @@ function RunRow({
   // The rows 120 px tall (the Figma layout, 2026-09-25; 110 and 90
   // before).
   return (
-    <tr className="h-[120px] border-t border-border">
-      <td className="py-2 pr-4 align-middle whitespace-nowrap">
+    <tr className="h-[120px] [&>td]:border-t [&>td]:border-border">
+      <td
+        className={cn(
+          "py-2 pr-4 align-middle whitespace-nowrap",
+          focusClass(focusCol, "session"),
+        )}
+      >
         <Link
           href={`/pro/sessoes/${run.id}`}
           className="font-bold underline-offset-2 hover:underline"
@@ -1039,7 +1057,9 @@ function RunRow({
           </span>
         )}
       </td>
-      <td className="px-4 py-2 align-middle">
+      <td
+        className={cn("px-4 py-2 align-middle", focusClass(focusCol, "setup"))}
+      >
         <div className="flex flex-wrap items-center gap-2">
           {run.setup && letter ? (
             // The whole setup, on a click (by request, 2026-09-12): a
