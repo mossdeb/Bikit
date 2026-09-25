@@ -31,6 +31,7 @@ import {
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import {
   ImuSetupDynamics,
+  SetupPairPicker,
   BAR_COLOURS,
   pickSetupPair,
   type SetupPair,
@@ -404,6 +405,22 @@ export function ImuSetupCompareView({
   );
   const groupA = groups.find((g) => g.letter === pair[0]) ?? null;
   const groupB = groups.find((g) => g.letter === pair[1]) ?? null;
+  // The setups as the pair's dropdowns list them — the dynamics' and "Em
+  // detalhe"'s, one list for both.
+  const pickerSetups = groups.map((g) => ({
+    letter: g.letter,
+    summary: setupSummary(g.setup, labels, locale) ?? "",
+    runs: g.members.length,
+    details: (
+      <ImuSetupDetails
+        title={`Setup ${g.letter}`}
+        setup={g.setup}
+        note={g.members[0].setupNote}
+        labels={labels}
+      />
+    ),
+    detailsLabel: t.compare.row.fullSetup(g.letter),
+  }));
   // The card's title, the supplied layout's way: the component light,
   // the knob in full and bold, the setup — "Fox X2 · High-Speed
   // Compression · Setup B". Which component a change belongs to is the
@@ -752,20 +769,7 @@ export function ImuSetupCompareView({
       </div>
 
       <ImuSetupDynamics
-        setups={groups.map((g) => ({
-          letter: g.letter,
-          summary: setupSummary(g.setup, labels, locale) ?? "",
-          runs: g.members.length,
-          details: (
-            <ImuSetupDetails
-              title={`Setup ${g.letter}`}
-              setup={g.setup}
-              note={g.members[0].setupNote}
-              labels={labels}
-            />
-          ),
-          detailsLabel: t.compare.row.fullSetup(g.letter),
-        }))}
+        setups={pickerSetups}
         scores={dynamicsScores}
         referenceLetter={letterOf(reference)}
         pending={pending > 0}
@@ -775,15 +779,36 @@ export function ImuSetupCompareView({
 
       {/* "Em detalhe" and the best setup, each in a card of its own (by
           request, 2026-09-25 — they shared one, ruled in two). */}
-      {details.length > 0 && (
+      {/* Shown whenever there are two setups to pick, not only when the
+          pair differs: the dropdowns live on its heading, and a card that
+          vanished when both named one setup would take them with it. */}
+      {groups.length >= 2 && (
         <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
           <section className="px-5 py-6 sm:p-8">
-            <p className="text-2xl leading-tight font-semibold">
-              {words.details.title}
-            </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {words.details.intro}
-            </p>
+            {/* The heading with the pair's dropdowns beside it, the
+                dynamics' own (by request, 2026-09-25): one pair, two
+                places to change it. */}
+            <div className="flex flex-wrap items-start gap-x-[22px] gap-y-4">
+              <div className="min-w-0">
+                <p className="text-2xl leading-tight font-semibold">
+                  {words.details.title}
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {words.details.intro}
+                </p>
+              </div>
+              <SetupPairPicker
+                setups={pickerSetups}
+                referenceLetter={letterOf(reference)}
+                pair={pair}
+                onPairChange={setPickedPair}
+              />
+            </div>
+            {details.length === 0 && (
+              <p className="mt-8 text-sm text-muted-foreground">
+                {words.details.sameSetup}
+              </p>
+            )}
             {/* Two columns only from xl: with the change's box and two bar
                 rows inside, a card at lg's width squeezed the bars to a
                 stub. */}

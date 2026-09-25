@@ -617,6 +617,8 @@ const en = {
   details: {
     title: "In detail",
     intro: "See the impact of each change to the setup.",
+    /** Both dropdowns on one setup: nothing to set side by side. */
+    sameSetup: "The same setup on both sides — pick two different ones.",
     changeOf: "Change of",
     medianOf: (n: number): string => `median of ${n}`,
     withinSpread: "within the spread between runs",
@@ -892,6 +894,7 @@ const pt: typeof en = {
   details: {
     title: "Em detalhe",
     intro: "Vê o impacto de cada alteração no setup.",
+    sameSetup: "O mesmo setup dos dois lados — escolhe dois diferentes.",
     changeOf: "Alteração de",
     medianOf: (n) => `mediana de ${n}`,
     withinSpread: "dentro da variação entre voltas",

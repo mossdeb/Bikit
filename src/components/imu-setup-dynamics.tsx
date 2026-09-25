@@ -163,27 +163,12 @@ export function ImuSetupDynamics({
             </p>
           </div>
           {enough && (
-            <div className="flex flex-1 items-center gap-3 sm:flex-none">
-              <SetupPicker
-                colour={SETUP_COLOURS[0]}
-                value={a ?? ""}
-                setups={setups}
-                referenceLetter={referenceLetter}
-                label={words.firstSetup}
-                onChange={(l) => onPairChange([l, b])}
-              />
-              <span className="text-sm text-muted-foreground uppercase">
-                {words.vs}
-              </span>
-              <SetupPicker
-                colour={SETUP_COLOURS[1]}
-                value={b ?? ""}
-                setups={setups}
-                referenceLetter={referenceLetter}
-                label={words.secondSetup}
-                onChange={(l) => onPairChange([a, l])}
-              />
-            </div>
+            <SetupPairPicker
+              setups={setups}
+              referenceLetter={referenceLetter}
+              pair={pair}
+              onPairChange={onPairChange}
+            />
           )}
         </div>
 
@@ -422,6 +407,48 @@ function ScoreBar({
       <span className="w-7 shrink-0 text-right text-sm font-medium text-muted-foreground tabular-nums">
         {value == null ? "…" : proNumber(value, locale, 0)}
       </span>
+    </div>
+  );
+}
+
+/** The two dropdowns that pick the pair, "Setup A vs Setup B": on the
+ * dynamics' heading and on "Em detalhe"'s (by request, 2026-09-25), both
+ * driving the one pair the page holds, so either moves both modules. */
+export function SetupPairPicker({
+  setups,
+  referenceLetter,
+  pair,
+  onPairChange,
+}: {
+  setups: ImuSetupDynamicsSetup[];
+  referenceLetter: string | null;
+  pair: SetupPair;
+  onPairChange: (pair: SetupPair) => void;
+}) {
+  const t = useProDict();
+  const words = t.compare.dynamics;
+  const [a, b] = pair;
+  return (
+    <div className="flex flex-1 items-center gap-3 sm:flex-none">
+      <SetupPicker
+        colour={SETUP_COLOURS[0]}
+        value={a ?? ""}
+        setups={setups}
+        referenceLetter={referenceLetter}
+        label={words.firstSetup}
+        onChange={(l) => onPairChange([l, b])}
+      />
+      <span className="text-sm text-muted-foreground uppercase">
+        {words.vs}
+      </span>
+      <SetupPicker
+        colour={SETUP_COLOURS[1]}
+        value={b ?? ""}
+        setups={setups}
+        referenceLetter={referenceLetter}
+        label={words.secondSetup}
+        onChange={(l) => onPairChange([a, l])}
+      />
     </div>
   );
 }
