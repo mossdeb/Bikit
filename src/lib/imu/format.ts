@@ -58,6 +58,16 @@ export type ImuEvent =
       startMs: number;
       endMs: number;
       confidence: number | null;
+    }
+  /** A fall (2026-09-26): from the bike starting to tumble to it being
+   * picked back up. `downMs` is when it came to rest on the ground. Only
+   * the app detects these (events.ts); no file carries one. */
+  | {
+      kind: "crash";
+      startMs: number;
+      endMs: number;
+      downMs: number;
+      confidence: number | null;
     };
 
 export interface ImuChannels {

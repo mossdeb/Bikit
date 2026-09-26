@@ -270,4 +270,94 @@ describe("detectImuEvents", () => {
     expect(impacts).toHaveLength(1);
     expect((impacts[0] as { timeMs: number }).timeMs).toBeCloseTo(20000, -2);
   });
+
+  describe("crashes", () => {
+    // Bike frame, 30 s. Riding at `v` m/s; from 10.0 to 10.8 s the bike
+    // turns over at `dps` on the roll axis; from 11 s it lies at `tiltDeg`
+    // (gravity leaning onto the forward axis, nose down, as R0173 did) until
+    // 15 s, then stands up again.
+    function crashRide(opts: { v: number; dps: number; tiltDeg: number }) {
+      const seconds = 30;
+      const n = seconds * RATE;
+      const tMs = new Float64Array(n);
+      const ax = new Float32Array(n);
+      const az = new Float32Array(n).fill(1);
+      const gx = new Float32Array(n);
+      const tilt = (opts.tiltDeg * Math.PI) / 180;
+      for (let i = 0; i < n; i++) {
+        const t = i / RATE;
+        tMs[i] = t * 1000;
+        if (t >= 10 && t < 10.8) gx[i] = opts.dps;
+        if (t >= 11 && t < 15) {
+          ax[i] = -Math.sin(tilt);
+          az[i] = Math.cos(tilt);
+        }
+      }
+      const speed = (s: number) => (s < 10 ? opts.v : s < 11 ? opts.v / 2 : 0);
+      const gps: GpsChannels = {
+        tMs: new Float64Array(
+          Array.from({ length: seconds }, (_, s) => s * 1000),
+        ),
+        latDeg: new Float64Array(seconds).fill(37),
+        lonDeg: new Float64Array(seconds).fill(-7),
+        altitudeM: new Float32Array(seconds),
+        speedMps: new Float32Array(
+          Array.from({ length: seconds }, (_, s) => speed(s)),
+        ),
+        headingDeg: new Float32Array(seconds),
+        distanceM: new Float32Array(seconds).fill(NaN),
+        hAccM: new Float32Array(seconds).fill(NaN),
+      };
+      const zeros = new Float32Array(n);
+      const s: ImuSessionData = {
+        format: "test",
+        sessionId: null,
+        durationMs: seconds * 1000,
+        sampleRateHz: RATE,
+        sampleCount: n,
+        channels: {
+          tMs,
+          ax,
+          ay: zeros,
+          az,
+          gx,
+          gy: zeros,
+          gz: zeros,
+          gForce: null,
+        },
+        gps,
+        events: [],
+        calibration: null,
+        aligned: true,
+        mounting: null,
+      };
+      return detectBikeFrameEvents(s).filter((e) => e.kind === "crash");
+    }
+
+    it("finds a crash: tumbling at speed, then the bike down", () => {
+      const crashes = crashRide({ v: 7.5, dps: 1300, tiltDeg: 60 });
+      expect(crashes).toHaveLength(1);
+      const c = crashes[0] as Extract<
+        ImuSessionData["events"][number],
+        { kind: "crash" }
+      >;
+      expect(c.startMs).toBeCloseTo(10_000, -2);
+      expect(c.downMs).toBeCloseTo(11_000, -2);
+      // Back up when the tilt falls under 30°, at 15 s.
+      expect(c.endMs).toBeCloseTo(15_000, -2);
+      expect(c.confidence).toBeGreaterThan(0.8);
+    });
+
+    it("does not call a whip or a berm a crash: the bike never lies down", () => {
+      expect(crashRide({ v: 7.5, dps: 1300, tiltDeg: 20 })).toHaveLength(0);
+    });
+
+    it("does not call a bike knocked over at a stop a crash", () => {
+      expect(crashRide({ v: 0, dps: 1300, tiltDeg: 80 })).toHaveLength(0);
+    });
+
+    it("needs the rotation: a bike laid down gently is not a crash", () => {
+      expect(crashRide({ v: 7.5, dps: 300, tiltDeg: 80 })).toHaveLength(0);
+    });
+  });
 });

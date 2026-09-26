@@ -414,6 +414,14 @@ body.imu-lab-texture [data-app-shell] {
 .dark .imu-band-braking {
   background-color: color-mix(in srgb, var(--card), #ffeebe 15%);
 }
+/* A crash in the lab's red (the "worse" pills' #FF5A39): the one event a
+   rider wants to find at a glance, painted over everything else. */
+.imu-band-crash {
+  background-color: color-mix(in srgb, var(--card), #ff5a39 22%);
+}
+.dark .imu-band-crash {
+  background-color: color-mix(in srgb, var(--card), #ff5a39 18%);
+}
 
 @layer utilities {
   .scrollbar-none {

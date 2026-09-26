@@ -21,6 +21,7 @@ import {
   Scissors,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
   Undo2,
   Zap,
 } from "lucide-react";
@@ -176,6 +177,8 @@ const EVENT_KIND_DEFS = [
   { kind: "impact", Icon: Zap },
   { kind: "rough_section", Icon: RoughSectionIcon },
   { kind: "braking", Icon: BrakingIcon },
+  // Lucide's warning triangle until there is art of its own (2026-09-26).
+  { kind: "crash", Icon: TriangleAlert },
 ] as const;
 
 /** The high-g sensor's shocks (firmware V15) as a kind of their own on the
@@ -194,6 +197,9 @@ const HIGHG_KIND_DEF = {
 /** Which event owns the headline when several cover the same instant — the
  * pointiest wins (an impact inside a rough section reads as the impact). */
 const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
+  // A crash owns every instant it covers: the impacts and corners inside a
+  // fall are the fall.
+  crash: -1,
   jump: 0,
   drop: 0,
   impact: 1,
@@ -298,6 +304,9 @@ interface EventContext {
   tMs: Float64Array;
   ax: ArrayLike<number>;
   ay: ArrayLike<number>;
+  /** Roll and pitch rates, °/s — a crash's rotation reads all three. */
+  gx: ArrayLike<number>;
+  gy: ArrayLike<number>;
   /** Yaw rate, °/s — the curve radius and the theoretical lean read it. */
   gz: ArrayLike<number>;
   g: ArrayLike<number>;
@@ -773,6 +782,59 @@ function describeEvent(
         metrics,
       };
     }
+    case "crash": {
+      const metrics: EventMetric[] = [];
+      // The speed it was ridden into, a second before the bike began to
+      // turn over — the detector's own reading.
+      const v = speedAt(event.startMs - 1000);
+      if (v != null)
+        metrics.push({
+          label: t.event.speedBefore,
+          value: String(Math.round(v * 3.6)),
+          unit: "km/h",
+        });
+      // The hardest hit from the tumble to the bike coming to rest. At the
+      // main IMU's ±16 G it is often clipped, and then says so: "≥ 16".
+      const peak = windowPeak(tMs, g, event.startMs, event.downMs);
+      if (peak != null)
+        metrics.push({
+          label: t.event.peak,
+          value: peak >= 15.9 ? `≥ ${num(16, 0)}` : num(peak, 1),
+          unit: "G",
+        });
+      const shock = highGNear(
+        ctx.highG,
+        (event.startMs + event.downMs) / 2,
+        (event.downMs - event.startMs) / 2 + 200,
+      );
+      if (shock)
+        metrics.push({
+          label: t.event.peakHighG,
+          value: num(shock.peakG, 1),
+          unit: "G",
+        });
+      // How fast the bike turned over: the gyro's norm, peak.
+      let rotation = 0;
+      for (let i = 0; i < tMs.length; i++) {
+        if (tMs[i] < event.startMs) continue;
+        if (tMs[i] > event.downMs) break;
+        const dps = Math.hypot(ctx.gx[i], ctx.gy[i], gz[i]);
+        if (dps > rotation) rotation = dps;
+      }
+      if (rotation > 0)
+        metrics.push({
+          label: t.event.rotationMax,
+          value: String(Math.round(rotation)),
+          unit: "°/s",
+        });
+      metrics.push({
+        label: t.event.timeDown,
+        value: num((event.endMs - event.downMs) / 1000, 1),
+        unit: "s",
+        Icon: StatStopwatchIcon,
+      });
+      return { title: t.event.crashTitle, Icon: TriangleAlert, metrics };
+    }
   }
 }
 
@@ -854,8 +916,10 @@ export function ImuSessionAnalysis({
   // the bike. The kind is in the set from the start — the file is still
   // loading when this state is born — and counts for nothing on a file
   // without the sensor (kindsOn), where it has no switch either.
+  // Crashes on from the start too (2026-09-26): rare, and the first thing
+  // a rider who fell wants to find.
   const [activeKinds, setActiveKinds] = useState<Set<string>>(
-    new Set(["curve", HIGHG_KIND]),
+    new Set(["curve", "crash", HIGHG_KIND]),
   );
   const hasHighG = data?.highG != null;
   const kindsOn = (kinds: ReadonlySet<string>) =>
@@ -1241,6 +1305,8 @@ export function ImuSessionAnalysis({
     tMs,
     ax: data.channels.ax,
     ay: data.channels.ay,
+    gx: data.channels.gx,
+    gy: data.channels.gy,
     gz: data.channels.gz,
     g: gForce,
     lean: seriesValues.lean,

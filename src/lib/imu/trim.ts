@@ -170,6 +170,19 @@ function cropEvents(
         out.push({ ...event, timeMs: event.timeMs - startMs });
         break;
       }
+      case "crash": {
+        // Kept when it starts inside the window, the moment it came to
+        // rest pulled in with it.
+        if (event.startMs < startMs || event.startMs >= endMs) break;
+        const end = Math.min(event.endMs, endMs);
+        out.push({
+          ...event,
+          startMs: event.startMs - startMs,
+          downMs: Math.min(event.downMs, end) - startMs,
+          endMs: end - startMs,
+        });
+        break;
+      }
     }
   }
   return out;

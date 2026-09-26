@@ -280,6 +280,27 @@ const BRAKE_GPS_DROP_MPS = 0.5;
 /** A jump's landing throws the forward axis about; nothing there is braking. */
 const BRAKE_JUMP_MARGIN_MS = 400;
 
+/** A crash: the bike tumbling — a rotation rate no riding reaches… */
+const CRASH_TUMBLE_DPS = 800;
+/** …tumbling samples closer than this are one crash… */
+const CRASH_MERGE_MS = 2000;
+/** …ridden into (the GPS speed a second before), not a bike knocked over
+ * while stood still… */
+const CRASH_MIN_SPEED_MPS = 2.5;
+/** …and then the bike DOWN: gravity this far from the bike's vertical,
+ * held, starting within CRASH_SETTLE_MS of the tumble's last sample. A bike
+ * ridden round a berm leans past 45° for a moment; lying on the ground it
+ * stays there. */
+const CRASH_DOWN_DEG = 45;
+const CRASH_DOWN_MIN_MS = 1000;
+const CRASH_SETTLE_MS = 3000;
+/** Back up (the rider lifting it) when the tilt drops under this… */
+const CRASH_UP_DEG = 30;
+/** …and a crash is never read as lasting longer than this. */
+const CRASH_MAX_DOWN_MS = 60_000;
+/** The tilt is read on windows this long. */
+const CRASH_TILT_WINDOW_MS = 250;
+
 /** Centred moving mean over `windowMs`, via a prefix sum. */
 function movingMean(
   tMs: Float64Array,
@@ -437,6 +458,113 @@ export function detectBikeFrameEvents(session: ImuSessionData): ImuEvent[] {
     }
   }
 
+  if (!has("crash")) out.push(...detectCrashes(session));
+
+  return out;
+}
+
+/**
+ * CRASH (by request, 2026-09-26, from R0173's fall at 2:30). Three signs
+ * that have to come together, each of which alone something else makes:
+ *
+ * - the bike TUMBLING: the gyro's norm past CRASH_TUMBLE_DPS. R0173's fall
+ *   turned it at 1 365 °/s; the rest of that run, corners and jumps and
+ *   all, stays around 200.
+ * - at SPEED: the GPS speed a second before the tumble at least
+ *   CRASH_MIN_SPEED_MPS, so a bike knocked over at a stop is not a crash.
+ *   Without GPS the check is skipped.
+ * - then DOWN: within CRASH_SETTLE_MS of the last tumbling sample, the
+ *   gravity's direction (a 250 ms mean of the accelerometer) more than
+ *   CRASH_DOWN_DEG from the bike's +Z for at least CRASH_DOWN_MIN_MS.
+ *   R0173 lay at ~58°, nose down, for three seconds.
+ *
+ * The event runs from the first tumbling sample to the bike coming back
+ * up (tilt under CRASH_UP_DEG), at most CRASH_MAX_DOWN_MS after it went
+ * down. Needs `aligned` — "down" is measured from the bike's vertical.
+ */
+function detectCrashes(session: ImuSessionData): ImuEvent[] {
+  const { tMs, ax, ay, az, gx, gy, gz } = session.channels;
+  const n = tMs.length;
+  const gps = session.gps;
+  const out: ImuEvent[] = [];
+
+  // The tumbles: samples past the rate, merged into clusters.
+  const clusters: { from: number; to: number; peakDps: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const dps = Math.hypot(gx[i], gy[i], gz[i]);
+    if (dps < CRASH_TUMBLE_DPS) continue;
+    const last = clusters[clusters.length - 1];
+    if (last && tMs[i] - tMs[last.to] <= CRASH_MERGE_MS) {
+      last.to = i;
+      last.peakDps = Math.max(last.peakDps, dps);
+    } else clusters.push({ from: i, to: i, peakDps: dps });
+  }
+
+  // The tilt from the bike's vertical over a window starting at sample i:
+  // the angle of the mean acceleration from +Z, and the index after it.
+  const tiltFrom = (i: number): { deg: number; next: number } => {
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    let j = i;
+    while (j < n && tMs[j] < tMs[i] + CRASH_TILT_WINDOW_MS) {
+      sx += ax[j];
+      sy += ay[j];
+      sz += az[j];
+      j++;
+    }
+    const norm = Math.hypot(sx, sy, sz);
+    const deg = norm > 0 ? (Math.acos(sz / norm) * 180) / Math.PI : 0;
+    return { deg, next: Math.max(j, i + 1) };
+  };
+
+  for (const c of clusters) {
+    const startMs = tMs[c.from];
+    if (gps) {
+      const before = gpsSpeedAt(gps, startMs - 1000);
+      if (before == null || before < CRASH_MIN_SPEED_MPS) continue;
+    }
+    // Down: the first run of windows past CRASH_DOWN_DEG, starting within
+    // the settle time after the tumble, held for CRASH_DOWN_MIN_MS.
+    let downFrom: number | null = null;
+    let upAt: number | null = null;
+    let i = c.to;
+    while (i < n && tMs[i] <= tMs[c.to] + CRASH_SETTLE_MS) {
+      const w = tiltFrom(i);
+      if (w.deg < CRASH_DOWN_DEG) {
+        i = w.next;
+        continue;
+      }
+      // Held? Walk on while the tilt stays past the "up" line.
+      let k = i;
+      let end = i;
+      while (k < n && tMs[k] - tMs[i] <= CRASH_MAX_DOWN_MS) {
+        const v = tiltFrom(k);
+        if (v.deg < CRASH_UP_DEG) break;
+        end = v.next - 1;
+        k = v.next;
+      }
+      if (tMs[end] - tMs[i] >= CRASH_DOWN_MIN_MS) {
+        downFrom = i;
+        upAt = end;
+        break;
+      }
+      i = k;
+    }
+    if (downFrom == null || upAt == null) continue;
+    const downMs = tMs[upAt] - tMs[downFrom];
+    const confidence =
+      0.5 +
+      0.25 * Math.min(1, (c.peakDps - CRASH_TUMBLE_DPS) / 800) +
+      0.25 * Math.min(1, (downMs - CRASH_DOWN_MIN_MS) / 4000);
+    out.push({
+      kind: "crash",
+      startMs,
+      endMs: tMs[upAt],
+      downMs: tMs[downFrom],
+      confidence: Math.round(confidence * 100) / 100,
+    });
+  }
   return out;
 }
 

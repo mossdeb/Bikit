@@ -90,6 +90,7 @@ const en = {
     impact: "Impacts",
     rough_section: "Rough sections",
     braking: "Braking",
+    crash: "Crashes",
     highg: "High-G",
   },
 
@@ -131,6 +132,12 @@ const en = {
     vibration: "Vibration",
     retainedSpeed: "Speed retained",
     roughTitle: "Very rough section",
+    /** A fall (2026-09-26): the speed it was ridden into, how fast the bike
+     * turned over, and how long it lay on the ground. */
+    crashTitle: "Crash",
+    speedBefore: "Speed before",
+    rotationMax: "Max rotation",
+    timeDown: "On the ground",
     gforce: "G force",
     shockTitle: "High-G shock",
     width: "Width",
@@ -266,6 +273,7 @@ const en = {
       rough_section: "Rough",
       braking: "Braking",
       impact: "Impact",
+      crash: "Crash",
     },
     /** Several of one kind in a tab: "3× Corners". */
     plural: {
@@ -274,6 +282,7 @@ const en = {
       drop: "Drops",
       rough_section: "Rough",
       braking: "Braking",
+      crash: "Crashes",
     },
   },
 };
@@ -357,6 +366,7 @@ const pt: typeof en = {
     impact: "Impactos",
     rough_section: "Zonas acidentadas",
     braking: "Travagens",
+    crash: "Quedas",
     highg: "High-G",
   },
 
@@ -394,6 +404,10 @@ const pt: typeof en = {
     vibration: "Vibração",
     retainedSpeed: "Vel. retida",
     roughTitle: "Zona muito acidentada",
+    crashTitle: "Queda",
+    speedBefore: "Velocidade antes",
+    rotationMax: "Rotação máx",
+    timeDown: "No chão",
     gforce: "Força G",
     shockTitle: "Choque high-G",
     width: "Largura",
@@ -512,6 +526,7 @@ const pt: typeof en = {
       rough_section: "Acidentado",
       braking: "Travagem",
       impact: "Impacto",
+      crash: "Queda",
     },
     plural: {
       curve: "Curvas",
@@ -519,6 +534,7 @@ const pt: typeof en = {
       drop: "Drops",
       rough_section: "Acidentados",
       braking: "Travagens",
+      crash: "Quedas",
     },
   },
 };

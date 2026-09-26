@@ -139,6 +139,7 @@ export function eventsAt(
       case "curve":
       case "rough_section":
       case "braking":
+      case "crash":
         return timeMs >= event.startMs && timeMs <= event.endMs;
       case "jump":
       case "drop":

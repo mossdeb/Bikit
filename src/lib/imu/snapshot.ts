@@ -326,7 +326,10 @@ export function snapshotKindOf(event: ImuEvent): SnapshotKind | null {
       return "rough_section";
     case "braking":
       return "braking";
+    // A fall is not a stretch of trail that another run passes through
+    // the same way: nothing to compare.
     case "impact":
+    case "crash":
       return null;
   }
 }
@@ -341,6 +344,7 @@ function eventSpan(event: ImuEvent): [number, number] | null {
     case "drop":
       return [event.takeoffMs, event.landingMs];
     case "impact":
+    case "crash":
       return null;
   }
 }

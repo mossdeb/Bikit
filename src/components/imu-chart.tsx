@@ -37,6 +37,8 @@ const PAINT_ORDER: Record<ImuEvent["kind"], number> = {
   jump: 3,
   drop: 3,
   impact: 4,
+  // A crash over everything: the ride's one moment to find at a glance.
+  crash: 5,
 };
 
 /** The bands' colours, each mixed OPAQUE into the card's own surface.
@@ -56,6 +58,7 @@ const BAND_BG: Record<Exclude<ImuEvent["kind"], "impact">, string> = {
   braking: "imu-band-braking",
   curve: "imu-band-grey",
   rough_section: "imu-band-grey",
+  crash: "imu-band-crash",
 };
 
 /** How tall the event-name tabs are, px.
@@ -962,7 +965,9 @@ export function ImuChart({
                           "bg-[#F7E4AA]"
                         : event.kind === "rough_section"
                           ? "bg-foreground/45"
-                          : "bg-foreground/25",
+                          : event.kind === "crash"
+                            ? "bg-[#FF5A39]"
+                            : "bg-foreground/25",
                   )}
                   style={{
                     left: `${left}%`,
@@ -1137,6 +1142,8 @@ function eventShortLabel(event: ImuEvent, labels: ChartLabels): string {
       return labels.short.braking;
     case "impact":
       return labels.short.impact;
+    case "crash":
+      return labels.short.crash;
   }
 }
 
@@ -1235,6 +1242,14 @@ function clusterLabel(members: ImuEvent[], labels: ChartLabels): string {
       topKind = kind;
       topCount = count;
     }
+  // A crash names its tab whatever it shares it with (2026-09-26): among
+  // the corners of R0173's fall it read "8× Curvas +1", the one event the
+  // rider was looking for folded into the "+1".
+  const crashes = counts.get("crash");
+  if (crashes) {
+    topKind = "crash";
+    topCount = crashes;
+  }
   if (topKind == null) return "";
   let label: string;
   if (topCount === 1) {
