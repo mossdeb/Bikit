@@ -135,7 +135,10 @@ const en = {
     /** A fall (2026-09-26): the speed it was ridden into, how fast the bike
      * turned over, and how long it lay on the ground. */
     crashTitle: "Crash",
-    speedBefore: "Speed before",
+    deceleration: "Deceleration",
+    /** The deceleration's duration after its unit: "31 → 0 km/h in 2.4 s". */
+    inSeconds: (seconds: string): string => `in ${seconds} s`,
+    impactPeak: "Impact peak",
     rotationMax: "Max rotation",
     timeDown: "On the ground",
     gforce: "G force",
@@ -405,7 +408,9 @@ const pt: typeof en = {
     retainedSpeed: "Vel. retida",
     roughTitle: "Zona muito acidentada",
     crashTitle: "Queda",
-    speedBefore: "Velocidade antes",
+    deceleration: "Desaceleração",
+    inSeconds: (seconds) => `em ${seconds} s`,
+    impactPeak: "Pico do impacto",
     rotationMax: "Rotação máx",
     timeDown: "No chão",
     gforce: "Força G",

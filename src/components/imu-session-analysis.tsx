@@ -208,6 +208,10 @@ const EVENT_PRIORITY: Record<ImuEvent["kind"], number> = {
   rough_section: 4,
 };
 
+/** A crash's deceleration ends here: under this the bike is practically
+ * stopped, and what is left is the receiver settling. */
+const CRASH_STOPPED_KMH = 5;
+
 /** How much room the speedometer keeps above the session's own top speed,
  * km/h.
  *
@@ -288,6 +292,9 @@ interface EventMetric {
    * the peak, because the sign is the direction. Carries its own unit.
    */
   now?: string;
+  /** A line under the figure, in full ink — "em 2,4 s" under a crash's
+   * "31 → 0 km/h" (by request, 2026-09-26). Only the modules draw it. */
+  detail?: string;
   /**
    * Where the instant sits against the event's own peak, 0..1 — the bar
    * under the figures. Clamped: a rolling window can momentarily read above
@@ -784,24 +791,77 @@ function describeEvent(
     }
     case "crash": {
       const metrics: EventMetric[] = [];
-      // The speed it was ridden into, a second before the bike began to
-      // turn over — the detector's own reading.
-      const v = speedAt(event.startMs - 1000);
-      if (v != null)
+      // Two modules with a bar (by request, 2026-09-26), so the cursor can
+      // be followed through the fall:
+      //
+      // The DECELERATION, as speed: the speed it was ridden into, a second
+      // before the bike began to turn over (the detector's own reading), to
+      // the speed when it came to rest; the "agora" is the speed under the
+      // cursor, and the bar fills with how much of the entry speed is gone.
+      const vIn = speedAt(event.startMs - 1000);
+      // The lowest speed over the whole fall, not the one at the instant it
+      // came to rest: the receiver lags, and at that instant R0173 still
+      // read 13 km/h, a second before 0.
+      const range = ctx.speed
+        ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
+        : null;
+      const vOut = range ? range.min / 3.6 : speedAt(event.endMs);
+      if (vIn != null && vOut != null) {
+        const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
+        // How long it took (by request, 2026-09-26): from the entry reading
+        // to the speed first under CRASH_STOPPED_KMH — practically stopped;
+        // the last km/h to a true 0 is the receiver settling, and on R0173
+        // added a second to a 2.4 s fall.
+        let tookMs: number | null = null;
+        if (ctx.speed)
+          for (
+            let i = nearestSampleIndex(tMs, event.startMs - 1000);
+            i < tMs.length && tMs[i] <= event.endMs;
+            i++
+          )
+            if (ctx.speed[i] <= CRASH_STOPPED_KMH) {
+              tookMs = tMs[i] - (event.startMs - 1000);
+              break;
+            }
         metrics.push({
-          label: t.event.speedBefore,
-          value: String(Math.round(v * 3.6)),
+          label: t.event.deceleration,
+          value: `${Math.round(vIn * 3.6)} → ${Math.round(vOut * 3.6)}`,
           unit: "km/h",
+          ...(tookMs != null && {
+            detail: t.event.inSeconds(num(tookMs / 1000, 1)),
+          }),
+          ...(vNow != null && {
+            now: `${Math.round(vNow * 3.6)} km/h`,
+            progress:
+              vIn > 0 ? Math.min(1, Math.max(0, (vIn - vNow) / vIn)) : 0,
+          }),
         });
-      // The hardest hit from the tumble to the bike coming to rest. At the
-      // main IMU's ±16 G it is often clipped, and then says so: "≥ 16".
+      }
+      // The G FORCE: the hardest hit from the tumble to the bike coming to
+      // rest — at the main IMU's ±16 G often clipped, and then it says so,
+      // "≥ 16" — and the "agora" as an impact's is, the highest reading
+      // within INSTANT_WINDOW_MS of the cursor.
       const peak = windowPeak(tMs, g, event.startMs, event.downMs);
-      if (peak != null)
+      if (peak != null) {
+        const nowPeak =
+          cursorIndex >= 0
+            ? windowPeak(
+                tMs,
+                g,
+                tMs[cursorIndex] - INSTANT_WINDOW_MS / 2,
+                tMs[cursorIndex] + INSTANT_WINDOW_MS / 2,
+              )
+            : null;
         metrics.push({
-          label: t.event.peak,
+          label: t.event.impactPeak,
           value: peak >= 15.9 ? `≥ ${num(16, 0)}` : num(peak, 1),
           unit: "G",
+          ...(nowPeak != null && {
+            now: `${num(nowPeak, 1)} G`,
+            progress: peak > 0 ? Math.min(1, nowPeak / peak) : 0,
+          }),
         });
+      }
       const shock = highGNear(
         ctx.highG,
         (event.startMs + event.downMs) / 2,
@@ -3703,17 +3763,27 @@ function EventCard({
                     {metric.label}
                   </p>
                   <div className="mt-1 flex items-center gap-3">
-                    <p className="shrink-0 text-[22px] leading-none font-semibold tabular-nums">
-                      {metric.value}
-                      {metric.unit && (
-                        // Degrees and "/100" ride against the figure;
-                        // word-like units (G, s, G RMS) take their space.
-                        <span className="text-sm font-normal text-muted-foreground">
-                          {/^[°/]/.test(metric.unit) ? "" : " "}
-                          {metric.unit}
-                        </span>
+                    {/* The figure, with its detail line right under it —
+                        in one block, so the line sits against the figure
+                        and not under the whole row. */}
+                    <div className="shrink-0">
+                      <p className="text-[22px] leading-none font-semibold tabular-nums">
+                        {metric.value}
+                        {metric.unit && (
+                          // Degrees and "/100" ride against the figure;
+                          // word-like units (G, s, G RMS) take their space.
+                          <span className="text-sm font-normal text-muted-foreground">
+                            {/^[°/]/.test(metric.unit) ? "" : " "}
+                            {metric.unit}
+                          </span>
+                        )}
+                      </p>
+                      {metric.detail && (
+                        <p className="mt-1 text-sm leading-none text-foreground tabular-nums">
+                          {metric.detail}
+                        </p>
                       )}
-                    </p>
+                    </div>
                     <div className="min-w-0 flex-1">
                       {metric.now && (
                         // Full ink and not the muted grey the labels wear:
