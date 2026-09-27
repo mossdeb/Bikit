@@ -16,10 +16,7 @@ import { ImuDocsGlyph } from "@/components/imu-pro-logo";
 import { DYNAMICS_AXES, DYNAMICS_NOISE_SPAN } from "@/lib/imu/setup-dynamics";
 import type { DynamicsAxisKey } from "@/lib/imu/setup-dynamics";
 import {
-  AbsorptionAxisIcon,
-  ControlAxisIcon,
   RecoveryAxisIcon,
-  SupportAxisIcon,
   ChassisBandIcon,
   ChatterBandIcon,
   HarshnessIcon,
@@ -30,11 +27,15 @@ import {
   SpeedGaugeIcon,
 } from "@/components/imu-setup-icons";
 import {
+  AbsorptionAxisDrawing,
+  ControlAxisDrawing,
+  SupportAxisDrawing,
   ChassisIllustration,
   ChatterIllustration,
   HarshnessIllustration,
   ImpactsIllustration,
   RetentionIllustration,
+  RmsIllustration,
   SettleIllustration,
   SpeedIllustration,
 } from "@/components/imu-doc-illustrations";
@@ -64,6 +65,7 @@ const ILLUSTRATIONS: Partial<
   impacts: ImpactsIllustration,
   speed: SpeedIllustration,
   retention: RetentionIllustration,
+  rms: RmsIllustration,
 };
 
 const MARKS: Record<
@@ -82,16 +84,24 @@ const MARKS: Record<
 };
 
 /** The dynamics' four axes, with the marks their boxes wear (by request,
- * 2026-09-27: a "Dinâmica" section under the concepts). The recovery
- * mark is wider than tall, so it is drawn a step lower, as on its box. */
+ * 2026-09-27: a "Dinâmica" section under the concepts).
+ *
+ * Drawn like the concepts' drawings above (by request, the same day): on
+ * the white, no tile. Absorção, Controlo and Suporte are their own supplied
+ * drawings (imu-doc-illustrations), shown at 1.173 px a unit so their
+ * wheels match the concepts'; Recuperação, with no drawing yet, keeps its
+ * mark at 3 px a unit and 2.5 px lines. Each keeps its loop on hover. */
 const AXIS_MARKS: Record<
   DynamicsAxisKey,
   { Icon: ComponentType<{ className?: string }>; className: string }
 > = {
-  absorption: { Icon: AbsorptionAxisIcon, className: "h-12" },
-  control: { Icon: ControlAxisIcon, className: "h-12" },
-  support: { Icon: SupportAxisIcon, className: "h-12" },
-  recovery: { Icon: RecoveryAxisIcon, className: "h-9" },
+  absorption: { Icon: AbsorptionAxisDrawing, className: "h-[96px]" },
+  control: { Icon: ControlAxisDrawing, className: "h-[114px]" },
+  support: { Icon: SupportAxisDrawing, className: "h-[93px]" },
+  recovery: {
+    Icon: RecoveryAxisIcon,
+    className: "h-[63px] [&_g]:[stroke-width:0.833]",
+  },
 };
 
 export function ImuSetupDocs() {
@@ -120,16 +130,21 @@ export function ImuSetupDocs() {
         // with the fade but no zoom (the shared dialog's 95 % → 100 %,
         // taken off by request); closing sinks back the same way, a little
         // quicker.
-        className="h-dvh max-h-none w-screen max-w-none grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none p-0 ring-0 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:h-[calc(100dvh-4rem)] lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)] sm:max-w-none sm:rounded-lg sm:ring-1"
+        //
+        // Never wider than 1400 px (by request, 2026-09-27): past that the
+        // page's columns only spread apart.
+        className="h-dvh max-h-none w-screen max-w-none grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none p-0 ring-0 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:h-[calc(100dvh-4rem)] lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)] sm:max-w-[1400px] sm:rounded-lg sm:ring-1"
       >
         <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-10 sm:py-10">
           <ImuDocsGlyph className="h-auto w-[28px] text-foreground" />
           {/* The pages' heading (2026-09-25, the setups page's): 32 px
-              bold, 26 px apart. */}
+              bold. */}
           <DialogTitle className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
             {words.title}
           </DialogTitle>
-          <DialogDescription className="mt-[26px] text-sm text-muted-foreground">
+          {/* Right under the title (by request, 2026-09-27): the subtitle
+              starts 32 px below the title's top, the title's own line. */}
+          <DialogDescription className="mt-0 text-sm text-muted-foreground">
             {words.subtitle}
           </DialogDescription>
 
@@ -193,7 +208,9 @@ export function ImuSetupDocs() {
                 const mark = AXIS_MARKS[axis.key];
                 return (
                   <article key={axis.key} className="doc-concept max-w-[440px]">
-                    <div className="flex size-[104px] items-center justify-center rounded-[14px] border border-border bg-muted/40">
+                    {/* The drawings' 104 px, the mark sat on its foot, so
+                        the titles line up with the concepts' above. */}
+                    <div className="flex h-[114px] items-end pb-1">
                       <mark.Icon
                         className={cn(mark.className, "text-foreground")}
                       />

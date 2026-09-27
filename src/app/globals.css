@@ -804,6 +804,230 @@ body.imu-lab-texture [data-app-shell] {
     transform: scaleY(1);
   }
 }
+/* The documentation's Dinâmica drawings (imu-doc-illustrations): the axis
+   cards' loops, the same beats, with the travel scaled ×2.52 to the
+   drawings' units (their wheels 10.9 units across the icons' 4.3). */
+.doc-absorb-frame,
+.doc-sup-frame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.doc-ctrl-bike {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+@keyframes doc-absorb-arrow {
+  0% {
+    opacity: 0;
+    transform: translateY(-5.04px);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-8.82px);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.4);
+  }
+  22% {
+    transform: translateY(5.54px);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(3.53px);
+  }
+  46% {
+    opacity: 1;
+    transform: translateY(3.53px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: translateY(-10.08px);
+  }
+}
+@keyframes doc-absorb-frame {
+  0%,
+  22% {
+    transform: translateY(0) scaleY(1);
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(1.31px) scaleY(0.86);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  40% {
+    transform: translateY(-0.23px) scaleY(1.06);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: translateY(0.13px) scaleY(0.97);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+@keyframes doc-absorb-wheel {
+  0%,
+  22% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(1.31px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  40% {
+    transform: translateY(-0.23px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: translateY(0.13px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes doc-ctrl-bike {
+  0%,
+  8% {
+    transform: translateY(0) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-4.03px) rotate(-4deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(3.28px) rotate(3deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-2.02px) rotate(-1.8deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(1.01px) rotate(0.9deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  52% {
+    transform: translateY(-0.38px) rotate(-0.3deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+@keyframes doc-ctrl-arrow-up {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-3.02px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(1.01px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-1.26px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(0.38px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes doc-ctrl-arrow-down {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-0.76px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(2.52px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-0.5px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(0.76px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes doc-sup-frame {
+  0%,
+  8% {
+    transform: scaleY(1);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  22%,
+  28% {
+    transform: scaleY(0.88);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  40% {
+    transform: scaleY(1.04);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: scaleY(0.99);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+@keyframes doc-sup-arrow {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  22%,
+  26% {
+    transform: translateY(6.3px);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  34% {
+    transform: translateY(-3.53px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  42% {
+    transform: translateY(1.01px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  50% {
+    transform: translateY(-0.38px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  58%,
+  100% {
+    transform: translateY(0);
+  }
+}
 /* The documentation's Harshness bike (2026-09-27). Three hits of their
    own (by request, the same day — one hit, all sparks at once, read as a
    metronome): the front wheel at 16 %, the rear at 39 %, the front again
@@ -1784,6 +2008,30 @@ body.imu-lab-texture [data-app-shell] {
     animation: impact-burst 3s infinite;
   }
   /* The documentation's Harshness drawing: the ground running past. */
+  .doc-concept:hover .doc-absorb-arrow {
+    animation: doc-absorb-arrow 3s infinite;
+  }
+  .doc-concept:hover .doc-absorb-frame {
+    animation: doc-absorb-frame 3s infinite;
+  }
+  .doc-concept:hover .doc-absorb-wheel {
+    animation: doc-absorb-wheel 3s infinite;
+  }
+  .doc-concept:hover .doc-ctrl-bike {
+    animation: doc-ctrl-bike 3s infinite;
+  }
+  .doc-concept:hover .doc-ctrl-arrow-up {
+    animation: doc-ctrl-arrow-up 3s infinite;
+  }
+  .doc-concept:hover .doc-ctrl-arrow-down {
+    animation: doc-ctrl-arrow-down 3s infinite;
+  }
+  .doc-concept:hover .doc-sup-frame {
+    animation: doc-sup-frame 3s infinite;
+  }
+  .doc-concept:hover .doc-sup-arrow {
+    animation: doc-sup-arrow 3s infinite;
+  }
   .doc-concept:hover .harsh-ground {
     animation: harsh-ground 0.9s linear infinite;
   }
