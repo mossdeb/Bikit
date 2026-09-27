@@ -241,6 +241,9 @@ const en = {
     distance: "Distance",
     maxSpeed: "Max speed",
     maxG: "Max G",
+    /** Under Max G when the high-g sensor (firmware V15) caught a harder
+     * hit than the main IMU can read: "High-G 73 G". */
+    highGPeak: (g: string): string => `High-G ${g} G`,
     impacts: "Impacts",
     curves: "Corners",
     jumps: "Jumps",
@@ -568,6 +571,7 @@ const pt: typeof en = {
     distance: "Distância",
     maxSpeed: "Vel. máx",
     maxG: "G máx",
+    highGPeak: (g) => `High-G ${g} G`,
     impacts: "Impactos",
     curves: "Curvas",
     jumps: "Saltos",

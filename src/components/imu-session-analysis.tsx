@@ -385,6 +385,11 @@ interface EventContext {
   cursorIndex: number;
 }
 
+/** The main IMU's ceiling as the file's G column carries it: the
+ * LSM6DS3 reads ±16 g and the column stops at 16.00 (R0173), so a peak
+ * there is the limit, not the hit. A hair under 16 for float noise. */
+const LSM_CEILING_G = 15.995;
+
 /** How long after a jump's landing its exit speed is read — past the
  * landing's own shock, where the speed says what the jump gave back. */
 const JUMP_EXIT_MS = 1500;
@@ -1306,6 +1311,15 @@ export function ImuSessionAnalysis({
   } | null>(null);
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
+  /** The high-g sensor's hardest reading this session, G — null without
+   * one (firmware before V15, or no shock past its trigger). */
+  const highGPeak = useMemo(() => {
+    const events = data?.highG;
+    if (!events || events.length === 0) return null;
+    let peak = 0;
+    for (const e of events) if (e.peakG > peak) peak = e.peakG;
+    return peak;
+  }, [data]);
   const gForce = useMemo(() => (data ? gForceOf(data) : null), [data]);
   // The session as a Snapshot reads it — its track and the speed the
   // figures come from — made once, for the "Snapshot" button on an event's
@@ -2153,10 +2167,27 @@ export function ImuSessionAnalysis({
                   value={`${proNumber(summary.maxSpeedKmh, locale, 1)} km/h`}
                 />
               )}
+              {/* The main IMU's peak, comparable across every session (by
+                  request, 2026-09-27). It reads to ±16 G and the file's G
+                  column stops at 16, so a 16.00 is the ceiling and not the
+                  hit: said as "≥ 16". When the high-g sensor (V15) caught
+                  something harder, its peak goes under it, named — not
+                  swapped in: it sees the sharpest milliseconds the IMU
+                  smooths over (R0173: 16 against 73), and older sessions
+                  have none to compare with. */}
               <Stat
                 Icon={StatMetricIcon}
                 label={t.resume.maxG}
-                value={proNumber(summary.maxG, locale, 2)}
+                value={
+                  summary.maxG >= LSM_CEILING_G
+                    ? "≥ 16"
+                    : proNumber(summary.maxG, locale, 2)
+                }
+                note={
+                  highGPeak != null && highGPeak > summary.maxG
+                    ? t.resume.highGPeak(proNumber(highGPeak, locale, 0))
+                    : undefined
+                }
               />
               <Stat
                 Icon={StatImpactIcon}
@@ -4234,10 +4265,13 @@ function Stat({
   Icon,
   label,
   value,
+  note,
 }: {
   Icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  /** A small line under the figure — the high-g peak under Max G. */
+  note?: string;
 }) {
   return (
     // A cell of the ruled box from `sm` up. No outline of its own — the
@@ -4262,6 +4296,11 @@ function Stat({
         <p className="-mt-0.5 leading-tight font-semibold tabular-nums">
           {value}
         </p>
+        {note && (
+          <p className="text-xs leading-tight text-muted-foreground tabular-nums">
+            {note}
+          </p>
+        )}
       </div>
     </div>
   );
