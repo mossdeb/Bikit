@@ -526,18 +526,6 @@ const en = {
         verdict: null,
       },
       {
-        key: "speed",
-        title: "Moving speed",
-        paragraphs: [
-          "Answers the question: “How fast was the descent while the bike was actually moving?”",
-          "The average speed is taken only over the stretches where the bike is moving, leaving out stops and moments without motion. That lets the pace of different sessions be compared without a stop skewing the result.",
-        ],
-        verdict: {
-          lead: "Higher is usually better:",
-          text: "a faster pass overall. It should be read with the other metrics, though, since more speed can also raise impacts, chatter and chassis movement.",
-        },
-      },
-      {
         key: "retention",
         title: "Retention",
         paragraphs: [
@@ -548,6 +536,18 @@ const en = {
         verdict: {
           lead: "Higher is better:",
           text: "less speed is lost through the corners. It can reflect better execution, more confidence, a better line, or more grip and control from the bike — the metric alone does not say which.",
+        },
+      },
+      {
+        key: "speed",
+        title: "Moving speed",
+        paragraphs: [
+          "Answers the question: “How fast was the descent while the bike was actually moving?”",
+          "The average speed is taken only over the stretches where the bike is moving, leaving out stops and moments without motion. That lets the pace of different sessions be compared without a stop skewing the result.",
+        ],
+        verdict: {
+          lead: "Higher is usually better:",
+          text: "a faster pass overall. It should be read with the other metrics, though, since more speed can also raise impacts, chatter and chassis movement.",
         },
       },
       {
@@ -808,18 +808,6 @@ const pt: typeof en = {
         verdict: null,
       },
       {
-        key: "speed",
-        title: "Velocidade em movimento",
-        paragraphs: [
-          "Responde à pergunta: “A que velocidade foi feita a descida quando a bicicleta estava efetivamente em movimento?”",
-          "Calcula a velocidade média apenas durante os períodos em que a bicicleta está em movimento, excluindo paragens e momentos sem andamento. Isto permite comparar o ritmo das diferentes sessões sem que uma paragem distorça o resultado.",
-        ],
-        verdict: {
-          lead: "Mais é geralmente melhor:",
-          text: "indica uma passagem globalmente mais rápida. No entanto, deve ser analisada em conjunto com as restantes métricas, porque velocidade superior também pode aumentar impactos, chatter e movimento do chassis.",
-        },
-      },
-      {
         key: "retention",
         title: "Retenção",
         paragraphs: [
@@ -830,6 +818,18 @@ const pt: typeof en = {
         verdict: {
           lead: "Mais é melhor:",
           text: "significa que se perde menos velocidade ao longo das curvas. Pode refletir melhor execução, maior confiança, melhor escolha de linha ou maior aderência e controlo da bicicleta — a métrica, por si só, não determina a causa.",
+        },
+      },
+      {
+        key: "speed",
+        title: "Velocidade em movimento",
+        paragraphs: [
+          "Responde à pergunta: “A que velocidade foi feita a descida quando a bicicleta estava efetivamente em movimento?”",
+          "Calcula a velocidade média apenas durante os períodos em que a bicicleta está em movimento, excluindo paragens e momentos sem andamento. Isto permite comparar o ritmo das diferentes sessões sem que uma paragem distorça o resultado.",
+        ],
+        verdict: {
+          lead: "Mais é geralmente melhor:",
+          text: "indica uma passagem globalmente mais rápida. No entanto, deve ser analisada em conjunto com as restantes métricas, porque velocidade superior também pode aumentar impactos, chatter e movimento do chassis.",
         },
       },
       {
