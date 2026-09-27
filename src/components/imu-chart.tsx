@@ -92,6 +92,9 @@ export interface ImuChartShock {
   peakG: number;
 }
 
+/** A mouse this close to an impact's mark, px, puts the cursor on it. */
+const IMPACT_SNAP_PX = 10;
+
 /** Two shock pills closer than this on screen merge into one, px. */
 const SHOCK_PILL_MIN_GAP = 48;
 /** The shock pills hang under the event tabs and the impacts' arrows. */
@@ -442,6 +445,33 @@ export function ImuChart({
     return w0 + frac * span;
   }
 
+  /**
+   * A mouse near an impact lands ON it (by request, 2026-09-27): an impact
+   * is an instant, a one-pixel line, and hitting its exact sample by hand
+   * — for its peak in the card's "agora", or to pin the cursor there — was
+   * a hunt. Within IMPACT_SNAP_PX of a drawn impact's mark the time is the
+   * impact's own; the nearest mark wins. Mouse only: a finger scrubbing
+   * already crosses every sample, and a jump under it would read as a
+   * glitch.
+   */
+  function snapToImpact(ms: number): number {
+    const el = plotRef.current;
+    if (!el) return ms;
+    const width = el.getBoundingClientRect().width;
+    if (width === 0 || span <= 0) return ms;
+    let best = ms;
+    let bestPx = IMPACT_SNAP_PX;
+    for (const event of visibleEvents) {
+      if (event.kind !== "impact") continue;
+      const px = (Math.abs(event.timeMs - ms) / span) * width;
+      if (px <= bestPx) {
+        bestPx = px;
+        best = event.timeMs;
+      }
+    }
+    return best;
+  }
+
   function endDrag(clientX: number) {
     const drag = dragRef.current;
     dragRef.current = null;
@@ -458,7 +488,7 @@ export function ImuChart({
         return;
       }
     }
-    onCursorChange(ms);
+    onCursorChange(drag.isMouse ? snapToImpact(ms) : ms);
   }
 
   // The rule and its time pill snap to the nearest sample — the pointer's
@@ -549,7 +579,7 @@ export function ImuChart({
           // them pins it again, at the new spot.
           setLocked(false);
           captureYFrac(event.clientY);
-          onCursorChange(ms);
+          onCursorChange(event.pointerType === "mouse" ? snapToImpact(ms) : ms);
         }}
         onPointerMove={(event) => {
           const tracked = pointersRef.current.get(event.pointerId);
@@ -602,7 +632,7 @@ export function ImuChart({
             const ms = msFromClientX(event.clientX);
             if (ms != null) {
               captureYFrac(event.clientY);
-              onCursorChange(ms);
+              onCursorChange(snapToImpact(ms));
             }
           }
         }}
