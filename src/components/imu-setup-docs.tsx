@@ -29,6 +29,15 @@ import {
   SettleIcon,
   SpeedGaugeIcon,
 } from "@/components/imu-setup-icons";
+import {
+  ChassisIllustration,
+  ChatterIllustration,
+  HarshnessIllustration,
+  ImpactsIllustration,
+  RetentionIllustration,
+  SettleIllustration,
+  SpeedIllustration,
+} from "@/components/imu-doc-illustrations";
 
 /**
  * "Documentação" on the setups page's header (by request, 2026-09-24,
@@ -39,10 +48,23 @@ import {
  * (`compare.docs`); the marks are the table's own, so a figure looks
  * the same here as over its column.
  *
- * The layout draws a second tile beside each mark, a bike in the
- * situation the figure describes; those drawings do not exist yet, so
- * each concept carries its mark alone.
+ * The concepts that have one are drawn as a bike in the situation the
+ * figure describes (supplied art, 2026-09-27), straight on the popup's
+ * white; the rest keep the table's mark in its grey tile.
  */
+
+/** The drawings, where the art exists — see imu-doc-illustrations. */
+const ILLUSTRATIONS: Partial<
+  Record<CompareDocEntry["key"], ComponentType<{ className?: string }>>
+> = {
+  harshness: HarshnessIllustration,
+  chassis: ChassisIllustration,
+  chatter: ChatterIllustration,
+  settle: SettleIllustration,
+  impacts: ImpactsIllustration,
+  speed: SpeedIllustration,
+  retention: RetentionIllustration,
+};
 
 const MARKS: Record<
   CompareDocEntry["key"],
@@ -114,14 +136,23 @@ export function ImuSetupDocs() {
           <div className="mt-8 grid gap-x-10 gap-y-12 md:grid-cols-2 xl:grid-cols-3">
             {words.entries.map((entry) => {
               const Mark = MARKS[entry.key];
+              const Drawing = ILLUSTRATIONS[entry.key];
               return (
                 // `doc-concept`: its mark animates while the mouse is
                 // over the concept (globals.css, with the table's).
                 <article key={entry.key} className="doc-concept max-w-[440px]">
-                  <div className="flex size-[104px] items-center justify-center rounded-[14px] border border-border bg-muted/40">
-                    <Mark className="size-12 text-foreground" />
-                  </div>
-                  <h3 className="mt-3 text-sm font-semibold">{entry.title}</h3>
+                  {Drawing ? (
+                    // The tile's height, so a drawing and a tile in the
+                    // same row put their titles on one line.
+                    <Drawing className="h-[104px] w-auto text-foreground" />
+                  ) : (
+                    <div className="flex size-[104px] items-center justify-center rounded-[14px] border border-border bg-muted/40">
+                      <Mark className="size-12 text-foreground" />
+                    </div>
+                  )}
+                  <h3 className="mt-3 text-[18px] leading-tight font-semibold">
+                    {entry.title}
+                  </h3>
                   <div className="mt-1 space-y-3 text-sm leading-relaxed text-foreground/80">
                     {entry.paragraphs.map((paragraph, i) => (
                       <p key={i}>{paragraph}</p>
@@ -167,7 +198,7 @@ export function ImuSetupDocs() {
                         className={cn(mark.className, "text-foreground")}
                       />
                     </div>
-                    <h3 className="mt-3 text-sm font-semibold">
+                    <h3 className="mt-3 text-[18px] leading-tight font-semibold">
                       {axisWords.name}
                     </h3>
                     <div className="mt-1 space-y-3 text-sm leading-relaxed text-foreground/80">

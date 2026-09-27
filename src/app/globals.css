@@ -804,6 +804,686 @@ body.imu-lab-texture [data-app-shell] {
     transform: scaleY(1);
   }
 }
+/* The documentation's Harshness bike (2026-09-27). Three hits of their
+   own (by request, the same day — one hit, all sparks at once, read as a
+   metronome): the front wheel at 16 %, the rear at 39 %, the front again
+   and hardest at 72 %, each with its wheel's sparks. 3.2 s, not a multiple
+   of the ground's 0.9, so the hits land on a different stretch of ground
+   every loop. Between them, a fine tremble — the ride's usual vibration.
+   A front hit tips the nose up, a rear one the tail; wheels and frame move
+   as one group, so nothing is squashed. */
+.harsh-ill-bike {
+  transform-box: fill-box;
+  transform-origin: 50% 70%;
+}
+@keyframes harsh-ill-bike {
+  0% {
+    transform: translateY(0) rotate(0);
+  }
+  5% {
+    transform: translateY(-0.5px) rotate(0);
+  }
+  9% {
+    transform: translateY(0.3px) rotate(0);
+  }
+  13% {
+    transform: translateY(-0.2px) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  17% {
+    transform: translateY(-2.2px) rotate(-2deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  22% {
+    transform: translateY(0.6px) rotate(0.3deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  26% {
+    transform: translateY(-0.4px) rotate(0);
+  }
+  31% {
+    transform: translateY(0.25px) rotate(0);
+  }
+  36% {
+    transform: translateY(-0.2px) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  40% {
+    transform: translateY(-1.4px) rotate(1.5deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  45% {
+    transform: translateY(0.4px) rotate(-0.2deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  50% {
+    transform: translateY(-0.5px) rotate(0);
+  }
+  55% {
+    transform: translateY(0.3px) rotate(0);
+  }
+  60% {
+    transform: translateY(-0.45px) rotate(0);
+  }
+  65% {
+    transform: translateY(0.25px) rotate(0);
+  }
+  69% {
+    transform: translateY(-0.2px) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  74% {
+    transform: translateY(-3.6px) rotate(-2.5deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  81% {
+    transform: translateY(0.9px) rotate(0.4deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  86% {
+    transform: translateY(-0.45px) rotate(0);
+  }
+  91% {
+    transform: translateY(0.3px) rotate(0);
+  }
+  96% {
+    transform: translateY(-0.35px) rotate(0);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+/* The sparks only on their wheel's hits: out while the bike trembles, a
+   flash as it is thrown up, gone before it lands. Each spark scales about
+   its own middle. */
+.harsh-ill-spark {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+@keyframes harsh-ill-spark-front {
+  0%,
+  12% {
+    opacity: 0;
+    transform: scale(0.5);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  17% {
+    opacity: 0.85;
+    transform: scale(1);
+    animation-timing-function: ease-in;
+  }
+  25%,
+  68% {
+    opacity: 0;
+    transform: scale(0.5);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  74% {
+    opacity: 1;
+    transform: scale(1.25);
+    animation-timing-function: ease-in;
+  }
+  84%,
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+@keyframes harsh-ill-spark-rear {
+  0%,
+  35% {
+    opacity: 0;
+    transform: scale(0.5);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(0.95);
+    animation-timing-function: ease-in;
+  }
+  48%,
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+/* The rest of the documentation's drawings (2026-09-27, by request —
+   "the same" as Harshness: the ground or the streaks running past, and the
+   bike doing what the figure measures). Each ground is drawn a period or
+   more longer than its window (imu-doc-illustrations) and slid by exactly
+   one period a loop, so the last frame is the first. The bikes move as
+   whole groups: wheels are never squashed. */
+.chassis-ill-frame,
+.chatter-ill-bike,
+.settle-ill-bike,
+.impacts-ill-bike,
+.speed-ill-bike {
+  transform-box: fill-box;
+  transform-origin: 50% 70%;
+}
+/* Chassis 2–12 Hz: long swells (24.87 units a period) and a slow heave of
+   the frame on its suspension, twice a 2.4 s loop, the nose rising into
+   each swell — the wheels stay put on the ground; the two arrows open as
+   the frame rises and close as it sinks. */
+@keyframes chassis-ill-ground {
+  to {
+    transform: translateX(-24.867px);
+  }
+}
+@keyframes chassis-ill-frame {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0.6px) rotate(0.6deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  25%,
+  75% {
+    transform: translateY(-2.6px) rotate(-1deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+}
+@keyframes chassis-ill-arrow-up {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0.8px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  25%,
+  75% {
+    transform: translateY(-2.2px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+}
+@keyframes chassis-ill-arrow-down {
+  0%,
+  50%,
+  100% {
+    transform: translateY(-0.8px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  25%,
+  75% {
+    transform: translateY(1px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+}
+/* Chatter 12–60 Hz: two rows of fine teeth (13.7 units a period) at their
+   own quick paces, a fast small buzz in the bike, and the marks by each
+   wheel flickering out of step with the other's. */
+@keyframes chatter-ill-row {
+  to {
+    transform: translateX(-13.699px);
+  }
+}
+@keyframes chatter-ill-bike {
+  0% {
+    transform: translate(0, 0) rotate(0);
+  }
+  20% {
+    transform: translate(0.2px, -0.5px) rotate(-0.4deg);
+  }
+  40% {
+    transform: translate(-0.2px, 0.3px) rotate(0.3deg);
+  }
+  60% {
+    transform: translate(0.15px, -0.4px) rotate(0.2deg);
+  }
+  80% {
+    transform: translate(-0.15px, 0.35px) rotate(-0.3deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+}
+.chatter-ill-marks {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+@keyframes chatter-ill-marks {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  25% {
+    opacity: 0.35;
+    transform: translate(0.6px, -0.4px);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-0.4px, 0.3px);
+  }
+  75% {
+    opacity: 0.25;
+    transform: translate(0.3px, 0.5px);
+  }
+}
+/* Residual oscillation: the ground brings its one big bump round once a
+   3.2 s loop (80.37 units). It reaches the front wheel at 28 % — the bike
+   is thrown, then swings on, less every time, as the ripples behind the
+   bump pass; the side arcs send a wave out with each swing (below). At
+   90 % the same bump nudges the rear wheel. */
+@keyframes settle-ill-ground {
+  to {
+    transform: translateX(-80.374px);
+  }
+}
+@keyframes settle-ill-bike {
+  0%,
+  25% {
+    transform: translateY(0) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  29% {
+    transform: translateY(-3.4px) rotate(-2deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(2px) rotate(1deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  41% {
+    transform: translateY(-1.3px) rotate(-0.6deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  47% {
+    transform: translateY(0.8px) rotate(0.35deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  53% {
+    transform: translateY(-0.45px) rotate(-0.2deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  59% {
+    transform: translateY(0.2px) rotate(0);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  65%,
+  88% {
+    transform: translateY(0) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  91% {
+    transform: translateY(-1px) rotate(0.8deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  95% {
+    transform: translateY(0.4px) rotate(-0.2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+/* The side arcs as shock waves (made clearer by request, 2026-09-27 —
+   a faint grey flicker did not read): on every swing the inner pair
+   lights in full ink by the wheels and travels outward as it fades, the
+   outer pair a beat behind and further out; each swing's wave weaker than
+   the last, as the oscillation dies. Between waves they stay faintly
+   there, at a quarter (by request, the same day — hidden, they vanished
+   too much). */
+@keyframes settle-ill-arc-l1 {
+  0%,
+  28% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+  29% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  33%,
+  34% {
+    opacity: 0.25;
+    transform: translateX(-3px);
+  }
+  35% {
+    opacity: 0.75;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  39%,
+  40% {
+    opacity: 0.25;
+    transform: translateX(-3px);
+  }
+  41% {
+    opacity: 0.5;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  45%,
+  46% {
+    opacity: 0.25;
+    transform: translateX(-3px);
+  }
+  47% {
+    opacity: 0.45;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  51%,
+  52% {
+    opacity: 0.25;
+    transform: translateX(-3px);
+  }
+  53% {
+    opacity: 0.35;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  57% {
+    opacity: 0.25;
+    transform: translateX(-3px);
+  }
+  58%,
+  100% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+}
+@keyframes settle-ill-arc-l2 {
+  0%,
+  30% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+  31% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  35%,
+  36% {
+    opacity: 0.25;
+    transform: translateX(-4px);
+  }
+  37% {
+    opacity: 0.75;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  41%,
+  42% {
+    opacity: 0.25;
+    transform: translateX(-4px);
+  }
+  43% {
+    opacity: 0.5;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  47%,
+  48% {
+    opacity: 0.25;
+    transform: translateX(-4px);
+  }
+  49% {
+    opacity: 0.45;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  53%,
+  54% {
+    opacity: 0.25;
+    transform: translateX(-4px);
+  }
+  55% {
+    opacity: 0.35;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  59% {
+    opacity: 0.25;
+    transform: translateX(-4px);
+  }
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+}
+@keyframes settle-ill-arc-r1 {
+  0%,
+  28% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+  29% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  33%,
+  34% {
+    opacity: 0.25;
+    transform: translateX(3px);
+  }
+  35% {
+    opacity: 0.75;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  39%,
+  40% {
+    opacity: 0.25;
+    transform: translateX(3px);
+  }
+  41% {
+    opacity: 0.5;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  45%,
+  46% {
+    opacity: 0.25;
+    transform: translateX(3px);
+  }
+  47% {
+    opacity: 0.45;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  51%,
+  52% {
+    opacity: 0.25;
+    transform: translateX(3px);
+  }
+  53% {
+    opacity: 0.35;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  57% {
+    opacity: 0.25;
+    transform: translateX(3px);
+  }
+  58%,
+  100% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+}
+@keyframes settle-ill-arc-r2 {
+  0%,
+  30% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+  31% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  35%,
+  36% {
+    opacity: 0.25;
+    transform: translateX(4px);
+  }
+  37% {
+    opacity: 0.75;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  41%,
+  42% {
+    opacity: 0.25;
+    transform: translateX(4px);
+  }
+  43% {
+    opacity: 0.5;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  47%,
+  48% {
+    opacity: 0.25;
+    transform: translateX(4px);
+  }
+  49% {
+    opacity: 0.45;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  53%,
+  54% {
+    opacity: 0.25;
+    transform: translateX(4px);
+  }
+  55% {
+    opacity: 0.35;
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1);
+  }
+  59% {
+    opacity: 0.25;
+    transform: translateX(4px);
+  }
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateX(0);
+  }
+}
+/* Impacts: a bump every 79.89 units, a 2.4 s loop. It knocks the rear
+   wheel at 36 % — the tail kicks — and reaches the front at 61 %, where
+   the star bursts and the nose is thrown up. */
+@keyframes impacts-ill-ground {
+  to {
+    transform: translateX(-79.89px);
+  }
+}
+@keyframes impacts-ill-bike {
+  0%,
+  33% {
+    transform: translateY(0) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  37% {
+    transform: translateY(-1.6px) rotate(1.6deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  42% {
+    transform: translateY(0.4px) rotate(-0.2deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  47%,
+  58% {
+    transform: translateY(0) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  62% {
+    transform: translateY(-3.2px) rotate(-2.6deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  69% {
+    transform: translateY(0.8px) rotate(0.4deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  76%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+.impacts-ill-star {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+@keyframes impacts-ill-star {
+  0%,
+  57% {
+    opacity: 0.3;
+    transform: scale(0.7) rotate(0);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.3) rotate(18deg);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1) rotate(30deg);
+    animation-timing-function: ease-in;
+  }
+  88%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.7) rotate(45deg);
+  }
+}
+/* Moving speed: every streak runs back past the bike and fades, each on
+   its own clock so they never march together; the bike rocks gently. */
+@keyframes speed-ill-line {
+  0% {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  20%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+@keyframes speed-ill-bike {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  50% {
+    transform: translateY(-0.7px) rotate(-0.5deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+}
+/* Retention: the wheels are arrows, and they turn — steady, about their
+   own hubs (in the drawing's units), the speed kept. */
+.retention-ill-wheel {
+  transform-box: view-box;
+}
+.retention-ill-wheel-rear {
+  transform-origin: 34.49px 54px;
+}
+.retention-ill-wheel-front {
+  transform-origin: 84.91px 54.01px;
+}
+@keyframes retention-ill-wheel {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* One tooth of the drawing's zigzag (imu-doc-illustrations), right to
+   left: the last frame is the first, so the loop has no seam. */
+@keyframes harsh-ground {
+  to {
+    transform: translateX(-19.027px);
+  }
+}
 @keyframes harsh-sparks {
   0%,
   6% {
@@ -1102,6 +1782,101 @@ body.imu-lab-texture [data-app-shell] {
   th.imu-focus-band .impact-burst,
   .doc-concept:hover .impact-burst {
     animation: impact-burst 3s infinite;
+  }
+  /* The documentation's Harshness drawing: the ground running past. */
+  .doc-concept:hover .harsh-ground {
+    animation: harsh-ground 0.9s linear infinite;
+  }
+  .doc-concept:hover .harsh-ill-bike {
+    animation: harsh-ill-bike 3.2s infinite;
+  }
+  .doc-concept:hover .harsh-ill-spark-front {
+    animation: harsh-ill-spark-front 3.2s infinite;
+  }
+  .doc-concept:hover .harsh-ill-spark-rear {
+    animation: harsh-ill-spark-rear 3.2s infinite;
+  }
+  .doc-concept:hover .chassis-ill-ground {
+    animation: chassis-ill-ground 1.2s linear infinite;
+  }
+  .doc-concept:hover .chassis-ill-frame {
+    animation: chassis-ill-frame 2.4s infinite;
+  }
+  .doc-concept:hover .chassis-ill-arrow-up {
+    animation: chassis-ill-arrow-up 2.4s infinite;
+  }
+  .doc-concept:hover .chassis-ill-arrow-down {
+    animation: chassis-ill-arrow-down 2.4s infinite;
+  }
+  .doc-concept:hover .chatter-ill-top {
+    animation: chatter-ill-row 0.32s linear infinite;
+  }
+  .doc-concept:hover .chatter-ill-bottom {
+    animation: chatter-ill-row 0.44s linear infinite;
+  }
+  .doc-concept:hover .chatter-ill-bike {
+    animation: chatter-ill-bike 0.18s linear infinite;
+  }
+  .doc-concept:hover .chatter-ill-marks-right {
+    animation: chatter-ill-marks 0.26s steps(4) infinite;
+  }
+  .doc-concept:hover .chatter-ill-marks-left {
+    animation: chatter-ill-marks 0.34s steps(4) infinite -0.1s;
+  }
+  .doc-concept:hover .settle-ill-ground {
+    animation: settle-ill-ground 3.2s linear infinite;
+  }
+  .doc-concept:hover .settle-ill-bike {
+    animation: settle-ill-bike 3.2s infinite;
+  }
+  .doc-concept:hover .settle-ill-arc-l1 {
+    animation: settle-ill-arc-l1 3.2s infinite;
+  }
+  .doc-concept:hover .settle-ill-arc-l2 {
+    animation: settle-ill-arc-l2 3.2s infinite;
+  }
+  .doc-concept:hover .settle-ill-arc-r1 {
+    animation: settle-ill-arc-r1 3.2s infinite;
+  }
+  .doc-concept:hover .settle-ill-arc-r2 {
+    animation: settle-ill-arc-r2 3.2s infinite;
+  }
+  .doc-concept:hover .impacts-ill-ground {
+    animation: impacts-ill-ground 2.4s linear infinite;
+  }
+  .doc-concept:hover .impacts-ill-bike {
+    animation: impacts-ill-bike 2.4s infinite;
+  }
+  .doc-concept:hover .impacts-ill-star {
+    animation: impacts-ill-star 2.4s infinite;
+  }
+  .doc-concept:hover .speed-ill-line {
+    animation: speed-ill-line 0.9s linear infinite;
+  }
+  .doc-concept:hover .speed-ill-line-1 {
+    animation-duration: 1.1s;
+  }
+  .doc-concept:hover .speed-ill-line-2 {
+    animation-duration: 1.3s;
+    animation-delay: -0.6s;
+  }
+  .doc-concept:hover .speed-ill-line-3 {
+    animation-duration: 0.9s;
+    animation-delay: -0.2s;
+  }
+  .doc-concept:hover .speed-ill-line-4 {
+    animation-duration: 0.7s;
+    animation-delay: -0.45s;
+  }
+  .doc-concept:hover .speed-ill-line-5 {
+    animation-duration: 0.8s;
+    animation-delay: -0.3s;
+  }
+  .doc-concept:hover .speed-ill-bike {
+    animation: speed-ill-bike 0.6s infinite;
+  }
+  .doc-concept:hover .retention-ill-wheel {
+    animation: retention-ill-wheel 1.1s linear infinite;
   }
 }
 
