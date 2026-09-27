@@ -1043,19 +1043,20 @@ export function SnapshotPassLine({
           className="@container relative flex min-w-0 flex-1 flex-col"
         >
           {/* This pass's stretch of the hovered column's band: the column's
-              width plus its right rule, the pass's full height (out through
-              the section's padding, so the stretches of neighbouring passes
-              meet). Drawn here and not once over the list, because each pass
+              width plus its right rule, the figures' height and 20–22 px
+              more at each end, into the pass's padding but short of its
+              edge, so each pass's stretch stands on its own. Drawn here and not once over the list, because each pass
               and each figures column is a container, and a container paints
               as one piece — only inside it can the band go over the boxes'
               lines (it is opaque, and covers them) and under the figures
               (lifted above it with z-10). A light rule on each side, the
-              boxes' own, so its edges read as drawn. Kept mounted and faded,
-              so it leaves where it stood instead of jumping. */}
+              boxes' own, so its edges read as drawn. Rounded, 12 px like the
+              setups table's band, on all four corners (by request,
+              2026-09-27). Kept mounted and faded, so it leaves where it stood instead of jumping. */}
           <div
             aria-hidden
             className={cn(
-              "imu-focus-band pointer-events-none absolute -inset-y-5 border-x border-border transition-[left,width,opacity] duration-150 sm:-inset-y-[22px]",
+              "imu-focus-band pointer-events-none absolute rounded-[12px] -inset-y-5 border-x border-border transition-[left,width,opacity] duration-150 sm:-inset-y-[22px]",
               focusBandOn ? "opacity-100" : "opacity-0",
             )}
             style={focusBand ?? undefined}
