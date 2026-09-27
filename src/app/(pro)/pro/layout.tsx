@@ -5,7 +5,6 @@ import { hasLabAccess } from "@/lib/lab-access";
 import { ProSidebar, ProMobileNav } from "@/components/pro-nav";
 import { BikitLockup } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { NotificationBell } from "@/components/notification-bell";
 import { UserMenu } from "@/components/user-menu";
 import { HeaderBackButton } from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
@@ -59,7 +58,6 @@ export default async function ProLayout({
               <BikitLockup pro className="h-8 w-auto sm:hidden" />
               <div className="hidden items-center gap-3 sm:flex">
                 <ThemeToggle />
-                <NotificationBell notifications={dict.notifications} />
                 <UserMenu
                   name={user.user_metadata?.full_name}
                   email={user.email as string}
