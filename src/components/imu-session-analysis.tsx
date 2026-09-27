@@ -3086,7 +3086,9 @@ function MountingBadge({ session }: { session: ImuSessionData }) {
  */
 function PanelSwitchRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="hidden justify-end gap-2 px-1 pt-1 sm:flex">{children}</div>
+    <div className="hidden items-center justify-end gap-2 px-1 pt-1 sm:flex">
+      {children}
+    </div>
   );
 }
 
