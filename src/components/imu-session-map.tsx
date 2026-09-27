@@ -240,6 +240,26 @@ function finishIconSvg(S: number): string {
   );
 }
 
+/** A crash's mark (by request, 2026-09-27): the filter's warning triangle,
+ * white on a plain red disc (its white ring taken off by request, the
+ * same day) — bigger than an impact's dot and a
+ * shape of its own, so a fall never reads as one more hit. A divIcon, so
+ * it stands upright on the turned map like the finish disc. */
+const CRASH_ICON_SIZE = 20;
+function crashIconSvg(S: number): string {
+  // Lucide's triangle-alert, drawn in its 24-unit box and scaled into the
+  // disc's middle 55 %.
+  const k = (S * 0.55) / 24;
+  const o = (S - 24 * k) / 2;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">` +
+    `<circle cx="${S / 2}" cy="${S / 2}" r="${S / 2}" fill="#F5533D"/>` +
+    `<g transform="translate(${o} ${o - 0.4 * k}) scale(${k})" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>` +
+    `<path d="M12 9v4"/><path d="M12 17h.01"/></g></svg>`
+  );
+}
+
 /**
  * How big the marks are drawn, as a factor of the sizes the full map uses.
  *
@@ -294,6 +314,8 @@ function markScale(el: HTMLElement | null): number {
  * to airtime. Three fixed marks: a small mint dot at the start, a checkered
  * disc at the finish, and a black dot as the cursor's needle. Point events
  * mark the track (impacts red, airtime mint, the chart's lane colours);
+ * so does a crash, at the moment the bike began to tumble, and a brake,
+ * where it began (a straw dot); other
  * ranged events stay in the chart, where duration has an axis to be read
  * against.
  */
@@ -762,12 +784,36 @@ export function ImuSessionMap({
       if (cancelled || !eventLayerRef.current) return;
       layer.clearLayers();
       for (const event of events) {
+        // A crash is ranged, but where it happened is the point: marked
+        // where the tumble began.
+        if (event.kind === "crash") {
+          const pos = gpsPositionAt(gps, event.startMs);
+          if (!pos) continue;
+          const size = CRASH_ICON_SIZE * markS;
+          L.marker([pos.latDeg, pos.lonDeg], {
+            icon: L.divIcon({
+              html: crashIconSvg(size),
+              className: "",
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size / 2],
+            }),
+            interactive: false,
+            keyboard: false,
+          }).addTo(layer);
+          continue;
+        }
+        // A brake is ranged too, but where it began is the braking point
+        // a rider looks for on the trail (by request, 2026-09-27): a dot
+        // there, in a straw that keeps it apart from the red and the mint
+        // — the chart's own braking straw, deepened to read on satellite.
         const timeMs =
           event.kind === "impact"
             ? event.timeMs
             : event.kind === "jump" || event.kind === "drop"
               ? event.takeoffMs
-              : null;
+              : event.kind === "braking"
+                ? event.startMs
+                : null;
         if (timeMs == null) continue;
         const pos = gpsPositionAt(gps, timeMs);
         if (!pos) continue;
@@ -775,7 +821,12 @@ export function ImuSessionMap({
           radius: 5 * markS,
           color: event.kind === "impact" ? "#ffffff" : "#1c1c1c",
           weight: markS < 1 ? 0.75 : 1,
-          fillColor: event.kind === "impact" ? "#F5533D" : "#43F3AF",
+          fillColor:
+            event.kind === "impact"
+              ? "#F5533D"
+              : event.kind === "braking"
+                ? "#FFD466"
+                : "#43F3AF",
           fillOpacity: 1,
         }).addTo(layer);
       }
