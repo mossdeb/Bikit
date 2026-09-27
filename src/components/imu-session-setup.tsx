@@ -262,7 +262,15 @@ export function ImuSessionSetup({
           </>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent
+        // The backdrop leaves with the popup, at its 250 ms.
+        overlayClassName="data-closed:duration-250"
+        // The large popups' entrance and margins (by request, 2026-09-27,
+        // the documentation's): it rises 48 px into place over 400 ms, no
+        // zoom, and sinks back in 250 ms; it keeps 16 px from the window's
+        // edges from `sm` and 32 from `lg`, under its own 896 px cap.
+        className="duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:w-[calc(100%-2rem)] sm:max-w-4xl lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)]"
+      >
         <DialogHeader>
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
           <DialogDescription className="mt-1">
