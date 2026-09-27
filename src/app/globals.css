@@ -1028,6 +1028,12 @@ body.imu-lab-texture [data-app-shell] {
     transform: translateY(0);
   }
 }
+/* The metric's mark beside each documentation drawing stays still (by
+   request, 2026-09-27): the concept's hover plays the drawing, not it. */
+.doc-mark-still,
+.doc-mark-still * {
+  animation: none !important;
+}
 /* The documentation's Harshness bike (2026-09-27). Three hits of their
    own (by request, the same day — one hit, all sparks at once, read as a
    metronome): the front wheel at 16 %, the rear at 39 %, the front again
@@ -2008,27 +2014,35 @@ body.imu-lab-texture [data-app-shell] {
     animation: impact-burst 3s infinite;
   }
   /* The documentation's Harshness drawing: the ground running past. */
+  .axis-card:hover .doc-absorb-arrow,
   .doc-concept:hover .doc-absorb-arrow {
     animation: doc-absorb-arrow 3s infinite;
   }
+  .axis-card:hover .doc-absorb-frame,
   .doc-concept:hover .doc-absorb-frame {
     animation: doc-absorb-frame 3s infinite;
   }
+  .axis-card:hover .doc-absorb-wheel,
   .doc-concept:hover .doc-absorb-wheel {
     animation: doc-absorb-wheel 3s infinite;
   }
+  .axis-card:hover .doc-ctrl-bike,
   .doc-concept:hover .doc-ctrl-bike {
     animation: doc-ctrl-bike 3s infinite;
   }
+  .axis-card:hover .doc-ctrl-arrow-up,
   .doc-concept:hover .doc-ctrl-arrow-up {
     animation: doc-ctrl-arrow-up 3s infinite;
   }
+  .axis-card:hover .doc-ctrl-arrow-down,
   .doc-concept:hover .doc-ctrl-arrow-down {
     animation: doc-ctrl-arrow-down 3s infinite;
   }
+  .axis-card:hover .doc-sup-frame,
   .doc-concept:hover .doc-sup-frame {
     animation: doc-sup-frame 3s infinite;
   }
+  .axis-card:hover .doc-sup-arrow,
   .doc-concept:hover .doc-sup-arrow {
     animation: doc-sup-arrow 3s infinite;
   }

@@ -17,14 +17,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useProDict, useProLocale } from "@/components/pro-locale";
+import {
+  AbsorptionAxisDrawing,
+  ControlAxisDrawing,
+  SupportAxisDrawing,
+} from "@/components/imu-doc-illustrations";
 import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
 import type { ReportMetricKey } from "@/lib/imu/report";
-import {
-  AbsorptionAxisIcon,
-  ControlAxisIcon,
-  RecoveryAxisIcon,
-  SupportAxisIcon,
-} from "@/components/imu-setup-icons";
+import { RecoveryAxisIcon } from "@/components/imu-setup-icons";
 import {
   DYNAMICS_AXES,
   DYNAMICS_NOISE_SPAN,
@@ -71,15 +71,28 @@ const DIRECTIONS: Record<DynamicsAxisKey, [number, number]> = {
 };
 
 /** Each axis's mark, before its name on its box (by request,
- * 2026-09-25, the supplied art). */
+ * 2026-09-25, the supplied art). Absorção, Controlo and Suporte wear the
+ * documentation's drawings (2026-09-27, by request), sized so the bike is
+ * as big as the old marks' — 0.375 px a unit — where the art's own 4-unit
+ * line comes out at the old marks' 1.5 px. Recuperação has no drawing
+ * yet and keeps its mark. */
 const AXIS_ICONS: Record<
   DynamicsAxisKey,
-  ComponentType<{ className?: string }>
+  { Icon: ComponentType<{ className?: string }>; className?: string }
 > = {
-  absorption: AbsorptionAxisIcon,
-  control: ControlAxisIcon,
-  support: SupportAxisIcon,
-  recovery: RecoveryAxisIcon,
+  absorption: {
+    Icon: AbsorptionAxisDrawing,
+    className: "h-[31px] w-auto shrink-0 [&_path]:[stroke-width:4]",
+  },
+  control: {
+    Icon: ControlAxisDrawing,
+    className: "h-[36px] w-auto shrink-0 [&_path]:[stroke-width:4]",
+  },
+  support: {
+    Icon: SupportAxisDrawing,
+    className: "h-[30px] w-auto shrink-0 [&_path]:[stroke-width:4]",
+  },
+  recovery: { Icon: RecoveryAxisIcon },
 };
 
 export interface ImuSetupDynamicsSetup {
@@ -292,8 +305,8 @@ export function ImuSetupDynamics({
 }
 
 function AxisMark({ axisKey }: { axisKey: DynamicsAxisKey }) {
-  const Icon = AXIS_ICONS[axisKey];
-  return <Icon className="text-foreground" />;
+  const { Icon, className } = AXIS_ICONS[axisKey];
+  return <Icon className={cn("text-foreground", className)} />;
 }
 
 /** The "i" beside an axis's name (by request, 2026-09-24): the table's

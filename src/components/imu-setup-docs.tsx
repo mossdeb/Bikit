@@ -158,8 +158,20 @@ export function ImuSetupDocs() {
                 <article key={entry.key} className="doc-concept max-w-[440px]">
                   {Drawing ? (
                     // The tile's height, so a drawing and a tile in the
-                    // same row put their titles on one line.
-                    <Drawing className="h-[104px] w-auto text-foreground" />
+                    // same row put their titles on one line. Beside it, at
+                    // the concept's right edge and centred on it, the
+                    // metric's own mark in a small tile — the one the
+                    // table wears (by request, 2026-09-27) — held still:
+                    // only the drawing plays. RMS has no column, and its
+                    // mark is the drawing's own trace, so it has none.
+                    <div className="flex items-center justify-between gap-4">
+                      <Drawing className="h-[104px] w-auto text-foreground" />
+                      {entry.key !== "rms" && (
+                        <div className="doc-mark-still flex size-[56px] shrink-0 items-center justify-center rounded-[12px] border border-border bg-muted/40">
+                          <Mark className="size-7 text-foreground" />
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex size-[104px] items-center justify-center rounded-[14px] border border-border bg-muted/40">
                       <Mark className="size-12 text-foreground" />
