@@ -414,6 +414,697 @@ body.imu-lab-texture [data-app-shell] {
 .dark .imu-band-braking {
   background-color: color-mix(in srgb, var(--card), #ffeebe 15%);
 }
+/* The Absorção icon's loop (imu-setup-icons, 2026-09-27). One 3 s cycle,
+   every part on the same clock so the beats line up: the arrow winds up
+   (0–12 %), falls with an ease-in and lands at 22 %; the frame compresses
+   on its suspension to 30 %, overshoots on the rebound to 40 % and settles in
+   two smaller swings by 56 %; the wheels ride down and up with the
+   axles in the same beat, round throughout; the arrow holds while the bike absorbs, then
+   lifts off and fades by 62 %, and the last third is stillness — the pause
+   that makes the next hit read as a hit. Distances are in the icon's own
+   units, about a pixel each at its 32 px. */
+/* The frame compresses about its axle line (its box's foot) — the top
+   sinks, as a suspension does — and the axle line itself drops a little
+   with the tyres beneath it (2026-09-27), so the hubs stay on the wheels'
+   centres. */
+.absorb-frame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+@keyframes absorb-arrow {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-3.5px);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.4);
+  }
+  22% {
+    transform: translateY(2.2px);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(1.4px);
+  }
+  46% {
+    opacity: 1;
+    transform: translateY(1.4px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes absorb-frame {
+  0%,
+  22% {
+    transform: translateY(0) scaleY(1);
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(0.52px) scaleY(0.86);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  40% {
+    transform: translateY(-0.09px) scaleY(1.06);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: translateY(0.05px) scaleY(0.97);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+/* The wheels stay round (by request, 2026-09-27): they ride down and up
+   whole, with the axle line, on the frame's own beats — the same 0.52 at
+   30 % the frame's foot drops — so the hubs never leave their centres. */
+@keyframes absorb-wheel {
+  0%,
+  22% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
+  }
+  30% {
+    transform: translateY(0.52px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  40% {
+    transform: translateY(-0.09px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: translateY(0.05px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: translateY(0);
+  }
+}
+/* The other three axes' icons (2026-09-27), on the same 3 s clock. Every
+   swing below eases in and out: what reads as a spring is the amplitudes
+   shrinking, not the curve. */
+.ctrl-bike {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+@keyframes ctrl-bike {
+  0%,
+  8% {
+    transform: translateY(0) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-1.6px) rotate(-4deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(1.3px) rotate(3deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-0.8px) rotate(-1.8deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(0.4px) rotate(0.9deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  52% {
+    transform: translateY(-0.15px) rotate(-0.3deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+@keyframes ctrl-arrow-up {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-1.2px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(0.4px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-0.5px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(0.15px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes ctrl-arrow-down {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16% {
+    transform: translateY(-0.3px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26% {
+    transform: translateY(1px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  35% {
+    transform: translateY(-0.2px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: translateY(0.3px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Suporte: the frame compresses about its axle line under a load and the
+   arrow sinks toward its line with it (to 22 %), the arrow springs up off
+   the line (30 %) and the frame follows it back, past rest, settling by
+   56 %. */
+.sup-frame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+@keyframes sup-frame {
+  0%,
+  8% {
+    transform: scaleY(1);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  22%,
+  28% {
+    transform: scaleY(0.88);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  40% {
+    transform: scaleY(1.04);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  48% {
+    transform: scaleY(0.99);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  56%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+@keyframes sup-arrow {
+  0%,
+  8% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+  22%,
+  26% {
+    transform: translateY(2.5px);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  34% {
+    transform: translateY(-1.4px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  42% {
+    transform: translateY(0.4px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  50% {
+    transform: translateY(-0.15px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  58%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Recuperação: the trace draws itself left to right (pathLength 1 on the
+   path, so the dash is the whole line whatever its length), the arrow
+   lands at its end with a small overshoot, both hold, then fade, and the
+   trace is drawn again. */
+@keyframes rec-trace {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  45%,
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+  92% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  93%,
+  100% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+}
+@keyframes rec-arrow {
+  0%,
+  38% {
+    opacity: 0;
+    transform: translateX(-2px);
+    animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  50%,
+  80% {
+    opacity: 1;
+    transform: translateX(0);
+    animation-timing-function: ease-in;
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+
+/* The setups table's seven column marks (imu-setup-icons, 2026-09-27),
+   each telling its figure's story while the mouse is over its column —
+   the gate is at the foot, with the axes'. Transform origins are in the
+   marks' own units (`transform-box: view-box`: the viewBox's user space,
+   a 50-square cut to its 42 middle) or the part's own box (`fill-box`).
+   The two vibrations — chassis and chatter — run on with no rest, as the
+   motions they name do; the other five act, then pause. */
+.gauge-needle {
+  transform-box: view-box;
+  transform-origin: 24.14px 32.42px;
+}
+.ret-spin,
+.impact-burst,
+.settle-ball {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.harsh-trace {
+  transform-box: view-box;
+  transform-origin: 25px 38px;
+}
+.harsh-sparks {
+  transform-box: view-box;
+  transform-origin: 25px 21px;
+}
+/* Speed: the needle drops to the floor, revs up past its reading and
+   swings to rest — a tachometer's blip. */
+@keyframes gauge-needle {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  16% {
+    transform: rotate(-72deg);
+    animation-timing-function: cubic-bezier(0.25, 0.9, 0.35, 1);
+  }
+  44% {
+    transform: rotate(12deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  54% {
+    transform: rotate(-4deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  62% {
+    transform: rotate(1.5deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+/* Retention: one full turn, pulled away and braked in — momentum kept
+   all the way round. */
+@keyframes ret-spin {
+  0% {
+    transform: rotate(0deg);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  60%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+/* Harshness: a hit stretches the trace up from its baseline and it
+   recoils, the sparks crack out of the peak; a smaller second hit. */
+@keyframes harsh-trace {
+  0%,
+  6% {
+    transform: scaleY(1);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  12% {
+    transform: scaleY(1.14);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  22% {
+    transform: scaleY(0.95);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  30%,
+  44% {
+    transform: scaleY(1);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  49% {
+    transform: scaleY(1.07);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  58%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+@keyframes harsh-sparks {
+  0%,
+  6% {
+    opacity: 0;
+    transform: scale(0.5);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1.22);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  26%,
+  44% {
+    opacity: 1;
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  }
+  50% {
+    transform: scale(1.1);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  60%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* Chassis movement, 2–12 Hz: the wave rides up and down, slow and
+   unbroken, and each arrow gives as the wave reaches it. */
+@keyframes chassis-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-2.4px);
+  }
+  75% {
+    transform: translateY(2.4px);
+  }
+}
+@keyframes chassis-up {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-1.4px);
+  }
+}
+@keyframes chassis-down {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(1.4px);
+  }
+}
+/* Chatter, 12–60 Hz: fast and small — the zigzags shiver sideways, top
+   against bottom, and the dot buzzes between them. */
+@keyframes chat-shiver {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(1.3px);
+  }
+}
+@keyframes chat-dot {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0.8px, -0.6px);
+  }
+  50% {
+    transform: translate(-0.7px, 0.5px);
+  }
+  75% {
+    transform: translate(0.5px, 0.8px);
+  }
+}
+/* Residual oscillation: the ball pulses, and its echoes ring out to the
+   right one after another, each fainter, then die away. */
+@keyframes settle-ball {
+  0% {
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  6% {
+    transform: scale(1.12);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  16%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes settle-echo {
+  0% {
+    opacity: 0;
+    transform: translateX(-2px);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  16%,
+  55% {
+    opacity: var(--echo-opacity);
+    transform: translateX(0);
+    animation-timing-function: ease-in;
+  }
+  72%,
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+.settle-echo-1 {
+  --echo-opacity: 1;
+}
+.settle-echo-2 {
+  --echo-opacity: 0.7;
+}
+.settle-echo-3 {
+  --echo-opacity: 0.45;
+}
+/* RMS: the trace dims to a trail and a pulse of full ink sweeps it left
+   to right — the path runs right to left, so the dash travels from its
+   far end back to its start (offset −1 → 0.45 on a pathLength of 1, a
+   0.45-long dash) — then a short rest. At rest the sweep path is simply
+   drawn whole over the base, and the icon is Lucide's own. */
+.rms-base {
+  transition: opacity 0.2s;
+}
+@keyframes rms-sweep {
+  0% {
+    stroke-dashoffset: -1;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  70%,
+  100% {
+    stroke-dashoffset: 0.45;
+  }
+}
+
+/* Impacts: the burst draws in, then blows out bigger turning, and
+   settles — an eighth of a turn in all, so an eight-pointed star ends
+   where it began and the loop has no seam. */
+@keyframes impact-burst {
+  0% {
+    transform: scale(1) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  12% {
+    transform: scale(0.78) rotate(-6deg);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  24% {
+    transform: scale(1.26) rotate(36deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  34% {
+    transform: scale(0.95) rotate(47deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  44% {
+    transform: scale(1.02) rotate(44deg);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  52%,
+  100% {
+    transform: scale(1) rotate(45deg);
+  }
+}
+
+/* Each icon plays only while the mouse is over its own axis card (by
+   request, 2026-09-27): the card is `.axis-card` in imu-setup-dynamics —
+   and each of the table's marks while the mouse is over its column.
+   Entering starts the cycle from its first beat; leaving puts the icon
+   back to its drawing. Only where there is a real hover — a tap on a phone
+   would leave it stuck playing — and never with reduced motion asked for. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .axis-card:hover .absorb-arrow,
+  .doc-concept:hover .absorb-arrow {
+    animation: absorb-arrow 3s infinite;
+  }
+  .axis-card:hover .absorb-frame,
+  .doc-concept:hover .absorb-frame {
+    animation: absorb-frame 3s infinite;
+  }
+  .axis-card:hover .absorb-wheel,
+  .doc-concept:hover .absorb-wheel {
+    animation: absorb-wheel 3s infinite;
+  }
+  .axis-card:hover .ctrl-bike,
+  .doc-concept:hover .ctrl-bike {
+    animation: ctrl-bike 3s infinite;
+  }
+  .axis-card:hover .ctrl-arrow-up,
+  .doc-concept:hover .ctrl-arrow-up {
+    animation: ctrl-arrow-up 3s infinite;
+  }
+  .axis-card:hover .ctrl-arrow-down,
+  .doc-concept:hover .ctrl-arrow-down {
+    animation: ctrl-arrow-down 3s infinite;
+  }
+  .axis-card:hover .sup-frame,
+  .doc-concept:hover .sup-frame {
+    animation: sup-frame 3s infinite;
+  }
+  .axis-card:hover .sup-arrow,
+  .doc-concept:hover .sup-arrow {
+    animation: sup-arrow 3s infinite;
+  }
+  .axis-card:hover .rec-trace,
+  .doc-concept:hover .rec-trace {
+    stroke-dasharray: 1;
+    animation: rec-trace 3s infinite;
+  }
+  .axis-card:hover .rec-arrow,
+  .doc-concept:hover .rec-arrow {
+    animation: rec-arrow 3s infinite;
+  }
+  /* The table's marks: its column's hover band (focusClass in
+     imu-setup-compare-view) is on the header cell while the mouse is
+     anywhere in the column. The same marks in the documentation play while
+     the mouse is over their concept (`.doc-concept`, imu-setup-docs). */
+  th.imu-focus-band .gauge-needle,
+  .doc-concept:hover .gauge-needle {
+    animation: gauge-needle 3s infinite;
+  }
+  th.imu-focus-band .ret-spin,
+  .doc-concept:hover .ret-spin {
+    animation: ret-spin 3s infinite;
+  }
+  th.imu-focus-band .harsh-trace,
+  .doc-concept:hover .harsh-trace {
+    animation: harsh-trace 3s infinite;
+  }
+  th.imu-focus-band .harsh-sparks,
+  .doc-concept:hover .harsh-sparks {
+    animation: harsh-sparks 3s infinite;
+  }
+  th.imu-focus-band .chassis-wave,
+  .doc-concept:hover .chassis-wave {
+    animation: chassis-wave 1.6s ease-in-out infinite;
+  }
+  th.imu-focus-band .chassis-up,
+  .doc-concept:hover .chassis-up {
+    animation: chassis-up 1.6s ease-in-out infinite;
+  }
+  th.imu-focus-band .chassis-down,
+  .doc-concept:hover .chassis-down {
+    animation: chassis-down 1.6s ease-in-out infinite;
+  }
+  th.imu-focus-band .chat-top,
+  .doc-concept:hover .chat-top {
+    animation: chat-shiver 0.14s linear infinite;
+  }
+  th.imu-focus-band .chat-bottom,
+  .doc-concept:hover .chat-bottom {
+    animation: chat-shiver 0.14s linear infinite reverse;
+  }
+  th.imu-focus-band .chat-dot,
+  .doc-concept:hover .chat-dot {
+    animation: chat-dot 0.2s linear infinite;
+  }
+  th.imu-focus-band .settle-ball,
+  .doc-concept:hover .settle-ball {
+    animation: settle-ball 3s infinite;
+  }
+  th.imu-focus-band .settle-echo,
+  .doc-concept:hover .settle-echo {
+    animation: settle-echo 3s infinite both;
+  }
+  th.imu-focus-band .settle-echo-2,
+  .doc-concept:hover .settle-echo-2 {
+    animation-delay: 0.18s;
+  }
+  th.imu-focus-band .settle-echo-3,
+  .doc-concept:hover .settle-echo-3 {
+    animation-delay: 0.36s;
+  }
+  .doc-concept:hover .rms-base {
+    opacity: 0.22;
+  }
+  .doc-concept:hover .rms-sweep {
+    stroke-dasharray: 0.45 1;
+    animation: rms-sweep 1.8s infinite;
+  }
+  th.imu-focus-band .impact-burst,
+  .doc-concept:hover .impact-burst {
+    animation: impact-burst 3s infinite;
+  }
+}
+
 /* A crash in the lab's red (the "worse" pills' #FF5A39): the one event a
    rider wants to find at a glance, painted over everything else. */
 .imu-band-crash {

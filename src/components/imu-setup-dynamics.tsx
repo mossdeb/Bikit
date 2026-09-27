@@ -216,7 +216,9 @@ export function ImuSetupDynamics({
                 return (
                   <div
                     key={axis.key}
-                    className="flex min-w-0 flex-col rounded-lg border border-border p-4 sm:p-5"
+                    // `axis-card`: its icon animates while the mouse is over it
+                    // (the `.axis-card:hover` rules in globals.css).
+                    className="axis-card flex min-w-0 flex-col rounded-lg border border-border p-4 sm:p-5"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <AxisMark axisKey={axis.key} />
