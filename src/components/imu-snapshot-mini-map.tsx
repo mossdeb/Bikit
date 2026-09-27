@@ -25,6 +25,24 @@ export function ImuSnapshotMiniMap({
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  // No zoom, by any gesture (by request, 2026-09-27). Leaflet's own zoom
+  // handlers are off below, yet a wheel still zoomed it: leaflet-rotate,
+  // loaded by the session's map, patches the global L. So the map takes no
+  // pointer at all (`pointer-events-none` on its container) and a plain
+  // wheel over it scrolls the page or popup underneath, as anywhere; a
+  // trackpad pinch (a wheel with ctrlKey) is swallowed here, or the browser
+  // would zoom the whole page instead.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) event.preventDefault();
+    };
+    frame.addEventListener("wheel", onWheel, { passive: false });
+    return () => frame.removeEventListener("wheel", onWheel);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -80,8 +98,14 @@ export function ImuSnapshotMiniMap({
   }, [track, section]);
 
   return (
-    <div className={cn("imu-map relative overflow-hidden", className)}>
-      <div ref={containerRef} className="absolute inset-0" />
+    <div
+      ref={frameRef}
+      className={cn("imu-map relative overflow-hidden", className)}
+    >
+      <div
+        ref={containerRef}
+        className="pointer-events-none absolute inset-0"
+      />
       {/* North-up, so the arrow points up — the session map's own badge,
           so the two maps read as one (by request, 2026-09-10). Above the
           panes, which Leaflet stacks up to 1000. */}

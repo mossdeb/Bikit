@@ -599,7 +599,17 @@ export function ImuSnapshotView({
     // the cards, 32 under the heading's.
     <div className="space-y-7">
       <div
-        className={cn("relative mb-8 rounded-lg bg-card", DARK_CARD_HAIRLINE)}
+        className={cn(
+          "relative mb-8 bg-card",
+          // In the comparison popup (2026-09-27, from a sketch) the head is
+          // not a card but a white band across the popup's full width and
+          // flush with its top — it bleeds out through the scroller's
+          // padding (px-[15px] sm:px-6, pt-12), and the popup's own corners
+          // round it. On the Snapshot's page it stays a card.
+          draft
+            ? "-mx-[15px] -mt-12 sm:-mx-6"
+            : cn("rounded-lg", DARK_CARD_HAIRLINE),
+        )}
       >
         {!draft && (
           <div className="absolute top-3 right-3 sm:top-6 sm:right-6">
@@ -613,7 +623,14 @@ export function ImuSnapshotView({
         {/* The identity on the left and the map on the right from `sm`,
             the map under the words on a phone. The three dots keep the
             corner: the map stops short of it (`sm:mr-12`). */}
-        <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:p-8">
+        <div
+          className={cn(
+            "flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:p-8",
+            // The band breathes a little wider than a card; the top clears
+            // the close disc's row.
+            draft && "pt-16 sm:px-10 sm:pt-10 sm:pb-10",
+          )}
+        >
           <div className="min-w-0 pr-10 sm:pr-0">
             <SnapshotKindMark kind={snapshot.definition.kind} />
             {/* The pages' heading (2026-09-25, the setups page's): the
@@ -657,7 +674,16 @@ export function ImuSnapshotView({
               dark tile like the session's map, so the two read as one
               surface. Held at its size while the file loads, so the card
               does not jump when the picture arrives. */}
-          <div className="h-[150px] w-full shrink-0 overflow-hidden rounded-[12px] bg-sidebar sm:mr-12 sm:w-[220px]">
+          <div
+            className={cn(
+              "h-[150px] w-full shrink-0 overflow-hidden rounded-[12px] bg-sidebar sm:w-[220px]",
+              // On the page the map stops short of the three dots' corner;
+              // in the popup there are no dots, and it sits in the band's
+              // bottom-right corner, under the close disc (by request,
+              // 2026-09-27).
+              draft ? "sm:self-end" : "sm:mr-12",
+            )}
+          >
             {mapData && (
               <ImuSnapshotMiniMap
                 track={mapData.track}
