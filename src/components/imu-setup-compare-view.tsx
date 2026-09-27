@@ -1219,7 +1219,9 @@ export function ImuSetupDetails({
 }
 
 /** One figure and, beside it, its difference to the reference's in a
- * pill — bold where it differs beyond the tie. */
+ * pill. Every figure in the cell's own medium weight (by request,
+ * 2026-09-27): the ones that differed were bold, the pill already says
+ * they differ. */
 function Figure({
   metric,
   reference,
@@ -1237,7 +1239,7 @@ function Figure({
   const differs = tone != null && tone !== "tie";
   return (
     <span className="inline-flex items-center gap-2.5">
-      <span className={cn(differs && "font-bold")}>
+      <span>
         {metric.value.replace(/\s*%$/, "")}
         {unit && (
           <>
@@ -1253,7 +1255,7 @@ function Figure({
           // with the lab's red where worse, clear with a black outline
           // where the metric has no better direction. The black pills carry
           // the same outline in their own colour, so both are one size. A
-          // tie has no pill here: the figure is simply not bold.
+          // tie has no pill here.
           className={cn(
             // 19 px tall with its outline, 8 px each side, regular weight:
             // the Figma layout's pill.
