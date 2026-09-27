@@ -1011,6 +1011,33 @@ function describeEvent(
           }
         }
       }
+      // The speed it was entered and left at (by request, 2026-09-27),
+      // with the cursor's reading and a bar from the section's slowest
+      // (empty) to its fastest (full), as the braking's and the curve's.
+      if (gps) {
+        const v0 = speedAt(event.startMs);
+        const v1 = speedAt(event.endMs);
+        const range = ctx.speed
+          ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
+          : null;
+        const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
+        if (v0 != null && v1 != null) {
+          const span = range ? range.max - range.min : 0;
+          metrics.push({
+            label: t.event.speed,
+            value: `${Math.round(v0 * 3.6)} → ${Math.round(v1 * 3.6)}`,
+            unit: "km/h",
+            ...(range &&
+              vNow != null && {
+                now: `${Math.round(vNow * 3.6)} km/h`,
+                progress:
+                  span > 0
+                    ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
+                    : 1,
+              }),
+          });
+        }
+      }
       metrics.push(seconds(event.startMs, event.endMs));
       return {
         title: t.event.roughTitle,
