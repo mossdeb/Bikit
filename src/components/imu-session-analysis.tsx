@@ -81,6 +81,7 @@ import {
   sessionSummary,
   curveMomentum,
   fusedSpeedKmhSeries,
+  windowMean,
   windowMeanAbs,
   windowPeak,
   windowRange,
@@ -302,6 +303,46 @@ interface EventMetric {
    * track would be a rendering bug rather than a fact.
    */
   progress?: number;
+  /** The words behind the (i) beside the label — what the figure is and
+   * how to read it (the lip's first, 2026-09-27). */
+  info?: MetricInfoWords;
+}
+
+interface MetricInfoWords {
+  intro: string;
+  points?: readonly { lead: string; text: string }[];
+}
+
+/** A metric's (i): a popover and not a tooltip, as the reading's — this is
+ * read on a phone, and a finger does not hover. */
+function MetricInfo({ label, info }: { label: string; info: MetricInfoWords }) {
+  const t = useProDict().analysis.reading;
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={t.whatIs(label)}
+        className="inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full align-[-3px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Info className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-w-80 p-4">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{info.intro}</p>
+        {info.points && (
+          <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+            {info.points.map((point) => (
+              <li key={point.lead}>
+                <span className="font-semibold text-foreground">
+                  {point.lead}
+                </span>{" "}
+                {point.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /** Everything the card's figures are computed from: the raw channels, the
@@ -338,7 +379,65 @@ interface EventContext {
   /** The high-g sensor's shocks (firmware V15), when the file has them:
    * an impact's and a landing's real peak, beside the main IMU's own. */
   highG?: readonly ImuHighGEvent[];
+  /** Whether the bike's forward axis is known (the mounting yaw applied)
+   * — a jump's pitch, and so its rotation and first wheel, need it. */
+  forwardKnown: boolean;
   cursorIndex: number;
+}
+
+/** How long after a jump's landing its exit speed is read — past the
+ * landing's own shock, where the speed says what the jump gave back. */
+const JUMP_EXIT_MS = 1500;
+/** The window after touchdown the first wheel is read in, and the pitch
+ * rate that counts as the other wheel coming down. Checked on 191 jumps:
+ * front first (the nose snapping UP as the rear drops) 100, landing at a
+ * median 8.9 G; rear first 29, at 5.6 G; both together 62, at 7.1 G. */
+const FIRST_WHEEL_MS = 150;
+const FIRST_WHEEL_DPS = 80;
+/** The pitch rate smoothed over this, so one sample's chatter on the
+ * landing's shock does not decide the wheel. */
+const FIRST_WHEEL_SMOOTH_MS = 50;
+
+/**
+ * A jump's pitch: the rotation in the air (takeoff to landing, degrees,
+ * nose down positive) and the wheel that met the ground first — read off
+ * the first pitch swing past FIRST_WHEEL_DPS after touchdown. The nose
+ * snapping up means the front was down and the rear fell onto it; the
+ * nose slapping down, the other way round; no swing, both at once.
+ */
+function jumpPitch(
+  tMs: Float64Array,
+  gy: ArrayLike<number>,
+  event: { takeoffMs: number; landingMs: number },
+): { rotationDeg: number; firstWheel: "front" | "rear" | "both" } | null {
+  const n = tMs.length;
+  if (n < 2 || event.landingMs <= event.takeoffMs) return null;
+  const i0 = nearestSampleIndex(tMs, event.takeoffMs);
+  const i1 = nearestSampleIndex(tMs, event.landingMs);
+  let rotationDeg = 0;
+  for (let i = i0 + 1; i <= i1; i++)
+    rotationDeg += (gy[i] * (tMs[i] - tMs[i - 1])) / 1000;
+  // The first swing past the threshold, the rate averaged over
+  // FIRST_WHEEL_SMOOTH_MS around each sample.
+  const half = FIRST_WHEEL_SMOOTH_MS / 2;
+  let firstWheel: "front" | "rear" | "both" = "both";
+  let lo = i1;
+  let hi = i1;
+  let sum = 0;
+  for (let i = i1; i < n && tMs[i] <= event.landingMs + FIRST_WHEEL_MS; i++) {
+    while (hi < n && tMs[hi] <= tMs[i] + half) sum += gy[hi++];
+    while (tMs[lo] < tMs[i] - half) sum -= gy[lo++];
+    const rate = sum / (hi - lo);
+    if (rate <= -FIRST_WHEEL_DPS) {
+      firstWheel = "front";
+      break;
+    }
+    if (rate >= FIRST_WHEEL_DPS) {
+      firstWheel = "rear";
+      break;
+    }
+  }
+  return { rotationDeg, firstWheel };
 }
 
 interface EventDescription {
@@ -605,18 +704,102 @@ function describeEvent(
             unit: "m",
           });
       }
+      // The jump read from the pitch (2026-09-27, by request, from
+      // R0050's 0:26; rules checked on 191 jumps). The bike's frame is
+      // X forward, Y left, Z up, so a positive pitch rate is the nose
+      // going DOWN. Only with the forward axis known.
+      const pitch = ctx.forwardKnown ? jumpPitch(tMs, ctx.gy, event) : null;
+      if (pitch) {
+        // How far the bike turned in the air. It mostly follows the arc —
+        // a median 3° under 0.2 s, 18° over 0.35 — and across the long
+        // jumps more of it went with SOFTER landings (r ≈ −0.45), the
+        // bike matched to a landing that falls away.
+        metrics.push({
+          label:
+            pitch.rotationDeg >= 0
+              ? t.event.airRotationDown
+              : t.event.airRotationUp,
+          value: String(Math.round(Math.abs(pitch.rotationDeg))),
+          unit: "°",
+          info: t.event.airRotationInfo,
+        });
+      }
+      // The lip: the hardest compression in the half second before the
+      // wheels left — how hard the jump was loaded, and what the rear had
+      // stored to kick back with.
+      const lip = windowPeak(tMs, g, event.takeoffMs - 500, event.takeoffMs);
+      if (lip != null)
+        metrics.push({
+          label: t.event.lip,
+          value: num(lip, 1),
+          unit: "G",
+          info: t.event.lipInfo,
+        });
       const landing = windowPeak(
         tMs,
         g,
         event.landingMs,
         event.landingMs + 300,
       );
-      if (landing != null)
+      if (landing != null) {
+        // With the reading at the cursor and a bar, as an impact's peak,
+        // and under it the wheel that met the ground first.
+        const nowPeak =
+          cursorIndex >= 0
+            ? windowPeak(
+                tMs,
+                g,
+                tMs[cursorIndex] - INSTANT_WINDOW_MS / 2,
+                tMs[cursorIndex] + INSTANT_WINDOW_MS / 2,
+              )
+            : null;
         metrics.push({
           label: t.event.landing,
           value: num(landing, 1),
           unit: "G",
+          info: t.event.landingInfo,
+          ...(pitch && {
+            detail:
+              pitch.firstWheel === "front"
+                ? t.event.frontFirst
+                : pitch.firstWheel === "rear"
+                  ? t.event.rearFirst
+                  : t.event.bothWheels,
+          }),
+          ...(nowPeak != null && {
+            now: `${num(nowPeak, 1)} G`,
+            progress: landing > 0 ? Math.min(1, nowPeak / landing) : 0,
+          }),
         });
+      }
+      // What the jump did to the speed: takeoff to 1.5 s after landing,
+      // with the cursor's reading and a bar from the stretch's slowest
+      // (empty) to its fastest (full), as the curve's and the braking's.
+      if (gps) {
+        const exitMs = event.landingMs + JUMP_EXIT_MS;
+        const v0 = speedAt(event.takeoffMs);
+        const v1 = speedAt(exitMs);
+        const range = ctx.speed
+          ? windowRange(tMs, ctx.speed, event.takeoffMs, exitMs)
+          : null;
+        const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
+        if (v0 != null && v1 != null) {
+          const span = range ? range.max - range.min : 0;
+          metrics.push({
+            label: t.event.speed,
+            value: `${Math.round(v0 * 3.6)} → ${Math.round(v1 * 3.6)}`,
+            unit: "km/h",
+            ...(range &&
+              vNow != null && {
+                now: `${Math.round(vNow * 3.6)} km/h`,
+                progress:
+                  span > 0
+                    ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
+                    : 1,
+              }),
+          });
+        }
+      }
       // The same landing as the high-g sensor caught it, over the same
       // 300 ms — its own figure, not the one above corrected: see highg.ts.
       const landingShock = highGNear(ctx.highG, event.landingMs + 100, 200);
@@ -637,6 +820,7 @@ function describeEvent(
           label: t.event.severity,
           value: String(impactSeverityIndex(energy)),
           unit: "/100",
+          info: t.event.severityInfo,
         });
       return event.kind === "drop"
         ? { title: t.event.dropTitle, Icon: DropIcon, metrics }
@@ -713,6 +897,16 @@ function describeEvent(
       // leaves it empty.
       const axRange = windowRange(tMs, ctx.axMean, event.startMs, event.endMs);
       const decel = axRange ? -axRange.min : null;
+      // The average pull over the whole braking (2026-09-27, by request,
+      // from R0050's 2:10). Read off the accelerometer and not off the
+      // speed, which is what makes it the slope-free figure: an
+      // accelerometer does not feel gravity along a slope it rolls down
+      // (a bike coasting downhill reads zero forward), so its forward axis
+      // is the brakes' and the drag's pull alone, where Δv/Δt is that pull
+      // less what the descent gave back. Signed mean, so the moments the
+      // wheel skipped and the pull let go count against it.
+      const meanAx = windowMean(tMs, ctx.ax, event.startMs, event.endMs);
+      const meanDecel = meanAx != null ? Math.max(0, -meanAx) : null;
       if (decel != null && decel > 0) {
         const now = cursorIndex >= 0 ? ctx.axMean[cursorIndex] : null;
         metrics.push({
@@ -732,12 +926,29 @@ function describeEvent(
       if (gps) {
         const v0 = speedAt(event.startMs);
         const v1 = speedAt(event.endMs);
-        if (v0 != null && v1 != null)
+        // With the speed at the cursor and a bar, as the curve's module
+        // (by request, 2026-09-27): empty at the braking's slowest, full at
+        // its fastest, so it drains as the bike slows through it.
+        const range = ctx.speed
+          ? windowRange(tMs, ctx.speed, event.startMs, event.endMs)
+          : null;
+        const vNow = cursorIndex >= 0 ? speedAt(tMs[cursorIndex]) : null;
+        if (v0 != null && v1 != null) {
+          const span = range ? range.max - range.min : 0;
           metrics.push({
             label: t.event.speed,
             value: `${Math.round(v0 * 3.6)} → ${Math.round(v1 * 3.6)}`,
             unit: "km/h",
+            ...(range &&
+              vNow != null && {
+                now: `${Math.round(vNow * 3.6)} km/h`,
+                progress:
+                  span > 0
+                    ? Math.min(1, Math.max(0, (vNow * 3.6 - range.min) / span))
+                    : 1,
+              }),
           });
+        }
         const dist = gpsDistance(gps, event.startMs, event.endMs);
         if (dist != null)
           metrics.push({
@@ -747,6 +958,24 @@ function describeEvent(
           });
       }
       metrics.push(seconds(event.startMs, event.endMs));
+      // Last of the plain figures, after the duration it is averaged over.
+      if (meanDecel != null && meanDecel > 0)
+        metrics.push({
+          label: t.event.brakingMean,
+          value: num(meanDecel, 2),
+          unit: "G",
+        });
+      // Consistency: how much of its peak the braking held on average —
+      // R0050's brakings sit at 53–62 %, a final stop that eased into it
+      // near 80. A plain figure and not a bar (by request, 2026-09-27): it
+      // is the event's own and never moves with the cursor, and a bar on
+      // this card reads as the live instant.
+      if (decel != null && decel > 0 && meanDecel != null)
+        metrics.push({
+          label: t.event.brakingConsistency,
+          value: String(Math.round(Math.min(1, meanDecel / decel) * 100)),
+          unit: "%",
+        });
       return { title: t.event.brakingTitle, Icon: BrakingIcon, metrics };
     }
     case "rough_section": {
@@ -1377,6 +1606,7 @@ export function ImuSessionAnalysis({
     speed: seriesValues.speed ?? null,
     curves: sessionCurves,
     highG: data.highG,
+    forwardKnown: data.mounting?.applied ?? false,
     cursorIndex,
   };
   const primaryDesc = primaryEvent
@@ -3729,8 +3959,11 @@ function EventCard({
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       {metric.label}
+                      {metric.info && (
+                        <MetricInfo label={metric.label} info={metric.info} />
+                      )}
                     </p>
                   </div>
                 </div>
@@ -3761,8 +3994,11 @@ function EventCard({
                   key={metric.label}
                   className="min-w-0 grow basis-full bg-card px-5 py-7 @min-[512px]:basis-[calc(50%-1px)] @min-[768px]:basis-[calc(33.333%-1px)]"
                 >
-                  <p className="text-sm text-muted-foreground">
+                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     {metric.label}
+                    {metric.info && (
+                      <MetricInfo label={metric.label} info={metric.info} />
+                    )}
                   </p>
                   <div className="mt-1 flex items-center gap-3">
                     {/* The figure, with its detail line right under it —

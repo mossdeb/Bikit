@@ -320,12 +320,18 @@ export function impactEnergy(
 }
 
 /**
- * Provisional reference: the energy that reads as severity 100. Chosen so the
- * demo file's spread lands sensibly — its medium impact reads ~47, its hard
- * ones 62–86. A RELATIVE Bikit index to recalibrate against real recordings;
- * never an absolute mechanical force on the components.
+ * The energy that reads as severity 100. A RELATIVE Bikit index, never an
+ * absolute mechanical force on the components.
+ *
+ * Recalibrated 2026-09-27 against real recordings (36 of the owner's
+ * sessions, 193 landings and 558 impacts over their 300 ms windows). The
+ * first value, 1.4, was fitted to the demo file and pinned 64 % of the
+ * landings and 56 % of the impacts at 100, where the figure said nothing.
+ * At 8 the median landing (2.0 G²·s) reads 50, the hardest 10 % from ~70,
+ * the median impact ~43, and the hardest thing recorded — a 7.6 G²·s
+ * landing — 97: nothing clamps, so a 100 stays the rare, true extreme.
  */
-export const IMPACT_SEVERITY_REF_ENERGY = 1.4;
+export const IMPACT_SEVERITY_REF_ENERGY = 8;
 
 /** 0–100 severity index from an impact's energy: 100·√(E/ref), clamped. The
  * square root keeps the spread readable — energy grows with the square of G,
@@ -1637,6 +1643,26 @@ export function windowMeanAbs(
   if (i0 > i1 || i0 >= tMs.length) return null;
   let sum = 0;
   for (let i = i0; i <= i1; i++) sum += Math.abs(values[i]);
+  return sum / (i1 - i0 + 1);
+}
+
+/**
+ * Signed mean of a channel across [fromMs, toMs] — a braking's average
+ * pull, where the ups between the pulls must count against it (2026-09-27).
+ */
+export function windowMean(
+  tMs: Float64Array,
+  values: ArrayLike<number>,
+  fromMs: number,
+  toMs: number,
+): number | null {
+  if (tMs.length === 0 || toMs < tMs[0] || fromMs > tMs[tMs.length - 1])
+    return null;
+  const i0 = lowerBoundIndex(tMs, fromMs);
+  const i1 = upperBoundIndex(tMs, toMs);
+  if (i0 > i1 || i0 >= tMs.length) return null;
+  let sum = 0;
+  for (let i = i0; i <= i1; i++) sum += values[i];
   return sum / (i1 - i0 + 1);
 }
 

@@ -119,6 +119,71 @@ const en = {
     landing: "Landing",
     landingHighG: "High-G landing",
     severity: "Severity",
+    /** A jump's pitch in the air, takeoff to landing (2026-09-27), and
+     * which way the nose went. */
+    airRotationDown: "Air rotation (nose ↓)",
+    airRotationUp: "Air rotation (nose ↑)",
+    /** The hardest compression in the half second before takeoff. */
+    lip: "Lip",
+    /** The lip's (i) (by request, 2026-09-27). The spread is 191 jumps'
+     * across the owner's sessions: median 4.3 G, half of them 3.6–5.6. */
+    lipInfo: {
+      intro:
+        "The hardest hit the bike took in the half second before the wheels left the ground. Across the jumps recorded so far it sits around 4.3 G, half of them between 3.6 and 5.6 G. A high value can mean two different things:",
+      points: [
+        {
+          lead: "You loaded the lip:",
+          text: "you compressed the suspension and your legs for a split second to gain height. It usually comes with more airtime.",
+        },
+        {
+          lead: "A sharp hit:",
+          text: "an edge, a root or the kick of the lip. A high peak with little airtime is often this.",
+        },
+      ],
+    },
+    /** Which wheel met the ground first, under the landing's G. */
+    /** The (i)s of the jump's other figures (by request, 2026-09-27). The
+     * spreads and medians are the 191–193 jumps across the owner's
+     * sessions. */
+    airRotationInfo: {
+      intro:
+        "How far the bike turned nose-down or nose-up between takeoff and landing. Part of it is natural: the bike follows the jump's arc — around 3° on short jumps (under 0.2 s in the air), around 18° on long ones (over 0.35 s).",
+      points: [
+        {
+          lead: "Nose ↓:",
+          text: "the front dropped in the air — the usual case, and what lines the bike up with a landing that falls away. On long jumps, more of it went with softer landings.",
+        },
+        {
+          lead: "Nose ↑:",
+          text: "the front rose — a manual in the air or the lip kicking the front up; the rear lands first.",
+        },
+      ],
+    },
+    landingInfo: {
+      intro:
+        "The hardest hit in the 0.3 s after the wheels met the ground again. Across the jumps recorded so far it sits around 8 G, half of them between 5.7 and 10.5 G. Under it, the wheel that touched first, read from how the bike rotated right after contact:",
+      points: [
+        {
+          lead: "Front wheel first:",
+          text: "the rear came down after it. The most common and the hardest — a median of 8.9 G.",
+        },
+        {
+          lead: "Both wheels:",
+          text: "a level landing — 7.1 G.",
+        },
+        {
+          lead: "Rear wheel first:",
+          text: "the front settled after it, and the legs and shock soak up more — 5.6 G.",
+        },
+      ],
+    },
+    severityInfo: {
+      intro:
+        "An index from 0 to 100 that combines how hard and how long the landing hit, over the 0.3 s after touchdown: a short spike and a lower but longer blow can score the same. A typical landing reads around 50; near 100, among the hardest recorded. It is relative to Bikit — not a force measured on the components.",
+    },
+    frontFirst: "front wheel first",
+    rearFirst: "rear wheel first",
+    bothWheels: "both wheels",
     dropTitle: "Drop",
     jumpTitle: "Jump",
     peak: "Peak",
@@ -128,6 +193,11 @@ const en = {
       severity ? `${severity} impact` : "Impact",
     brakingTitle: "Braking",
     brakingMax: "Peak braking",
+    /** The braking's mean pull against its peak, % (2026-09-27). */
+    brakingConsistency: "Consistency",
+    /** The mean pull, read off the accelerometer — which does not feel
+     * the slope, so the descent is already taken out. */
+    brakingMean: "Mean decel. (− gradient)",
     speed: "Speed",
     vibration: "Vibration",
     retainedSpeed: "Speed retained",
@@ -396,6 +466,62 @@ const pt: typeof en = {
     landing: "Aterragem",
     landingHighG: "Aterragem high-G",
     severity: "Severidade",
+    airRotationDown: "Rotação no ar (frente ↓)",
+    airRotationUp: "Rotação no ar (frente ↑)",
+    lip: "Lábio",
+    lipInfo: {
+      intro:
+        "A pancada mais forte que a bicicleta levou no meio segundo antes de as rodas saírem do chão. Nos saltos gravados até agora anda à volta dos 4,3 G, metade entre 3,6 e 5,6 G. Um valor alto pode querer dizer duas coisas diferentes:",
+      points: [
+        {
+          lead: "Carregaste o lábio:",
+          text: "comprimiste a suspensão e as pernas durante uma fração de segundo, para ganhar altura. Costuma vir com mais tempo no ar.",
+        },
+        {
+          lead: "Pancada seca:",
+          text: "uma aresta, uma raiz ou o bico do lábio. Um pico alto com pouco tempo no ar é, muitas vezes, isto.",
+        },
+      ],
+    },
+    airRotationInfo: {
+      intro:
+        "Quanto a bicicleta rodou de frente para baixo ou para cima entre a descolagem e a aterragem. Uma parte é natural: a bicicleta acompanha o arco do salto — à volta de 3° nos saltos curtos (menos de 0,2 s no ar), à volta de 18° nos longos (mais de 0,35 s).",
+      points: [
+        {
+          lead: "Frente ↓:",
+          text: "a frente desceu no ar — o caso habitual, e o que alinha a bicicleta com uma aterragem em descida. Nos saltos longos, rodar mais veio com aterragens mais suaves.",
+        },
+        {
+          lead: "Frente ↑:",
+          text: "a frente subiu — um manual no ar ou um coice da frente no lábio; a traseira aterra primeiro.",
+        },
+      ],
+    },
+    landingInfo: {
+      intro:
+        "A pancada mais forte nos 0,3 s depois de as rodas voltarem ao chão. Nos saltos gravados até agora anda à volta dos 8 G, metade entre 5,7 e 10,5 G. Por baixo, a roda que tocou primeiro, lida na rotação da bicicleta logo a seguir ao contacto:",
+      points: [
+        {
+          lead: "Frente primeiro:",
+          text: "a traseira caiu a seguir. É o caso mais comum e o mais duro — mediana de 8,9 G.",
+        },
+        {
+          lead: "As duas rodas:",
+          text: "uma aterragem nivelada — 7,1 G.",
+        },
+        {
+          lead: "Traseira primeiro:",
+          text: "a frente pousou a seguir, e as pernas e o amortecedor absorvem mais — 5,6 G.",
+        },
+      ],
+    },
+    severityInfo: {
+      intro:
+        "Um índice de 0 a 100 que junta a força e a duração da pancada nos 0,3 s depois de aterrar: um pico curto e uma pancada mais baixa mas mais longa podem valer o mesmo. Uma aterragem típica anda pelos 50; perto de 100, das mais duras já gravadas. É relativo ao Bikit — não é uma força medida nos componentes.",
+    },
+    frontFirst: "frente primeiro",
+    rearFirst: "traseira primeiro",
+    bothWheels: "as duas rodas",
     dropTitle: "Drop",
     jumpTitle: "Salto",
     peak: "Pico",
@@ -403,6 +529,8 @@ const pt: typeof en = {
     impactTitle: (severity) => (severity ? `Impacto ${severity}` : "Impacto"),
     brakingTitle: "Travagem",
     brakingMax: "Travagem máx",
+    brakingConsistency: "Consistência",
+    brakingMean: "Desac. média (− desnível)",
     speed: "Velocidade",
     vibration: "Vibração",
     retainedSpeed: "Vel. retida",
