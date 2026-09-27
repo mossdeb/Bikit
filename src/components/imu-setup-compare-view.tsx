@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { NativeSelect } from "@/components/ui/native-select";
-import { ImuDocGlyph } from "@/components/imu-pro-logo";
+import { ImuSetupCompareGlyph } from "@/components/imu-pro-logo";
 import {
   ChassisBandIcon,
   ChatterBandIcon,
@@ -567,7 +567,7 @@ export function ImuSetupCompareView({
       <div className={cn("mb-8 rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
         <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:p-8">
           <div className="min-w-0">
-            <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
+            <ImuSetupCompareGlyph className="h-auto w-[28px] text-foreground" />
             {/* "Setup · YT Decoy · Miguel Gomes" (by request,
                 2026-09-25): what the page is, the bike, the rider — the
                 rider only when the session names one. */}

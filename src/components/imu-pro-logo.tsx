@@ -132,6 +132,41 @@ export function ImuDocsGlyph({ className }: { className?: string }) {
 }
 
 /**
+ * The setup comparison's mark (supplied art, IMU_v2/setup_comparation.svg,
+ * 2026-09-27): the same sheet as the documentation's, with three sliders on
+ * it — settings side by side. Weighted as that glyph, the art's lines a
+ * quarter heavier (page 3 → 3.75, sliders 4 → 5) so it holds at 28 px.
+ */
+export function ImuSetupCompareGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 80 102"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden
+    >
+      <g stroke="currentColor" strokeWidth="5" strokeLinecap="round">
+        <path d="M16.8887 37.5454H45.8256" />
+        <path d="M16.8887 54.0808H25.1564" />
+        <path d="M16.8887 70.6162H45.8256" />
+        <path d="M54.0933 37.5454H62.361" />
+        <path d="M33.4241 54.0808H62.361" />
+        <path d="M54.0933 70.6162H62.361" />
+        <path d="M25.1562 58.2147V49.947" />
+        <path d="M54.0933 41.6793V33.4116" />
+        <path d="M54.0933 74.7501V66.4824" />
+      </g>
+      <path
+        d="M74.7224 20.2582L58.9916 4.52742C57.0532 2.589 54.4241 1.5 51.6828 1.5H11.8363C6.1277 1.5 1.5 6.1277 1.5 11.8363V89.1992C1.5 94.9078 6.1277 99.5355 11.8363 99.5355H67.4136C73.1221 99.5355 77.7498 94.9078 77.7498 89.1992V27.5671C77.7498 24.8257 76.6608 22.1967 74.7224 20.2582Z"
+        stroke="currentColor"
+        strokeWidth="3.75"
+        strokeMiterlimit="10"
+      />
+    </svg>
+  );
+}
+
+/**
  * The "Bikit PRO" lockup the IMU lab wears.
  *
  * The drawing lives in `logo.tsx` with the regular lockup and the mark,
