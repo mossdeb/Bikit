@@ -3228,11 +3228,12 @@ function SessionCards({
           // the rest of the app keeps.
           // `relative`: the header's settings button is absolutely placed,
           // and from `2xl` — where the header is a column beside the tiles —
-          // it measures its corner from this card, not from the column. The
-          // `2xl:pr-12` is that button's lane: the tiles reach 24px short of
-          // the card's edge, and the button, 40px wide 8px in, would land on
-          // the last tile's top corner without it.
-          "relative rounded-lg bg-card 2xl:flex 2xl:items-center 2xl:justify-between 2xl:gap-6 2xl:pr-12",
+          // it measures its corner from this card, not from the column.
+          // From `2xl` the tiles sit in the card's bottom-right corner (by
+          // request, 2026-09-27), 24px in from both edges: down there they
+          // are clear of that button, which keeps the top-right, so they no
+          // longer need the lane they kept for it when centred.
+          "relative rounded-lg bg-card 2xl:flex 2xl:items-end 2xl:justify-between 2xl:gap-6",
           DARK_CARD_HAIRLINE,
         )}
       >
