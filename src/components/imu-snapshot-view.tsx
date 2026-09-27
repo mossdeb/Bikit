@@ -1180,8 +1180,10 @@ function PassStat({
           title={tone === "tie" ? t.snapshots.view.tieTitle : undefined}
           className={cn(
             "mt-1.5 rounded-full border border-foreground px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums",
-            tone === "better" && "bg-foreground text-primary",
-            tone === "worse" && "bg-foreground text-[#FF5A39]",
+            tone === "better" &&
+              "bg-foreground text-primary dark:border-[#34373d] dark:bg-[#34373d]",
+            tone === "worse" &&
+              "bg-foreground text-[#FF5A39] dark:border-[#34373d] dark:bg-[#34373d]",
             (tone === "neutral" || tone === "tie") &&
               "bg-transparent text-foreground",
           )}

@@ -245,7 +245,7 @@ export function ImuSetupDynamics({
                           // the axis: the table's pill colours — green where
                           // it gained, the lab's red where it lost.
                           className={cn(
-                            "shrink-0 rounded-full border border-foreground bg-foreground px-2 text-xs leading-[17px] font-normal tabular-nums",
+                            "shrink-0 rounded-full border border-foreground bg-foreground px-2 text-xs leading-[17px] font-normal tabular-nums dark:border-[#34373d] dark:bg-[#34373d]",
                             delta > 0 ? "text-primary" : "text-[#FF5A39]",
                           )}
                           title={words.deltaTitle(b ?? "", a ?? "")}

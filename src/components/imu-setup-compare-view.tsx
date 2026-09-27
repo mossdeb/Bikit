@@ -1260,8 +1260,10 @@ function Figure({
             // 19 px tall with its outline, 8 px each side, regular weight:
             // the Figma layout's pill.
             "rounded-full border border-foreground px-2 text-xs leading-[17px] font-normal",
-            tone === "better" && "bg-foreground text-primary",
-            tone === "worse" && "bg-foreground text-[#FF5A39]",
+            tone === "better" &&
+              "bg-foreground text-primary dark:border-[#34373d] dark:bg-[#34373d]",
+            tone === "worse" &&
+              "bg-foreground text-[#FF5A39] dark:border-[#34373d] dark:bg-[#34373d]",
             tone === "neutral" && "bg-transparent text-foreground",
           )}
         >

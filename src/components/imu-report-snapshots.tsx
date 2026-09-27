@@ -397,8 +397,8 @@ function PassPill({
           tie
             ? "border-foreground bg-transparent text-foreground"
             : diff < 0
-              ? "border-foreground bg-foreground text-primary"
-              : "border-foreground bg-foreground text-[#FF5A39]",
+              ? "border-foreground bg-foreground text-primary dark:border-[#34373d] dark:bg-[#34373d]"
+              : "border-foreground bg-foreground text-[#FF5A39] dark:border-[#34373d] dark:bg-[#34373d]",
         )}
       >
         {prefix}
