@@ -94,6 +94,44 @@ export function ImuDocGlyph({ className }: { className?: string }) {
 }
 
 /**
+ * The documentation's mark (supplied art, IMU_v2/doc.svg, 2026-09-27): a
+ * page with two lines of text, where the session's page carries a trace —
+ * the same sheet, so the two read as kin, but this one is for reading.
+ * The art's 3-unit stroke is ~1 px at 28 px wide; the default here is
+ * the session glyph's weight at that width, and a caller that draws it
+ * smaller thickens it the same way (`[&_path]:[stroke-width:…]`).
+ */
+export function ImuDocsGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 80 102"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden
+    >
+      <path
+        d="M16.3057 80.583H63.2709"
+        stroke="currentColor"
+        strokeWidth="3.75"
+        strokeMiterlimit="10"
+      />
+      <path
+        d="M16.3057 58.3096H49.2833"
+        stroke="currentColor"
+        strokeWidth="3.75"
+        strokeMiterlimit="10"
+      />
+      <path
+        d="M74.7224 20.2582L58.9916 4.52742C57.0532 2.589 54.4241 1.5 51.6828 1.5H11.8363C6.1277 1.5 1.5 6.1277 1.5 11.8363V89.1992C1.5 94.9078 6.1277 99.5355 11.8363 99.5355H67.4136C73.1221 99.5355 77.7498 94.9078 77.7498 89.1992V27.5671C77.7498 24.8257 76.6608 22.1967 74.7224 20.2582Z"
+        stroke="currentColor"
+        strokeWidth="3.75"
+        strokeMiterlimit="10"
+      />
+    </svg>
+  );
+}
+
+/**
  * The "Bikit PRO" lockup the IMU lab wears.
  *
  * The drawing lives in `logo.tsx` with the regular lockup and the mark,

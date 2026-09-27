@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useProDict } from "@/components/pro-locale";
 import type { CompareDocEntry } from "@/lib/i18n/pro/compare";
-import { ImuDocGlyph } from "@/components/imu-pro-logo";
+import { ImuDocsGlyph } from "@/components/imu-pro-logo";
 import { DYNAMICS_AXES, DYNAMICS_NOISE_SPAN } from "@/lib/imu/setup-dynamics";
 import type { DynamicsAxisKey } from "@/lib/imu/setup-dynamics";
 import {
@@ -83,7 +83,7 @@ export function ImuSetupDocs() {
           CLICKABLE_CARD_HOVER,
         )}
       >
-        <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
+        <ImuDocsGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:6]" />
         {words.button}
       </DialogTrigger>
       <DialogContent
@@ -101,7 +101,7 @@ export function ImuSetupDocs() {
         className="h-dvh max-h-none w-screen max-w-none grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none p-0 ring-0 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:h-[calc(100dvh-4rem)] lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)] sm:max-w-none sm:rounded-lg sm:ring-1"
       >
         <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-6 sm:px-10 sm:py-10">
-          <ImuDocGlyph className="h-auto w-[28px] text-foreground" />
+          <ImuDocsGlyph className="h-auto w-[28px] text-foreground" />
           {/* The pages' heading (2026-09-25, the setups page's): 32 px
               bold, 26 px apart. */}
           <DialogTitle className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
