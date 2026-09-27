@@ -34,6 +34,36 @@ export function ImuClockIcon({ className }: IconProps) {
   );
 }
 
+/** The bike alone (supplied art, Bikes_2/enduro.svg, 2026-09-27): the
+ * event card's mark when the cursor is in no event — it was Lucide's.
+ * Drawn wider than tall, so it fits the tile's square by its width; the
+ * art's 4-unit line thickened to 7 so it reads at the tiles' weight. */
+export function EnduroBikeIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="-2 -2 105 65"
+      fill="none"
+      className={cn("overflow-visible", className)}
+      aria-hidden="true"
+    >
+      <g
+        stroke="currentColor"
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2 42.6422C2 51.4629 9.15063 58.6135 17.9714 58.6135C26.7921 58.6135 33.9427 51.4629 33.9427 42.6422C33.9427 33.8214 26.7921 26.6708 17.9714 26.6708C9.15063 26.6708 2 33.8214 2 42.6422Z" />
+        <path d="M82.9061 58.6135C91.7268 58.6135 98.8773 51.4629 98.8773 42.6422C98.8773 33.8214 91.7268 26.6708 82.9061 26.6708C74.0853 26.6708 66.9347 33.8214 66.9347 42.6422C66.9347 51.4629 74.0853 58.6135 82.9061 58.6135Z" />
+        <path d="M82.9061 42.9633L66.9347 4.55144L74.9204 2.00055" />
+        <path d="M47.0562 42.395L34.5076 12.7922" />
+        <path d="M47.0564 42.6422L69.7494 11.3212L47.0564 24.4803L47.5311 31.949" />
+        <path d="M47.0566 42.6422H17.9716L40.6014 28.2235" />
+        <path d="M28.5637 12.7261H43.5074" />
+      </g>
+    </svg>
+  );
+}
+
 /** A bike between two lips — takeoff and landing. */
 export function JumpIcon({ className }: IconProps) {
   return (

@@ -14,7 +14,10 @@ import {
 } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
-import { ImuSessionAnalysis } from "@/components/imu-session-analysis";
+import {
+  ImuSessionAnalysis,
+  SessionFileBadges,
+} from "@/components/imu-session-analysis";
 import { ImuSessionSettings } from "@/components/imu-session-settings";
 import type { ImuSnapshotTwin } from "@/components/imu-snapshot-create";
 import {
@@ -291,6 +294,9 @@ export default async function ImuSessionPage({
                     {t.common.units.samples}
                   </span>
                 </p>
+                {/* How the file was read — realignment and the front of
+                    the bike — once the recording is loaded. */}
+                <SessionFileBadges />
                 {/* The run's setup used to stand here in one line — the
                     fork, the shock and the tyres as they were set. Hidden
                     by request (2026-09-24): three lines of knobs under the
