@@ -12,6 +12,8 @@ import {
 } from "react";
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   Gauge,
@@ -22,9 +24,7 @@ import {
   Scissors,
   TrendingDown,
   TrendingUp,
-  TriangleAlert,
   Undo2,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE, DARK_CARD_HAIRLINE_SM } from "@/lib/card-styles";
@@ -36,8 +36,10 @@ import {
 import {
   BrakingIcon,
   CurveLeftIcon,
+  CrashIcon,
   CurveRightIcon,
   DropIcon,
+  ImpactIcon,
   EnduroBikeIcon,
   ImuClockIcon,
   JumpIcon,
@@ -177,11 +179,11 @@ const EVENT_KIND_DEFS = [
   // No "Drops" entry: the detector calls every flight a jump (the pre-load
   // heuristic mislabelled real jumps on 2026-09-09), and a file that
   // brings its own drops still draws them — they just have no switch.
-  { kind: "impact", Icon: Zap },
+  { kind: "impact", Icon: ImpactIcon },
   { kind: "rough_section", Icon: RoughSectionIcon },
   { kind: "braking", Icon: BrakingIcon },
   // Lucide's warning triangle until there is art of its own (2026-09-26).
-  { kind: "crash", Icon: TriangleAlert },
+  { kind: "crash", Icon: CrashIcon },
 ] as const;
 
 /** The high-g sensor's shocks (firmware V15) as a kind of their own on the
@@ -305,6 +307,9 @@ interface EventMetric {
    * track would be a rendering bug rather than a fact.
    */
   progress?: number;
+  /** A mark at the box's right: an arrow and two short lines — the jump's
+   * "↓ Frente desceu" beside its rotation (the layout, 2026-09-28). */
+  side?: { arrow: "up" | "down"; text: string };
   /** The words behind the (i) beside the label — what the figure is and
    * how to read it (the lip's first, 2026-09-27). */
   info?: MetricInfoWords;
@@ -722,13 +727,14 @@ function describeEvent(
         // jumps more of it went with SOFTER landings (r ≈ −0.45), the
         // bike matched to a landing that falls away.
         metrics.push({
-          label:
-            pitch.rotationDeg >= 0
-              ? t.event.airRotationDown
-              : t.event.airRotationUp,
+          label: t.event.airRotation,
           value: String(Math.round(Math.abs(pitch.rotationDeg))),
           unit: "°",
           info: t.event.airRotationInfo,
+          side:
+            pitch.rotationDeg >= 0
+              ? { arrow: "down", text: t.event.noseDown }
+              : { arrow: "up", text: t.event.noseUp },
         });
       }
       // The lip: the hardest compression in the half second before the
@@ -891,7 +897,7 @@ function describeEvent(
         : null;
       return {
         title: t.event.impactTitle(severity),
-        Icon: Zap,
+        Icon: ImpactIcon,
         metrics,
       };
     }
@@ -1156,7 +1162,7 @@ function describeEvent(
         unit: "s",
         Icon: StatStopwatchIcon,
       });
-      return { title: t.event.crashTitle, Icon: TriangleAlert, metrics };
+      return { title: t.event.crashTitle, Icon: CrashIcon, metrics };
     }
   }
 }
@@ -2641,7 +2647,7 @@ export function ImuSessionAnalysis({
             section — still stack two cards and still grow past it. */}
           <div
             className={cn(
-              "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:rounded-lg sm:border-0 sm:bg-card/40 sm:p-6",
+              "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:border-0 sm:p-0",
               // It lives inside the columns block now, which is what lets the
               // Rider panel fall past it on a phone — `order` can only shuffle
               // siblings, and these two were in different parents.
@@ -2662,14 +2668,9 @@ export function ImuSessionAnalysis({
               // every combination. Zero only on a phone, where the top rule is
               // the divider and a gap would leave it floating.
               "order-3 sm:mt-[22px] lg:order-4 lg:col-span-full",
-              // The identity card's treatment, and only from `sm` for the same
-              // reason the hairline is: below that this is a transparent section
-              // inside the one big card, and neither a translucent fill nor a
-              // ring means anything there. The light outline is what the 40%
-              // fill costs — #f5f5f5 against the page's #efefef no longer draws
-              // its own edge. Dark keeps the hairline's 60%.
-              "sm:ring-1 sm:ring-inset sm:ring-border",
-              DARK_CARD_HAIRLINE_SM,
+              // No card of its own from `sm` (by request, 2026-09-28): the
+              // channel cards and the event cards stand straight on the page,
+              // each a card, instead of boxes inside a translucent one.
             )}
           >
             {cursorIndex < 0 ? (
@@ -2810,7 +2811,7 @@ export function ImuSessionAnalysis({
                               // the cards are grid items and the gap between
                               // them is the grid's, so a margin here would add
                               // to it instead of replacing it.
-                              "lg:rounded-[12px] lg:border lg:border-border lg:bg-card lg:p-5 lg:mt-0",
+                              "lg:mt-0 lg:rounded-[22px] lg:bg-card lg:p-[22px] lg:dark:ring-1 lg:dark:ring-inset lg:dark:ring-border/60",
                               i > 0
                                 ? "mt-5 border-t border-border pt-5"
                                 : group.heading
@@ -2938,8 +2939,9 @@ export function ImuSessionAnalysis({
                     // out of the card. Nothing to lay out, no layout: the
                     // outline is then the half's only child and simply fills
                     // it.
-                    eventsOn &&
-                      "lg:grid lg:grid-cols-[repeat(auto-fit,minmax(max(320px,(100%_-_11px)/2),1fr))] lg:items-start lg:gap-[11px]",
+                    // (2026-09-28) Now one column: each event is a full card
+                    // of its own, stacked 18px apart (the layout).
+                    eventsOn && "lg:flex lg:flex-col lg:gap-[18px]",
                   )}
                 >
                   {!eventsOn && (
@@ -3173,21 +3175,6 @@ export function ImuSessionAnalysis({
  */
 const TELEMETRY_GLYPH_CLASS =
   "h-auto w-[20px] shrink-0 text-foreground [&_path]:[stroke-width:2.25]";
-
-/**
- * The marks in an event card's box of facts: full ink where the résumé's
- * tiles are muted, at the same 1.5px stroke (by request, 2026-09-11 — 2px
- * was tried the same day and read too heavy against the figures).
- *
- * The width is pinned ON THE PAGE, whatever the glyph: the box holds
- * supplied art in 19- to 24-unit viewBoxes and Lucide's 24, each with a
- * stroke tuned to its own box, and one override in units would paint a
- * different width on each. `non-scaling-stroke` makes the width a screen
- * measure, so the same 1.5px lands on all of them — and on every element,
- * not just `path`, because Lucide draws circles and lines too.
- */
-const FACT_ICON_CLASS =
-  "size-5 shrink-0 text-foreground [&_*]:[vector-effect:non-scaling-stroke] [&_*]:[stroke-width:1.5px]";
 
 /**
  * The page's shell.
@@ -3828,7 +3815,6 @@ function EventCard({
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
   const outside = title != null && outsideMs !== 0;
-  const allPlainMarked = plain.every((m) => m.Icon);
   /**
    * The titleless card's single figure, printed in its head. Guarded on the
    * count and not just on the title: the card is built with exactly one
@@ -3836,53 +3822,38 @@ function EventCard({
    * rather than the head quietly dropping it.
    */
   const soleFigure = title == null && metrics.length === 1 ? metrics[0] : null;
+  const hasBody = metrics.length > 0 && soleFigure == null;
   return (
+    // A card of its own on the page (2026-09-28, the supplied layout): no
+    // longer a box inside the reading's card. White, the lab's 22px
+    // corner; the head ruled off from the figures, and the figures in
+    // boxes of their own under it. Outside the event — within its reach
+    // but not inside it — the whole card dims to a ghost of the event the
+    // cursor just left.
     <div
       className={cn(
-        // Its own solid fill, like the résumé tiles: the card under it is
-        // translucent from `sm` up, and an outlined box with nothing behind
-        // it would let the lab's dot texture run straight through the
-        // figures. On a phone the surface under it is still opaque white, so
-        // this costs nothing there.
-        // No padding on the card itself (by request, 2026-09-10 — a layout
-        // was supplied): its three bands — head, facts, readings — are
-        // divided by rules that run edge to edge, the Rider card's idiom,
-        // so each band pays its own padding. 20px on the sides, the metric
-        // cards' `p-5`: the two kinds of card stand side by side in the
-        // reading, so their contents have to start on the same line.
-        // `overflow-hidden` so the bands' rules stop at the rounded corner.
-        "@container overflow-hidden rounded-[12px] border border-border bg-card",
-        // Outside the event — within its reach but not inside it — the whole
-        // card dims, facts and readings alike (by request, 2026-09-10;
-        // dimming only the live modules read as two cards in one). Down to
-        // 30 %: the card is a ghost of the event the cursor just left, there
-        // so the panel does not blank and jump, not to be read as if the
-        // cursor were still inside.
+        "@container overflow-hidden rounded-[22px] bg-card",
+        DARK_CARD_HAIRLINE,
         outside && "opacity-30 transition-opacity",
         className,
       )}
     >
-      {/* The head: mark, name and time on the left; the Snapshot pill and
-          the confidence on the right, centred on the two lines (the
-          supplied layout). Wrapping, so in a narrow card — 305px on a
-          phone — the pill and the confidence drop to a line of their own,
-          right-aligned by `ml-auto`, instead of squeezing the name until
-          the time runs under them.
-
-          `min-h-[90px]`: the head's height WITH the Snapshot pill — 50px of
-          pill and 20 of padding each side — held when the pill is not there
-          (outside the event, only the confidence stays), so the card does
-          not change height as the cursor crosses an event's edge (by
-          request, 2026-09-10). Border-box, so the padding is inside it. */}
-      <div className="flex min-h-[90px] flex-wrap items-center justify-between gap-3 px-5 py-5">
+      {/* The head: mark, name and time on the left; the confidence and the
+          Compare button on the right, the button last (the layout).
+          Wrapping, so in a narrow card the right-hand pair drops to a line
+          of its own, right-aligned by `ml-auto`. `min-h-[88px]` holds the
+          head's height with the button when it is not there (outside the
+          event), so the card does not jump as the cursor crosses an edge. */}
+      <div
+        className={cn(
+          "flex min-h-[88px] flex-wrap items-center justify-between gap-3 p-[22px]",
+          hasBody && "border-b border-border",
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-sidebar text-white">
-            <Icon className="size-5" />
+            <Icon className="h-5 w-auto max-w-6" />
           </span>
-          {/* An instant no event covers has no name worth printing — the
-              old "Andamento normal" was a label for the absence of one. The
-              time takes the headline's place instead: it is the only fact
-              the card carries, so it gets the headline's weight. */}
           <div className="min-w-0">
             {title && <p className="leading-tight font-semibold">{title}</p>}
             {timeMs != null && (
@@ -3899,10 +3870,6 @@ function EventCard({
                 />
                 {formatSessionTime(timeMs, true)}
                 {outside && (
-                  // Where the instant stands against the event, in the
-                  // reader's words: "0,4 s antes", "0.8 s after". One
-                  // decimal — the reach is half a second to a few, and a
-                  // millisecond here would be noise dressed as precision.
                   <span className="truncate">
                     {" · "}
                     {/* Rounded UP to the tenth: 20 ms outside is "0,1 s",
@@ -3922,28 +3889,25 @@ function EventCard({
         </div>
         {(action || confidence != null) && (
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            {action}
+            {/* The confidence as a quiet outlined tag with the event's own
+                mark — a note on the reading, not a figure. */}
             {confidence != null && (
-              // Named, not just a bare percentage: on its own in the corner
-              // of a card, "98%" reads as a share of something the card is
-              // about — how much of the ride was a jump, say — when it is
-              // the detector's own certainty that this IS a jump.
-              <span className="text-sm text-muted-foreground">
-                {t.confidence}{" "}
-                <span className="tabular-nums">
-                  {Math.round(confidence * 100)}%
+              <span className="inline-flex items-center gap-3 rounded-[6px] border-[0.5px] border-[#c9c9c9] px-2.5 py-0.5 text-xs leading-4 text-[#c9c9c9] dark:border-[#4a4d53] dark:text-[#75787e]">
+                <Icon className="h-3 w-auto max-w-4 shrink-0" />
+                <span>
+                  {t.confidence}{" "}
+                  <span className="tabular-nums">
+                    {Math.round(confidence * 100)}%
+                  </span>
                 </span>
               </span>
             )}
+            {action}
           </div>
         )}
-        {/* The titleless card's figure rides the head's far end instead of
-            going down into a box of its own. An instant no event covers
-            carries ONE number, and a ruled box around a single cell is a
-            container drawn for nothing — the row is the card. No label
-            either: the reading panel beside it names the channel, and here
-            "G force" under a lone 1.05 would say what the whole card is
-            about twice. */}
+        {/* The titleless card's figure rides the head's far end: an instant
+            no event covers carries one number, and a box around a single
+            cell is a container drawn for nothing. */}
         {title == null && soleFigure && (
           <p className="shrink-0 leading-tight font-semibold tabular-nums">
             {soleFigure.value}
@@ -3957,175 +3921,96 @@ function EventCard({
         )}
       </div>
 
-      {/* The figures, split the way the data already splits them: the ones
-          that carry an "agora" comparison are the event's own peaks — they
-          get the room, the big figure and the bar — and the rest are single
-          facts, which go in a ruled box.
-
-          The box comes FIRST and the peaks under it (by request,
-          2026-09-10): the facts are what the corner was — radius, entry to
-          exit, retention, duration — and the peaks with their bars are what
-          the cursor is doing inside it right now. The card is read top
-          down: the event, then the instant.
-
-          It is not a new flag: a metric HAS a comparison when the cursor can
-          sit inside the quantity it describes, and those are exactly the
-          ones worth watching move. */}
-      {metrics.length > 0 && soleFigure == null && (
-        <>
-          {/* The plain figures as one band of cells under a rule, each with
-              its mark beside the figure — the rules run edge to edge (the
-              supplied layout), no box inside the card. The dividers are
-              `gap-px` letting the band's own colour through rather than
-              borders on the cells, because a border would have to know
-              which cell ends each row, and the band breaks differently at
-              every width — the first cell of a second row would carry a
-              line against nothing.
-
-              WRAPPING FLEX AND NOT A GRID, and that is the whole trick: a
-              grid keeps its columns on the last row whether or not there are
-              cells to put in them, so four figures over three columns left
-              two empty tracks — and an empty track over a `bg-border` band
-              is a grey slab, which is exactly what it looked like. Flex has
-              no phantom cells: the last row holds only what is in it, and
-              the one that is left stretches to the width. How many share a
-              row is a share of the CARD's width — two at any width, three
-              from 768px, and all six on one row from 1240px, the 1px taken
-              off each for the gaps — so a wide card reads 3 + 3 and a
-              full-width one a single row (by request, 2026-09-10: a 140px
-              basis packed four into the first row and two into the
-              second). Two and not one on a phone (by request, 2026-09-11):
-              six facts one under the other were a column of the card's
-              height to scroll past. A cell whose figure is wider than its
-              half — "39 → 27 → 27 km/h" needs ~190px at the phone's
-              padding — does not wrap the figure (see below); it grows, its
-              neighbour drops to the next row, and the band reflows around
-              it. 1240 is measured: the widest cell, with its mark and
-              padding, needs ~205px, and six of those is 1230. Measured
-              against the card and not the window: the reading's split is
-              dragged by hand. Both steps are written as `@min-[…]` and not
-              as `@lg`/`@3xl`: Tailwind emits the named ones AFTER an
-              arbitrary one, so at 1282px the 33% rule came later in the
-              sheet and beat the 16% one that also matched. */}
+      {/* The figures, in boxes (the layout): the plain facts first, in one
+          row of equal boxes that wraps when the card is narrow; under them
+          the peaks — the figures with an "agora" and a bar — in bigger
+          boxes. The event first, then the instant inside it. Flex and not a
+          grid, so a short last row stretches instead of leaving an empty
+          track; a box whose figure is wider than its share grows. */}
+      {hasBody && (
+        <div className="space-y-3 p-[22px]">
           {plain.length > 0 && (
-            <div
-              // `bg-clip-padding`, and it is what keeps every rule the same
-              // weight: a background reaches the BORDER box by default, so
-              // the band's `--border` fill sat under its own `--border`
-              // top rule — two coats of the same 9% ink, and the horizontal
-              // rules came out darker than the vertical ones the gaps paint
-              // in one coat. Clipped to the padding box, the rule paints
-              // over the card's white like the gaps do — the Rider card's
-              // lines, all one weight (by request, 2026-09-10).
-              className="flex flex-wrap gap-px border-t border-border bg-border bg-clip-padding"
-            >
+            <div className="flex flex-wrap gap-3">
               {plain.map((metric) => (
                 <div
                   key={metric.label}
-                  // 16px of side padding until the card is 512px wide, the
-                  // 20 the rest of the cards wear from there: at 345px two
-                  // cells across leave 172 each, and the 8px are what keep
-                  // "Inclinação teórica" and its mark on one line.
-                  className="flex grow basis-[calc(50%-1px)] items-center gap-3 bg-card px-4 py-6 @min-[512px]:px-5 @min-[768px]:basis-[calc(33.333%-1px)] @min-[1240px]:basis-[calc(16.666%-1px)]"
+                  className="flex grow basis-[130px] items-center justify-between gap-3 rounded-[16px] border border-border p-5"
                 >
-                  {/* All or none: see EventMetric.Icon. */}
-                  {allPlainMarked && metric.Icon && (
-                    <metric.Icon className={FACT_ICON_CLASS} />
-                  )}
-                  {/* No `min-w-0` here, and the figure does not wrap: the
-                      unit stays on the numbers' line — "24 → 18 → 24 km/h"
-                      had been breaking before "km/h" (by request,
-                      2026-09-10) — and the cell grows to fit it, which the
-                      wrapping band absorbs by reflowing the others. */}
                   <div>
-                    <p className="leading-tight font-semibold whitespace-nowrap tabular-nums">
-                      {metric.value}
-                      {metric.unit && (
-                        <span className="text-sm font-normal text-muted-foreground">
-                          {/^[°/]/.test(metric.unit) ? "" : " "}
-                          {metric.unit}
-                        </span>
-                      )}
-                    </p>
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <p className="flex items-center gap-1 text-xs leading-4">
                       {metric.label}
                       {metric.info && (
                         <MetricInfo label={metric.label} info={metric.info} />
                       )}
                     </p>
+                    {/* The figure never wraps, so "24 → 16 → 24 km/h"
+                        keeps its unit on the line and its box grows. */}
+                    <p className="mt-0.5 text-base leading-6 font-bold whitespace-nowrap tabular-nums">
+                      {metric.value}
+                      {metric.unit && (
+                        <span className="font-normal">
+                          {/^[°/]/.test(metric.unit) ? "" : " "}
+                          {metric.unit}
+                        </span>
+                      )}
+                    </p>
                   </div>
+                  {metric.side && (
+                    <div className="flex shrink-0 flex-col items-center text-center text-xs leading-3">
+                      {metric.side.arrow === "down" ? (
+                        <ArrowDown className="size-5" strokeWidth={1.5} />
+                      ) : (
+                        <ArrowUp className="size-5" strokeWidth={1.5} />
+                      )}
+                      <span className="mt-0.5 whitespace-pre-line">
+                        {metric.side.text}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
-
-          {/* The peaks — the modules with an "agora" and a bar — as a second
-              band of cells under their own rule, the same idiom as the facts
-              (the supplied layout). Wrapping flex for the same reason, and
-              the same shares of the card's width as the facts — one, two
-              from 512px, three from 768px — so the three modules sit on one
-              row wherever the facts do, and a partial last row stretches. */}
           {compared.length > 0 && (
-            <div
-              // `bg-clip-padding`, and it is what keeps every rule the same
-              // weight: a background reaches the BORDER box by default, so
-              // the band's `--border` fill sat under its own `--border`
-              // top rule — two coats of the same 9% ink, and the horizontal
-              // rules came out darker than the vertical ones the gaps paint
-              // in one coat. Clipped to the padding box, the rule paints
-              // over the card's white like the gaps do — the Rider card's
-              // lines, all one weight (by request, 2026-09-10).
-              className="flex flex-wrap gap-px border-t border-border bg-border bg-clip-padding"
-            >
+            <div className="flex flex-wrap gap-3">
               {compared.map((metric) => (
                 <div
                   key={metric.label}
-                  className="min-w-0 grow basis-full bg-card px-5 py-7 @min-[512px]:basis-[calc(50%-1px)] @min-[768px]:basis-[calc(33.333%-1px)]"
+                  className="min-w-0 grow basis-[260px] rounded-[16px] border border-border px-5 py-10"
                 >
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <p className="flex items-center gap-1.5 text-xs leading-4">
                     {metric.label}
                     {metric.info && (
                       <MetricInfo label={metric.label} info={metric.info} />
                     )}
                   </p>
-                  <div className="mt-1 flex items-center gap-3">
-                    {/* The figure, with its detail line right under it —
-                        in one block, so the line sits against the figure
-                        and not under the whole row. */}
+                  <div className="mt-0.5 flex items-center gap-[30px]">
+                    {/* The figure, with its detail line right under it. */}
                     <div className="shrink-0">
-                      <p className="text-[22px] leading-none font-semibold tabular-nums">
+                      <p className="text-[20px] leading-6 font-bold tabular-nums">
                         {metric.value}
                         {metric.unit && (
-                          // Degrees and "/100" ride against the figure;
-                          // word-like units (G, s, G RMS) take their space.
-                          <span className="text-sm font-normal text-muted-foreground">
+                          <span className="font-normal">
                             {/^[°/]/.test(metric.unit) ? "" : " "}
                             {metric.unit}
                           </span>
                         )}
                       </p>
                       {metric.detail && (
-                        <p className="mt-1 text-sm leading-none text-foreground tabular-nums">
+                        <p className="mt-1 text-xs leading-4 tabular-nums">
                           {metric.detail}
                         </p>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       {metric.now && (
-                        // Full ink and not the muted grey the labels wear:
-                        // this is a live reading, the one thing on the card
-                        // that changes as the cursor moves, and at 14px in
-                        // grey it was the faintest thing in the module while
-                        // being the only one worth watching.
-                        <p className="truncate text-sm tabular-nums">
-                          {t.now(metric.now)}
+                        <p className="truncate text-xs leading-4 tabular-nums">
+                          {t.nowWord}{" "}
+                          <span className="font-bold">{metric.now}</span>
                         </p>
                       )}
-                      {/* Where the instant sits between the module's floor
-                          and its ceiling — zero and the event's peak for the
-                          G and lean modules, the corner's slowest and fastest
-                          for the speed. Not a health or Ride Load bar: its
-                          ends are this event's own, nothing global. */}
+                      {/* Where the instant sits between the event's own
+                          floor and its peak — nothing global. */}
                       {metric.progress != null && (
                         <span
                           aria-hidden
@@ -4143,7 +4028,7 @@ function EventCard({
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

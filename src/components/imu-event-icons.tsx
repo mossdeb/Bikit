@@ -64,78 +64,36 @@ export function EnduroBikeIcon({ className }: IconProps) {
   );
 }
 
-/** A bike between two lips — takeoff and landing. */
+/** A jump: the lip and the arrow off it (supplied art, IMU_v3, 2026-09-28). */
 export function JumpIcon({ className }: IconProps) {
   return (
     <svg
-      viewBox="0 0 19 16"
+      viewBox="0 0 22 23"
       fill="none"
       className={className}
       aria-hidden="true"
     >
-      <g clipPath="url(#imu-jump-clip)">
-        <path
-          d="M6.2734 7.59075C7.30851 7.59075 8.14764 6.75163 8.14764 5.71652C8.14764 4.68141 7.30851 3.84229 6.2734 3.84229C5.23829 3.84229 4.39917 4.68141 4.39917 5.71652C4.39917 6.75163 5.23829 7.59075 6.2734 7.59075Z"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M12.4685 6.28301C13.5036 6.28301 14.3427 5.44389 14.3427 4.40878C14.3427 3.37367 13.5036 2.53455 12.4685 2.53455C11.4334 2.53455 10.5942 3.37367 10.5942 4.40878C10.5942 5.44389 11.4334 6.28301 12.4685 6.28301Z"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M6.27332 5.71662L10.5803 4.80737"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M8.4115 0.57353L9.41356 0.361985C9.64458 0.313215 9.88185 0.411266 10.011 0.608899L12.456 4.34894"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M9.34708 5.0053L7.53125 2.17151"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M6.48389 2.44169L8.7068 1.97241"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M8.30066 3.37308L11.4111 2.71643"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M0.349609 8.84705H1.93886L5.11735 13.6148V15.204H0.448652L0.349609 8.84705Z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M17.9303 8.84705H16.3411L13.1626 13.6148V15.204H17.8313L17.9303 8.84705Z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="0.819893"
-          strokeLinejoin="round"
-        />
-      </g>
-      <defs>
-        <clipPath id="imu-jump-clip">
-          <rect width="18.28" height="15.5536" fill="white" />
-        </clipPath>
-      </defs>
+      <path
+        d="M0.75 13.1963L15.2362 1.66272"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.1558 0.75H15.7904V4.58698"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M1.99072 21.7777L20.8291 8.51965V21.7777H1.99072Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -209,145 +167,348 @@ export function DropIcon({ className }: IconProps) {
   );
 }
 
-/** A wheel over broken ground — roots, rocks, a rock garden. */
+/** A bike over broken ground (supplied art, IMU_v3, 2026-09-28). */
 export function RoughSectionIcon({ className }: IconProps) {
   return (
     <svg
-      viewBox="0 0 18 19"
+      viewBox="0 0 29 24"
       fill="none"
       className={className}
       aria-hidden="true"
     >
-      <g clipPath="url(#imu-rough-clip)">
-        <path
-          d="M0.408203 18.2746L3.2728 13.9777L6.1374 18.2223L9.002 13.9777L11.8666 18.2223L14.7312 14.1093L17.5958 18.2746"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M7.01432 10.5272C9.51675 11.6679 12.4701 10.564 13.6108 8.06158C14.7515 5.55915 13.6476 2.6058 11.1452 1.46509C8.64276 0.324385 5.68941 1.42828 4.5487 3.93071C3.40799 6.43314 4.51189 9.38649 7.01432 10.5272Z"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M8.73899 6.74377C9.15184 6.93196 9.63908 6.74984 9.82728 6.33699C10.0155 5.92414 9.83335 5.4369 9.4205 5.24871C9.00765 5.06052 8.52041 5.24264 8.33222 5.65549C8.14403 6.06833 8.32615 6.55557 8.73899 6.74377Z"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M8.80017 6.6095L7.02006 10.5146"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M9.82727 6.33691L13.4745 7.99945"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M9.42055 5.24869L11.1428 1.47046"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M8.33224 5.65539L4.39331 3.85986"
-          stroke="currentColor"
-          strokeWidth="0.8"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M7.01432 10.5272C9.51675 11.6679 12.4701 10.564 13.6108 8.06158C14.7515 5.55915 13.6476 2.6058 11.1452 1.46509C8.64276 0.324385 5.68941 1.42828 4.5487 3.93071C3.40799 6.43314 4.51189 9.38649 7.01432 10.5272Z"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinejoin="round"
-        />
-      </g>
-      <defs>
-        <clipPath id="imu-rough-clip">
-          <rect width="18" height="18.7129" fill="white" />
-        </clipPath>
-      </defs>
+      <path
+        d="M0.75 22.3771L5.29998 15.5584L9.84997 22.2941L14.4 15.5583L18.9499 22.2941L23.4999 15.7672L28.0499 22.3771"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4.76221 9.08973C4.76221 10.8997 6.22947 12.367 8.03944 12.367C9.8494 12.367 11.3167 10.8997 11.3167 9.08973C11.3167 7.27977 9.8494 5.8125 8.03944 5.8125C6.22947 5.8125 4.76221 7.27977 4.76221 9.08973Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeMiterlimit="10"
+      />
+      <path
+        d="M21.3637 12.367C23.1736 12.367 24.6409 10.8997 24.6409 9.08973C24.6409 7.27977 23.1736 5.8125 21.3637 5.8125C19.5537 5.8125 18.0864 7.27977 18.0864 9.08973C18.0864 10.8997 19.5537 12.367 21.3637 12.367Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeMiterlimit="10"
+      />
+      <path
+        d="M21.3637 9.15558L18.0864 1.27367L19.725 0.750244"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.007 9.03894L11.4321 2.9646"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.0073 9.08961L18.6638 2.66272L14.0073 5.3629L14.1047 6.89542"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.0071 9.08973H8.03906L12.6826 6.1311"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.2129 2.95105H13.2793"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-/** A brake rotor with a hand on it. */
+/** A brake disc and its caliper (supplied art, IMU_v3, 2026-09-28). */
 export function BrakingIcon({ className }: IconProps) {
   return (
     <svg
-      viewBox="0 0 17 17"
+      viewBox="0 0 23 23"
       fill="none"
       className={className}
       aria-hidden="true"
     >
       <path
-        d="M14.874 8.26461C14.9262 9.02916 14.8722 9.77042 14.6829 10.4983C14.313 11.9205 13.6433 13.1862 12.5951 14.2189C11.4091 15.3874 9.95429 16.038 8.30629 16.2358C4.54821 16.6868 1.01931 14.1877 0.184008 10.4982C-0.596153 7.05219 1.16105 3.52729 4.38279 2.07148C5.46309 1.58333 6.59294 1.35682 7.77827 1.41358C7.97544 1.42302 8.03366 1.47688 8.06795 1.67526C8.15355 2.17044 8.22988 2.6675 8.32847 3.1601C8.51976 4.11588 9.31144 4.88948 10.2716 5.07675C10.8071 5.18121 11.1085 5.47484 11.2139 5.99488C11.4293 7.05771 12.2373 7.82997 13.3093 8.0024C13.8261 8.08554 14.342 8.17523 14.874 8.26461ZM7.44844 5.21862C5.44937 5.21527 3.81653 6.84181 3.81138 8.84165C3.80623 10.8398 5.43238 12.4754 7.43091 12.4821C9.43696 12.4889 11.0767 10.8556 11.0761 8.85114C11.0756 6.85031 9.44941 5.22197 7.44844 5.21862ZM1.82922 8.37778C1.56561 8.37955 1.35829 8.59006 1.35998 8.85424C1.36165 9.11462 1.57925 9.33061 1.83695 9.32767C2.09257 9.32477 2.31328 9.10064 2.31067 8.84661C2.30801 8.58679 2.09156 8.37602 1.82922 8.37778ZM3.45722 13.3138C3.71841 13.3117 3.93292 13.0945 3.92904 12.8359C3.92521 12.58 3.701 12.3607 3.44661 12.3641C3.18666 12.3676 2.97689 12.5842 2.97927 12.8467C2.98166 13.11 3.19234 13.3159 3.45722 13.3138ZM11.8912 12.817C11.888 12.5539 11.6759 12.3484 11.4111 12.3517C11.1498 12.355 10.9358 12.5735 10.9412 12.8315C10.9466 13.0878 11.1722 13.307 11.4256 13.3019C11.6857 13.2967 11.8944 13.0794 11.8912 12.817ZM2.97931 4.87336C2.97747 5.13572 3.18803 5.352 3.44804 5.35481C3.70171 5.35757 3.92623 5.13649 3.92903 4.88119C3.93187 4.62272 3.71718 4.4065 3.4558 4.40458C3.19178 4.40263 2.98116 4.60985 2.97931 4.87336ZM7.91626 14.4262C7.91518 14.1668 7.69791 13.9506 7.44027 13.9524C7.18654 13.9542 6.96382 14.1799 6.9664 14.4326C6.96902 14.6897 7.18816 14.904 7.44689 14.9025C7.70887 14.9009 7.91736 14.6894 7.91626 14.4262Z"
-        fill="currentColor"
+        d="M11.2437 18.2121C15.0922 18.2121 18.212 15.0923 18.212 11.2438C18.212 7.39532 15.0922 4.27551 11.2437 4.27551C7.3952 4.27551 4.27539 7.39532 4.27539 11.2438C4.27539 15.0923 7.3952 18.2121 11.2437 18.2121Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
       />
       <path
-        d="M10.1918 0C10.932 0.0210904 11.651 0.137445 12.3367 0.409992C12.9533 0.655069 13.5017 0.588648 13.9993 0.13637C14.182 -0.0296593 14.408 -0.0204203 14.5846 0.153964C15.1083 0.671246 15.629 1.19163 16.146 1.71554C16.32 1.8918 16.3255 2.11543 16.157 2.30003C15.7083 2.7914 15.6394 3.3318 15.8797 3.94597C16.2657 4.93281 16.3599 5.95711 16.2054 7.00459C16.1533 7.35735 15.9779 7.49583 15.6234 7.43704C14.8616 7.31072 14.097 7.19532 13.3424 7.0341C12.6942 6.89561 12.2867 6.4696 12.1473 5.8171C11.9526 4.90528 11.3932 4.33845 10.4757 4.14979C9.80799 4.01248 9.35166 3.52305 9.22419 2.79704C9.09705 2.07293 8.97585 1.34779 8.8528 0.622968C8.80765 0.357031 8.93536 0.15268 9.19936 0.112378C9.52823 0.0621747 9.86083 0.0363512 10.1918 0Z"
-        fill="currentColor"
+        d="M11.2438 13.9099C12.7162 13.9099 13.9099 12.7162 13.9099 11.2438C13.9099 9.7713 12.7162 8.57764 11.2438 8.57764C9.7713 8.57764 8.57764 9.7713 8.57764 11.2438C8.57764 12.7162 9.7713 13.9099 11.2438 13.9099Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
       />
       <path
-        d="M4.76407 8.85685C4.73313 7.50766 5.8278 6.18137 7.43713 6.16349C8.91344 6.14708 10.1488 7.38327 10.1313 8.85911C10.1124 10.4642 8.78435 11.5572 7.40317 11.5348C5.9573 11.5113 4.76408 10.3206 4.76407 8.85685ZM9.15709 8.84699C9.15561 7.893 8.39809 7.13744 7.44314 7.13749C6.49482 7.13753 5.72374 7.90246 5.71999 8.8469C5.71626 9.78429 6.51616 10.5825 7.45119 10.5744C8.39765 10.5662 9.15855 9.79572 9.15709 8.84699Z"
-        fill="currentColor"
+        d="M11.2438 22.0496C17.2117 22.0496 22.0496 17.2117 22.0496 11.2438C22.0496 5.27592 17.2117 0.437988 11.2438 0.437988C5.27592 0.437988 0.437988 5.27592 0.437988 11.2438C0.437988 17.2117 5.27592 22.0496 11.2438 22.0496Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
       />
       <path
-        d="M7.43075 9.62247C7.0817 9.65448 6.64598 9.29641 6.66804 8.82829C6.68748 8.41586 7.02484 8.06708 7.44204 8.06592C7.86478 8.06474 8.2322 8.43351 8.22859 8.85533C8.22491 9.28474 7.87265 9.62344 7.43075 9.62247Z"
+        d="M10.3275 18.2121L9.01221 12.7018"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.6308 10.0733L12.2393 4.24353"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4.39893 10.0983L10.7064 8.63196"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.9893 13.2676L18.0615 12.0569"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.64893 15.2922L8.85706 10.0723"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.9097 11.2439L16.7475 6.82227"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.1626 5.55884L12.7725 9.00665"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11.2437 13.91L15.6081 16.6744"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.02148 21.206C7.21849 19.9861 7.41549 18.7662 7.6125 17.5463"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.7695 5.23381L15.4667 0.91687"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M1.09961 6.83887C2.40022 7.0489 4.08713 7.25894 5.38774 7.46898"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17.583 14.6694C18.8516 14.8743 20.1201 15.0792 21.3886 15.284"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M1.08496 15.2488C2.067 14.5399 3.48325 13.5681 4.46528 12.8591"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17.9409 9.31713C18.9828 8.56499 20.3613 7.62604 21.4032 6.8739"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.05664 0.902344L9.70176 4.56633"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.9897 17.9916C13.6987 18.9736 14.7226 20.2384 15.4316 21.2204"
+        stroke="currentColor"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M21.9217 5.91994L18.625 4.57101C17.9476 4.29388 17.2056 4.79203 17.2056 5.52385V16.4364C17.2056 17.1682 17.9476 17.6663 18.625 17.3892L21.9217 16.0403C22.3086 15.882 22.5614 15.5055 22.5614 15.0874V6.87278C22.5614 6.45476 22.3086 6.07824 21.9217 5.91994Z"
         fill="currentColor"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-/**
- * A junction with one branch taken.
- *
- * The taken branch rides currentColor — bright against the tile — and the two
- * untaken ones stay the supplied #434343. That grey is fixed rather than a
- * dimmed currentColor because the tile it sits on is itself fixed dark
- * (bg-sidebar), so the pair reads the same in both themes.
- */
+/** The same junction, right-hand branch taken — the left one mirrored. */
 export function CurveRightIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 19 18" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 26 20"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <g transform="translate(25.56 0) scale(-1 1)">
+        <path
+          d="M22.9985 4.13269L24.7151 5.84929C24.8769 6.01105 24.8769 6.27331 24.7151 6.43506L22.9985 8.15167"
+          stroke="#6A6A6A"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M2.56497 8.15167L0.848368 6.43506C0.686612 6.27331 0.686612 6.01105 0.848368 5.84929L2.56497 4.13269"
+          stroke="currentColor"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M10.7725 2.56485L12.4891 0.848245C12.6508 0.68649 12.9131 0.68649 13.0748 0.848245L14.7914 2.56485"
+          stroke="#6A6A6A"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M24.3046 6.06335C19.1968 6.06335 15.0562 10.204 15.0562 15.3118V18.549"
+          stroke="#6A6A6A"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M1.24023 6.06335C6.34803 6.06335 10.4887 10.204 10.4887 15.3118V18.549"
+          stroke="currentColor"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12.7793 18.549V1.64575"
+          stroke="#6A6A6A"
+          strokeWidth="1.45388"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    </svg>
+  );
+}
+
+/** A junction, left-hand branch taken (supplied art, IMU_v3, 2026-09-28): the taken branch in currentColor, the two not taken in the art's fixed grey, which reads on the dark tile and on white alike. */
+export function CurveLeftIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 26 20"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
       <path
-        d="M14.4,10.5c0,.2,0,.3,0,.5,0,.2,0,.3.2.4.2,0,.3,0,.4,0,1-.8,2-1.5,3-2.3.3-.2.3-.5,0-.7-1-.8-2-1.5-3-2.3-.1-.1-.3-.1-.4,0-.2,0-.2.2-.2.4,0,.2,0,.4,0,.5-.3,0-.6,0-.9,0-2.8.2-5.4,2.4-6,5.2-.1.5-.2,1.1-.2,1.7,0,1,0,2.1,0,3.1,0,.3.1.5.5.5.9,0,1.7,0,2.6,0,.3,0,.5-.1.5-.5,0-1.1,0-2.2,0-3.4,0-1.4.8-2.5,2.1-3,.4-.1,1-.2,1.4-.1Z"
-        fill="currentColor"
+        d="M22.9985 4.13269L24.7151 5.84929C24.8769 6.01105 24.8769 6.27331 24.7151 6.43506L22.9985 8.15167"
+        stroke="#6A6A6A"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <path
-        d="M7.4,10.5c.3-.5.6-1,1-1.4.6-.8,1.5-1.5,2.4-2,.1,0,.2-.1.2-.2,0-.9,0-1.9,0-2.8v-.2c.2,0,.4,0,.5,0,.2,0,.3,0,.4-.2,0-.2,0-.3,0-.4-.8-1-1.5-2-2.3-3-.2-.3-.5-.3-.7,0-.8,1-1.5,2-2.3,3-.1.1-.2.3,0,.4,0,.2.2.2.4.2.2,0,.3,0,.5,0v6.7Z"
-        fill="#434343"
+        d="M2.56497 8.15167L0.848368 6.43506C0.686612 6.27331 0.686612 6.01105 0.848368 5.84929L2.56497 4.13269"
+        stroke="currentColor"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <path
-        d="M3.8,7c0-.2,0-.4,0-.6,0-.2,0-.3-.2-.4-.2,0-.3,0-.4,0-1,.8-2,1.5-3,2.3-.3.2-.3.5,0,.7,1,.8,2,1.5,3,2.3.1.1.3.2.4,0,.2,0,.2-.2.2-.4,0-.2,0-.3,0-.5,1.1,0,2,.2,2.8,1.1,0,0,0-.1,0-.1,0-1.3,0-2.5,0-3.8,0-.1,0-.2-.1-.2-.8-.3-1.5-.4-2.3-.5-.1,0-.2,0-.3,0Z"
-        fill="#434343"
+        d="M10.7725 2.56485L12.4891 0.848245C12.6508 0.68649 12.9131 0.68649 13.0748 0.848245L14.7914 2.56485"
+        stroke="#6A6A6A"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M24.3046 6.06335C19.1968 6.06335 15.0562 10.204 15.0562 15.3118V18.549"
+        stroke="#6A6A6A"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M1.24023 6.06335C6.34803 6.06335 10.4887 10.204 10.4887 15.3118V18.549"
+        stroke="currentColor"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.7793 18.549V1.64575"
+        stroke="#6A6A6A"
+        strokeWidth="1.45388"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-/** The same junction, left-hand branch taken. */
-export function CurveLeftIcon({ className }: IconProps) {
+/** An impact: the burst (supplied art, IMU_v3, 2026-09-28) — it had been Lucide's bolt. */
+export function ImpactIcon({ className }: IconProps) {
   return (
-    <svg viewBox="0 0 20 19" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 19 19"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
       <path
-        d="M4.1,11.3c0,.2,0,.4,0,.6,0,.2,0,.3-.2.4-.2,0-.3,0-.5,0-1.1-.8-2.1-1.6-3.2-2.5-.3-.2-.3-.5,0-.7,1.1-.8,2.1-1.6,3.2-2.5.1-.1.3-.2.5,0,.2,0,.2.2.2.4,0,.2,0,.4,0,.6.3,0,.6,0,.9,0,3,.3,5.8,2.6,6.4,5.6.1.6.2,1.2.2,1.8,0,1.1,0,2.2,0,3.3,0,.4-.1.5-.5.5-.9,0-1.8,0-2.8,0-.4,0-.5-.1-.5-.5,0-1.2,0-2.4,0-3.6,0-1.5-.9-2.7-2.3-3.2-.4-.1-1.1-.2-1.5-.1Z"
-        fill="currentColor"
+        d="M9.49987 0.522583L10.8121 6.33195L15.8479 3.152L12.6679 8.18774L18.4773 9.49999L12.6679 10.8122L15.8479 15.848L10.8121 12.668L9.49987 18.4774L8.18762 12.668L3.15188 15.848L6.33182 10.8122L0.522461 9.49999L6.33182 8.18774L3.15188 3.152L8.18762 6.33195L9.49987 0.522583Z"
+        stroke="currentColor"
+        strokeWidth="1.35951"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** A crash: the warning triangle (supplied art, IMU_v3, 2026-09-28) — it had been Lucide's. */
+export function CrashIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 22 20"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M9.67463 1.42931L0.930196 16.8569C0.416819 17.7626 1.05854 18.8948 2.0853 18.8948H19.5742C20.6009 18.8948 21.2426 17.7626 20.7293 16.8569L11.9848 1.42931C11.4714 0.523565 10.188 0.523565 9.67463 1.42931Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
       />
       <path
-        d="M11.7,11.3c-.4-.5-.7-1.1-1.1-1.5-.7-.9-1.6-1.6-2.6-2.1-.1,0-.2-.1-.2-.3,0-1,0-2,0-3v-.2c-.2,0-.4,0-.6,0-.2,0-.3,0-.4-.2,0-.2,0-.3,0-.5.8-1.1,1.6-2.1,2.4-3.2.2-.3.5-.3.7,0,.8,1.1,1.6,2.1,2.4,3.2.1.1.2.3,0,.5,0,.2-.2.2-.4.2-.2,0-.4,0-.6,0v7.1Z"
-        fill="#434343"
+        d="M10.8301 4.77661V12.8558"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <path
-        d="M15.5,7.5c0-.2,0-.4,0-.6,0-.2,0-.3.2-.4.2,0,.3,0,.5,0,1.1.8,2.1,1.6,3.2,2.4.3.2.3.5,0,.7-1.1.8-2.1,1.6-3.2,2.4-.1.1-.3.2-.5,0-.2,0-.2-.3-.2-.4,0-.2,0-.4,0-.5-1.2,0-2.2.3-3,1.1,0,0,0-.1,0-.2,0-1.4,0-2.7,0-4.1,0-.1,0-.2.2-.2.8-.3,1.6-.5,2.5-.5.1,0,.2,0,.4,0Z"
-        fill="#434343"
+        d="M10.8301 14.7849V16.3734"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

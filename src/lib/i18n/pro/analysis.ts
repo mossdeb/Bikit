@@ -121,8 +121,11 @@ const en = {
     severity: "Severity",
     /** A jump's pitch in the air, takeoff to landing (2026-09-27), and
      * which way the nose went. */
-    airRotationDown: "Air rotation (nose ↓)",
-    airRotationUp: "Air rotation (nose ↑)",
+    /** A jump's pitch in the air; which way the nose went goes beside it,
+     * two short lines under an arrow (2026-09-28, the layout). */
+    airRotation: "Air rotation",
+    noseDown: "Nose\nwent down",
+    noseUp: "Nose\nwent up",
     /** The hardest compression in the half second before takeoff. */
     lip: "Lip",
     /** The lip's (i) (by request, 2026-09-27). The spread is 191 jumps'
@@ -288,6 +291,8 @@ const en = {
   card: {
     confidence: "Confidence",
     now: (value: string): string => `Now ${value}`,
+    /** The word before the live reading, the value set bold after it. */
+    nowWord: "Now",
     before: (seconds: string): string => `${seconds} s before`,
     after: (seconds: string): string => `${seconds} s after`,
   },
@@ -469,8 +474,9 @@ const pt: typeof en = {
     landing: "Aterragem",
     landingHighG: "Aterragem high-G",
     severity: "Severidade",
-    airRotationDown: "Rotação no ar (frente ↓)",
-    airRotationUp: "Rotação no ar (frente ↑)",
+    airRotation: "Rotação no ar",
+    noseDown: "Frente\ndesceu",
+    noseUp: "Frente\nsubiu",
     lip: "Lábio",
     lipInfo: {
       intro:
@@ -611,6 +617,7 @@ const pt: typeof en = {
   card: {
     confidence: "Confiança",
     now: (value) => `Agora ${value}`,
+    nowWord: "Agora",
     before: (seconds) => `${seconds} s antes`,
     after: (seconds) => `${seconds} s depois`,
   },
