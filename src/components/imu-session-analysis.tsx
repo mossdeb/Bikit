@@ -3191,9 +3191,12 @@ export function ImuSessionAnalysis({
                     // left of this column's edge. It is a grid item like the
                     // cards, so it is taken out of the flow with `absolute`;
                     // otherwise it would claim a cell of its own and push one
-                    // card off the row.
+                    // card off the row. Near the top and not centred (by
+                    // request, 2026-09-28): the column is as tall as its
+                    // tallest card, and centred the grip slid out of reach
+                    // below the fold.
                     className={cn(
-                      "absolute top-1/2 left-0 z-20 hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px]",
+                      "absolute top-6 left-0 z-20 hidden h-24 w-8 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px]",
                       // No split to move while the channels' half is gone.
                       activeSeriesDefs.length > 0 && "lg:flex",
                     )}
