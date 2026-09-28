@@ -2996,49 +2996,57 @@ export function ImuSessionAnalysis({
                       // A fragment because the switch guards two things — the
                       // headline card and whatever else covers the same instant.
                       <>
-                        <EventCard
-                          title={primaryDesc ? primaryDesc.title : null}
-                          Icon={primaryDesc ? primaryDesc.Icon : EnduroBikeIcon}
-                          timeMs={tMs[cursorIndex]}
-                          outsideMs={primaryOffsetMs}
-                          confidence={primaryEvent?.confidence ?? null}
-                          // "Snapshot" on an event the cursor is INSIDE, when
-                          // the recording has a track to put gates on. Not on
-                          // the ghost card outside the event — that one is a
-                          // neighbour's, and a Snapshot made from it would be
-                          // of a corner the cursor is not in.
-                          action={
-                            // Passed outside the event too: the card keeps its
-                            // place, invisible and inert (EventCard), so the head
-                            // holds its height as the cursor crosses the edge.
-                            snapshotSession &&
-                            primaryEvent &&
-                            snapshotKindOf(primaryEvent) ? (
-                              <ImuSnapshotCreate
-                                prepared={snapshotSession}
-                                event={primaryEvent}
-                                sessionId={sessionId}
-                                existing={existingSnapshots}
-                                loadSession={loadSnapshotSession}
-                              />
-                            ) : undefined
-                          }
-                          metrics={
-                            primaryDesc
-                              ? primaryDesc.metrics
-                              : [
-                                  {
-                                    label: t.event.gforce,
-                                    value: proNumber(
-                                      gForce[cursorIndex],
-                                      locale,
-                                      2,
-                                    ),
-                                    unit: "G",
-                                  },
-                                ]
-                          }
-                        />
+                        {/* The instant's own card only when it is not a
+                            high-g shock's (by request, 2026-09-28): on a
+                            shock the plain "time and G" card said nothing the
+                            shock's card below does not. */}
+                        {(primaryDesc || !cursorShock) && (
+                          <EventCard
+                            title={primaryDesc ? primaryDesc.title : null}
+                            Icon={
+                              primaryDesc ? primaryDesc.Icon : EnduroBikeIcon
+                            }
+                            timeMs={tMs[cursorIndex]}
+                            outsideMs={primaryOffsetMs}
+                            confidence={primaryEvent?.confidence ?? null}
+                            // "Snapshot" on an event the cursor is INSIDE, when
+                            // the recording has a track to put gates on. Not on
+                            // the ghost card outside the event — that one is a
+                            // neighbour's, and a Snapshot made from it would be
+                            // of a corner the cursor is not in.
+                            action={
+                              // Passed outside the event too: the card keeps its
+                              // place, invisible and inert (EventCard), so the head
+                              // holds its height as the cursor crosses the edge.
+                              snapshotSession &&
+                              primaryEvent &&
+                              snapshotKindOf(primaryEvent) ? (
+                                <ImuSnapshotCreate
+                                  prepared={snapshotSession}
+                                  event={primaryEvent}
+                                  sessionId={sessionId}
+                                  existing={existingSnapshots}
+                                  loadSession={loadSnapshotSession}
+                                />
+                              ) : undefined
+                            }
+                            metrics={
+                              primaryDesc
+                                ? primaryDesc.metrics
+                                : [
+                                    {
+                                      label: t.event.gforce,
+                                      value: proNumber(
+                                        gForce[cursorIndex],
+                                        locale,
+                                        2,
+                                      ),
+                                      unit: "G",
+                                    },
+                                  ]
+                            }
+                          />
+                        )}
 
                         {/* Anything else COVERING the same instant — a rough section
                       under an impact, say — gets the same card, one rung
