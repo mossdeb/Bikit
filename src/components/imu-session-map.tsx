@@ -819,8 +819,8 @@ export function ImuSessionMap({
         if (!pos) continue;
         L.circleMarker([pos.latDeg, pos.lonDeg], {
           radius: 5 * markS,
-          color: event.kind === "impact" ? "#ffffff" : "#1c1c1c",
-          weight: markS < 1 ? 0.75 : 1,
+          // No outline (by request, 2026-09-28): the dot's own colour.
+          stroke: false,
           fillColor:
             event.kind === "impact"
               ? "#F5533D"
