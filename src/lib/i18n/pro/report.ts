@@ -296,7 +296,7 @@ const pt: typeof en = {
     report: "Relatório",
   },
   setupTrigger: "Afinação da bicicleta nesta sessão",
-  compareSetups: "Comparar afinações",
+  compareSetups: "Comparar Setups",
   info: {
     bike: "Como a bicicleta respondeu ao terreno, lido pelo sensor no quadro.",
     rider:
