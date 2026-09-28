@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -1319,6 +1320,33 @@ export function ImuSessionAnalysis({
   } | null>(null);
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
+  /** The events column's high-water mark, px: the tallest its cards have
+   * stood since the session opened or the column last changed width. The
+   * column never goes shorter, so the page does not jump as cards of
+   * different heights come and go (2026-09-28). */
+  const [eventsInner, setEventsInner] = useState<HTMLDivElement | null>(null);
+  const [eventsMinH, setEventsMinH] = useState(0);
+  useEffect(() => {
+    if (!eventsInner) return;
+    let width = eventsInner.offsetWidth;
+    let max = 0;
+    const observer = new ResizeObserver(() => {
+      const w = eventsInner.offsetWidth;
+      const h = eventsInner.offsetHeight;
+      // A new width reflows every card, so the mark starts again from what
+      // stands now; otherwise it only ever rises.
+      if (Math.abs(w - width) > 1) {
+        width = w;
+        max = h;
+      } else if (h > max) {
+        max = h;
+      } else return;
+      setEventsMinH(max);
+    });
+    observer.observe(eventsInner);
+    return () => observer.disconnect();
+  }, [eventsInner, sessionId]);
+
   /** The high-g sensor's hardest reading this session, G — null without
    * one (firmware before V15, or no shock past its trigger). */
   const highGPeak = useMemo(() => {
@@ -2939,156 +2967,174 @@ export function ImuSessionAnalysis({
                     // out of the card. Nothing to lay out, no layout: the
                     // outline is then the half's only child and simply fills
                     // it.
-                    // (2026-09-28) Now one column: each event is a full card
-                    // of its own, stacked 18px apart (the layout).
-                    eventsOn && "lg:flex lg:flex-col lg:gap-[18px]",
+                    // The events' high-water mark (by request, 2026-09-28):
+                    // an outline the height of the tallest the cards have been
+                    // this session, never less, so a shorter card leaves room
+                    // in it instead of shortening the page — which pulled the
+                    // page up under the reader whenever it shrank near the
+                    // bottom. Dashed (by request, the same day): a place for
+                    // cards, not a card. `isolate` keeps the outline, drawn behind the
+                    // cards, inside this box rather than behind the page.
+                    "lg:isolate lg:before:absolute lg:before:inset-0 lg:before:-z-10 lg:before:rounded-[22px] lg:before:border lg:before:border-dashed lg:before:border-foreground/15 lg:before:content-['']",
                   )}
+                  style={eventsMinH ? { minHeight: eventsMinH } : undefined}
                 >
-                  {!eventsOn && (
-                    <ReadingPlaceholder>
-                      {t.menus.eventsHidden}
-                    </ReadingPlaceholder>
-                  )}
-                  {eventsOn && (
-                    // A fragment because the switch guards two things — the
-                    // headline card and whatever else covers the same instant.
-                    <>
-                      <EventCard
-                        title={primaryDesc ? primaryDesc.title : null}
-                        Icon={primaryDesc ? primaryDesc.Icon : EnduroBikeIcon}
-                        timeMs={tMs[cursorIndex]}
-                        outsideMs={primaryOffsetMs}
-                        confidence={primaryEvent?.confidence ?? null}
-                        // "Snapshot" on an event the cursor is INSIDE, when
-                        // the recording has a track to put gates on. Not on
-                        // the ghost card outside the event — that one is a
-                        // neighbour's, and a Snapshot made from it would be
-                        // of a corner the cursor is not in.
-                        action={
-                          snapshotSession &&
-                          primaryEvent &&
-                          primaryOffsetMs === 0 &&
-                          snapshotKindOf(primaryEvent) ? (
-                            <ImuSnapshotCreate
-                              prepared={snapshotSession}
-                              event={primaryEvent}
-                              sessionId={sessionId}
-                              existing={existingSnapshots}
-                              loadSession={loadSnapshotSession}
-                            />
-                          ) : undefined
-                        }
-                        metrics={
-                          primaryDesc
-                            ? primaryDesc.metrics
-                            : [
-                                {
-                                  label: t.event.gforce,
-                                  value: proNumber(
-                                    gForce[cursorIndex],
-                                    locale,
-                                    2,
-                                  ),
-                                  unit: "G",
-                                },
-                              ]
-                        }
-                      />
+                  {/* The cards' own height, measured for the mark above. One
+                      column: each event a full card, 18px apart. */}
+                  <div
+                    ref={setEventsInner}
+                    className={cn(
+                      eventsOn && "lg:flex lg:flex-col lg:gap-[18px]",
+                    )}
+                  >
+                    {!eventsOn && (
+                      <ReadingPlaceholder>
+                        {t.menus.eventsHidden}
+                      </ReadingPlaceholder>
+                    )}
+                    {eventsOn && (
+                      // A fragment because the switch guards two things — the
+                      // headline card and whatever else covers the same instant.
+                      <>
+                        <EventCard
+                          title={primaryDesc ? primaryDesc.title : null}
+                          Icon={primaryDesc ? primaryDesc.Icon : EnduroBikeIcon}
+                          timeMs={tMs[cursorIndex]}
+                          outsideMs={primaryOffsetMs}
+                          confidence={primaryEvent?.confidence ?? null}
+                          // "Snapshot" on an event the cursor is INSIDE, when
+                          // the recording has a track to put gates on. Not on
+                          // the ghost card outside the event — that one is a
+                          // neighbour's, and a Snapshot made from it would be
+                          // of a corner the cursor is not in.
+                          action={
+                            // Passed outside the event too: the card keeps its
+                            // place, invisible and inert (EventCard), so the head
+                            // holds its height as the cursor crosses the edge.
+                            snapshotSession &&
+                            primaryEvent &&
+                            snapshotKindOf(primaryEvent) ? (
+                              <ImuSnapshotCreate
+                                prepared={snapshotSession}
+                                event={primaryEvent}
+                                sessionId={sessionId}
+                                existing={existingSnapshots}
+                                loadSession={loadSnapshotSession}
+                              />
+                            ) : undefined
+                          }
+                          metrics={
+                            primaryDesc
+                              ? primaryDesc.metrics
+                              : [
+                                  {
+                                    label: t.event.gforce,
+                                    value: proNumber(
+                                      gForce[cursorIndex],
+                                      locale,
+                                      2,
+                                    ),
+                                    unit: "G",
+                                  },
+                                ]
+                          }
+                        />
 
-                      {/* Anything else COVERING the same instant — a rough section
+                        {/* Anything else COVERING the same instant — a rough section
                       under an impact, say — gets the same card, one rung
                       quieter. Covering, not merely within reach: the reach
                       is what keeps the headline card standing past its
                       event's edges, and with two seconds of it a panel that
                       listed every neighbour showed four corners at once. */}
-                      {cursorHits
-                        .slice(1)
-                        .filter(({ offsetMs }) => offsetMs === 0)
-                        .map(({ event, offsetMs }, i) => {
-                          const desc = describeEvent(
-                            event,
-                            eventContext,
-                            t,
-                            locale,
-                          );
-                          return (
-                            <EventCard
-                              key={i}
-                              // Phone rhythm only — at `lg` these are grid items and
-                              // the gap is the grid's.
-                              className="mt-2 lg:mt-0"
-                              title={desc.title}
-                              Icon={desc.Icon}
-                              outsideMs={offsetMs}
-                              confidence={event.confidence}
-                              // "Comparar" here too (by request, 2026-09-20):
-                              // a brake inside a corner is never the headline
-                              // card, and was the one event with gates of its
-                              // own that could not be compared. These cards
-                              // only stand while the cursor is inside their
-                              // event, which is the headline's own rule.
-                              action={
-                                snapshotSession && snapshotKindOf(event) ? (
-                                  <ImuSnapshotCreate
-                                    prepared={snapshotSession}
-                                    event={event}
-                                    sessionId={sessionId}
-                                    existing={existingSnapshots}
-                                    loadSession={loadSnapshotSession}
-                                  />
-                                ) : undefined
-                              }
-                              metrics={desc.metrics}
-                            />
-                          );
-                        })}
-                      {cursorShock && (
-                        <EventCard
-                          className="mt-2 lg:mt-0"
-                          title={t.event.shockTitle}
-                          Icon={Activity}
-                          timeMs={cursorShock.timeMs}
-                          confidence={null}
-                          action={<ShockWindow hit={cursorShock} />}
-                          metrics={[
-                            {
-                              label: t.event.peak,
-                              value: proNumber(cursorShock.peakG, locale, 1),
-                              unit: "G",
-                            },
-                            {
-                              label: t.event.width,
-                              value: proNumber(
-                                highGWidthMs(cursorShock),
-                                locale,
-                                1,
-                              ),
-                              unit: "ms",
-                            },
-                            // What the main IMU read of the same hit — the
-                            // figure every other card and the plot go by.
-                            ...(() => {
-                              const peak = windowPeak(
-                                tMs,
-                                gForce,
-                                cursorShock.timeMs - HIGHG_LINK_MS,
-                                cursorShock.timeMs + HIGHG_LINK_MS,
-                              );
-                              return peak != null
-                                ? [
-                                    {
-                                      label: t.event.mainImu,
-                                      value: proNumber(peak, locale, 1),
-                                      unit: "G",
-                                    },
-                                  ]
-                                : [];
-                            })(),
-                          ]}
-                        />
-                      )}
-                    </>
-                  )}
+                        {cursorHits
+                          .slice(1)
+                          .filter(({ offsetMs }) => offsetMs === 0)
+                          .map(({ event, offsetMs }, i) => {
+                            const desc = describeEvent(
+                              event,
+                              eventContext,
+                              t,
+                              locale,
+                            );
+                            return (
+                              <EventCard
+                                key={i}
+                                // Phone rhythm only — at `lg` these are grid items and
+                                // the gap is the grid's.
+                                className="mt-2 lg:mt-0"
+                                title={desc.title}
+                                Icon={desc.Icon}
+                                outsideMs={offsetMs}
+                                confidence={event.confidence}
+                                // "Comparar" here too (by request, 2026-09-20):
+                                // a brake inside a corner is never the headline
+                                // card, and was the one event with gates of its
+                                // own that could not be compared. These cards
+                                // only stand while the cursor is inside their
+                                // event, which is the headline's own rule.
+                                action={
+                                  snapshotSession && snapshotKindOf(event) ? (
+                                    <ImuSnapshotCreate
+                                      prepared={snapshotSession}
+                                      event={event}
+                                      sessionId={sessionId}
+                                      existing={existingSnapshots}
+                                      loadSession={loadSnapshotSession}
+                                    />
+                                  ) : undefined
+                                }
+                                metrics={desc.metrics}
+                              />
+                            );
+                          })}
+                        {cursorShock && (
+                          <EventCard
+                            className="mt-2 lg:mt-0"
+                            title={t.event.shockTitle}
+                            Icon={Activity}
+                            timeMs={cursorShock.timeMs}
+                            confidence={null}
+                            action={<ShockWindow hit={cursorShock} />}
+                            metrics={[
+                              {
+                                label: t.event.peak,
+                                value: proNumber(cursorShock.peakG, locale, 1),
+                                unit: "G",
+                              },
+                              {
+                                label: t.event.width,
+                                value: proNumber(
+                                  highGWidthMs(cursorShock),
+                                  locale,
+                                  1,
+                                ),
+                                unit: "ms",
+                              },
+                              // What the main IMU read of the same hit — the
+                              // figure every other card and the plot go by.
+                              ...(() => {
+                                const peak = windowPeak(
+                                  tMs,
+                                  gForce,
+                                  cursorShock.timeMs - HIGHG_LINK_MS,
+                                  cursorShock.timeMs + HIGHG_LINK_MS,
+                                );
+                                return peak != null
+                                  ? [
+                                      {
+                                        label: t.event.mainImu,
+                                        value: proNumber(peak, locale, 1),
+                                        unit: "G",
+                                      },
+                                    ]
+                                  : [];
+                              })(),
+                            ]}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
 
                   {/* The handle on the halves' shared edge — the chart/map
                       split's twin, and deliberately the same object: one
@@ -3902,7 +3948,19 @@ function EventCard({
                 </span>
               </span>
             )}
-            {action}
+            {/* Outside the event the button keeps its place but is hidden
+                and inert (by request, 2026-09-28): the head then wraps the
+                same way inside and out, so the card never changes height as
+                the cursor crosses the event's edge — and a Snapshot is not
+                made from a neighbour's event. */}
+            {action && (
+              <div
+                className={cn(outside && "invisible")}
+                inert={outside || undefined}
+              >
+                {action}
+              </div>
+            )}
           </div>
         )}
         {/* The titleless card's figure rides the head's far end: an instant
