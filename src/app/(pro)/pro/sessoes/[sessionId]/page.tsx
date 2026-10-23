@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
-import { hasLabAccess } from "@/lib/lab-access";
+import { canDownloadRecordings, hasLabAccess } from "@/lib/lab-access";
 import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
@@ -231,6 +231,7 @@ export default async function ImuSessionPage({
                 riderDefault={riderDefault}
                 riders={riderNames(riderRows ?? [])}
                 storagePath={session.storage_path}
+                canDownload={canDownloadRecordings(email)}
               />
             </div>
             {/* The identity and, under it, the doors: the run's setup, the

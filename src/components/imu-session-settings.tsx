@@ -49,6 +49,7 @@ export function ImuSessionSettings({
   riderDefault,
   riders,
   storagePath,
+  canDownload,
 }: {
   sessionId: string;
   name: string;
@@ -58,6 +59,8 @@ export function ImuSessionSettings({
   groupId: string | null;
   /** Where the recording sits in the imu-sessions bucket, for the download. */
   storagePath: string;
+  /** Whether the account is shown the download (canDownloadRecordings). */
+  canDownload: boolean;
   /** The account's groups, newest first. */
   groups: ImuGroupOption[];
   /** The account's own name — what a blank rider becomes on save. */
@@ -221,25 +224,28 @@ export function ImuSessionSettings({
             wrote, or the exporter's JSON — straight from Storage, where RLS
             already limits it to the owner. Fetched into a blob and handed to
             the browser as a download named after the session; a signed URL
-            would also work, but would put the file's address in the page. */}
-        <div className="border-t border-border pt-4">
-          <button
-            type="button"
-            disabled={downloading}
-            onClick={download}
-            className="flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-          >
-            <Download className="size-4" />
-            {downloading
-              ? t.sessions.settings.preparing
-              : t.sessions.settings.download(fileExtension.toUpperCase())}
-          </button>
-          {downloadError && (
-            <p className="mt-2 text-center text-sm text-destructive">
-              {downloadError}
-            </p>
-          )}
-        </div>
+            would also work, but would put the file's address in the page.
+            Not shown to the beta accounts (2026-10-23). */}
+        {canDownload && (
+          <div className="border-t border-border pt-4">
+            <button
+              type="button"
+              disabled={downloading}
+              onClick={download}
+              className="flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              <Download className="size-4" />
+              {downloading
+                ? t.sessions.settings.preparing
+                : t.sessions.settings.download(fileExtension.toUpperCase())}
+            </button>
+            {downloadError && (
+              <p className="mt-2 text-center text-sm text-destructive">
+                {downloadError}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* The danger zone, under a rule, with its own confirmation. On
             success the page under this dialog no longer exists, so the

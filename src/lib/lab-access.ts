@@ -17,6 +17,19 @@
 // wearewildpack@gmail.com: the Pro's first beta account (2026-10-23).
 const LAB_EMAILS = ["miguelgomesdzn@gmail.com", "wearewildpack@gmail.com"];
 
+/**
+ * Who sees "Download file" in a session's settings (by request,
+ * 2026-10-23): the owner, not the beta accounts. It only hides the button —
+ * the page itself fetches the recording from Storage to analyse it, so an
+ * account can still reach its own file's bytes.
+ */
+const RECORDING_DOWNLOAD_EMAILS = ["miguelgomesdzn@gmail.com"];
+
+export function canDownloadRecordings(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return RECORDING_DOWNLOAD_EMAILS.includes(email.trim().toLowerCase());
+}
+
 export function hasLabAccess(email: string | null | undefined): boolean {
   if (!email) return false;
   return LAB_EMAILS.includes(email.trim().toLowerCase());
