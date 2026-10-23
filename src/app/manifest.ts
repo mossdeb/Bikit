@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Bikit",
     short_name: "Bikit",
     description: "Track maintenance, services, and repairs for your bikes.",
-    start_url: "/dashboard",
+    start_url: "/",
     display: "standalone",
     background_color: "#efefef",
     theme_color: "#43f3af",

@@ -17,7 +17,7 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function signup(formData: FormData) {
@@ -70,14 +70,14 @@ export async function resetPassword(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/");
 }
 
 export async function confirmEmail(formData: FormData) {
   const supabase = await createClient();
   const token_hash = formData.get("token_hash") as string;
   const type = formData.get("type") as EmailOtpType;
-  const next = (formData.get("next") as string) || "/dashboard";
+  const next = (formData.get("next") as string) || "/";
 
   const { error } = await supabase.auth.verifyOtp({ type, token_hash });
   if (error) {

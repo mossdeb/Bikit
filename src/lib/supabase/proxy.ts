@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { signedInRedirect } from "@/lib/areas";
 
 // /privacy and /terms have to answer to signed-out visitors and to crawlers:
 // Google reads them when verifying the OAuth consent screen's branding, and a
@@ -53,14 +54,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (
-    user &&
-    (request.nextUrl.pathname === "/login" ||
-      request.nextUrl.pathname === "/signup" ||
-      request.nextUrl.pathname === "/forgot-password")
-  ) {
+  // The sign-in pages send a signed-in account home, and so — while the
+  // maintenance app is hidden — do its routes and the area the account
+  // may not be in (src/lib/areas.ts).
+  const target = user
+    ? signedInRedirect(request.nextUrl.pathname, user.email as string | undefined)
+    : null;
+  if (target) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = target;
+    url.search = "";
     return NextResponse.redirect(url);
   }
 

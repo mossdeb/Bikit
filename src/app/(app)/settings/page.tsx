@@ -25,6 +25,7 @@ import { logout } from "@/lib/actions/auth";
 import { connectStrava, disconnectStrava } from "@/lib/actions/strava";
 import { getUserSubscription } from "@/lib/subscription";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
+import { MAINTENANCE_HIDDEN } from "@/lib/areas";
 
 function SettingsSection({
   title,
@@ -314,37 +315,45 @@ export default async function SettingsPage({
         </SettingsSection>
 
         <SettingsSection title={dict.settings.about.title}>
+          {/* With the maintenance app hidden (src/lib/areas.ts) its routes
+              redirect: the onboarding and the docs are about it, so they
+              go, and the policies and support point at their public
+              copies. */}
           <div className="flex flex-col divide-y divide-border">
-            <AboutRow
-              icon={<OnboardingIcon className="h-6 w-auto" />}
-              title={dict.settings.about.onboarding.title}
-              subtitle={dict.settings.about.onboarding.subtitle}
-              href="/dashboard?onboarding=1"
-            />
+            {!MAINTENANCE_HIDDEN && (
+              <AboutRow
+                icon={<OnboardingIcon className="h-6 w-auto" />}
+                title={dict.settings.about.onboarding.title}
+                subtitle={dict.settings.about.onboarding.subtitle}
+                href="/dashboard?onboarding=1"
+              />
+            )}
             <AboutRow
               icon={<SecurityIcon className="h-6 w-auto" />}
               title={dict.settings.about.privacy.title}
               subtitle={dict.settings.about.privacy.subtitle}
-              href="/legal/privacy"
+              href={MAINTENANCE_HIDDEN ? "/privacy" : "/legal/privacy"}
             />
             <AboutRow
               icon={<TermsIcon className="h-6 w-auto" />}
               title={dict.settings.about.terms.title}
               subtitle={dict.settings.about.terms.subtitle}
-              href="/legal/terms"
+              href={MAINTENANCE_HIDDEN ? "/terms" : "/legal/terms"}
             />
             <AboutRow
               icon={<SupportIcon className="h-6 w-auto" />}
               title={dict.settings.about.support.title}
               subtitle={dict.settings.about.support.subtitle}
-              href="/help/support"
+              href={MAINTENANCE_HIDDEN ? "/support" : "/help/support"}
             />
-            <AboutRow
-              icon={<DocsIcon className="h-6 w-auto" />}
-              title={dict.settings.about.docs.title}
-              subtitle={dict.settings.about.docs.subtitle}
-              href="/help/docs"
-            />
+            {!MAINTENANCE_HIDDEN && (
+              <AboutRow
+                icon={<DocsIcon className="h-6 w-auto" />}
+                title={dict.settings.about.docs.title}
+                subtitle={dict.settings.about.docs.subtitle}
+                href="/help/docs"
+              />
+            )}
           </div>
         </SettingsSection>
 

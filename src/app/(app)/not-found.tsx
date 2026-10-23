@@ -13,7 +13,7 @@ export default function NotFound() {
         This bike, component, or entry doesn&apos;t exist — it may have been deleted, or the link
         might be wrong.
       </p>
-      <Button render={<Link href="/dashboard" />} nativeButton={false} className="mt-6">
+      <Button render={<Link href="/" />} nativeButton={false} className="mt-6">
         Back to dashboard
       </Button>
     </div>

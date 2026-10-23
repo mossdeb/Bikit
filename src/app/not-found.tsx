@@ -10,7 +10,7 @@ export default function RootNotFound() {
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
         That page doesn&apos;t exist. Check the link, or head back to Bikit.
       </p>
-      <Button render={<Link href="/dashboard" />} nativeButton={false} className="mt-6">
+      <Button render={<Link href="/" />} nativeButton={false} className="mt-6">
         Back to Bikit
       </Button>
     </div>
