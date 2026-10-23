@@ -14,8 +14,14 @@
  * PLAN_FEATURES and this list stops mentioning it, the way the Ride Load
  * allowlist did on 2026-08-15.
  */
-// wearewildpack@gmail.com: the Pro's first beta account (2026-10-23).
-const LAB_EMAILS = ["miguelgomesdzn@gmail.com", "wearewildpack@gmail.com"];
+// wearewildpack@gmail.com: the Pro's first beta account (2026-10-23);
+// miguel_gomes@sapo.pt: the owner's second account, to see the Pro as a
+// beta account does.
+const LAB_EMAILS = [
+  "miguelgomesdzn@gmail.com",
+  "wearewildpack@gmail.com",
+  "miguel_gomes@sapo.pt",
+];
 
 /**
  * Who sees "Download file" in a session's settings (by request,
