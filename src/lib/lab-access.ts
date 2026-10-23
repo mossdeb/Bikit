@@ -14,7 +14,8 @@
  * PLAN_FEATURES and this list stops mentioning it, the way the Ride Load
  * allowlist did on 2026-08-15.
  */
-const LAB_EMAILS = ["miguelgomesdzn@gmail.com"];
+// wearewildpack@gmail.com: the Pro's first beta account (2026-10-23).
+const LAB_EMAILS = ["miguelgomesdzn@gmail.com", "wearewildpack@gmail.com"];
 
 export function hasLabAccess(email: string | null | undefined): boolean {
   if (!email) return false;
