@@ -846,7 +846,7 @@ const pt: typeof en = {
 
   header: {
     fallbackBike: "Afinações",
-    title: "Comparar afinações",
+    title: "Comparar Setups",
     reference: "Referência:",
     otherRuns: (n, sameRider) =>
       `${n === 1 ? "1 outra volta" : `${n} outras voltas`} da mesma bicicleta${sameRider ? " e do mesmo rider" : ""} na mesma pista`,
