@@ -80,6 +80,14 @@ export interface CreateImuSessionInput {
   /** The track's outline and box (buildTrackIndex), for Snapshots to know
    * which sessions to fetch. Null for a recording without GPS. */
   trackIndex: SnapshotTrackIndex | null;
+  /** The trim the session arrives with, found at import (2026-10-24): the
+   * run between a timed track's start and finish lines, or else the moving
+   * stretch suggestTrim reads off the GPS. The figures above are the
+   * trimmed run's. Omitted for none. */
+  trim?: { startMs: number; endMs: number } | null;
+  /** The trim is a track's lines — lifted again once the run passes no
+   * track (setImuSessionTrim's byTrack). */
+  trimByTrack?: boolean;
 }
 
 /**
@@ -126,6 +134,15 @@ export async function createImuSession(
   if (input.trackIndex != null && !isTrackIndex(input.trackIndex)) {
     return { status: "error", message: t.sessions.actions.invalidTrackIndex };
   }
+  const trim = input.trim ?? null;
+  if (
+    trim &&
+    (!Number.isFinite(trim.startMs) ||
+      !Number.isFinite(trim.endMs) ||
+      trim.startMs < 0 ||
+      trim.endMs <= trim.startMs)
+  )
+    return { status: "error", message: t.sessions.actions.invalidTrimWindow };
 
   const bike = await resolveBike(supabase, userId, input.bike, t);
   if (bike.status === "error") return bike;
@@ -171,6 +188,9 @@ export async function createImuSession(
     // Checked for shape above; the generated Json type has no index
     // signature for an interface to satisfy.
     track_index: input.trackIndex as unknown as Json,
+    trim_start_ms: trim ? Math.round(trim.startMs) : null,
+    trim_end_ms: trim ? Math.round(trim.endMs) : null,
+    trim_by_track: trim != null && input.trimByTrack === true,
   });
   if (error) return { status: "error", message: error.message };
 
@@ -468,6 +488,9 @@ export async function setImuSessionTrim(input: {
   impactCount: number;
   airtimeMs: number;
   trackIndex: SnapshotTrackIndex | null;
+  /** The trim is a timed track's lines, not the scissors' — so it is
+   * lifted again once the run passes no track (2026-10-24). */
+  byTrack?: boolean;
 }): Promise<ImuActionResult> {
   const caller = await labCaller();
   if (caller.status === "error") return caller;
@@ -533,6 +556,7 @@ export async function setImuSessionTrim(input: {
     .update({
       trim_start_ms: trim ? Math.round(trim.startMs) : null,
       trim_end_ms: trim ? Math.round(trim.endMs) : null,
+      trim_by_track: trim != null && input.byTrack === true,
       duration_ms: Math.round(input.durationMs),
       sample_count: input.sampleCount,
       max_g: input.maxG,

@@ -27,6 +27,7 @@ import {
   findTimedRuns,
   formatRunGap,
   formatRunTime,
+  runTrimOf,
   type TimedRun,
 } from "@/lib/imu/timed-track";
 import type {
@@ -47,23 +48,15 @@ import {
  * lines. Everything is read on the WHOLE recording, never the trimmed one
  * — the lines are the stopwatch, the trim only tidies the page.
  */
-/**
- * The trim IS the lines (by request, 2026-10-24): a run that passes a track
- * is trimmed to its first run between the start and the finish, so the
- * page, the report and the list all read the timed run from 00:00 at the
- * start line. With several tracks, the newest the run passes — the one the
- * button shows. A run that passes none keeps the trim it has.
- */
+/** The run's trim from the account's tracks, newest first (runTrimOf). */
 function trackTrimOf(
   prepared: Prepared,
   tracks: ImuTimedTrack[],
 ): ImuSessionTrim | null {
-  for (const track of tracks) {
-    const run = findTimedRuns(prepared, track.definition)[0];
-    if (run)
-      return { startMs: Math.round(run.entryMs), endMs: Math.round(run.exitMs) };
-  }
-  return null;
+  return runTrimOf(
+    prepared,
+    tracks.map((track) => track.definition),
+  );
 }
 
 /** Within a millisecond of each other: the trim is stored rounded. */
@@ -79,6 +72,7 @@ export function ImuSessionTrackButton({
   sessionId,
   whole,
   trim,
+  trimByTrack,
   visibleMs,
   tracks,
   candidates,
@@ -87,13 +81,14 @@ export function ImuSessionTrackButton({
   /** The recording before the trim, aligned. */
   whole: ImuSessionData;
   trim: ImuSessionTrim | null;
+  /** The trim came from a track's lines, not the scissors. */
+  trimByTrack: boolean;
   /** The plot's window on the WHOLE recording's clock. */
   visibleMs: [number, number];
   tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
-  const locale = useProLocale();
   const [open, setOpen] = useState(false);
   const prepared = useMemo(() => prepareSnapshotSession(whole), [whole]);
   /** The tracks this run passes, newest track first, each with its runs. */
@@ -105,23 +100,35 @@ export function ImuSessionTrackButton({
     [tracks, prepared],
   );
   const first = passed[0];
-  const time = first ? formatRunTime(first.runs[0].durationMs, locale) : null;
+  const time = first ? formatRunTime(first.runs[0].durationMs) : null;
 
   // This run trimmed to the lines, once, when its trim is anything else —
   // a track drawn, redrawn or deleted since, or a trim set by hand before.
+  // And back to the whole recording when it passes no track any more but
+  // its trim came from one (by request, 2026-10-24); a trim set by hand,
+  // on a run no track passes, stays.
   const router = useRouter();
   const synced = useRef<string | null>(null);
   const target = useMemo(() => trackTrimOf(prepared, tracks), [prepared, tracks]);
   useEffect(() => {
-    if (!target || sameTrim(trim, target)) return;
-    const key = `${target.startMs}-${target.endMs}`;
+    let next: ImuSessionTrim | null;
+    if (target) {
+      if (sameTrim(trim, target) && trimByTrack) return;
+      next = target;
+    } else {
+      if (!trim || !trimByTrack) return;
+      next = null;
+    }
+    const key = next ? `${next.startMs}-${next.endMs}` : "whole";
     if (synced.current === key) return;
     synced.current = key;
-    void saveImuSessionTrim(sessionId, whole, target).then((result) => {
-      if (result.status === "ok") router.refresh();
-      else console.warn("Trim to the start and finish lines:", result.message);
-    });
-  }, [target, trim, sessionId, whole, router]);
+    void saveImuSessionTrim(sessionId, whole, next, next != null).then(
+      (result) => {
+        if (result.status === "ok") router.refresh();
+        else console.warn("Trim to the start and finish lines:", result.message);
+      },
+    );
+  }, [target, trim, trimByTrack, sessionId, whole, router]);
   const label = time ? t.buttonWithTime(time) : t.button;
 
   return (
@@ -347,9 +354,14 @@ function TrackView({
         // The other runs are trimmed to the lines as they are read, like
         // this one on its own page — once each, while the dialog is open.
         const target = p && trackTrimOf(p, tracks);
-        if (p && target && !sameTrim(c.trim, target) && !synced.current.has(c.id)) {
+        if (
+          p &&
+          target &&
+          !(sameTrim(c.trim, target) && c.trimByTrack) &&
+          !synced.current.has(c.id)
+        ) {
           synced.current.add(c.id);
-          void saveImuSessionTrim(c.id, p.session, target);
+          void saveImuSessionTrim(c.id, p.session, target, true);
         }
         if (!live) return;
         setRows((prev) =>
@@ -375,7 +387,7 @@ function TrackView({
   const bestMs = timed[0]?.run.durationMs ?? null;
   const mine = current.runs[0];
   const myGap =
-    bestMs != null ? formatRunGap(mine.durationMs, bestMs, locale) : null;
+    bestMs != null ? formatRunGap(mine.durationMs, bestMs) : null;
 
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -400,7 +412,7 @@ function TrackView({
         <div>
           <p className="text-xs font-medium text-muted-foreground">{t.thisRun}</p>
           <p className="font-display text-3xl font-bold tabular-nums">
-            {formatRunTime(mine.durationMs, locale)}
+            {formatRunTime(mine.durationMs)}
           </p>
         </div>
         {bestMs != null &&
@@ -419,7 +431,7 @@ function TrackView({
         <p className="mb-2 text-sm font-semibold">{t.runsTitle}</p>
         <ol className="divide-y divide-border rounded-md border border-border">
           {timed.map((r, i) => {
-            const gap = formatRunGap(r.run.durationMs, bestMs!, locale);
+            const gap = formatRunGap(r.run.durationMs, bestMs!);
             const isSelf = r.sessionId === sessionId;
             const body = (
               <>
@@ -437,9 +449,9 @@ function TrackView({
                   </span>
                 </span>
                 <span className="text-sm font-semibold tabular-nums">
-                  {formatRunTime(r.run.durationMs, locale)}
+                  {formatRunTime(r.run.durationMs)}
                 </span>
-                <span className="w-16 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                   {gap ?? (i === 0 ? t.best : t.tied)}
                 </span>
               </>
@@ -486,7 +498,7 @@ function TrackView({
             {others.map((m) => (
               <Chip key={m.track.id} onClick={() => onPick(m.track.id)}>
                 <FinishFlag className="size-3.5" />
-                {m.track.name} · {formatRunTime(m.runs[0].durationMs, locale)}
+                {m.track.name} · {formatRunTime(m.runs[0].durationMs)}
               </Chip>
             ))}
           </div>
@@ -689,9 +701,11 @@ function TrackForm({
         <Chip onClick={() => setWindow(visibleMs)}>{t.visibleWindow}</Chip>
         <Chip onClick={() => setWindow([0, fullMs])}>{t.wholeRecording}</Chip>
       </div>
-      <p className="text-sm text-muted-foreground">
-        {timesValid ? t.formHint(formatSessionTime(fullMs)) : t.hintFormat}
-      </p>
+      {/* Only when the times do not read — the long hint went by request,
+          2026-10-24. */}
+      {!timesValid && (
+        <p className="text-sm text-muted-foreground">{t.hintFormat}</p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <Button

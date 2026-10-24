@@ -26,8 +26,6 @@ const en = {
   trimWindow: "Trim",
   visibleWindow: "Visible window",
   wholeRecording: "Whole recording",
-  formHint: (fullDuration: string): string =>
-    `Times on the whole recording's clock, which lasts ${fullDuration}. Put the start a few metres after the off, where the bike is already rolling, and the finish a few metres before the stop, where every run still passes: a run that does not cross both lines is not timed.`,
   hintFormat: "Write the times as mm:ss, with the finish after the start.",
   noLines:
     "No lines could be drawn there: the bike has to be moving at both instants, with GPS.",
@@ -72,8 +70,6 @@ const pt: typeof en = {
   trimWindow: "Recorte",
   visibleWindow: "Janela visível",
   wholeRecording: "Gravação inteira",
-  formHint: (fullDuration) =>
-    `Tempos no relógio da gravação inteira, que dura ${fullDuration}. Põe a partida uns metros depois do arranque, onde a bicicleta já rola, e a chegada uns metros antes de parar, onde todas as runs ainda passam: uma run que não cruze as duas linhas não é cronometrada.`,
   hintFormat: "Escreve os tempos como mm:ss, com a chegada depois da partida.",
   noLines:
     "Não deu para traçar as linhas aí: a bicicleta tem de estar em andamento nos dois instantes, com GPS.",

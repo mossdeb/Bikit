@@ -63,7 +63,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms, trim_by_track",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -210,6 +210,7 @@ export default async function ImuSessionPage({
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
         trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
+        trimByTrack={session.trim_by_track}
         timedTracks={timedTracks}
         trackCandidates={trackCandidates}
         header={

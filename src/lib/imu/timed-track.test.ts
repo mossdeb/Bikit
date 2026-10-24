@@ -7,6 +7,7 @@ import {
   formatRunGap,
   formatRunTime,
   isTimedTrackDefinition,
+  runTrimOf,
 } from "./timed-track";
 
 const LAT0 = 37.1;
@@ -96,12 +97,33 @@ describe("timed tracks", () => {
     ).toHaveLength(0);
   });
 
-  it("writes times and gaps as a rider reads them", () => {
-    expect(formatRunTime(107_320, "pt")).toBe("1:47,3");
-    expect(formatRunTime(107_320, "en")).toBe("1:47.3");
-    expect(formatRunTime(59_960, "pt")).toBe("1:00,0");
-    expect(formatRunGap(108_720, 107_320, "pt")).toBe("+1,4 s");
-    expect(formatRunGap(107_500, 107_320, "pt")).toBeNull();
-    expect(formatRunGap(107_320, 107_320, "en")).toBeNull();
+  it("trims a run to the first track it passes, or to nothing", () => {
+    const made = createTimedTrack(
+      prepareSnapshotSession(descent(10, 60)),
+      10_000,
+      50_000,
+    )!;
+    const short = createTimedTrack(
+      prepareSnapshotSession(descent(10, 60)),
+      20_000,
+      30_000,
+    )!;
+    const other = prepareSnapshotSession(descent(8, 70, 7));
+    const trim = runTrimOf(other, [made.definition, short.definition]);
+    const run = findTimedRuns(other, made.definition)[0];
+    expect(trim).toEqual({
+      startMs: Math.round(run.entryMs),
+      endMs: Math.round(run.exitMs),
+    });
+    expect(runTrimOf(prepareSnapshotSession(descent(10, 30)), [made.definition])).toBeNull();
+    expect(runTrimOf(other, [])).toBeNull();
+  });
+
+  it("writes times and gaps to the thousandth, with a point", () => {
+    expect(formatRunTime(107_320)).toBe("1:47.320");
+    expect(formatRunTime(59_999.6)).toBe("1:00.000");
+    expect(formatRunGap(108_732, 107_320)).toBe("+1.412 s");
+    expect(formatRunGap(107_500, 107_320)).toBeNull();
+    expect(formatRunGap(107_320, 107_320)).toBeNull();
   });
 });

@@ -1,4 +1,3 @@
-import type { Locale } from "@/lib/i18n";
 import {
   createGatePair,
   findSnapshotPasses,
@@ -63,7 +62,8 @@ export function createTimedTrack(
     definition: pair.definition,
     reference: {
       ...pair.reference,
-      durationMs: pair.reference.exitMs - pair.reference.entryMs,
+      durationMs:
+        Math.round(pair.reference.exitMs) - Math.round(pair.reference.entryMs),
     },
   };
 }
@@ -75,8 +75,32 @@ export function findTimedRuns(
 ): TimedRun[] {
   return findSnapshotPasses(prepared, definition).map((pass) => ({
     ...pass,
-    durationMs: pass.exitMs - pass.entryMs,
+    // Between the crossings as the trim stores them, to the millisecond,
+    // so the run's time and the trimmed session's duration read the same.
+    durationMs: Math.round(pass.exitMs) - Math.round(pass.entryMs),
   }));
+}
+
+/**
+ * The trim IS the lines (by request, 2026-10-24): a run that passes a track
+ * is trimmed to its first run between the start and the finish — with
+ * several tracks, the first given that it passes (the account's newest,
+ * as the page and the import order them). Null when it passes none. The
+ * one rule for the session page, the track dialog and the import.
+ */
+export function runTrimOf(
+  prepared: SnapshotSession,
+  definitions: TimedTrackDefinition[],
+): { startMs: number; endMs: number } | null {
+  for (const definition of definitions) {
+    const run = findTimedRuns(prepared, definition)[0];
+    if (run)
+      return {
+        startMs: Math.round(run.entryMs),
+        endMs: Math.round(run.exitMs),
+      };
+  }
+  return null;
 }
 
 export function isTimedTrackDefinition(
@@ -85,25 +109,21 @@ export function isTimedTrackDefinition(
   return isGatePair(value);
 }
 
-/** A run's time as a rider reads it: m:ss and tenths ("1:47,3" — a point
- * in English), the tenths being as fine as the gates measure. */
-export function formatRunTime(ms: number, locale: Locale): string {
-  const tenths = Math.round(Math.max(0, ms) / 100);
-  const minutes = Math.floor(tenths / 600);
-  const seconds = Math.floor((tenths % 600) / 10);
-  const sep = locale === "pt" ? "," : ".";
-  return `${minutes}:${String(seconds).padStart(2, "0")}${sep}${tenths % 10}`;
+/** A run's time to the thousandth, "1:49.167" — a stopwatch's point in
+ * both languages (by request, 2026-10-24, like the session's duration).
+ * Finer than the lines measure (RUN_TIE_MS), which the dialog says under
+ * the list. */
+export function formatRunTime(ms: number): string {
+  const total = Math.round(Math.max(0, ms));
+  const minutes = Math.floor(total / 60_000);
+  const seconds = Math.floor((total % 60_000) / 1000);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(total % 1000).padStart(3, "0")}`;
 }
 
-/** A run against the best, "+1,4 s" — or null when it is the best or
- * within RUN_TIE_MS of it. */
-export function formatRunGap(
-  ms: number,
-  bestMs: number,
-  locale: Locale,
-): string | null {
+/** A run against the best, "+1.412 s", with the times' point — or null
+ * when it is the best or within RUN_TIE_MS of it. */
+export function formatRunGap(ms: number, bestMs: number): string | null {
   const gap = ms - bestMs;
   if (gap <= RUN_TIE_MS) return null;
-  const s = (Math.round(gap / 100) / 10).toFixed(1);
-  return `+${locale === "pt" ? s.replace(".", ",") : s} s`;
+  return `+${(Math.round(gap) / 1000).toFixed(3)} s`;
 }

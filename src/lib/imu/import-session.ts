@@ -18,7 +18,11 @@ import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
 import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
-import { buildTrackIndex } from "@/lib/imu/snapshot";
+import { buildTrackIndex, prepareSnapshotSession } from "@/lib/imu/snapshot";
+import { alignSession, sessionSummary } from "@/lib/imu/derive";
+import { withBikeFrameEvents } from "@/lib/imu/events";
+import { suggestTrim, trimSession } from "@/lib/imu/trim";
+import { isTimedTrackDefinition, runTrimOf } from "@/lib/imu/timed-track";
 
 export type ImportOutcome = { ok: true } | { ok: false; error: string };
 
@@ -53,6 +57,44 @@ export async function uploadAndRegisterImuSession(input: {
       ),
     };
 
+  // The session arrives trimmed (by request, 2026-10-24). A run down one
+  // of the account's timed tracks is trimmed to its lines, as the session
+  // page would on opening; any other to the moving stretch suggestTrim
+  // reads off the GPS — the trim dialog's "Suggest", applied. Read here,
+  // where the file is already parsed, so the list shows the run's time
+  // from the start. The tracks are the account's own (RLS), newest first;
+  // a failed read only costs the lines, and the page still applies them
+  // when the session is opened.
+  let trim: { startMs: number; endMs: number } | null = null;
+  let trimByTrack = false;
+  let figures = summary;
+  let gps = session.gps;
+  if (session.gps) {
+    // As the page reads it: aligned, with the bike-frame events.
+    const whole = withBikeFrameEvents(alignSession(session));
+    const { data: tracks } = await supabase
+      .from("imu_tracks")
+      .select("definition")
+      .order("created_at", { ascending: false });
+    const definitions = (tracks ?? [])
+      .map((row): unknown => row.definition)
+      .filter(isTimedTrackDefinition);
+    trim =
+      definitions.length > 0
+        ? runTrimOf(prepareSnapshotSession(whole), definitions)
+        : null;
+    trimByTrack = trim != null;
+    trim ??= suggestTrim(whole);
+    // A suggestion that keeps the whole recording is no trim at all.
+    if (trim && trim.startMs <= 0 && trim.endMs >= whole.durationMs)
+      trim = null;
+    if (trim) {
+      const cropped = trimSession(whole, trim);
+      figures = sessionSummary(cropped);
+      gps = cropped.gps;
+    }
+  }
+
   const result = await createImuSession({
     name: input.name,
     riderName: input.riderName,
@@ -60,18 +102,21 @@ export async function uploadAndRegisterImuSession(input: {
     group: input.group,
     storagePath,
     format: session.format,
-    durationMs: summary.durationMs,
-    sampleRateHz: summary.sampleRateHz,
-    sampleCount: summary.sampleCount,
-    maxG: summary.maxG,
-    eventCount: summary.eventCount,
-    curveCount: summary.curveCount,
-    jumpCount: summary.jumpCount,
-    impactCount: summary.impactCount,
-    airtimeMs: summary.airtimeMs,
+    durationMs: figures.durationMs,
+    sampleRateHz: figures.sampleRateHz,
+    sampleCount: figures.sampleCount,
+    maxG: figures.maxG,
+    eventCount: figures.eventCount,
+    curveCount: figures.curveCount,
+    jumpCount: figures.jumpCount,
+    impactCount: figures.impactCount,
+    airtimeMs: figures.airtimeMs,
     // Where it went, for Snapshots to know which sessions to fetch — built
     // here because the browser is the one side that has the parsed track.
-    trackIndex: buildTrackIndex(session.gps),
+    // Of the trimmed run when there is one, as the trim dialog builds it.
+    trackIndex: buildTrackIndex(gps),
+    trim,
+    trimByTrack,
   });
   if (result.status === "error") return { ok: false, error: result.message };
   return { ok: true };

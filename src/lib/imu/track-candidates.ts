@@ -28,6 +28,8 @@ export interface ImuTrackCandidate {
   mountOrientation: ImuMountOrientation | null;
   /** Its trim — set to its run between the lines when it differs. */
   trim: ImuSessionTrim | null;
+  /** …and whether it came from a track's lines. */
+  trimByTrack: boolean;
 }
 
 /**
@@ -53,7 +55,7 @@ export async function loadTimedTracks(
   const { data: sessions } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index, trim_start_ms, trim_end_ms",
+      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index, trim_start_ms, trim_end_ms, trim_by_track",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -83,6 +85,7 @@ export async function loadTimedTracks(
       mountOrientation:
         s.mount_orientation as unknown as ImuMountOrientation | null,
       trim: trimOf(s.trim_start_ms, s.trim_end_ms),
+      trimByTrack: s.trim_by_track,
     }));
   return { tracks, candidates };
 }

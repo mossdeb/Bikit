@@ -270,6 +270,8 @@ export async function saveImuSessionTrim(
   sessionId: string,
   whole: ImuSessionData,
   next: ImuSessionTrim | null,
+  /** The trim is a track's start and finish lines (imu-session-track). */
+  byTrack = false,
 ): ReturnType<typeof setImuSessionTrim> {
   const cropped = trimSession(whole, next);
   const summary = sessionSummary(cropped);
@@ -285,6 +287,7 @@ export async function saveImuSessionTrim(
     impactCount: summary.impactCount,
     airtimeMs: summary.airtimeMs,
     trackIndex: buildTrackIndex(cropped.gps),
+    byTrack,
   });
 }
 

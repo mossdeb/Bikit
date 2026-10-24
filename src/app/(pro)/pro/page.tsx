@@ -5,7 +5,8 @@ import { hasLabAccess } from "@/lib/lab-access";
 import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
-import { formatSessionTime } from "@/lib/imu/derive";
+import { formatDurationMillis } from "@/lib/imu/derive";
+import { StatClockIcon } from "@/components/imu-stat-icons";
 import { formatGroupDay } from "@/lib/imu/groups";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,7 @@ export default async function ImuLabPage() {
         .select(
           // No counts: the card stopped printing them, and a column selected
           // for nobody is a query that grows without a reader.
-          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count",
+          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track",
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false }),
@@ -138,8 +139,19 @@ export default async function ImuLabPage() {
             </span>{" "}
             {t.common.units.samples}
           </p>
-          <p className="shrink-0 tabular-nums">
-            {formatSessionTime(session.duration_ms)}
+          {/* The duration to the thousandth with the résumé's clock (by
+              request, 2026-10-24) — trimmed to a track's lines, the run's
+              time, read off the lines as the session page reads it. In the ink
+              and bold, apart from the grey facts beside it. */}
+          <p className="flex shrink-0 items-center gap-1.5 font-bold text-foreground tabular-nums">
+            <StatClockIcon className="size-4" />
+            {formatDurationMillis(
+              session.trim_by_track &&
+                session.trim_start_ms != null &&
+                session.trim_end_ms != null
+                ? session.trim_end_ms - session.trim_start_ms
+                : session.duration_ms,
+            )}
           </p>
         </div>
         {/* Above the covering link, so the trash can is clickable. */}

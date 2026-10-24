@@ -96,6 +96,7 @@ import {
   windowPeak,
   windowRange,
   windowRms,
+  formatDurationMillis,
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
@@ -203,6 +204,7 @@ const SNAPSHOT_CACHE_MAX = 12;
  * the start and finish lines time the runs, and a trim already set still
  * applies. Back with true. */
 const SHOW_TRIM = false;
+
 
 const HIGHG_KIND = "highg";
 const HIGHG_KIND_DEF = {
@@ -1193,6 +1195,7 @@ export function ImuSessionAnalysis({
   existingSnapshots,
   mountOrientation = null,
   trim = null,
+  trimByTrack = false,
   timedTracks = [],
   trackCandidates = [],
 }: {
@@ -1209,6 +1212,8 @@ export function ImuSessionAnalysis({
    * recording. The plot shows the trimmed run from 00:00; the scissors on
    * the zoom row open the dialog that sets it. */
   trim?: ImuSessionTrim | null;
+  /** The trim came from a timed track's lines, not the scissors. */
+  trimByTrack?: boolean;
   /** The account's timed tracks and the recordings each may be passed in
    * (src/lib/imu/track-candidates.ts): the flag beside the scissors. */
   timedTracks?: ImuTimedTrack[];
@@ -2198,7 +2203,13 @@ export function ImuSessionAnalysis({
                 <Stat
                   Icon={StatClockIcon}
                   label={t.resume.duration}
-                  value={formatSessionTime(summary.durationMs)}
+                  value={formatDurationMillis(
+                    // Trimmed to a track's lines, the duration is the
+                    // run's time — the lines' interval, as the flag shows it.
+                    trimByTrack && trim
+                      ? trim.endMs - trim.startMs
+                      : summary.durationMs,
+                  )}
                 />
                 {/* The ride-level GPS figures ride next to the duration —
                   the three answer "how much ride" before the rest answer
@@ -2469,6 +2480,7 @@ export function ImuSessionAnalysis({
                     sessionId={sessionId}
                     whole={whole}
                     trim={trim}
+                    trimByTrack={trimByTrack}
                     visibleMs={[
                       (zoomed ? Math.round(win[0]) : 0) + (trim?.startMs ?? 0),
                       Math.round(win[1]) + (trim?.startMs ?? 0),
