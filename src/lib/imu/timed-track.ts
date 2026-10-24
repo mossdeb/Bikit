@@ -36,6 +36,16 @@ export interface TimedRun extends SnapshotPass {
  * the same to about this (the Snapshots' own measure, 2026-09-10). */
 export const RUN_TIE_MS = 200;
 
+/** A line faces the trail's direction over this much either side of it,
+ * m. Measured 2026-10-24 on five runs of one track: lines drawn from the
+ * second around the instant faced up to 117° off where the others rode,
+ * since the reference was braking into its stop. */
+const LINE_HEADING_SPAN_M = 15;
+/** …and stands at least this far, m, from where the reference stood still:
+ * a start drawn where R0100 waited was never crossed by R0022 and R0023,
+ * which waited a few metres past it. */
+const LINE_CLEAR_OF_STOPS_M = 15;
+
 /** A track whose start and finish are where the session was at two
  * instants on its own clock — null where createGatePair finds no pass
  * between them (no track, the bike not moving, the instants reversed). */
@@ -44,7 +54,10 @@ export function createTimedTrack(
   startMs: number,
   finishMs: number,
 ): { definition: TimedTrackDefinition; reference: TimedRun } | null {
-  const pair = createGatePair(prepared, startMs, finishMs);
+  const pair = createGatePair(prepared, startMs, finishMs, {
+    headingSpanM: LINE_HEADING_SPAN_M,
+    clearOfStopsM: LINE_CLEAR_OF_STOPS_M,
+  });
   if (!pair) return null;
   return {
     definition: pair.definition,

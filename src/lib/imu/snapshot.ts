@@ -483,6 +483,70 @@ export function createSnapshot(
   };
 }
 
+export interface GatePairOptions {
+  /** Read each gate's direction from the trail's shape this far either
+   * side of it, m, instead of from the second around the instant — which
+   * a bike slowing into a stop turns any way at all (a finish drawn there
+   * on 2026-10-24 faced 110° off the trail). */
+  headingSpanM?: number;
+  /** Keep the gates at least this far along the trail, m, from where the
+   * bike stood still: a rider waiting a few metres past a start line drawn
+   * where another waited never crosses it. */
+  clearOfStopsM?: number;
+}
+
+/** Below this, m/s, read over STOP_WINDOW_MS, the bike is standing. */
+const STOP_MPS = 1;
+const STOP_WINDOW_MS = 2000;
+
+function stoppedAt(track: SnapshotTrack, timeMs: number): boolean {
+  const half = STOP_WINDOW_MS / 2;
+  const covered =
+    distanceAt(track, timeMs + half) - distanceAt(track, timeMs - half);
+  return covered < STOP_MPS * (STOP_WINDOW_MS / 1000);
+}
+
+/** Where along the trail the bike last stood at or before an instant, m —
+ * null if it never stood before it. */
+function stopBefore(track: SnapshotTrack, timeMs: number): number | null {
+  for (let k = segmentAt(track, timeMs); k >= 0; k--)
+    if (stoppedAt(track, track.tMs[k])) return track.distM[k];
+  return null;
+}
+
+/** Where along the trail the bike next stood from an instant on, m — the
+ * start of that stop, walked back if the instant is already in one. Null
+ * if it never stops again. */
+function stopFrom(track: SnapshotTrack, timeMs: number): number | null {
+  let k = segmentAt(track, timeMs);
+  if (stoppedAt(track, track.tMs[k])) {
+    while (k > 0 && stoppedAt(track, track.tMs[k - 1])) k--;
+    return track.distM[k];
+  }
+  for (; k < track.tMs.length; k++)
+    if (stoppedAt(track, track.tMs[k])) return track.distM[k];
+  return null;
+}
+
+/** A gate at a distance along the trail, facing the chord between the
+ * points spanM before and after it. */
+function gateAlong(
+  track: SnapshotTrack,
+  distM: number,
+  spanM: number,
+): SnapshotGate | null {
+  const at = (d: number) => positionAt(track, timeAtDistance(track, d));
+  const a = at(distM - spanM);
+  const b = at(distM + spanM);
+  const [dx, dy] = metresBetween(a.latDeg, a.lonDeg, b.latDeg, b.lonDeg);
+  if (Math.hypot(dx, dy) < MIN_HEADING_BASE_M) return null;
+  return {
+    ...at(distM),
+    headingDeg: (Math.atan2(dx, dy) / RAD + 360) % 360,
+    halfWidthM: SNAPSHOT_GATE_HALF_WIDTH_M,
+  };
+}
+
 /**
  * Two gates where the session was at two instants, each facing the way the
  * bike was going, and the pass between them — found by the same rule as
@@ -495,16 +559,30 @@ export function createGatePair(
   prepared: SnapshotSession,
   entryAtMs: number,
   exitAtMs: number,
+  options: GatePairOptions = {},
 ): { definition: GatePair; reference: SnapshotPass } | null {
   const track = prepared.track;
   if (!track) return null;
   const total = track.distM[track.distM.length - 1];
   const clampDist = (d: number) => Math.min(total - 1, Math.max(1, d));
-  const entryMs = timeAtDistance(track, clampDist(distanceAt(track, entryAtMs)));
-  const exitMs = timeAtDistance(track, clampDist(distanceAt(track, exitAtMs)));
+  let entryDist = clampDist(distanceAt(track, entryAtMs));
+  let exitDist = clampDist(distanceAt(track, exitAtMs));
+  const clear = options.clearOfStopsM;
+  if (clear != null) {
+    const before = stopBefore(track, entryAtMs);
+    if (before != null) entryDist = Math.max(entryDist, before + clear);
+    const after = stopFrom(track, exitAtMs);
+    if (after != null) exitDist = Math.min(exitDist, after - clear);
+  }
+  if (exitDist <= entryDist) return null;
+  const entryMs = timeAtDistance(track, entryDist);
+  const exitMs = timeAtDistance(track, exitDist);
   if (exitMs <= entryMs) return null;
-  const entry = gateAt(track, entryMs);
-  const exit = gateAt(track, exitMs);
+  const span = options.headingSpanM;
+  const entry =
+    span != null ? gateAlong(track, entryDist, span) : gateAt(track, entryMs);
+  const exit =
+    span != null ? gateAlong(track, exitDist, span) : gateAt(track, exitMs);
   if (!entry || !exit) return null;
   const draft: GatePair = { entry, exit, referenceDurationMs: exitMs - entryMs };
   let reference: SnapshotPass | null = null;
