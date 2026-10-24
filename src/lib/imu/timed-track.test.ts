@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import type { GpsChannels, ImuSessionData } from "./format";
+import { prepareSnapshotSession } from "./snapshot";
+import {
+  createTimedTrack,
+  findTimedRuns,
+  formatRunGap,
+  formatRunTime,
+  isTimedTrackDefinition,
+} from "./timed-track";
+
+const LAT0 = 37.1;
+const LON0 = -7.8;
+const R = 6_371_000;
+const RAD = Math.PI / 180;
+
+/**
+ * A straight descent heading north at a steady speed, a fix every 100 ms,
+ * standing still for `waitS` first — the rider at the top before the off.
+ */
+function descent(speedMps: number, seconds: number, waitS = 0): ImuSessionData {
+  const fixes = Math.round((seconds + waitS) * 10);
+  const gps: GpsChannels = {
+    tMs: new Float64Array(fixes),
+    latDeg: new Float64Array(fixes),
+    lonDeg: new Float64Array(fixes),
+    altitudeM: new Float32Array(fixes),
+    speedMps: new Float32Array(fixes),
+  } as unknown as GpsChannels;
+  for (let k = 0; k < fixes; k++) {
+    const tS = k / 10;
+    const north = Math.max(0, tS - waitS) * speedMps;
+    gps.tMs[k] = tS * 1000;
+    gps.latDeg[k] = LAT0 + north / (R * RAD);
+    gps.lonDeg[k] = LON0;
+    gps.altitudeM[k] = 500 - north * 0.2;
+    gps.speedMps[k] = tS < waitS ? 0 : speedMps;
+  }
+  const rate = 50;
+  const n = Math.round((seconds + waitS) * rate);
+  const tMs = new Float64Array(n);
+  for (let i = 0; i < n; i++) tMs[i] = (i / rate) * 1000;
+  const zeros = () => new Float32Array(n);
+  return {
+    channels: {
+      tMs,
+      ax: zeros(),
+      ay: zeros(),
+      az: new Float32Array(n).fill(1),
+      gx: zeros(),
+      gy: zeros(),
+      gz: zeros(),
+    },
+    gps,
+    events: [],
+    durationMs: (seconds + waitS) * 1000,
+  } as unknown as ImuSessionData;
+}
+
+describe("timed tracks", () => {
+  it("times a run between the lines it was made from", () => {
+    const made = createTimedTrack(
+      prepareSnapshotSession(descent(10, 60)),
+      10_000,
+      50_000,
+    );
+    expect(made).not.toBeNull();
+    expect(isTimedTrackDefinition(made!.definition)).toBe(true);
+    expect(made!.reference.durationMs).toBeCloseTo(40_000, -2);
+  });
+
+  it("times another run between the same lines, whatever its own clock", () => {
+    const made = createTimedTrack(
+      prepareSnapshotSession(descent(10, 60)),
+      10_000,
+      50_000,
+    )!;
+    // The same 400 m at 8 m/s, after 7 s standing at the top: 50 s.
+    const runs = findTimedRuns(
+      prepareSnapshotSession(descent(8, 70, 7)),
+      made.definition,
+    );
+    expect(runs).toHaveLength(1);
+    expect(runs[0].durationMs).toBeCloseTo(50_000, -2);
+    expect(runs[0].entryMs).toBeCloseTo(7_000 + 100_000 / 8, -2);
+  });
+
+  it("finds no run in a session that never reaches the finish", () => {
+    const made = createTimedTrack(
+      prepareSnapshotSession(descent(10, 60)),
+      10_000,
+      50_000,
+    )!;
+    expect(
+      findTimedRuns(prepareSnapshotSession(descent(10, 30)), made.definition),
+    ).toHaveLength(0);
+  });
+
+  it("writes times and gaps as a rider reads them", () => {
+    expect(formatRunTime(107_320, "pt")).toBe("1:47,3");
+    expect(formatRunTime(107_320, "en")).toBe("1:47.3");
+    expect(formatRunTime(59_960, "pt")).toBe("1:00,0");
+    expect(formatRunGap(108_720, 107_320, "pt")).toBe("+1,4 s");
+    expect(formatRunGap(107_500, 107_320, "pt")).toBeNull();
+    expect(formatRunGap(107_320, 107_320, "en")).toBeNull();
+  });
+});

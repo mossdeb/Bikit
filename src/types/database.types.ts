@@ -485,6 +485,41 @@ export type Database = {
           },
         ];
       };
+      imu_tracks: {
+        Row: {
+          created_at: string;
+          definition: Json;
+          id: string;
+          name: string;
+          reference_session_id: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          definition: Json;
+          id?: string;
+          name: string;
+          reference_session_id?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          definition?: Json;
+          id?: string;
+          name?: string;
+          reference_session_id?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "imu_tracks_reference_session_id_fkey";
+            columns: ["reference_session_id"];
+            isOneToOne: false;
+            referencedRelation: "imu_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       imu_sessions: {
         Row: {
           airtime_ms: number;

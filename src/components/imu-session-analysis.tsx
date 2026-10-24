@@ -49,6 +49,11 @@ import {
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
+import { ImuSessionTrackButton } from "@/components/imu-session-track";
+import type {
+  ImuTimedTrack,
+  ImuTrackCandidate,
+} from "@/lib/imu/track-candidates";
 import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
 import {
   ImuSnapshotCreate,
@@ -1183,6 +1188,8 @@ export function ImuSessionAnalysis({
   existingSnapshots,
   mountOrientation = null,
   trim = null,
+  timedTracks = [],
+  trackCandidates = [],
 }: {
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
@@ -1197,6 +1204,10 @@ export function ImuSessionAnalysis({
    * recording. The plot shows the trimmed run from 00:00; the scissors on
    * the zoom row open the dialog that sets it. */
   trim?: ImuSessionTrim | null;
+  /** The account's timed tracks and the recordings each may be passed in
+   * (src/lib/imu/track-candidates.ts): the flag beside the scissors. */
+  timedTracks?: ImuTimedTrack[];
+  trackCandidates?: ImuTrackCandidate[];
   /** Who rode this recording, as recorded on import. It titles the
    * dashboard — the instruments are that person's ride, not a panel with a
    * generic name. Null on sessions imported before the field existed, and
@@ -2444,6 +2455,22 @@ export function ImuSessionAnalysis({
                   >
                     <Scissors className="size-3.5" />
                   </button>
+                )}
+                {/* Start and finish (2026-10-24): beside the scissors, which
+                  only tidy the page — these lines time the run, on the whole
+                  recording's clock like the trim dialog's. */}
+                {whole && (
+                  <ImuSessionTrackButton
+                    sessionId={sessionId}
+                    whole={whole}
+                    trim={trim}
+                    visibleMs={[
+                      (zoomed ? Math.round(win[0]) : 0) + (trim?.startMs ?? 0),
+                      Math.round(win[1]) + (trim?.startMs ?? 0),
+                    ]}
+                    tracks={timedTracks}
+                    candidates={trackCandidates}
+                  />
                 )}
               </div>
             </div>

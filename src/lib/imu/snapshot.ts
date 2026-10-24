@@ -117,14 +117,20 @@ export interface SnapshotGate {
   halfWidthM: number;
 }
 
-/** What is kept of a Snapshot — enough to find its passes in any session. */
-export interface SnapshotDefinition {
-  kind: SnapshotKind;
+/** Two gates and the reference time between them — all that finding a
+ * pass needs. A Snapshot is one, with its kind; a timed track
+ * (src/lib/imu/timed-track.ts) is another, from start to finish. */
+export interface GatePair {
   entry: SnapshotGate;
   exit: SnapshotGate;
   /** The reference pass's time between the gates, ms. How long another
    * pass may take is measured against it. */
   referenceDurationMs: number;
+}
+
+/** What is kept of a Snapshot — enough to find its passes in any session. */
+export interface SnapshotDefinition extends GatePair {
+  kind: SnapshotKind;
 }
 
 export interface SnapshotPass {
@@ -414,7 +420,7 @@ function crossings(track: SnapshotTrack, gate: SnapshotGate): number[] {
  */
 export function findSnapshotPasses(
   prepared: SnapshotSession,
-  definition: SnapshotDefinition,
+  definition: GatePair,
 ): SnapshotPass[] {
   const track = prepared.track;
   if (!track) return [];
@@ -465,17 +471,42 @@ export function createSnapshot(
     distanceAt(track, span[1]) + SNAPSHOT_GATE_OFFSET_M,
   );
   if (exitDist <= entryDist) return null;
-  const entryMs = timeAtDistance(track, entryDist);
-  const exitMs = timeAtDistance(track, exitDist);
+  const pair = createGatePair(
+    prepared,
+    timeAtDistance(track, entryDist),
+    timeAtDistance(track, exitDist),
+  );
+  if (!pair) return null;
+  return {
+    definition: { kind, ...pair.definition },
+    reference: pair.reference,
+  };
+}
+
+/**
+ * Two gates where the session was at two instants, each facing the way the
+ * bike was going, and the pass between them — found by the same rule as
+ * any other pass, so the reference and the rest are measured alike. Null
+ * without a track, with the instants out of order or where the bike never
+ * moved enough to give a gate a direction. The instants are kept a metre
+ * inside the track's ends: a crossing needs ground on both sides.
+ */
+export function createGatePair(
+  prepared: SnapshotSession,
+  entryAtMs: number,
+  exitAtMs: number,
+): { definition: GatePair; reference: SnapshotPass } | null {
+  const track = prepared.track;
+  if (!track) return null;
+  const total = track.distM[track.distM.length - 1];
+  const clampDist = (d: number) => Math.min(total - 1, Math.max(1, d));
+  const entryMs = timeAtDistance(track, clampDist(distanceAt(track, entryAtMs)));
+  const exitMs = timeAtDistance(track, clampDist(distanceAt(track, exitAtMs)));
+  if (exitMs <= entryMs) return null;
   const entry = gateAt(track, entryMs);
   const exit = gateAt(track, exitMs);
   if (!entry || !exit) return null;
-  const draft: SnapshotDefinition = {
-    kind,
-    entry,
-    exit,
-    referenceDurationMs: exitMs - entryMs,
-  };
+  const draft: GatePair = { entry, exit, referenceDurationMs: exitMs - entryMs };
   let reference: SnapshotPass | null = null;
   let bestError = Infinity;
   for (const pass of findSnapshotPasses(prepared, draft)) {
@@ -771,8 +802,14 @@ export function isSnapshotDefinition(
 ): value is SnapshotDefinition {
   if (!value || typeof value !== "object") return false;
   const d = value as Record<string, unknown>;
+  return isSnapshotKind(d.kind) && isGatePair(value);
+}
+
+/** The same check for two gates without a kind — a timed track's. */
+export function isGatePair(value: unknown): value is GatePair {
+  if (!value || typeof value !== "object") return false;
+  const d = value as Record<string, unknown>;
   return (
-    isSnapshotKind(d.kind) &&
     isGate(d.entry) &&
     isGate(d.exit) &&
     typeof d.referenceDurationMs === "number" &&
@@ -849,7 +886,7 @@ export function trackIndexNearGate(
  * worth fetching and reading. Near is not through: the file decides. */
 export function trackIndexMayPass(
   index: SnapshotTrackIndex,
-  definition: SnapshotDefinition,
+  definition: GatePair,
 ): boolean {
   return (
     trackIndexNearGate(index, definition.entry) &&

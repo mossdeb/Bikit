@@ -32,6 +32,7 @@ import {
   setupLabelsOf,
 } from "@/lib/imu/setup-labels";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
+import { loadTimedTracks } from "@/lib/imu/track-candidates";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -136,6 +137,11 @@ export default async function ImuSessionPage({
       ? (referenceNames.get(row.reference_session_id) ?? null)
       : null,
   }));
+  // The account's timed tracks and who may have ridden them — the flag
+  // beside the scissors. Definitions and rows only; the runs are timed in
+  // the browser.
+  const { tracks: timedTracks, candidates: trackCandidates } =
+    await loadTimedTracks(supabase, userId);
   const bike = session.bike_id
     ? ((bikes ?? []).find((b) => b.id === session.bike_id) ?? null)
     : null;
@@ -204,6 +210,8 @@ export default async function ImuSessionPage({
           session.mount_orientation as unknown as ImuMountOrientation | null
         }
         trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
+        timedTracks={timedTracks}
+        trackCandidates={trackCandidates}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more
