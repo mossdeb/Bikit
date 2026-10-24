@@ -120,23 +120,7 @@ export function ImuSessionTrimDialog({
     if (busy) return;
     setBusy(true);
     setError(null);
-    // The figures the row keeps, read off the cropped session — or the
-    // whole one when the trim is lifted.
-    const cropped = trimSession(whole, next);
-    const summary = sessionSummary(cropped);
-    const result = await setImuSessionTrim({
-      sessionId,
-      trim: next,
-      durationMs: summary.durationMs,
-      sampleCount: summary.sampleCount,
-      maxG: summary.maxG,
-      eventCount: summary.eventCount,
-      curveCount: summary.curveCount,
-      jumpCount: summary.jumpCount,
-      impactCount: summary.impactCount,
-      airtimeMs: summary.airtimeMs,
-      trackIndex: buildTrackIndex(cropped.gps),
-    });
+    const result = await saveImuSessionTrim(sessionId, whole, next);
     setBusy(false);
     if (result.status === "error") {
       setError(result.message);
@@ -274,6 +258,34 @@ export function ImuSessionTrimDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Saves a trim with the figures the row keeps, read off the cropped
+ * session — or the whole one when the trim is lifted. The dialog's save,
+ * and the start and finish lines' (imu-session-track.tsx), which trim a
+ * run to them.
+ */
+export async function saveImuSessionTrim(
+  sessionId: string,
+  whole: ImuSessionData,
+  next: ImuSessionTrim | null,
+): ReturnType<typeof setImuSessionTrim> {
+  const cropped = trimSession(whole, next);
+  const summary = sessionSummary(cropped);
+  return setImuSessionTrim({
+    sessionId,
+    trim: next,
+    durationMs: summary.durationMs,
+    sampleCount: summary.sampleCount,
+    maxG: summary.maxG,
+    eventCount: summary.eventCount,
+    curveCount: summary.curveCount,
+    jumpCount: summary.jumpCount,
+    impactCount: summary.impactCount,
+    airtimeMs: summary.airtimeMs,
+    trackIndex: buildTrackIndex(cropped.gps),
+  });
 }
 
 function TrimChip({

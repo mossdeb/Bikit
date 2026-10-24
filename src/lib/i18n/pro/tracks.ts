@@ -7,8 +7,6 @@ const en = {
   button: "Start and finish",
   buttonWithTime: (time: string): string => `Start and finish — this run ${time}`,
   title: "Start and finish",
-  description:
-    "A start line and a finish line fixed on the trail. Every run that passes both is timed between them — whatever its trim and whichever day it was ridden — so runs on the same track can be compared to the tenth.",
   thisRun: "This run",
   best: "Best",
   /** A run within the tie of the best, but not the best itself. */
@@ -57,8 +55,6 @@ const pt: typeof en = {
   button: "Partida e chegada",
   buttonWithTime: (time) => `Partida e chegada — esta run ${time}`,
   title: "Partida e chegada",
-  description:
-    "Uma linha de partida e uma de chegada fixas no trilho. Cada run que passa pelas duas é cronometrada entre elas — seja qual for o recorte e o dia em que foi feita — e as runs da mesma pista comparam-se à décima.",
   thisRun: "Esta run",
   best: "Melhor",
   tied: "Empate",

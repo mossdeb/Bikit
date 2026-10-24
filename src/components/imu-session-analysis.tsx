@@ -199,6 +199,11 @@ const EVENT_KIND_DEFS = [
 /** How many other sessions the comparison keeps read, at ~5 MB each. */
 const SNAPSHOT_CACHE_MAX = 12;
 
+/** The scissors on the zoom row, hidden for now (by request, 2026-10-24):
+ * the start and finish lines time the runs, and a trim already set still
+ * applies. Back with true. */
+const SHOW_TRIM = false;
+
 const HIGHG_KIND = "highg";
 const HIGHG_KIND_DEF = {
   kind: HIGHG_KIND,
@@ -2445,7 +2450,7 @@ export function ImuSessionAnalysis({
                   pair, and dressed like them whether or not a trim is in
                   force (by request, 2026-09-13) — the label and the dialog
                   say which. */}
-                {whole && (
+                {SHOW_TRIM && whole && (
                   <button
                     type="button"
                     onClick={() => setTrimOpen(true)}

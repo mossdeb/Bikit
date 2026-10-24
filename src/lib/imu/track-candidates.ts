@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import { trimOf, type ImuSessionTrim } from "@/lib/imu/trim";
 import { isTrackIndex, trackIndexMayPass } from "@/lib/imu/snapshot";
 import {
   isTimedTrackDefinition,
@@ -25,6 +26,8 @@ export interface ImuTrackCandidate {
   createdAt: string;
   storagePath: string;
   mountOrientation: ImuMountOrientation | null;
+  /** Its trim — set to its run between the lines when it differs. */
+  trim: ImuSessionTrim | null;
 }
 
 /**
@@ -50,7 +53,7 @@ export async function loadTimedTracks(
   const { data: sessions } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index",
+      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index, trim_start_ms, trim_end_ms",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -79,6 +82,7 @@ export async function loadTimedTracks(
       storagePath: s.storage_path,
       mountOrientation:
         s.mount_orientation as unknown as ImuMountOrientation | null,
+      trim: trimOf(s.trim_start_ms, s.trim_end_ms),
     }));
   return { tracks, candidates };
 }

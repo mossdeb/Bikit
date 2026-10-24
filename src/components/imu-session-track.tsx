@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Flag, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -22,6 +21,7 @@ import { formatDate } from "@/lib/format";
 import { prepareSnapshotSession } from "@/lib/imu/snapshot";
 import { parseSessionTime, type ImuSessionTrim } from "@/lib/imu/trim";
 import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
+import { saveImuSessionTrim } from "@/components/imu-session-trim";
 import {
   createTimedTrack,
   findTimedRuns,
@@ -47,6 +47,34 @@ import {
  * lines. Everything is read on the WHOLE recording, never the trimmed one
  * — the lines are the stopwatch, the trim only tidies the page.
  */
+/**
+ * The trim IS the lines (by request, 2026-10-24): a run that passes a track
+ * is trimmed to its first run between the start and the finish, so the
+ * page, the report and the list all read the timed run from 00:00 at the
+ * start line. With several tracks, the newest the run passes — the one the
+ * button shows. A run that passes none keeps the trim it has.
+ */
+function trackTrimOf(
+  prepared: Prepared,
+  tracks: ImuTimedTrack[],
+): ImuSessionTrim | null {
+  for (const track of tracks) {
+    const run = findTimedRuns(prepared, track.definition)[0];
+    if (run)
+      return { startMs: Math.round(run.entryMs), endMs: Math.round(run.exitMs) };
+  }
+  return null;
+}
+
+/** Within a millisecond of each other: the trim is stored rounded. */
+function sameTrim(a: ImuSessionTrim | null, b: ImuSessionTrim): boolean {
+  return (
+    a != null &&
+    Math.abs(a.startMs - b.startMs) <= 1 &&
+    Math.abs(a.endMs - b.endMs) <= 1
+  );
+}
+
 export function ImuSessionTrackButton({
   sessionId,
   whole,
@@ -78,6 +106,22 @@ export function ImuSessionTrackButton({
   );
   const first = passed[0];
   const time = first ? formatRunTime(first.runs[0].durationMs, locale) : null;
+
+  // This run trimmed to the lines, once, when its trim is anything else —
+  // a track drawn, redrawn or deleted since, or a trim set by hand before.
+  const router = useRouter();
+  const synced = useRef<string | null>(null);
+  const target = useMemo(() => trackTrimOf(prepared, tracks), [prepared, tracks]);
+  useEffect(() => {
+    if (!target || sameTrim(trim, target)) return;
+    const key = `${target.startMs}-${target.endMs}`;
+    if (synced.current === key) return;
+    synced.current = key;
+    void saveImuSessionTrim(sessionId, whole, target).then((result) => {
+      if (result.status === "ok") router.refresh();
+      else console.warn("Trim to the start and finish lines:", result.message);
+    });
+  }, [target, trim, sessionId, whole, router]);
   const label = time ? t.buttonWithTime(time) : t.button;
 
   return (
@@ -88,13 +132,23 @@ export function ImuSessionTrackButton({
         aria-label={label}
         title={label}
         className={cn(
-          "ml-2 flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-border bg-card transition-colors hover:bg-muted",
+          "relative ml-3 flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-border bg-card transition-colors hover:bg-muted",
           time ? "px-3" : "w-8",
         )}
       >
-        <Flag className="size-3.5" />
+        <FinishFlag className="size-3.5" />
         {time && (
           <span className="text-xs font-semibold tabular-nums">{time}</span>
+        )}
+        {/* The lines are in force on this run (by request, 2026-10-24): a
+          mint disc with a tick on the pill's corner, the brand's green. */}
+        {time && (
+          <span
+            aria-hidden
+            className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#43F3AF] text-[#101014] ring-2 ring-background"
+          >
+            <Check className="size-2.5" strokeWidth={3.5} />
+          </span>
         )}
       </button>
       {open && (
@@ -107,6 +161,7 @@ export function ImuSessionTrackButton({
           trim={trim}
           visibleMs={visibleMs}
           passed={passed}
+          tracks={tracks}
           candidates={candidates}
         />
       )}
@@ -126,6 +181,7 @@ function ImuTrackDialog({
   trim,
   visibleMs,
   passed,
+  tracks,
   candidates,
 }: {
   open: boolean;
@@ -136,6 +192,7 @@ function ImuTrackDialog({
   trim: ImuSessionTrim | null;
   visibleMs: [number, number];
   passed: Passed;
+  tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
@@ -154,10 +211,9 @@ function ImuTrackDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Flag className="size-5" />
+            <FinishFlag className="size-5" />
             {mode === "view" && current ? current.track.name : t.title}
           </DialogTitle>
-          <DialogDescription className="mt-1">{t.description}</DialogDescription>
         </DialogHeader>
 
         {mode === "view" && current ? (
@@ -166,6 +222,7 @@ function ImuTrackDialog({
             sessionId={sessionId}
             current={current}
             others={passed.filter((m) => m !== current)}
+            tracks={tracks}
             candidates={candidates}
             onPick={setTrackId}
             onEdit={() => setMode("edit")}
@@ -222,6 +279,7 @@ function TrackView({
   sessionId,
   current,
   others,
+  tracks,
   candidates,
   onPick,
   onEdit,
@@ -231,6 +289,8 @@ function TrackView({
   sessionId: string;
   current: Passed[number];
   others: Passed;
+  /** Every track of the account, newest first — which one trims a run. */
+  tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
   onPick: (trackId: string) => void;
   onEdit: () => void;
@@ -271,6 +331,7 @@ function TrackView({
   // The files already read while the dialog is open, by session — a
   // redraw or a switch of track reads them again from here, not the net.
   const cache = useRef(new Map<string, Promise<Prepared | null>>());
+  const synced = useRef(new Set<string>());
 
   useEffect(() => {
     let live = true;
@@ -283,6 +344,13 @@ function TrackView({
         cache.current.set(c.id, loading);
       }
       void loading.then((p) => {
+        // The other runs are trimmed to the lines as they are read, like
+        // this one on its own page — once each, while the dialog is open.
+        const target = p && trackTrimOf(p, tracks);
+        if (p && target && !sameTrim(c.trim, target) && !synced.current.has(c.id)) {
+          synced.current.add(c.id);
+          void saveImuSessionTrim(c.id, p.session, target);
+        }
         if (!live) return;
         setRows((prev) =>
           new Map(prev).set(
@@ -297,7 +365,7 @@ function TrackView({
     return () => {
       live = false;
     };
-  }, [toRead, track.definition, locale]);
+  }, [toRead, track.definition, tracks, locale]);
 
   const all = [...selfRows, ...[...rows.values()].flat()];
   const timed = all
@@ -417,7 +485,7 @@ function TrackView({
           <div className="flex flex-wrap gap-2">
             {others.map((m) => (
               <Chip key={m.track.id} onClick={() => onPick(m.track.id)}>
-                <Flag className="size-3.5" />
+                <FinishFlag className="size-3.5" />
                 {m.track.name} · {formatRunTime(m.runs[0].durationMs, locale)}
               </Chip>
             ))}
@@ -670,5 +738,18 @@ function Chip({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * The start and finish mark: a checkered flag (supplied art,
+ * icons/bandeira.svg, 2026-10-24) in place of Lucide's plain one, drawn in
+ * the ink around it.
+ */
+function FinishFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 38 40" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M0.00900656 21.3756C0.00900656 15.8337 0.0170637 10.2919 1.63562e-05 4.75006C-0.00244218 3.95094 0.272139 3.38778 0.905719 2.91496C5.00031 -0.140654 9.48637 -0.73551 14.2248 0.856294C16.8762 1.74699 19.4358 2.9231 22.0375 3.96866C23.8171 4.68389 25.6156 5.32272 27.5348 5.53818C30.3285 5.85183 32.8124 5.04005 35.0653 3.39858C35.6995 2.9365 36.3286 2.56433 37.1094 2.96725C37.9076 3.37914 37.9979 4.12514 37.9967 4.94506C37.9855 12.7272 37.9832 20.5094 38 28.2916C38.0018 29.13 37.7149 29.7151 37.0509 30.209C33.0661 33.1724 28.6973 33.8173 24.0602 32.3211C21.6189 31.5334 19.2562 30.4857 16.8739 29.5148C14.9299 28.7227 12.9924 27.9276 10.9049 27.6108C8.18971 27.1987 5.70347 27.8216 3.42874 29.3567C3.28332 29.4548 3.18862 29.7387 3.18751 29.9368C3.17202 32.7161 3.17988 35.4954 3.17512 38.2748C3.17361 39.1518 2.67797 39.7967 1.90211 39.9654C0.953559 40.1717 0.0444365 39.4305 0.0138721 38.4053C-0.00569316 37.749 0.00906798 37.0916 0.00905411 36.4346C0.00895109 31.415 0.00900656 26.3953 0.00900656 21.3756ZM13.4584 14.0125C13.3945 13.997 13.33 13.9836 13.2668 13.9656C9.91343 13.0148 6.66042 13.141 3.54453 14.8779C3.24977 15.0422 3.16922 15.2199 3.17032 15.5426C3.18136 18.776 3.17703 22.0094 3.17703 25.2429C3.17703 25.3892 3.17703 25.5356 3.17703 25.7634C6.50711 24.0414 9.9206 23.9041 13.4458 24.8485C13.4458 21.201 13.4458 17.6 13.4465 13.9999C13.7284 14.0924 14.0169 14.1681 14.2912 14.28C16.6735 15.2514 19.0497 16.2387 21.4356 17.201C22.4372 17.6049 23.4576 17.9601 24.5358 18.3622C24.5358 14.9884 24.5386 11.7401 24.5241 8.49182C24.5236 8.37993 24.3709 8.21264 24.2531 8.16572C21.8799 7.22036 19.5016 6.2886 17.124 5.35471C15.931 4.88612 14.7376 4.41873 13.4584 3.91706L13.4584 14.0125ZM24.5568 29.1243C28.0371 30.3007 31.3379 30.1174 34.4563 28.0888C34.7231 27.9152 34.8319 27.7419 34.8305 27.4098C34.8164 24.1924 34.8223 20.9749 34.8209 17.7574C34.8209 17.6166 34.8046 17.4757 34.7917 17.2682C31.5098 19.2131 28.0992 19.3816 24.5568 18.3282V29.1243Z" />
+    </svg>
   );
 }
