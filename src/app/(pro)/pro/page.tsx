@@ -151,7 +151,7 @@ export default async function ImuLabPage() {
           <p className="mt-1 font-display text-xl leading-tight font-bold">
             {session.name}
           </p>
-          <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
+          <div className="mt-2 text-sm text-muted-foreground">
             <p>
               {formatDate(session.created_at, locale)} ·{" "}
               {Math.round(session.sample_rate_hz)} Hz ·{" "}
@@ -164,7 +164,9 @@ export default async function ImuLabPage() {
                 request, 2026-10-24) — trimmed to a track's lines, the run's
                 time, read off the lines as the session page reads it. In the ink
                 and bold, apart from the grey facts beside it. */}
-            <p className="flex shrink-0 items-center gap-1.5 font-bold text-foreground tabular-nums">
+            {/* Under the provenance, on the left (by request, 2026-10-26):
+              the thumbnail took the card's right-hand side. */}
+          <p className="mt-3 flex items-center gap-1.5 font-bold text-foreground tabular-nums">
               <StatClockIcon className="size-4" />
               {formatDurationMillis(
                 session.trim_by_track &&
