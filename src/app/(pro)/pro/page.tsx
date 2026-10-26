@@ -132,7 +132,11 @@ export default async function ImuLabPage() {
         />
         {/* The words, with the trash can in their top-right corner — the
             thumbnail takes the card's. */}
-        <div className="relative min-w-0 flex-1">
+        {/* `pointer-events-none` on the words and the thumbnail: both are
+            positioned, so they stacked above the covering link and a click
+            on them opened nothing (2026-10-26). The trash can takes the
+            pointer back. */}
+        <div className="pointer-events-none relative min-w-0 flex-1">
           <div className="flex items-center gap-2 pr-8 text-sm text-muted-foreground">
             {BikeGlyph && (
               <BikeGlyph
@@ -178,7 +182,7 @@ export default async function ImuLabPage() {
             </p>
           </div>
           {/* Above the covering link, so the trash can is clickable. */}
-          <div className="absolute -top-2 -right-2 z-10">
+          <div className="pointer-events-auto absolute -top-2 -right-2 z-10">
             <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
           </div>
         </div>
@@ -188,7 +192,7 @@ export default async function ImuLabPage() {
         {outline && (
           <ImuSessionThumb
             outline={outline}
-            className="hidden h-[106px] w-[156px] shrink-0 sm:block"
+            className="pointer-events-none hidden h-[106px] w-[156px] shrink-0 sm:block"
           />
         )}
       </div>
