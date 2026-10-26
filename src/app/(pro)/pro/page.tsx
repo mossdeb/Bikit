@@ -18,6 +18,8 @@ import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
 import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
 import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
+import { ImuSessionThumb } from "@/components/imu-session-thumb";
+import { isTrackIndex } from "@/lib/imu/snapshot";
 
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
@@ -32,6 +34,9 @@ function riderNames(sessions: { rider_name: string | null }[]): string[] {
     ...new Set(sessions.map((s) => s.rider_name?.trim() ?? "").filter(Boolean)),
   ];
 }
+
+/** Points a card's route thumbnail keeps. */
+const THUMB_POINTS = 100;
 
 export default async function ImuLabPage() {
   const supabase = await createClient();
@@ -55,7 +60,7 @@ export default async function ImuLabPage() {
         .select(
           // No counts: the card stopped printing them, and a column selected
           // for nobody is a query that grows without a reader.
-          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track",
+          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track, track_index",
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false }),
@@ -94,7 +99,20 @@ export default async function ImuLabPage() {
     }
   }
 
+  /** The route for a card's thumbnail (2026-10-26): the stored outline
+   * (up to 600 points) thinned to about a hundred — plenty at 156px, and
+   * a sixth of what every card would otherwise carry to the browser. */
+  function thumbOutline(trackIndex: unknown): [number, number][] | null {
+    if (!isTrackIndex(trackIndex)) return null;
+    const o = trackIndex.outline;
+    const step = Math.max(1, Math.ceil(o.length / THUMB_POINTS));
+    const out = o.filter((_, i) => i % step === 0);
+    if (out[out.length - 1] !== o[o.length - 1]) out.push(o[o.length - 1]);
+    return out;
+  }
+
   function SessionCard({ session }: { session: SessionRow }) {
+    const outline = thumbOutline(session.track_index);
     const bike = session.bike_id ? bikeById.get(session.bike_id) : undefined;
     const BikeGlyph = bike
       ? (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK)
@@ -102,7 +120,7 @@ export default async function ImuLabPage() {
     return (
       <div
         className={cn(
-          "relative rounded-lg bg-card p-5",
+          "relative flex gap-5 rounded-lg bg-card p-5",
           DARK_CARD_HAIRLINE,
           CLICKABLE_CARD_HOVER,
         )}
@@ -112,52 +130,65 @@ export default async function ImuLabPage() {
           className="absolute inset-0 rounded-lg outline-none"
           aria-label={session.name}
         />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {BikeGlyph && (
-            <BikeGlyph
-              className="h-5 w-7 shrink-0 text-foreground"
-              aria-hidden
-            />
-          )}
-          <span>{bike?.name ?? t.sessions.list.noBike}</span>
-          {/* Who rode it, beside what carried the sensor: two facts of the
-              same kind, and the list is where sessions are told apart from
-              each other. */}
-          {session.rider_name && (
-            <span className="truncate">· {session.rider_name}</span>
-          )}
-        </div>
-        <p className="mt-1 font-display text-xl leading-tight font-bold">
-          {session.name}
-        </p>
-        <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
-          <p>
-            {formatDate(session.created_at, locale)} ·{" "}
-            {Math.round(session.sample_rate_hz)} Hz ·{" "}
-            <span className="tabular-nums">
-              {proNumber(session.sample_count, locale)}
-            </span>{" "}
-            {t.common.units.samples}
-          </p>
-          {/* The duration to the thousandth with the résumé's clock (by
-              request, 2026-10-24) — trimmed to a track's lines, the run's
-              time, read off the lines as the session page reads it. In the ink
-              and bold, apart from the grey facts beside it. */}
-          <p className="flex shrink-0 items-center gap-1.5 font-bold text-foreground tabular-nums">
-            <StatClockIcon className="size-4" />
-            {formatDurationMillis(
-              session.trim_by_track &&
-                session.trim_start_ms != null &&
-                session.trim_end_ms != null
-                ? session.trim_end_ms - session.trim_start_ms
-                : session.duration_ms,
+        {/* The words, with the trash can in their top-right corner — the
+            thumbnail takes the card's. */}
+        <div className="relative min-w-0 flex-1">
+          <div className="flex items-center gap-2 pr-8 text-sm text-muted-foreground">
+            {BikeGlyph && (
+              <BikeGlyph
+                className="h-5 w-7 shrink-0 text-foreground"
+                aria-hidden
+              />
             )}
+            <span>{bike?.name ?? t.sessions.list.noBike}</span>
+            {/* Who rode it, beside what carried the sensor: two facts of the
+                same kind, and the list is where sessions are told apart from
+                each other. */}
+            {session.rider_name && (
+              <span className="truncate">· {session.rider_name}</span>
+            )}
+          </div>
+          <p className="mt-1 font-display text-xl leading-tight font-bold">
+            {session.name}
           </p>
+          <div className="mt-2 flex items-end justify-between gap-3 text-sm text-muted-foreground">
+            <p>
+              {formatDate(session.created_at, locale)} ·{" "}
+              {Math.round(session.sample_rate_hz)} Hz ·{" "}
+              <span className="tabular-nums">
+                {proNumber(session.sample_count, locale)}
+              </span>{" "}
+              {t.common.units.samples}
+            </p>
+            {/* The duration to the thousandth with the résumé's clock (by
+                request, 2026-10-24) — trimmed to a track's lines, the run's
+                time, read off the lines as the session page reads it. In the ink
+                and bold, apart from the grey facts beside it. */}
+            <p className="flex shrink-0 items-center gap-1.5 font-bold text-foreground tabular-nums">
+              <StatClockIcon className="size-4" />
+              {formatDurationMillis(
+                session.trim_by_track &&
+                  session.trim_start_ms != null &&
+                  session.trim_end_ms != null
+                  ? session.trim_end_ms - session.trim_start_ms
+                  : session.duration_ms,
+              )}
+            </p>
+          </div>
+          {/* Above the covering link, so the trash can is clickable. */}
+          <div className="absolute -top-2 -right-2 z-10">
+            <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
+          </div>
         </div>
-        {/* Above the covering link, so the trash can is clickable. */}
-        <div className="absolute top-3 right-3 z-10">
-          <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
-        </div>
+        {/* The route, as the Snapshots' list shows theirs (by request,
+            2026-10-26). From `sm`: a phone's card has no room beside the
+            words. Not without GPS. */}
+        {outline && (
+          <ImuSessionThumb
+            outline={outline}
+            className="hidden h-[106px] w-[156px] shrink-0 sm:block"
+          />
+        )}
       </div>
     );
   }

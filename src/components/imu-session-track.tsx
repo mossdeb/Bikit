@@ -230,8 +230,12 @@ function ImuTrackDialog({
   const current = passed.find((m) => m.track.id === trackId) ?? null;
   // Without a track this run passes, the dialog opens on the form that
   // draws one.
+  // The flag opens on the track's own form (by request, 2026-10-26): the
+  // times have their own door, the ranking under the duration, which opens
+  // read-only on the list. Without a track this run passes, on the form
+  // that draws one.
   const [mode, setMode] = useState<"view" | "create" | "edit">(
-    current ? "view" : "create",
+    readOnly ? "view" : current ? "edit" : "create",
   );
 
   return (
@@ -259,19 +263,35 @@ function ImuTrackDialog({
             onDeleted={() => onOpenChange(false)}
           />
         ) : (
-          <TrackForm
-            sessionId={sessionId}
-            whole={whole}
-            prepared={prepared}
-            trim={trim}
-            visibleMs={visibleMs}
-            editing={mode === "edit" ? current : null}
-            onCancel={current ? () => setMode("view") : undefined}
-            onSaved={(id) => {
-              setTrackId(id);
-              setMode("view");
-            }}
-          />
+          <>
+            <TrackForm
+              key={mode}
+              sessionId={sessionId}
+              whole={whole}
+              prepared={prepared}
+              trim={trim}
+              visibleMs={visibleMs}
+              editing={mode === "edit" ? current : null}
+              // From a new track back to the one being edited; from the
+              // edit itself, out.
+              onCancel={
+                mode === "create" && current
+                  ? () => setMode("edit")
+                  : () => onOpenChange(false)
+              }
+              onSaved={(id) => {
+                setTrackId(id);
+                onOpenChange(false);
+              }}
+            />
+            {mode === "edit" && current && (
+              <TrackEditActions
+                trackId={current.track.id}
+                onNew={() => setMode("create")}
+                onDeleted={() => onOpenChange(false)}
+              />
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>
@@ -753,6 +773,80 @@ function TrackForm({
         )}
       </div>
     </form>
+  );
+}
+
+/** Under the track's form: draw another track from this run, or delete
+ * this one — with its own confirmation (2026-10-26). */
+function TrackEditActions({
+  trackId,
+  onNew,
+  onDeleted,
+}: {
+  trackId: string;
+  onNew: () => void;
+  onDeleted: () => void;
+}) {
+  const t = useProDict().tracks;
+  const common = useProDict().common;
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    const result = await deleteImuTrack(trackId);
+    setBusy(false);
+    if (result.status === "error") {
+      setError(result.message);
+      return;
+    }
+    onDeleted();
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {confirming ? (
+        <div className="space-y-3 rounded-md border border-destructive/40 p-3">
+          <p className="text-sm">{t.deleteConfirm}</p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-full"
+              disabled={busy}
+              onClick={() => void remove()}
+            >
+              {busy ? common.saving : t.delete}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              {t.cancel}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap justify-center gap-2">
+          <Chip onClick={onNew}>
+            <Plus className="size-3.5" />
+            {t.newTrack}
+          </Chip>
+          <Chip onClick={() => setConfirming(true)} className="text-destructive">
+            <Trash2 className="size-3.5" />
+            {t.delete}
+          </Chip>
+        </div>
+      )}
+    </div>
   );
 }
 

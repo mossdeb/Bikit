@@ -17,12 +17,16 @@ export function ImuSnapshotMiniMap({
   track,
   section,
   className,
+  sectionWeight = 5,
 }: {
   /** The whole track, [lat, lon]. */
   track: [number, number][];
   /** The ground between the gates, entry first. */
   section: [number, number][];
   className?: string;
+  /** The bright stretch's line, px — thinner on the sessions list's
+   * thumbnails, where it is the whole route (2026-10-26). */
+  sectionWeight?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -75,13 +79,13 @@ export function ImuSnapshotMiniMap({
       map.getPane("tilePane")!.style.filter = "brightness(0.62) saturate(0.65)";
       L.polyline(track, {
         color: "#43F3AF",
-        weight: 3,
+        weight: Math.min(3, sectionWeight),
         opacity: 0.3,
         interactive: false,
       }).addTo(map);
       L.polyline(section, {
         color: "#43F3AF",
-        weight: 5,
+        weight: sectionWeight,
         opacity: 1,
         interactive: false,
       }).addTo(map);
@@ -95,7 +99,7 @@ export function ImuSnapshotMiniMap({
       map?.remove();
       map = null;
     };
-  }, [track, section]);
+  }, [track, section, sectionWeight]);
 
   return (
     <div
