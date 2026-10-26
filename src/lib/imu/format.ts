@@ -178,6 +178,8 @@ export interface ImuSessionData {
    * puts the channels in the bike's frame outright and nothing has to be
    * estimated from the ride. Absent on files without it. */
   orientation?: ImuMountOrientation;
+  /** The rider-sag step's reading, when the file carries one. */
+  riderSag?: ImuRiderSag;
   /** The shocks the logger's second accelerometer caught (firmware V15:
    * an ADXL375, ±200 g), each a short window round its trigger — see
    * ImuHighGEvent. Absent on files without the sensor; empty when it was
@@ -212,6 +214,26 @@ export interface ImuHighGEvent {
   x: Float32Array;
   y: Float32Array;
   z: Float32Array;
+}
+
+/**
+ * The rider-sag calibration step (firmware after 2026-10-26: Neutral
+ * Position → Rider Sag → Forward Direction): the bike standing still with
+ * the rider on it in their riding position. The firmware keeps the mean
+ * specific force over ~4 steady seconds — gravity as the sensor reads it
+ * with the rider's weight on the suspension — and does not touch CAL1.
+ * Optional: a file from before the step has none, and nothing that existed
+ * before it depends on it (by request, 2026-10-26).
+ *
+ * The on-disk record is not specified yet; this is what the app needs from
+ * it, whatever its layout.
+ */
+export interface ImuRiderSag {
+  /** Mean specific force with the rider on, in the SENSOR's frame, G. */
+  gravityG: [number, number, number];
+  accelStddevG: number;
+  gyroStddevDps: number;
+  sampleCount: number;
 }
 
 export interface ImuMountOrientation {

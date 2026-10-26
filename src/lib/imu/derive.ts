@@ -1747,7 +1747,6 @@ export function pitchSeries(
   return out;
 }
 
-/** mm:ss.mmm for the details panel, mm:ss for axes. */
 /** A session's duration to the thousandth, "01:49.167", with a
  * stopwatch's point in both languages (by request, 2026-10-24): with the
  * trim set by a track's start and finish lines, it is the run's time. Read
@@ -1759,6 +1758,7 @@ export function formatDurationMillis(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(total % 1000).padStart(3, "0")}`;
 }
 
+/** mm:ss.mmm for the details panel, mm:ss for axes. */
 export function formatSessionTime(ms: number, withMillis = false): string {
   const clamped = Math.max(0, ms);
   const totalSeconds = Math.floor(clamped / 1000);
