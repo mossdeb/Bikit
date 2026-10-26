@@ -274,10 +274,21 @@ export default async function ImuSessionPage({
                     {bike?.name ? " · " : ""}
                     {/* The rider leads the provenance tail: whose ride it was
                     belongs beside what carried the sensor, ahead of the
-                    facts that describe the file rather than the ride. */}
-                    {session.rider_name ? `${session.rider_name} · ` : ""}
-                    {formatDate(session.created_at, locale)} ·{" "}
-                    {Math.round(session.sample_rate_hz)} Hz ·{" "}
+                    facts that describe the file rather than the ride. The
+                    rider and the day in the ink (by request, 2026-10-26),
+                    the file's rate and count stepping back. */}
+                    {session.rider_name && (
+                      <>
+                        <span className="text-foreground">
+                          {session.rider_name}
+                        </span>
+                        {" · "}
+                      </>
+                    )}
+                    <span className="text-foreground">
+                      {formatDate(session.created_at, locale)}
+                    </span>{" "}
+                    · {Math.round(session.sample_rate_hz)} Hz ·{" "}
                     {proNumber(session.sample_count, locale)}{" "}
                     {t.common.units.samples}
                   </span>
