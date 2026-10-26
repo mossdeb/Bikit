@@ -2216,21 +2216,20 @@ export function ImuSessionAnalysis({
           <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:p-0">
             <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
               <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-6 sm:gap-px sm:bg-border">
-                {/* The main IMU's peak, comparable across every session
-                  (2026-09-27): "≥ 16" at the ceiling, and the high-g
-                  sensor's harder peak under it when there is one. */}
+                {/* "High G" (by request, 2026-10-26): the high-g sensor's
+                  peak when it caught a harder hit than the main IMU reads
+                  — its figure, alone, no note. Without one (firmware
+                  before V15, or nothing past its trigger), the main IMU's
+                  peak, "≥ 16" at its ceiling. */}
                 <CompactStat
                   Icon={StatMetricIcon}
                   label={t.resume.maxG}
                   value={
-                    summary.maxG >= LSM_CEILING_G
-                      ? "≥ 16"
-                      : proNumber(summary.maxG, locale, 2)
-                  }
-                  note={
                     highGPeak != null && highGPeak > summary.maxG
-                      ? t.resume.highGPeak(proNumber(highGPeak, locale, 0))
-                      : undefined
+                      ? `${proNumber(highGPeak, locale, 0)} G`
+                      : summary.maxG >= LSM_CEILING_G
+                        ? "≥ 16 G"
+                        : `${proNumber(summary.maxG, locale, 2)} G`
                   }
                 />
                 <CompactStat
