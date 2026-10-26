@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Ellipsis, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -167,11 +167,15 @@ export function ImuSessionSettings({
         if (next) reset();
       }}
     >
+      {/* A square door beside the report, with a pencil (by request,
+          2026-10-26, from a mockup) — it was three dots in the card's
+          corner. Outlined like the doors it stands with. */}
       <DialogTrigger
         aria-label={t.sessions.settings.title}
-        className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        title={t.sessions.settings.title}
+        className="inline-flex size-[50px] shrink-0 cursor-pointer items-center justify-center rounded-[14px] border border-border bg-card transition-colors hover:bg-[#F7F7F7] dark:hover:bg-muted/50"
       >
-        <Ellipsis className="size-5" />
+        <Pencil className="size-[18px]" strokeWidth={2.1} />
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

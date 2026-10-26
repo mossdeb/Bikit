@@ -220,29 +220,7 @@ export default async function ImuSessionPage({
           // and the padding evens out. A `//` comment and not `{/* */}`: this
           // is the value of a prop, so the braces are already a JS expression
           // and a JSX comment here breaks the parse.
-          <div className="relative px-5 pt-5 pb-12 sm:px-6 2xl:static 2xl:py-6 2xl:pr-0">
-            {/* The session's settings — name, rider, bike, and deleting —
-                behind three dots in the card's top-right corner. Below `2xl`
-                this block IS the card's width, so it is what the corner is
-                measured from; from `2xl` it becomes a column beside the
-                tiles, goes `static`, and the corner is the card's own
-                (`relative` in SessionCards) — tucked in tighter there, where
-                the card is short and the tiles sit close to the top. */}
-            <div className="absolute top-3 right-3 sm:top-4 sm:right-4 2xl:top-2 2xl:right-2">
-              <ImuSessionSettings
-                sessionId={session.id}
-                name={session.name}
-                riderName={session.rider_name}
-                bikeId={session.bike_id}
-                bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
-                groupId={session.group_id}
-                groups={groups ?? []}
-                riderDefault={riderDefault}
-                riders={riderNames(riderRows ?? [])}
-                storagePath={session.storage_path}
-                canDownload={canDownloadRecordings(email)}
-              />
-            </div>
+          <div className="relative px-5 pt-5 pb-12 sm:px-6 2xl:py-6 2xl:pr-0">
             {/* The identity and, under it, the doors: the run's setup, the
                 report and the comparison of setups. They stood beside the
                 words from `sm` (2026-09-10, on the provenance line's foot);
@@ -251,7 +229,7 @@ export default async function ImuSessionPage({
                 (2026-09-24) — one column at every width, the pills in a
                 wrapping row below the provenance. A `min-w-0` column so the
                 provenance keeps wrapping. */}
-            <div className="flex flex-col gap-5 pr-10 2xl:pr-0">
+            <div className="flex flex-col gap-5">
               <div className="min-w-0">
                 {/* stroke-width pinned in CSS, the bike-created screen's trick.
                 The art is shown 1:1 — 28 units wide in a 28px box — so the
@@ -350,6 +328,21 @@ export default async function ImuSessionPage({
                   <ImuDocGlyph className="h-auto w-[18px] text-foreground [&_path]:[stroke-width:2.1]" />
                   {t.sessions.page.report}
                 </Link>
+                {/* The session's settings — name, rider, bike, group,
+                    the file and deleting — beside the report. */}
+                <ImuSessionSettings
+                  sessionId={session.id}
+                  name={session.name}
+                  riderName={session.rider_name}
+                  bikeId={session.bike_id}
+                  bikes={(bikes ?? []).map(({ id, name }) => ({ id, name }))}
+                  groupId={session.group_id}
+                  groups={groups ?? []}
+                  riderDefault={riderDefault}
+                  riders={riderNames(riderRows ?? [])}
+                  storagePath={session.storage_path}
+                  canDownload={canDownloadRecordings(email)}
+                />
               </div>
             </div>
           </div>

@@ -8,6 +8,24 @@ const en = {
   buttonWithTime: (time: string): string => `Start and finish — this run ${time}`,
   title: "Start and finish",
   thisRun: "This run",
+  /** The ranking under the duration (2026-10-26): the bold part, then the
+   * rest. */
+  rank: (n: number): string => {
+    if (n === 1) return "Best run";
+    const tens = n % 100;
+    const suffix =
+      tens >= 11 && tens <= 13
+        ? "th"
+        : n % 10 === 1
+          ? "st"
+          : n % 10 === 2
+            ? "nd"
+            : n % 10 === 3
+              ? "rd"
+              : "th";
+    return `${n}${suffix} best run`;
+  },
+  onTrack: "on this track",
   best: "Best",
   /** A run within the tie of the best, but not the best itself. */
   tied: "Tie",
@@ -54,6 +72,8 @@ const pt: typeof en = {
   buttonWithTime: (time) => `Partida e chegada — esta run ${time}`,
   title: "Partida e chegada",
   thisRun: "Esta run",
+  rank: (n) => (n === 1 ? "Melhor run" : `${n}.ª melhor run`),
+  onTrack: "nesta pista",
   best: "Melhor",
   tied: "Empate",
   noRunHere:

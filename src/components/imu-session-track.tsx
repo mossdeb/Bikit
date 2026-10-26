@@ -68,6 +68,28 @@ function sameTrim(a: ImuSessionTrim | null, b: ImuSessionTrim): boolean {
   );
 }
 
+/** The run read for timing once, for the flag and the ranking alike: the
+ * session prepared for the gates, and the tracks it passes — newest track
+ * first, each with its runs. */
+export function useTimedRuns(
+  whole: ImuSessionData | null,
+  tracks: ImuTimedTrack[],
+): TimedRuns | null {
+  return useMemo(() => {
+    if (!whole) return null;
+    const prepared = prepareSnapshotSession(whole);
+    const passed = tracks
+      .map((track) => ({
+        track,
+        runs: findTimedRuns(prepared, track.definition),
+      }))
+      .filter((m) => m.runs.length > 0);
+    return { prepared, passed };
+  }, [whole, tracks]);
+}
+
+export type TimedRuns = { prepared: Prepared; passed: Passed };
+
 export function ImuSessionTrackButton({
   sessionId,
   whole,
@@ -76,6 +98,7 @@ export function ImuSessionTrackButton({
   visibleMs,
   tracks,
   candidates,
+  timed,
 }: {
   sessionId: string;
   /** The recording before the trim, aligned. */
@@ -87,18 +110,12 @@ export function ImuSessionTrackButton({
   visibleMs: [number, number];
   tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
+  /** useTimedRuns, read once by the page for this button and the ranking. */
+  timed: TimedRuns;
 }) {
   const t = useProDict().tracks;
   const [open, setOpen] = useState(false);
-  const prepared = useMemo(() => prepareSnapshotSession(whole), [whole]);
-  /** The tracks this run passes, newest track first, each with its runs. */
-  const passed = useMemo(
-    () =>
-      tracks
-        .map((track) => ({ track, runs: findTimedRuns(prepared, track.definition) }))
-        .filter((m) => m.runs.length > 0),
-    [tracks, prepared],
-  );
+  const { prepared, passed } = timed;
   const first = passed[0];
   const time = first ? formatRunTime(first.runs[0].durationMs) : null;
 
@@ -190,10 +207,14 @@ function ImuTrackDialog({
   passed,
   tracks,
   candidates,
+  readOnly = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string;
+  /** The times only, without drawing, redrawing or deleting (the ranking's
+   * popup, 2026-10-26). */
+  readOnly?: boolean;
   whole: ImuSessionData;
   prepared: Prepared;
   trim: ImuSessionTrim | null;
@@ -232,6 +253,7 @@ function ImuTrackDialog({
             tracks={tracks}
             candidates={candidates}
             onPick={setTrackId}
+            readOnly={readOnly}
             onEdit={() => setMode("edit")}
             onNew={() => setMode("create")}
             onDeleted={() => onOpenChange(false)}
@@ -289,11 +311,13 @@ function TrackView({
   tracks,
   candidates,
   onPick,
+  readOnly,
   onEdit,
   onNew,
   onDeleted,
 }: {
   sessionId: string;
+  readOnly: boolean;
   current: Passed[number];
   others: Passed;
   /** Every track of the account, newest first — which one trims a run. */
@@ -507,7 +531,7 @@ function TrackView({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {confirming ? (
+      {readOnly ? null : confirming ? (
         <div className="space-y-3 rounded-md border border-destructive/40 p-3">
           <p className="text-sm">{t.deleteConfirm}</p>
           <div className="flex gap-2">
@@ -729,6 +753,87 @@ function TrackForm({
         )}
       </div>
     </form>
+  );
+}
+
+/**
+ * Where this run stands on its track (by request, 2026-10-26, from a
+ * mockup): "2.ª melhor run nesta pista" under the duration, opening the
+ * track's times without the drawing controls. The rank is read off the
+ * other runs' trims — each run on a track is trimmed to its lines, so its
+ * trim IS its time — and needs no file; the popup reads the files and is
+ * the exact word. A run whose trim did not come from the lines is not
+ * counted. Nothing when the run passes no track.
+ */
+export function ImuTrackRanking({
+  sessionId,
+  whole,
+  trim,
+  visibleMs,
+  tracks,
+  candidates,
+  timed,
+}: {
+  sessionId: string;
+  whole: ImuSessionData;
+  trim: ImuSessionTrim | null;
+  visibleMs: [number, number];
+  tracks: ImuTimedTrack[];
+  candidates: ImuTrackCandidate[];
+  timed: TimedRuns;
+}) {
+  const t = useProDict().tracks;
+  const [open, setOpen] = useState(false);
+  const first = timed.passed[0];
+  if (!first) return null;
+  const mine = first.runs[0].durationMs;
+  let rank = 1;
+  for (const c of candidates) {
+    if (c.id === sessionId || !c.trimByTrack || !c.trim) continue;
+    if (!first.track.candidateIds.includes(c.id)) continue;
+    if (c.trim.endMs - c.trim.startMs < mine) rank++;
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted"
+      >
+        <PodiumGlyph className="size-4" />
+        <span>
+          <span className="font-semibold">{t.rank(rank)}</span> {t.onTrack}
+        </span>
+      </button>
+      {open && (
+        <ImuTrackDialog
+          open={open}
+          onOpenChange={setOpen}
+          sessionId={sessionId}
+          whole={whole}
+          prepared={timed.prepared}
+          trim={trim}
+          visibleMs={visibleMs}
+          passed={timed.passed}
+          tracks={tracks}
+          candidates={candidates}
+          readOnly
+        />
+      )}
+    </>
+  );
+}
+
+/** A podium — the ranking's mark: three steps, the winner's tallest, with
+ * a head on it. */
+function PodiumGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
+      <circle cx={8} cy={2.6} r={1.9} />
+      <rect x={5.5} y={6} width={5} height={10} rx={0.6} />
+      <rect x={0.5} y={9.5} width={4.5} height={6.5} rx={0.6} />
+      <rect x={11} y={11.5} width={4.5} height={4.5} rx={0.6} />
+    </svg>
   );
 }
 

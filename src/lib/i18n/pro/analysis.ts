@@ -243,7 +243,7 @@ const en = {
     duration: "Duration",
     distance: "Distance",
     maxSpeed: "Max speed",
-    maxG: "Max G",
+    maxG: "High G",
     /** Under Max G when the high-g sensor (firmware V15) caught a harder
      * hit than the main IMU can read: "High-G 73 G". */
     highGPeak: (g: string): string => `High-G ${g} G`,
@@ -251,6 +251,8 @@ const en = {
     curves: "Corners",
     jumps: "Jumps",
     airtime: "Airtime",
+    /** Time spent in rough sections, in the header's figures. */
+    rough: "Rough",
   },
 
   /** The zoom row under the plot. */
@@ -576,12 +578,13 @@ const pt: typeof en = {
     duration: "Duração",
     distance: "Distância",
     maxSpeed: "Vel. máx",
-    maxG: "G máx",
+    maxG: "High G",
     highGPeak: (g) => `High-G ${g} G`,
     impacts: "Impactos",
     curves: "Curvas",
     jumps: "Saltos",
     airtime: "No ar",
+    rough: "Acidentado",
   },
 
   zoom: {

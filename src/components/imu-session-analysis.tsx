@@ -21,7 +21,6 @@ import {
   Info,
   Minus,
   Plus,
-  Route,
   Scissors,
   TrendingDown,
   TrendingUp,
@@ -49,7 +48,11 @@ import {
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
-import { ImuSessionTrackButton } from "@/components/imu-session-track";
+import {
+  ImuSessionTrackButton,
+  ImuTrackRanking,
+  useTimedRuns,
+} from "@/components/imu-session-track";
 import type {
   ImuTimedTrack,
   ImuTrackCandidate,
@@ -106,7 +109,6 @@ import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, type ProDictionary } from "@/lib/i18n/pro";
 import type { Locale } from "@/lib/i18n";
 import {
-  StatClockIcon,
   StatImpactIcon,
   StatJumpIcon,
   StatLeanAngleIcon,
@@ -1242,6 +1244,9 @@ export function ImuSessionAnalysis({
     whole,
     error: loadError,
   } = useImuSession(storagePath, mountOrientation, trim);
+  // The run read against the account's tracks once, for the flag on the
+  // zoom row and the ranking in the header.
+  const timed = useTimedRuns(whole, timedTracks);
   const [trimOpen, setTrimOpen] = useState(false);
 
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
@@ -1343,6 +1348,16 @@ export function ImuSessionAnalysis({
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
   // Trimmed to a track's lines, the duration is the run's time — the lines'
   // interval, as the flag shows it.
+  // Time spent in rough sections, the header's "Acidentado".
+  const roughMs = useMemo(
+    () =>
+      (data?.events ?? []).reduce(
+        (sum, e) =>
+          e.kind === "rough_section" ? sum + (e.endMs - e.startMs) : sum,
+        0,
+      ),
+    [data],
+  );
   const durationText = summary
     ? formatDurationMillis(
         trimByTrack && trim ? trim.endMs - trim.startMs : summary.durationMs,
@@ -2156,17 +2171,32 @@ export function ImuSessionAnalysis({
       <SessionCards
         header={header}
         corner={
-          // The run's time, big in the card's top-right corner (by
-          // request, 2026-10-26, from a mockup): with the trim set by a
-          // track's lines it is the figure a rider looks for first.
-          <div className="text-right">
-            <p className="flex items-center justify-end gap-1.5 text-sm font-medium">
-              <StatClockIcon className="size-4" />
-              {t.resume.duration}
-            </p>
-            <p className="font-display text-4xl leading-tight font-bold tabular-nums">
+          // The run's time, big, with the stopwatch (by request,
+          // 2026-10-26, from a mockup): with the trim set by a track's
+          // lines it is the figure a rider looks for first — and under it,
+          // where the run stands on its track, opening the track's times.
+          <div className="flex flex-col items-start gap-2 lg:items-end">
+            <p
+              className="flex items-center gap-2 font-display text-4xl leading-tight font-bold tabular-nums"
+              aria-label={`${t.resume.duration} ${durationText}`}
+            >
+              <StatStopwatchIcon className="size-8 text-foreground [&_path]:[stroke-width:1.4]" />
               {durationText}
             </p>
+            {whole && timed && (
+              <ImuTrackRanking
+                sessionId={sessionId}
+                whole={whole}
+                trim={trim}
+                visibleMs={[
+                  (trim?.startMs ?? 0),
+                  (trim?.endMs ?? whole.durationMs),
+                ]}
+                tracks={timedTracks}
+                candidates={trackCandidates}
+                timed={timed}
+              />
+            )}
           </div>
         }
         /* Session résumé: the numbers the whole recording boils down to. It
@@ -2178,85 +2208,18 @@ export function ImuSessionAnalysis({
          box, which is what the bike header's totals use, would draw its
          dividers into the empty cells. */
         resume={
-          <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:py-6 2xl:pl-0">
-            {/* The rows breathe more than the columns: pulling the label onto
-              its figure made each cell a tight block, and at 16px the three
-              rows read as one paragraph instead of three. Phone only — the
-              desktop tiles space themselves.
-
-              From `sm` the figures share ONE ruled box instead of standing
-              as eight outlined tiles — the shape the bike header's totals
-              already use. Eight boxes, each with its own outline and its own
-              gap, made a row of eight objects out of what is one fact about
-              one recording; a box with rules says the same thing quietly.
-
-              The rules are `gap-px` over a background, not borders on the
-              cells. A border would have to know which cell ends a row, and
-              this grid wraps — 8 cells over 4 columns at `sm`, 8 over 8 at
-              `lg`, 6 over 6 without GPS. A one-pixel gap draws the line
-              wherever the wrap happens to fall, and needs no `nth-child`.
-
-              Eight divide where nine did not: `sm` takes two rows of four
-              and `lg` puts them on one line. Without GPS the six fit a
-              single row from `sm`. The phone stays at three columns either
-              way — four cells across 345px of content leave ~77px each, and
-              "36.0 km/h" already broke at 81. */}
-            {/* The box's white base, so the rules read at the strength they
-              read everywhere else. `--border` is a 9% ink, so what it paints
-              depends on what is under it: over the identity card — white at
-              40% over the page, #f5f5f5 — the same token came out #e0e0e0,
-              against the #e9e9e9 the Rider card's rules make over solid
-              white. Same token, two intensities. An opaque white plate under
-              the grid puts them back on the same backdrop, and with it the
-              same colour. */}
-            {/* The figures alone: the report's door moved into the identity
-              block, beside the name (by request, 2026-09-10 — it had been a
-              ninth cell, then a card beside the plate). */}
+          // The figures in the design's compact tiles (by request,
+          // 2026-10-26, from a mockup): the mark and its name on one line,
+          // the figure under them, six in a ruled box. Distance and top
+          // speed went with the redesign; "Acidentado", the time spent in
+          // rough sections, came in. The phone keeps three loose columns.
+          <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:p-0">
             <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
-              <div
-                className={cn(
-                  "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
-                  summary.distanceM != null
-                    ? "sm:grid-cols-4 lg:grid-cols-7"
-                    : "sm:grid-cols-6 lg:grid-cols-5",
-                )}
-              >
-                {/* Below `lg` the duration is one figure among the rest;
-                  from `lg` it stands big in the card's corner instead. */}
-                <div className="contents lg:hidden">
-                  <Stat
-                    Icon={StatClockIcon}
-                    label={t.resume.duration}
-                    value={durationText}
-                  />
-                </div>
-                {/* The ride-level GPS figures ride next to the duration —
-                  the three answer "how much ride" before the rest answer
-                  "how hard". Lucide marks for now; the supplied art set has
-                  no distance or speedometer glyph yet. */}
-                {summary.distanceM != null && (
-                  <Stat
-                    Icon={StatRouteIcon}
-                    label={t.resume.distance}
-                    value={formatTrackDistance(summary.distanceM, locale)}
-                  />
-                )}
-                {summary.maxSpeedKmh != null && (
-                  <Stat
-                    Icon={StatGaugeIcon}
-                    label={t.resume.maxSpeed}
-                    value={`${proNumber(summary.maxSpeedKmh, locale, 1)} km/h`}
-                  />
-                )}
-                {/* The main IMU's peak, comparable across every session (by
-                  request, 2026-09-27). It reads to ±16 G and the file's G
-                  column stops at 16, so a 16.00 is the ceiling and not the
-                  hit: said as "≥ 16". When the high-g sensor (V15) caught
-                  something harder, its peak goes under it, named — not
-                  swapped in: it sees the sharpest milliseconds the IMU
-                  smooths over (R0173: 16 against 73), and older sessions
-                  have none to compare with. */}
-                <Stat
+              <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-6 sm:gap-px sm:bg-border">
+                {/* The main IMU's peak, comparable across every session
+                  (2026-09-27): "≥ 16" at the ceiling, and the high-g
+                  sensor's harder peak under it when there is one. */}
+                <CompactStat
                   Icon={StatMetricIcon}
                   label={t.resume.maxG}
                   value={
@@ -2270,25 +2233,30 @@ export function ImuSessionAnalysis({
                       : undefined
                   }
                 />
-                <Stat
+                <CompactStat
                   Icon={StatImpactIcon}
                   label={t.resume.impacts}
                   value={String(summary.impactCount)}
                 />
-                <Stat
+                <CompactStat
                   Icon={StatTurnIcon}
                   label={t.resume.curves}
                   value={String(summary.curveCount)}
                 />
-                <Stat
+                <CompactStat
                   Icon={StatJumpIcon}
                   label={t.resume.jumps}
                   value={String(summary.jumpCount)}
                 />
-                <Stat
+                <CompactStat
                   Icon={StatStopwatchIcon}
                   label={t.resume.airtime}
                   value={`${proNumber(summary.airtimeMs / 1000, locale, 1)} s`}
+                />
+                <CompactStat
+                  Icon={StatImpactIcon}
+                  label={t.resume.rough}
+                  value={formatSessionTime(roughMs)}
                 />
               </div>
             </div>
@@ -2494,7 +2462,7 @@ export function ImuSessionAnalysis({
                 {/* Start and finish (2026-10-24): beside the scissors, which
                   only tidy the page — these lines time the run, on the whole
                   recording's clock like the trim dialog's. */}
-                {whole && (
+                {whole && timed && (
                   <ImuSessionTrackButton
                     sessionId={sessionId}
                     whole={whole}
@@ -2506,6 +2474,7 @@ export function ImuSessionAnalysis({
                     ]}
                     tracks={timedTracks}
                     candidates={trackCandidates}
+                    timed={timed}
                   />
                 )}
               </div>
@@ -3351,17 +3320,24 @@ function SessionCards({
           // request, 2026-09-27), 24px in from both edges: down there they
           // are clear of that button, which keeps the top-right, so they no
           // longer need the lane they kept for it when centred.
-          "relative rounded-lg bg-card 2xl:flex 2xl:items-end 2xl:justify-between 2xl:gap-6",
+          "relative rounded-lg bg-card 2xl:flex 2xl:items-stretch 2xl:justify-between 2xl:gap-6",
           DARK_CARD_HAIRLINE,
         )}
       >
         {header}
-        {resume}
-        {corner && (
-          <div className="absolute top-5 right-16 hidden lg:block 2xl:top-6">
-            {corner}
-          </div>
-        )}
+        {/* The right-hand column (2026-10-26, from a mockup): the duration
+            and the ranking on top, the figures under them. Side by side
+            with the identity from `2xl`; below it the corner floats in the
+            card's top-right from `lg`, and on
+            a phone it stands between the identity and the figures. */}
+        <div className="2xl:flex 2xl:shrink-0 2xl:flex-col 2xl:items-end 2xl:justify-between 2xl:gap-[60px] 2xl:py-6 2xl:pr-6">
+          {corner && (
+            <div className="px-5 pb-5 sm:px-6 lg:absolute lg:top-5 lg:right-6 lg:p-0 2xl:static">
+              {corner}
+            </div>
+          )}
+          {resume}
+        </div>
       </div>
       {/* `mt-5` — 20px above this block, half the 40 it carried. The 40 was
           there to make the recording's identity and its reading read as two
@@ -4291,9 +4267,6 @@ function ImuFilterMenu({
 
 /** Lucide stand-ins for the two GPS résumé figures, thinned to the 1.5px
  * the supplied stat art paints — until that set gains its own glyphs. */
-function StatRouteIcon({ className }: { className?: string }) {
-  return <Route strokeWidth={1.5} className={className} />;
-}
 function StatGaugeIcon({ className }: { className?: string }) {
   return <Gauge strokeWidth={1.5} className={className} />;
 }
@@ -4309,15 +4282,9 @@ function StatDropIcon({ className }: { className?: string }) {
   return <TrendingDown strokeWidth={1.5} className={className} />;
 }
 
-/** Metres below a kilometre, kilometres with two decimals above it — the
- * decimals written the way the reader's language writes them. */
-function formatTrackDistance(m: number, locale: Locale): string {
-  return m >= 1000
-    ? `${proNumber(m / 1000, locale, 2)} km`
-    : `${Math.round(m)} m`;
-}
-
-function Stat({
+/** A figure of the header's compact box (2026-10-26, from a mockup): the
+ * mark and its name on one line, the figure under them. */
+function CompactStat({
   Icon,
   label,
   value,
@@ -4326,38 +4293,24 @@ function Stat({
   Icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  /** A small line under the figure — the high-g peak under Max G. */
   note?: string;
 }) {
   return (
-    // A cell of the ruled box from `sm` up. No outline of its own — the
-    // box draws one line between neighbours instead of two — but it keeps
-    // the solid `bg-card`: it is what the 1px gaps show as rules, and what
-    // stops the lab's texture coming through the translucent card behind.
-    //
-    // The mark sits beside the pair on a phone and above it on desktop: there
-    // the columns are ~106px wide and a mark on the left would leave
-    // "Acidentado" less room than the word needs.
-    <div className="flex items-center gap-2.5 sm:flex-col sm:gap-1.5 sm:bg-card sm:px-2 sm:py-4 sm:text-center">
-      <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-      <div>
-        {/* A NEGATIVE margin, and measured rather than guessed: with both
-            boxes already `leading-tight`, the ink of the label sat 7.75px
-            above the ink of the figure — 2px of margin plus the half-leading
-            each box carries (15px of box around 12px of label, 20px around a
-            16px figure). Pulling 2px back lands it at 3.75px, which is the
-            4 asked for. A label without a descender reads a hair looser; that
-            is type, not layout. */}
-        <p className="text-xs leading-tight text-muted-foreground">{label}</p>
-        <p className="-mt-0.5 leading-tight font-semibold tabular-nums">
-          {value}
-        </p>
+    <div className="flex flex-col items-start gap-1 sm:items-center sm:bg-card sm:px-3 sm:py-3.5 sm:text-center 2xl:min-w-[104px]">
+      {/* The mark and its name in the ink (by request, 2026-10-26). */}
+      <p className="flex items-center gap-1.5 text-xs leading-tight text-foreground">
+        <Icon className="size-4 shrink-0" />
+        {label}
+      </p>
+      {/* The note beside the figure, not under it (by request,
+          2026-10-26): "≥ 16  High-G 42 G" on one line keeps the tile as
+          tall as the rest. */}
+      <p className="flex items-baseline gap-1.5 leading-tight tabular-nums">
+        <span className="font-semibold">{value}</span>
         {note && (
-          <p className="text-xs leading-tight text-muted-foreground tabular-nums">
-            {note}
-          </p>
+          <span className="text-xs text-muted-foreground">{note}</span>
         )}
-      </div>
+      </p>
     </div>
   );
 }
