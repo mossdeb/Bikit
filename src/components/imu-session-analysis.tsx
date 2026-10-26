@@ -1341,6 +1341,13 @@ export function ImuSessionAnalysis({
   } | null>(null);
 
   const summary = useMemo(() => (data ? sessionSummary(data) : null), [data]);
+  // Trimmed to a track's lines, the duration is the run's time — the lines'
+  // interval, as the flag shows it.
+  const durationText = summary
+    ? formatDurationMillis(
+        trimByTrack && trim ? trim.endMs - trim.startMs : summary.durationMs,
+      )
+    : "";
   /** The events column's high-water mark, px: the tallest its cards have
    * stood since the session opened or the column last changed width. The
    * column never goes shorter, so the page does not jump as cards of
@@ -2148,6 +2155,20 @@ export function ImuSessionAnalysis({
     <SessionDataContext.Provider value={data}>
       <SessionCards
         header={header}
+        corner={
+          // The run's time, big in the card's top-right corner (by
+          // request, 2026-10-26, from a mockup): with the trim set by a
+          // track's lines it is the figure a rider looks for first.
+          <div className="text-right">
+            <p className="flex items-center justify-end gap-1.5 text-sm font-medium">
+              <StatClockIcon className="size-4" />
+              {t.resume.duration}
+            </p>
+            <p className="font-display text-4xl leading-tight font-bold tabular-nums">
+              {durationText}
+            </p>
+          </div>
+        }
         /* Session résumé: the numbers the whole recording boils down to. It
          shares the identity's card, because both answer "what recording is
          this" — the reading of it starts in the card below.
@@ -2196,21 +2217,19 @@ export function ImuSessionAnalysis({
                 className={cn(
                   "grid grid-cols-3 gap-x-3 gap-y-7 sm:gap-px sm:bg-border",
                   summary.distanceM != null
-                    ? "sm:grid-cols-4 lg:grid-cols-8"
-                    : "sm:grid-cols-6",
+                    ? "sm:grid-cols-4 lg:grid-cols-7"
+                    : "sm:grid-cols-6 lg:grid-cols-5",
                 )}
               >
-                <Stat
-                  Icon={StatClockIcon}
-                  label={t.resume.duration}
-                  value={formatDurationMillis(
-                    // Trimmed to a track's lines, the duration is the
-                    // run's time — the lines' interval, as the flag shows it.
-                    trimByTrack && trim
-                      ? trim.endMs - trim.startMs
-                      : summary.durationMs,
-                  )}
-                />
+                {/* Below `lg` the duration is one figure among the rest;
+                  from `lg` it stands big in the card's corner instead. */}
+                <div className="contents lg:hidden">
+                  <Stat
+                    Icon={StatClockIcon}
+                    label={t.resume.duration}
+                    value={durationText}
+                  />
+                </div>
                 {/* The ride-level GPS figures ride next to the duration —
                   the three answer "how much ride" before the rest answer
                   "how hard". Lucide marks for now; the supplied art set has
@@ -3298,11 +3317,15 @@ const TELEMETRY_GLYPH_CLASS =
 function SessionCards({
   header,
   resume,
+  corner,
   children,
 }: {
   header: ReactNode;
   /** The résumé figures, once the file has been parsed. */
   resume?: ReactNode;
+  /** The duration, big in the identity card's top-right corner from `lg`
+   * — left of the settings button, which keeps the very corner. */
+  corner?: ReactNode;
   children: ReactNode;
 }) {
   const t = useProDict().analysis;
@@ -3334,6 +3357,11 @@ function SessionCards({
       >
         {header}
         {resume}
+        {corner && (
+          <div className="absolute top-5 right-16 hidden lg:block 2xl:top-6">
+            {corner}
+          </div>
+        )}
       </div>
       {/* `mt-5` — 20px above this block, half the 40 it carried. The 40 was
           there to make the recording's identity and its reading read as two
