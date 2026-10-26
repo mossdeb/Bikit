@@ -16,7 +16,11 @@ import type {
 } from "leaflet";
 import { cn } from "@/lib/utils";
 import type { GpsChannels, ImuEvent } from "@/lib/imu/format";
-import { gpsPositionAt } from "@/lib/imu/derive";
+import {
+  smoothPiece,
+  smoothPolyline,
+  splinePositionAt,
+} from "@/lib/imu/track-spline";
 
 /**
  * The compass bearing of the ride's overall direction — first fix to last,
@@ -59,7 +63,7 @@ function fullTrack(gps: GpsChannels): TrackPts {
 function trackSlice(gps: GpsChannels, fromMs: number, toMs: number): TrackPts {
   const pts: [number, number][] = [];
   const speeds: number[] = [];
-  const start = gpsPositionAt(gps, fromMs);
+  const start = splinePositionAt(gps, fromMs);
   if (start) {
     pts.push([start.latDeg, start.lonDeg]);
     speeds.push(gps.speedMps[nearestFixIndex(gps, fromMs)]);
@@ -70,7 +74,7 @@ function trackSlice(gps: GpsChannels, fromMs: number, toMs: number): TrackPts {
       speeds.push(gps.speedMps[i]);
     }
   }
-  const end = gpsPositionAt(gps, toMs);
+  const end = splinePositionAt(gps, toMs);
   if (end) {
     pts.push([end.latDeg, end.lonDeg]);
     speeds.push(gps.speedMps[nearestFixIndex(gps, toMs)]);
@@ -150,7 +154,9 @@ function paintTrack(
   const { pts, speeds } = track;
   if (pts.length < 2) return;
   if (!pace) {
-    L.polyline(pts, {
+    // A curve through the fixes, not chords between them (2026-10-26):
+    // zoomed in, every fix showed as a corner. See track-spline.ts.
+    L.polyline(smoothPolyline(pts), {
       color: "#43F3AF",
       weight,
       opacity,
@@ -161,7 +167,7 @@ function paintTrack(
   }
   for (let i = 0; i < pts.length - 1; i++) {
     const t = paceT(pace, (speeds[i] + speeds[i + 1]) / 2);
-    L.polyline([pts[i], pts[i + 1]], {
+    L.polyline(smoothPiece(pts, i), {
       color: `hsl(${Math.round(t * 130)} 80% 45%)`,
       weight,
       opacity,
@@ -787,7 +793,7 @@ export function ImuSessionMap({
         // A crash is ranged, but where it happened is the point: marked
         // where the tumble began.
         if (event.kind === "crash") {
-          const pos = gpsPositionAt(gps, event.startMs);
+          const pos = splinePositionAt(gps, event.startMs);
           if (!pos) continue;
           const size = CRASH_ICON_SIZE * markS;
           L.marker([pos.latDeg, pos.lonDeg], {
@@ -815,7 +821,7 @@ export function ImuSessionMap({
                 ? event.startMs
                 : null;
         if (timeMs == null) continue;
-        const pos = gpsPositionAt(gps, timeMs);
+        const pos = splinePositionAt(gps, timeMs);
         if (!pos) continue;
         L.circleMarker([pos.latDeg, pos.lonDeg], {
           radius: 5 * markS,
@@ -1015,7 +1021,7 @@ export function ImuSessionMap({
       needle.remove();
       return;
     }
-    const pos = gpsPositionAt(gps, cursorMs);
+    const pos = splinePositionAt(gps, cursorMs);
     if (!pos) return;
     for (const part of needlePartsRef.current)
       part.setLatLng([pos.latDeg, pos.lonDeg]);
