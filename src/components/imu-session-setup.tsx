@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
@@ -46,6 +47,7 @@ import {
   DAMPER_FIELDS,
   damperSpring,
   setupSummary,
+  setupKey,
   setupValuesEqual,
   type ImuCircuit,
   type ImuDamperSetup,
@@ -67,6 +69,16 @@ export interface ImuSetupLabels {
 }
 
 type Draft = Record<string, string>;
+
+/** One of the bike's setups, offered in the session's dialog to fill the
+ * form from (2026-10-27). */
+export interface ImuSetupPreset {
+  /** Its setupKey. */
+  key: string;
+  /** "Setup A · Base - Fonte". */
+  label: string;
+  values: ImuSetupValues;
+}
 
 const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
   `${block}.${field}`;
@@ -260,7 +272,11 @@ export function ImuSessionSetup({
   bikeId,
   bikeSetup,
   name = null,
+  presets = [],
 }: {
+  /** The bike's setups, for the dropdown that fills the form from one
+   * (session page only). */
+  presets?: ImuSetupPreset[];
   /** The setup's own name (migration 00053), editable on a bike's setups
    * and a new one; blank keeps the letter. */
   name?: string | null;
@@ -309,6 +325,8 @@ export function ImuSessionSetup({
   // A setup's own name, on a bike's setups and a new one (2026-10-27).
   const named = bikeSetup != null || bikeId != null;
   const [draftName, setDraftName] = useState(name ?? "");
+  // Offered on a session's own setup only: a bike's setup is itself one.
+  const showPresets = presets.length > 0 && !readOnly && !named;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -467,6 +485,33 @@ export function ImuSessionSetup({
             if (!readOnly) void save();
           }}
         >
+          {/* Pick one of the bike's setups and the form takes its values
+              (by request, 2026-10-27); what is shown is whichever setup
+              the form's values are, so a value changed by hand shows the
+              blank choice. */}
+          {showPresets && (
+            <div className="max-w-sm space-y-1.5">
+              <Label htmlFor="setup-preset">{t.preset}</Label>
+              <NativeSelect
+                id="setup-preset"
+                value={
+                  presets.find((p) => p.key === setupKey(fromDraft(draft)))
+                    ?.key ?? ""
+                }
+                onChange={(e) => {
+                  const preset = presets.find((p) => p.key === e.target.value);
+                  if (preset) setDraft(toDraft(preset.values));
+                }}
+              >
+                <option value="">{t.presetNone}</option>
+                {presets.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+          )}
           {named && (
             <div className="max-w-sm space-y-1.5">
               <Label htmlFor="setup-name">{t.setupName}</Label>

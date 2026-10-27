@@ -248,6 +248,8 @@ const en = {
       descriptionBikeSetup:
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Saving corrects this setup in every session that rode on it.",
       setupName: "Name",
+      preset: "Bike setup",
+      presetNone: "Custom",
       newSetupHint:
         "It starts from the bike's current setup: change at least one value to make a new one.",
       setupNamePlaceholder: "e.g. Race, Wet",
@@ -571,6 +573,8 @@ const pt: typeof en = {
       descriptionBikeSetup:
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Guardar corrige esta afinação em todas as sessões que a usaram.",
       setupName: "Nome",
+      preset: "Setup da bicicleta",
+      presetNone: "Personalizado",
       newSetupHint:
         "Parte da afinação atual da bicicleta: muda pelo menos um valor para criar um setup novo.",
       setupNamePlaceholder: "ex. Corrida, Molhado",
