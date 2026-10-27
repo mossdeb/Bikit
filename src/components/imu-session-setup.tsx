@@ -536,13 +536,14 @@ export function ImuSessionSetup({
               each other and it would be a picture between forms. */}
           <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
             {/* Three equal columns (the supplied layout, 2026-10-27): the
-                fork, the bike's geometry with its rider-sag reading, the
-                shock. Between `sm` and `lg` the two dampers share a row and
-                the geometry takes the one under them. */}
+                shock, the bike's geometry with its rider-sag reading, the
+                fork (swapped by request the same day). Between `sm` and
+                `lg` the two dampers share a row and the geometry takes the
+                one under them. */}
             <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               <DamperBlock
-                block="fork"
-                heading={labels.fork || dict.report.setup.fork}
+                block="shock"
+                heading={labels.shock || dict.report.setup.shock}
                 draft={draft}
                 set={set}
                 choose={choose}
@@ -573,9 +574,9 @@ export function ImuSessionSetup({
                     readOnly={readOnly}
                   />
                 </div>
-                {/* Mirrored: the art faces right, and here the fork's card is
-                    on the left — the bike should face its own fork (by
-                    request, 2026-09-11). */}
+                {/* The shock on the left and the fork on the right (by
+                    request, 2026-10-27): the art faces right, so unmirrored
+                    the bike faces its own fork. */}
                 {/* A 3 px line on screen whatever the size it is drawn at
                     (by request, 2026-09-11: 2 px read too thin beside the
                     cards): the art's own stroke is 4 in a 101-wide box,
@@ -584,14 +585,14 @@ export function ImuSessionSetup({
                 <div className="flex flex-1 items-center justify-center py-4">
                   <BikeMark
                     aria-hidden
-                    className="h-auto w-32 -scale-x-100 text-foreground lg:w-40 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
+                    className="h-auto w-32 text-foreground lg:w-40 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
                   />
                 </div>
                 <RiderSagReading draft={draft} />
               </div>
               <DamperBlock
-                block="shock"
-                heading={labels.shock || dict.report.setup.shock}
+                block="fork"
+                heading={labels.fork || dict.report.setup.fork}
                 draft={draft}
                 set={set}
                 choose={choose}
@@ -608,6 +609,17 @@ export function ImuSessionSetup({
               <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
                 <p className="text-lg font-semibold">{t.tyres}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
+                  {/* The rear first, as the shock's card is (2026-10-27). */}
+                  <NumberField
+                    id="setup-tires-rear"
+                    label={
+                      labels.tireRear ? t.rear(labels.tireRear) : t.rearPressure
+                    }
+                    unit="psi"
+                    value={draft[tireKey("rearPsi")]}
+                    onChange={set(tireKey("rearPsi"))}
+                    readOnly={readOnly}
+                  />
                   <NumberField
                     id="setup-tires-front"
                     label={
@@ -618,16 +630,6 @@ export function ImuSessionSetup({
                     unit="psi"
                     value={draft[tireKey("frontPsi")]}
                     onChange={set(tireKey("frontPsi"))}
-                    readOnly={readOnly}
-                  />
-                  <NumberField
-                    id="setup-tires-rear"
-                    label={
-                      labels.tireRear ? t.rear(labels.tireRear) : t.rearPressure
-                    }
-                    unit="psi"
-                    value={draft[tireKey("rearPsi")]}
-                    onChange={set(tireKey("rearPsi"))}
                     readOnly={readOnly}
                   />
                 </div>
@@ -818,8 +820,9 @@ function RiderSagReading({ draft }: { draft: Draft }) {
       <div className="grid grid-cols-2 gap-3">
         {(
           [
-            [t.front, drops?.frontMm, t.frontCaption],
+            // The rear first, as the shock's card is (2026-10-27).
             [t.rear, drops?.rearMm, t.rearCaption],
+            [t.front, drops?.frontMm, t.frontCaption],
           ] as const
         ).map(([name, value, caption]) => (
           <div key={name} className="rounded-[10px] bg-muted/60 px-5 py-4">
