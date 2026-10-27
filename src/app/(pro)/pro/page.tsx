@@ -6,7 +6,7 @@ import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
 import { formatDurationMillis } from "@/lib/imu/derive";
-import { StatClockIcon } from "@/components/imu-stat-icons";
+import { StatStopwatchIcon } from "@/components/imu-stat-icons";
 import { formatGroupDay } from "@/lib/imu/groups";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
@@ -174,14 +174,14 @@ export default async function ImuLabPage() {
               {t.common.units.samples}
             </span>
           </p>
-          {/* The duration to the thousandth with the résumé's clock (by
+          {/* The duration to the thousandth with the header's stopwatch (by
               request, 2026-10-24) — trimmed to a track's lines, the run's
               time, read off the lines as the session page reads it. In the
               ink and bold; on the left, since the thumbnail took the card's
               right-hand side (2026-10-26), and at the card's foot, level
               with the thumbnail's (2026-10-27). */}
           <p className="mt-auto flex items-center gap-1.5 pt-3 text-sm font-bold text-foreground tabular-nums">
-            <StatClockIcon className="size-4" />
+            <StatStopwatchIcon className="size-4" />
             {formatDurationMillis(
               session.trim_by_track &&
                 session.trim_start_ms != null &&
