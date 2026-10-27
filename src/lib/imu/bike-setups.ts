@@ -20,6 +20,8 @@ export interface BikeSetupRow {
   id: string;
   values: ImuSetupValues;
   note: string | null;
+  /** Its own name (migration 00053), when the rider gave it one. */
+  name?: string | null;
   /** When it was saved, ISO — which row is the bike's latest. */
   createdAt?: string;
 }
@@ -37,6 +39,8 @@ export interface BikeSetup {
   values: ImuSetupValues;
   /** The latest non-empty note among the rows that make this setup. */
   note: string | null;
+  /** The latest name among them, or null for the letter alone. */
+  name: string | null;
   /** Newest first. */
   sessions: BikeSetupSession[];
   firstUsedAt: string;
@@ -58,7 +62,12 @@ export function groupBikeSetups(
     rows.filter((r) => setupKey(r.values) === key).map((r) => r.id);
   const byKey = new Map<
     string,
-    { values: ImuSetupValues; notes: string[]; sessions: BikeSetupSession[] }
+    {
+      values: ImuSetupValues;
+      notes: string[];
+      names: string[];
+      sessions: BikeSetupSession[];
+    }
   >();
   const used = [...sessions]
     .filter((s) => s.setupId && rowById.has(s.setupId))
@@ -68,11 +77,12 @@ export function groupBikeSetups(
     const key = setupKey(row.values);
     let group = byKey.get(key);
     if (!group) {
-      group = { values: row.values, notes: [], sessions: [] };
+      group = { values: row.values, notes: [], names: [], sessions: [] };
       byKey.set(key, group);
     }
     group.sessions.push(session);
     if (row.note?.trim()) group.notes.push(row.note.trim());
+    if (row.name?.trim()) group.names.push(row.name.trim());
   }
   // Insertion order is first-use order: the letters.
   const setups: BikeSetup[] = [...byKey.entries()].map(([key, g], i) => ({
@@ -80,6 +90,7 @@ export function groupBikeSetups(
     letter: String.fromCharCode(65 + i),
     values: g.values,
     note: g.notes.length > 0 ? g.notes[g.notes.length - 1] : null,
+    name: g.names.length > 0 ? g.names[g.names.length - 1] : null,
     sessions: [...g.sessions].reverse(),
     firstUsedAt: g.sessions[0].createdAt,
     lastUsedAt: g.sessions[g.sessions.length - 1].createdAt,
@@ -101,6 +112,7 @@ export function groupBikeSetups(
         letter: String.fromCharCode(65 + byKey.size),
         values: latest.values,
         note: latest.note?.trim() || null,
+        name: latest.name?.trim() || null,
         sessions: [],
         firstUsedAt: latest.createdAt!,
         lastUsedAt: latest.createdAt!,

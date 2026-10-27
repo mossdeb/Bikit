@@ -54,7 +54,7 @@ export default async function ProBikePage({
     await Promise.all([
       supabase
         .from("imu_setups")
-        .select("id, values, note, created_at")
+        .select("id, values, note, name, created_at")
         .eq("user_id", userId)
         .eq("bike_id", bikeId),
       supabase
@@ -79,6 +79,7 @@ export default async function ProBikePage({
       id: r.id,
       values: r.values as never,
       note: r.note,
+      name: r.name,
       createdAt: r.created_at,
     }));
   // What a new setup starts from: the bike's latest, the one imports
@@ -121,7 +122,9 @@ export default async function ProBikePage({
               triggerClassName={buttonVariants({
                 variant: "inverted",
                 size: "sm",
-                className: "px-4",
+                // Its own dark-theme hover: the setup form's trigger adds
+                // the cards' one, which would sink the label.
+                className: "px-4 dark:hover:bg-foreground/90",
               })}
             />
             <ProDeleteBikeButton

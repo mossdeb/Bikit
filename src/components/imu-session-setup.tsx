@@ -259,7 +259,11 @@ export function ImuSessionSetup({
   sagHistory = [],
   bikeId,
   bikeSetup,
+  name = null,
 }: {
+  /** The setup's own name (migration 00053), editable on a bike's setups
+   * and a new one; blank keeps the letter. */
+  name?: string | null;
   /** One of a bike's setups, editable from its Pro page (2026-10-27):
    * Guardar corrects it for every session that rode on it, Apagar removes
    * it. `rowIds` are its rows (BikeSetup.rowIds); `sessionCount` is
@@ -302,6 +306,9 @@ export function ImuSessionSetup({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(values));
   const [draftNote, setDraftNote] = useState(note ?? "");
+  // A setup's own name, on a bike's setups and a new one (2026-10-27).
+  const named = bikeSetup != null || bikeId != null;
+  const [draftName, setDraftName] = useState(name ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -314,16 +321,18 @@ export function ImuSessionSetup({
   const [saved, setSaved] = useState<{
     values: ImuSetupValues;
     note: string;
+    name: string;
     over: ImuSetupValues;
   } | null>(null);
   const current =
     saved && saved.over === values
-      ? { values: saved.values, note: saved.note }
-      : { values, note: note ?? "" };
+      ? { values: saved.values, note: saved.note, name: saved.name }
+      : { values, note: note ?? "", name: name ?? "" };
 
   const dirty =
     !setupValuesEqual(fromDraft(draft), current.values) ||
-    draftNote.trim() !== current.note;
+    draftNote.trim() !== current.note ||
+    (named && draftName.trim() !== current.name);
 
   async function save() {
     if (busy) return;
@@ -335,12 +344,14 @@ export function ImuSessionSetup({
           rowIds: bikeSetup.rowIds,
           values: fromDraft(draft),
           note: draftNote,
+          name: draftName,
         })
       : bikeId
         ? await createImuBikeSetup({
             bikeId,
             values: fromDraft(draft),
             note: draftNote,
+            name: draftName,
           })
         : await saveImuSessionSetup({
             sessionId,
@@ -355,6 +366,7 @@ export function ImuSessionSetup({
     setSaved({
       values: fromDraft(draft),
       note: draftNote.trim(),
+      name: draftName.trim(),
       over: values,
     });
     setOpen(false);
@@ -394,6 +406,7 @@ export function ImuSessionSetup({
         if (next) {
           setDraft(toDraft(current.values));
           setDraftNote(current.note);
+          setDraftName(current.name);
           setBusy(false);
           setError(null);
           setConfirmingDelete(false);
@@ -405,10 +418,13 @@ export function ImuSessionSetup({
         // The report door's pill, beside it: outlined, the mark and the
         // word — a control, not a figure. A caller can dress it otherwise
         // (the report's Bike card, 2026-09-14).
+        // The cards' hover first, so a caller's own hover wins the merge: a
+        // dark button ("Novo setup", 2026-10-27) took the cards' light
+        // ground on hover and its white label vanished.
         className={cn(
+          CLICKABLE_CARD_HOVER,
           triggerClassName ??
             "inline-flex shrink-0 items-center gap-2.5 self-start rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
-          CLICKABLE_CARD_HOVER,
         )}
       >
         {triggerContent ?? (
@@ -451,6 +467,19 @@ export function ImuSessionSetup({
             if (!readOnly) void save();
           }}
         >
+          {named && (
+            <div className="max-w-sm space-y-1.5">
+              <Label htmlFor="setup-name">{t.setupName}</Label>
+              <Input
+                id="setup-name"
+                value={draftName}
+                maxLength={60}
+                placeholder={title ?? t.setupNamePlaceholder}
+                onChange={(e) => setDraftName(e.target.value)}
+                readOnly={readOnly}
+              />
+            </div>
+          )}
           {/* The supplied layout (2026-09-11, second pass): the suspension
               on one hatched plate — the fork's card, the bike's mark on the
               hatching, the shock's card — and the tyres on a plate of their

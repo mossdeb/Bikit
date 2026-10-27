@@ -42,6 +42,7 @@ export function ImuBikeSetups({
             sessionId=""
             values={setup.values}
             note={setup.note}
+            name={setup.name}
             labels={labels}
             bikeType={bikeType}
             // Editable since 2026-10-27: Guardar corrects the setup for
@@ -51,7 +52,7 @@ export function ImuBikeSetups({
               rowIds: setup.rowIds,
               sessionCount: t.common.session(n),
             }}
-            title={`Setup ${setup.letter}`}
+            title={setup.name ?? `Setup ${setup.letter}`}
             triggerClassName={cn(
               "flex h-full w-full flex-col rounded-lg bg-card p-5 text-left",
               DARK_CARD_HAIRLINE,
@@ -65,6 +66,12 @@ export function ImuBikeSetups({
                   </span>
                   {/* The bike's latest, no session on it yet: what the
                       next import inherits (2026-10-27). */}
+                  {/* The rider's own name beside the letter (2026-10-27). */}
+                  {setup.name && (
+                    <span className="font-display text-base font-bold">
+                      {setup.name}
+                    </span>
+                  )}
                   {setup.upcoming && (
                     <span className="inline-flex w-fit rounded-full bg-[#3DDC97]/20 px-2.5 py-1 text-xs font-medium text-foreground">
                       {t.report.bikes.upcoming}

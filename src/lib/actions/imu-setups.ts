@@ -124,6 +124,8 @@ export async function createImuBikeSetup(input: {
   bikeId: string;
   values: ImuSetupValues;
   note?: string | null;
+  /** The setup's own name (migration 00053); blank keeps the letter. */
+  name?: string | null;
 }): Promise<ImuSetupResult> {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
@@ -156,6 +158,7 @@ export async function createImuBikeSetup(input: {
       bike_id: bike.id,
       values: values as unknown as Json,
       note: input.note?.trim() || null,
+      name: input.name?.trim().slice(0, 60) || null,
     })
     .select("id")
     .single();
@@ -215,6 +218,8 @@ export async function updateImuBikeSetup(input: {
   rowIds: string[];
   values: ImuSetupValues;
   note?: string | null;
+  /** The setup's own name (migration 00053); blank keeps the letter. */
+  name?: string | null;
 }): Promise<ImuSetupResult> {
   const { supabase, userId, t } = await setupCaller();
   if (!userId) return { status: "error", message: t.common.noAccess };
@@ -238,6 +243,7 @@ export async function updateImuBikeSetup(input: {
       bike_id: input.bikeId,
       values: values as unknown as Json,
       note: input.note?.trim() || null,
+      name: input.name?.trim().slice(0, 60) || null,
       created_at: createdAt,
     })
     .select("id")

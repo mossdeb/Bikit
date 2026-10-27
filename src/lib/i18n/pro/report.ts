@@ -247,6 +247,8 @@ const en = {
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg, as they were recorded.",
       descriptionBikeSetup:
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Saving corrects this setup in every session that rode on it.",
+      setupName: "Name",
+      setupNamePlaceholder: "e.g. Race, Wet",
       tyres: "Tyres",
       front: (label: string): string => `Front · ${label}`,
       frontPressure: "Front pressure",
@@ -564,6 +566,8 @@ const pt: typeof en = {
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg, tal como foram registados.",
       descriptionBikeSetup:
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Guardar corrige esta afinação em todas as sessões que a usaram.",
+      setupName: "Nome",
+      setupNamePlaceholder: "ex. Corrida, Molhado",
       tyres: "Pneus",
       front: (label) => `À frente · ${label}`,
       frontPressure: "Pressão à frente",

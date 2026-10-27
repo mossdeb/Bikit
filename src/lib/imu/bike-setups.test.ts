@@ -87,4 +87,15 @@ describe("groupBikeSetups", () => {
     );
     expect(ridden.some((s) => s.upcoming)).toBe(false);
   });
+
+  it("carries the setup's own name, the latest given", () => {
+    const named = [
+      { ...rows[0], name: "Treino" },
+      { ...rows[1], name: " Corrida " },
+      rows[2],
+    ];
+    const setups = groupBikeSetups(named, sessions);
+    expect(setups.find((s) => s.letter === "A")?.name).toBe("Corrida");
+    expect(setups.find((s) => s.letter === "B")?.name).toBeNull();
+  });
 });
