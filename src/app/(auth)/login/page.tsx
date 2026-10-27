@@ -20,7 +20,7 @@ export default async function LoginPage({
         <LogoMark className="mb-4" />
         <h1 className="text-xl font-display font-bold tracking-tight">Welcome back</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Sign in to keep your bikes on schedule.
+          Bike Intelligence &amp; Telemetry System
         </p>
       </div>
 

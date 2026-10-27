@@ -997,7 +997,7 @@ const en = {
   auth: {
     login: {
       welcomeBack: "Welcome back",
-      subtitle: "Sign in to keep your bikes on schedule.",
+      subtitle: "Bike Intelligence & Telemetry System",
       continueWithGoogle: "Continue with Google",
       or: "or",
       email: "Email",

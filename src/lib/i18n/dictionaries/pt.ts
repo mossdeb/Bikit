@@ -1005,7 +1005,7 @@ const pt: Dictionary = {
   auth: {
     login: {
       welcomeBack: "Bem-vindo de volta",
-      subtitle: "Inicie sessão para manter as suas bicicletas em dia.",
+      subtitle: "Bike Intelligence & Telemetry System",
       continueWithGoogle: "Continuar com o Google",
       or: "ou",
       email: "Email",
