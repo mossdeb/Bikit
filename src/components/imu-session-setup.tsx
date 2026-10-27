@@ -166,7 +166,7 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
   const at = (v: number) =>
     `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
   return (
-    <div className="mt-3 rounded-[10px] bg-muted/60 px-4 pt-3 pb-2">
+    <div className="mt-5 rounded-[10px] bg-muted/60 px-4 pt-3 pb-2">
       <p className="text-center tabular-nums">
         <span className="text-2xl font-semibold">
           {pct != null ? proPercent(pct, locale) : "–"}
@@ -1179,7 +1179,7 @@ function DamperBlock({
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
   return (
-    <div className="space-y-3 rounded-[14px] border border-border bg-card p-4 sm:p-5">
+    <div className="space-y-6 rounded-[14px] border border-border bg-card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-semibold">{heading}</p>
         <ModeSwitch
@@ -1198,8 +1198,8 @@ function DamperBlock({
           travel is its own stroke, the shaft the ring rides. The fields
           are `small`, the circuits' size, so the three boxes read as one
           family. */}
-      <div className="rounded-[12px] border border-border p-3">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-[12px] border border-border p-5">
+        <div className="grid grid-cols-2 gap-4">
           <NumberField
             id={`setup-${block}-travel`}
             label={block === "fork" ? t.travel : "Stroke"}
@@ -1220,7 +1220,7 @@ function DamperBlock({
           />
         </div>
         <SagBar draft={draft} block={block} />
-        <div className="mt-3">
+        <div className="mt-4">
           {air ? (
             <NumberField
               id={`setup-${block}-pressure`}
@@ -1295,7 +1295,7 @@ function Circuit({
   const lowField: keyof ImuDamperSetup = `${circuit}Low`;
   const highField: keyof ImuDamperSetup = `${circuit}High`;
   return (
-    <div className="rounded-[12px] border border-border p-3">
+    <div className="rounded-[12px] border border-border p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium">{name}</p>
         <ModeSwitch
@@ -1306,7 +1306,7 @@ function Circuit({
         />
       </div>
       {dual ? (
-        <div className="mt-2 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-4">
           <NumberField
             id={`setup-${block}-${lowField}`}
             label={t.lowSpeed}
@@ -1327,7 +1327,7 @@ function Circuit({
           />
         </div>
       ) : (
-        <div className="mt-2 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-4">
           <NumberField
             id={`setup-${block}-${circuit}`}
             label={t.clicks}
