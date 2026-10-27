@@ -9,6 +9,8 @@ import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { StravaBadgeIcon } from "@/components/strava-icon";
 import { ProAddBikeButton } from "@/components/pro-bike-actions";
+import { groupBikeSetups, type BikeSetupRow } from "@/lib/imu/bike-setups";
+import { isSetupValues } from "@/lib/imu/setup";
 
 /**
  * Bikit Pro: the account's bikes (2026-09-24), the app's own list without
@@ -31,21 +33,53 @@ export default async function ProBikesPage() {
   const distanceUnit = ((userData?.claims?.user_metadata?.distance_unit as
     string | undefined) ?? "km") as "km" | "mi";
 
-  const [{ data: bikes }, { data: sessions }] = await Promise.all([
-    supabase
-      .from("bikes")
-      .select(
-        "id, name, type, brand, model, year, total_km, total_hours, strava_gear_id",
-      )
-      .eq("user_id", userId)
-      .order("usage_updated_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: true }),
-    supabase.from("imu_sessions").select("bike_id").eq("user_id", userId),
-  ]);
+  const [{ data: bikes }, { data: sessions }, { data: setupRows }] =
+    await Promise.all([
+      supabase
+        .from("bikes")
+        .select(
+          "id, name, type, brand, model, year, total_km, total_hours, strava_gear_id",
+        )
+        .eq("user_id", userId)
+        .order("usage_updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("imu_sessions")
+        .select("id, name, bike_id, setup_id, created_at")
+        .eq("user_id", userId),
+      supabase
+        .from("imu_setups")
+        .select("id, bike_id, values, note, name, created_at")
+        .eq("user_id", userId),
+    ]);
   const sessionCount = new Map<string, number>();
   for (const s of sessions ?? [])
     if (s.bike_id)
       sessionCount.set(s.bike_id, (sessionCount.get(s.bike_id) ?? 0) + 1);
+  // Each bike's setups counted as its page lists them (groupBikeSetups):
+  // the distinct ones its sessions rode on, and the upcoming one
+  // (2026-10-27, beside the sessions).
+  const setupCount = new Map<string, number>();
+  for (const bike of bikes ?? []) {
+    const rows: BikeSetupRow[] = (setupRows ?? [])
+      .filter((r) => r.bike_id === bike.id && isSetupValues(r.values))
+      .map((r) => ({
+        id: r.id,
+        values: r.values as never,
+        note: r.note,
+        name: r.name,
+        createdAt: r.created_at,
+      }));
+    const bikeSessions = (sessions ?? [])
+      .filter((x) => x.bike_id === bike.id)
+      .map((x) => ({
+        id: x.id,
+        name: x.name,
+        setupId: x.setup_id,
+        createdAt: x.created_at,
+      }));
+    setupCount.set(bike.id, groupBikeSetups(rows, bikeSessions).length);
+  }
 
   return (
     <div className="pt-4 sm:pt-8">
@@ -69,6 +103,7 @@ export default async function ProBikesPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bikes.map((bike) => {
             const count = sessionCount.get(bike.id) ?? 0;
+            const hasUsage = bike.total_km != null || bike.total_hours != null;
             return (
               <Link
                 key={bike.id}
@@ -92,7 +127,7 @@ export default async function ProBikesPage() {
                     .join(" · ") || dict.bikes.noDetailsYet}
                 </p>
                 <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground tabular-nums">
+                  <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm font-semibold text-foreground tabular-nums">
                     <span className="inline-flex items-baseline whitespace-pre">
                       {bike.total_km != null &&
                         formatDistance(bike.total_km, distanceUnit, locale)}
@@ -103,11 +138,23 @@ export default async function ProBikesPage() {
                         formatHours(bike.total_hours, locale)}
                     </span>
                     {/* The sensor's own reading of the bike, after the
-                        app's totals: how many sessions rode on it. */}
+                        app's totals: how many sessions rode on it, and on
+                        how many setups. The dot only between two things —
+                        a bike without totals began with a stray one. */}
+                    {hasUsage && (
+                      <span aria-hidden className="text-muted-foreground">
+                        ·
+                      </span>
+                    )}
+                    <span className="whitespace-nowrap">
+                      {t.common.session(count)}
+                    </span>
                     <span aria-hidden className="text-muted-foreground">
                       ·
                     </span>
-                    <span>{t.common.session(count)}</span>
+                    <span className="whitespace-nowrap">
+                      {t.common.setup(setupCount.get(bike.id) ?? 0)}
+                    </span>
                   </p>
                   <span className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold">
                     {dict.bikes.viewBike}
