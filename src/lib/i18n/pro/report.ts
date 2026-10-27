@@ -245,6 +245,8 @@ const en = {
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Only what you fill in is kept; a change creates a new setup for the bike, which the next imports inherit.",
       descriptionReadOnly:
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg, as they were recorded.",
+      descriptionBikeSetup:
+        "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Saving corrects this setup in every session that rode on it.",
       tyres: "Tyres",
       front: (label: string): string => `Front · ${label}`,
       frontPressure: "Front pressure",
@@ -271,6 +273,12 @@ const en = {
       headAngle: "Head angle",
       geometry: "Geometry",
       sagOfTravel: "of the travel",
+      /** Deleting a bike's setup from its Pro page (2026-10-27). */
+      delete: "Delete",
+      deleteConfirm: "Confirm delete",
+      deleting: "Deleting…",
+      deleteWarning: (sessions: string): string =>
+        `The sessions that rode on it (${sessions}) stay, with no setup. This cannot be undone.`,
       /** The rider-sag calibration step, read from the file (firmware V18). */
       riderSag: {
         title: "Rider sag",
@@ -312,6 +320,8 @@ const en = {
     /** The server action's refusals. */
     errors: {
       invalidValues: "Invalid setup values.",
+      emptySetup: "Fill in at least one value.",
+      setupNotFound: "Setup not found.",
       sessionNotFound: "Session not found.",
       noResponse: "No response.",
     },
@@ -329,6 +339,38 @@ const en = {
     noSetups:
       "No session of this bike has a setup recorded. Open a session and record its setup; it shows up here.",
     noValues: "No values",
+    /** Adding a bike from Pro (2026-10-27): the few facts the lab needs. */
+    add: "Add bike",
+    addTitle: "Add bike",
+    addDescription:
+      "The bike the sensor rides on. Components and maintenance stay in Bikit.",
+    name: "Name",
+    namePlaceholder: "e.g. Orbea Wild",
+    type: "Type",
+    brand: "Brand",
+    model: "Model",
+    year: "Year",
+    cancel: "Cancel",
+    create: "Add bike",
+    creating: "Adding…",
+    errors: {
+      nameRequired: "Give the bike a name, or its brand and model.",
+      limit: (max: number): string =>
+        `Your plan is limited to ${max} bike${max === 1 ? "" : "s"}.`,
+      invalid: "Check the bike's details.",
+      notFound: "Bike not found.",
+    },
+    delete: "Delete",
+    deleteTitle: (name: string): string => `Delete ${name}?`,
+    deleteBody: (sessions: string): string =>
+      `Its components, maintenance history and Strava activities are deleted with it. Its sessions (${sessions}) and setups stay, without a bike. This cannot be undone.`,
+    deleteConfirm: "Delete bike",
+    /** A setup for the bike, before any session (2026-10-27). */
+    newSetup: "New setup",
+    newSetupTitle: "New setup",
+    upcoming: "Next imports",
+    createdOn: (date: string): string => `created ${date}`,
+    deleting: "Deleting…",
   },
 };
 
@@ -520,6 +562,8 @@ const pt: typeof en = {
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Só o que preencheres fica guardado; uma alteração cria uma afinação nova para a bicicleta, que as próximas importações herdam.",
       descriptionReadOnly:
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg, tal como foram registados.",
+      descriptionBikeSetup:
+        "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Guardar corrige esta afinação em todas as sessões que a usaram.",
       tyres: "Pneus",
       front: (label) => `À frente · ${label}`,
       frontPressure: "Pressão à frente",
@@ -545,6 +589,11 @@ const pt: typeof en = {
       headAngle: "Ângulo de direção",
       geometry: "Geometria",
       sagOfTravel: "do curso",
+      delete: "Apagar",
+      deleteConfirm: "Confirmar apagar",
+      deleting: "A apagar…",
+      deleteWarning: (sessions) =>
+        `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
         title: "Rider sag",
         explain:
@@ -579,6 +628,8 @@ const pt: typeof en = {
     },
     errors: {
       invalidValues: "Valores da afinação inválidos.",
+      emptySetup: "Preenche pelo menos um valor.",
+      setupNotFound: "Afinação não encontrada.",
       sessionNotFound: "Sessão não encontrada.",
       noResponse: "Sem resposta.",
     },
@@ -592,6 +643,36 @@ const pt: typeof en = {
     noSetups:
       "Nenhuma sessão desta bicicleta tem afinação registada. Abre uma sessão e regista o setup dela; aparece aqui.",
     noValues: "Sem valores",
+    add: "Adicionar bicicleta",
+    addTitle: "Adicionar bicicleta",
+    addDescription:
+      "A bicicleta em que o sensor anda. Componentes e manutenção continuam no Bikit.",
+    name: "Nome",
+    namePlaceholder: "ex. Orbea Wild",
+    type: "Tipo",
+    brand: "Marca",
+    model: "Modelo",
+    year: "Ano",
+    cancel: "Cancelar",
+    create: "Adicionar bicicleta",
+    creating: "A adicionar…",
+    errors: {
+      nameRequired: "Dá um nome à bicicleta, ou a marca e o modelo.",
+      limit: (max) =>
+        `O teu plano está limitado a ${max} bicicleta${max === 1 ? "" : "s"}.`,
+      invalid: "Verifica os dados da bicicleta.",
+      notFound: "Bicicleta não encontrada.",
+    },
+    delete: "Apagar",
+    deleteTitle: (name) => `Apagar ${name}?`,
+    deleteBody: (sessions) =>
+      `Os componentes, o histórico de manutenção e as atividades do Strava são apagados com ela. As sessões (${sessions}) e as afinações ficam, sem bicicleta. Não dá para desfazer.`,
+    deleteConfirm: "Apagar bicicleta",
+    newSetup: "Novo setup",
+    newSetupTitle: "Novo setup",
+    upcoming: "Próximas importações",
+    createdOn: (date) => `criado a ${date}`,
+    deleting: "A apagar…",
   },
 };
 

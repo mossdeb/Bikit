@@ -8,13 +8,14 @@ import { formatDistance, formatHours } from "@/lib/format";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { StravaBadgeIcon } from "@/components/strava-icon";
+import { ProAddBikeButton } from "@/components/pro-bike-actions";
 
 /**
  * Bikit Pro: the account's bikes (2026-09-24), the app's own list without
  * its verdicts — no health badge, no Ride Load: here a bike is the thing
  * the sensor rode on, and its page under Pro is its setups. Same cards,
- * same order (most recently ridden first), same totals. Adding a bike
- * stays the app's business, so there is no button for it here.
+ * same order (most recently ridden first), same totals. A bike can be
+ * added here too, in a short form (2026-10-27, ProAddBikeButton).
  */
 export default async function ProBikesPage() {
   const supabase = await createClient();
@@ -48,13 +49,18 @@ export default async function ProBikesPage() {
 
   return (
     <div className="pt-4 sm:pt-8">
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold">
-          {t.report.bikes.title}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {dict.bikes.fleetCount(bikes?.length ?? 0)}
-        </p>
+      {/* The title on the left, "Adicionar bicicleta" in the top-right
+          corner (by request, 2026-10-27). */}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-bold">
+            {t.report.bikes.title}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {dict.bikes.fleetCount(bikes?.length ?? 0)}
+          </p>
+        </div>
+        <ProAddBikeButton />
       </div>
 
       {!bikes || bikes.length === 0 ? (

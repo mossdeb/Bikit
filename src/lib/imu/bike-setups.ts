@@ -7,7 +7,9 @@ import { setupKey, type ImuSetupValues } from "./setup";
  * row — the table holds a row per save, and the same numbers saved twice
  * are one setup to anyone reading. Rows no session points at are left
  * out: they are saves that were overwritten before a run used them, and
- * nothing rode on them.
+ * nothing rode on them — except the bike's latest (2026-10-27): that one
+ * is what the next import inherits, a setup made for the next ride, and
+ * it is listed first, as upcoming, when no session has used its values.
  *
  * Lettered A, B, C… by first use, so a letter never moves when a newer
  * session arrives; listed most recently used first, which is the order
@@ -18,6 +20,8 @@ export interface BikeSetupRow {
   id: string;
   values: ImuSetupValues;
   note: string | null;
+  /** When it was saved, ISO — which row is the bike's latest. */
+  createdAt?: string;
 }
 
 export interface BikeSetupSession {
@@ -37,6 +41,12 @@ export interface BikeSetup {
   sessions: BikeSetupSession[];
   firstUsedAt: string;
   lastUsedAt: string;
+  /** The bike's latest setup, which no session has used yet: what the
+   * next import inherits. Its dates are when it was saved. */
+  upcoming?: boolean;
+  /** Every row of the bike holding these values — what correcting or
+   * deleting the setup acts on (2026-10-27). */
+  rowIds: string[];
 }
 
 export function groupBikeSetups(
@@ -44,6 +54,8 @@ export function groupBikeSetups(
   sessions: readonly BikeSetupSession[],
 ): BikeSetup[] {
   const rowById = new Map(rows.map((r) => [r.id, r]));
+  const rowsOf = (key: string) =>
+    rows.filter((r) => setupKey(r.values) === key).map((r) => r.id);
   const byKey = new Map<
     string,
     { values: ImuSetupValues; notes: string[]; sessions: BikeSetupSession[] }
@@ -63,7 +75,7 @@ export function groupBikeSetups(
     if (row.note?.trim()) group.notes.push(row.note.trim());
   }
   // Insertion order is first-use order: the letters.
-  const setups = [...byKey.entries()].map(([key, g], i) => ({
+  const setups: BikeSetup[] = [...byKey.entries()].map(([key, g], i) => ({
     key,
     letter: String.fromCharCode(65 + i),
     values: g.values,
@@ -71,6 +83,30 @@ export function groupBikeSetups(
     sessions: [...g.sessions].reverse(),
     firstUsedAt: g.sessions[0].createdAt,
     lastUsedAt: g.sessions[g.sessions.length - 1].createdAt,
+    rowIds: rowsOf(key),
   }));
-  return setups.sort((a, b) => b.lastUsedAt.localeCompare(a.lastUsedAt));
+  setups.sort((a, b) => b.lastUsedAt.localeCompare(a.lastUsedAt));
+
+  const latest = rows
+    .filter((r) => r.createdAt)
+    .reduce<BikeSetupRow | null>(
+      (best, r) => (!best || r.createdAt! > best.createdAt! ? r : best),
+      null,
+    );
+  if (latest) {
+    const key = setupKey(latest.values);
+    if (!byKey.has(key))
+      setups.unshift({
+        key,
+        letter: String.fromCharCode(65 + byKey.size),
+        values: latest.values,
+        note: latest.note?.trim() || null,
+        sessions: [],
+        firstUsedAt: latest.createdAt!,
+        lastUsedAt: latest.createdAt!,
+        upcoming: true,
+        rowIds: rowsOf(key),
+      });
+  }
+  return setups;
 }

@@ -23,7 +23,9 @@ export function ImuBikeSetups({
   setups,
   labels,
   bikeType,
+  bikeId,
 }: {
+  bikeId: string;
   setups: BikeSetup[];
   labels: ImuSetupLabels;
   bikeType: BikeType | null;
@@ -42,7 +44,13 @@ export function ImuBikeSetups({
             note={setup.note}
             labels={labels}
             bikeType={bikeType}
-            readOnly
+            // Editable since 2026-10-27: Guardar corrects the setup for
+            // every session that rode on it, Apagar removes it.
+            bikeSetup={{
+              bikeId,
+              rowIds: setup.rowIds,
+              sessionCount: t.common.session(n),
+            }}
             title={`Setup ${setup.letter}`}
             triggerClassName={cn(
               "flex h-full w-full flex-col rounded-lg bg-card p-5 text-left",
@@ -51,8 +59,17 @@ export function ImuBikeSetups({
             )}
             triggerContent={
               <>
-                <span className="inline-flex w-fit rounded-full bg-foreground px-2.5 py-1 font-display text-xs font-bold tracking-wide text-background uppercase">
-                  Setup {setup.letter}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex w-fit rounded-full bg-foreground px-2.5 py-1 font-display text-xs font-bold tracking-wide text-background uppercase">
+                    Setup {setup.letter}
+                  </span>
+                  {/* The bike's latest, no session on it yet: what the
+                      next import inherits (2026-10-27). */}
+                  {setup.upcoming && (
+                    <span className="inline-flex w-fit rounded-full bg-[#3DDC97]/20 px-2.5 py-1 text-xs font-medium text-foreground">
+                      {t.report.bikes.upcoming}
+                    </span>
+                  )}
                 </span>
                 <span className="mt-3 block text-sm leading-relaxed">
                   {setupSummary(setup.values, labels, locale) ??
@@ -67,7 +84,11 @@ export function ImuBikeSetups({
                   {t.common.session(n)}
                   <span className="font-normal text-muted-foreground">
                     {" · "}
-                    {t.common.lastOn(formatDate(setup.lastUsedAt, locale))}
+                    {setup.upcoming
+                      ? t.report.bikes.createdOn(
+                          formatDate(setup.lastUsedAt, locale),
+                        )
+                      : t.common.lastOn(formatDate(setup.lastUsedAt, locale))}
                   </span>
                 </span>
               </>

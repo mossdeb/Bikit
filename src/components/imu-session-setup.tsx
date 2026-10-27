@@ -35,7 +35,12 @@ import {
   type RiderSagHistoryEntry,
 } from "@/lib/imu/rider-sag";
 import { formatDate } from "@/lib/format";
-import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
+import {
+  createImuBikeSetup,
+  deleteImuBikeSetup,
+  saveImuSessionSetup,
+  updateImuBikeSetup,
+} from "@/lib/actions/imu-setups";
 import {
   circuitMode,
   DAMPER_FIELDS,
@@ -101,9 +106,7 @@ function toDraft(values: ImuSetupValues): Draft {
   draft[WHEELBASE_KEY] =
     values.frame?.wheelbaseMm != null ? String(values.frame.wheelbaseMm) : "";
   draft[HEAD_ANGLE_KEY] =
-    values.frame?.headAngleDeg != null
-      ? String(values.frame.headAngleDeg)
-      : "";
+    values.frame?.headAngleDeg != null ? String(values.frame.headAngleDeg) : "";
   return draft;
 }
 
@@ -144,7 +147,8 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
   const pct = draftSagPercent(draft, block);
   const [lo, hi] = SAG_RANGE[block];
   const inRange = pct != null && pct >= lo && pct <= hi;
-  const at = (v: number) => `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
+  const at = (v: number) =>
+    `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
   return (
     <div className="mt-3 rounded-[10px] bg-muted/60 px-4 pt-3 pb-2">
       <p className="text-center tabular-nums">
@@ -253,7 +257,18 @@ export function ImuSessionSetup({
   readOnly = false,
   title,
   sagHistory = [],
+  bikeId,
+  bikeSetup,
 }: {
+  /** One of a bike's setups, editable from its Pro page (2026-10-27):
+   * Guardar corrects it for every session that rode on it, Apagar removes
+   * it. `rowIds` are its rows (BikeSetup.rowIds); `sessionCount` is
+   * worded, for the warning. */
+  bikeSetup?: { bikeId: string; rowIds: string[]; sessionCount: string };
+  /** Saving to the bike instead of a session (2026-10-27, "Novo setup" on
+   * the bike's Pro page): a new setup row for it, which the next import
+   * inherits. `sessionId` is unused then. */
+  bikeId?: string;
   /** The bike's rider-sag readings (riderSagHistory), newest first — the
    * setup's history, under the tyres. Only the session page has them. */
   sagHistory?: RiderSagHistoryEntry<ImuSetupValues>[];
@@ -314,17 +329,52 @@ export function ImuSessionSetup({
     if (busy) return;
     setBusy(true);
     setError(null);
-    const result = await saveImuSessionSetup({
-      sessionId,
+    const result = bikeSetup
+      ? await updateImuBikeSetup({
+          bikeId: bikeSetup.bikeId,
+          rowIds: bikeSetup.rowIds,
+          values: fromDraft(draft),
+          note: draftNote,
+        })
+      : bikeId
+        ? await createImuBikeSetup({
+            bikeId,
+            values: fromDraft(draft),
+            note: draftNote,
+          })
+        : await saveImuSessionSetup({
+            sessionId,
+            values: fromDraft(draft),
+            note: draftNote,
+          });
+    setBusy(false);
+    if (result.status === "error") {
+      setError(result.message);
+      return;
+    }
+    setSaved({
       values: fromDraft(draft),
-      note: draftNote,
+      note: draftNote.trim(),
+      over: values,
+    });
+    setOpen(false);
+    router.refresh();
+  }
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  async function remove() {
+    if (busy || !bikeSetup) return;
+    setBusy(true);
+    setError(null);
+    const result = await deleteImuBikeSetup({
+      bikeId: bikeSetup.bikeId,
+      rowIds: bikeSetup.rowIds,
     });
     setBusy(false);
     if (result.status === "error") {
       setError(result.message);
       return;
     }
-    setSaved({ values: fromDraft(draft), note: draftNote.trim(), over: values });
     setOpen(false);
     router.refresh();
   }
@@ -346,6 +396,7 @@ export function ImuSessionSetup({
           setDraftNote(current.note);
           setBusy(false);
           setError(null);
+          setConfirmingDelete(false);
         }
       }}
     >
@@ -385,7 +436,11 @@ export function ImuSessionSetup({
         <DialogHeader>
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
           <DialogDescription className="mt-1">
-            {readOnly ? t.descriptionReadOnly : t.description}
+            {readOnly
+              ? t.descriptionReadOnly
+              : bikeSetup
+                ? t.descriptionBikeSetup
+                : t.description}
           </DialogDescription>
         </DialogHeader>
 
@@ -541,16 +596,47 @@ export function ImuSessionSetup({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {/* A pill in the middle, not a bar across — the supplied layout. */}
+          {/* A bike's setup is deleted in two clicks: the first arms the
+              button and says what stays (2026-10-27). */}
+          {bikeSetup && confirmingDelete && (
+            <p className="text-center text-sm text-destructive">
+              {t.deleteWarning(bikeSetup.sessionCount)}
+            </p>
+          )}
+
+          {/* A pill in the middle, not a bar across — the supplied layout.
+              On a bike's setup, Apagar beside it. */}
           {!readOnly && (
-            <Button
-              type="submit"
-              className="mx-auto flex w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
-              variant="inverted"
-              disabled={busy || !dirty}
-            >
-              {busy ? dict.common.saving : dict.common.save}
-            </Button>
+            <div className="flex flex-col-reverse justify-center gap-3 sm:flex-row">
+              {bikeSetup && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full rounded-full sm:w-auto sm:min-w-[160px] sm:px-8"
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirmingDelete) void remove();
+                    else setConfirmingDelete(true);
+                  }}
+                >
+                  {busy && confirmingDelete
+                    ? t.deleting
+                    : confirmingDelete
+                      ? t.deleteConfirm
+                      : t.delete}
+                </Button>
+              )}
+              <Button
+                type="submit"
+                className="w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
+                variant="inverted"
+                disabled={busy || !dirty}
+              >
+                {busy && !confirmingDelete
+                  ? dict.common.saving
+                  : dict.common.save}
+              </Button>
+            </div>
           )}
         </form>
       </DialogContent>
@@ -595,7 +681,12 @@ function RiderSagReading({ draft }: { draft: Draft }) {
       : null;
   const drops =
     wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
-      ? riderSagDropsMm({ pitchDeg: pitch, wheelbaseMm, headAngleDeg, forkSagMm })
+      ? riderSagDropsMm({
+          pitchDeg: pitch,
+          wheelbaseMm,
+          headAngleDeg,
+          forkSagMm,
+        })
       : null;
   // The supplied layout (2026-10-27): the angle large on the left and what
   // it means in mm on the right, on a quiet panel; under it each end's drop
@@ -681,7 +772,9 @@ function RiderSagHistory({
 
   const wheelbase = Number(draft[WHEELBASE_KEY]?.trim().replace(",", "."));
   const hasWheelbase =
-    !!draft[WHEELBASE_KEY]?.trim() && Number.isFinite(wheelbase) && wheelbase > 0;
+    !!draft[WHEELBASE_KEY]?.trim() &&
+    Number.isFinite(wheelbase) &&
+    wheelbase > 0;
   const deg = (n: number) => `${proNumber(Math.abs(n), locale, 1)}°`;
   return (
     <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
@@ -735,9 +828,7 @@ function RiderSagHistory({
                   </span>
                   <span className="text-muted-foreground">
                     {" · "}
-                    {t.roll(
-                      `${r.rollDeg < 0 ? "−" : ""}${deg(r.rollDeg)}`,
-                    )}
+                    {t.roll(`${r.rollDeg < 0 ? "−" : ""}${deg(r.rollDeg)}`)}
                     {diff != null && !level && (
                       <>
                         {" · "}

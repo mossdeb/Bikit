@@ -7,6 +7,8 @@ import { bikeSchema } from "@/lib/validations/bike.schema";
 import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { hasLabAccess } from "@/lib/lab-access";
+import { localeFromMetadata } from "@/lib/i18n";
+import { getProDictionary } from "@/lib/i18n/pro";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -290,4 +292,103 @@ export async function deleteBike(bikeId: string) {
   await supabase.from("bikes").delete().eq("id", bikeId);
   revalidatePath("/bikes");
   redirect("/bikes");
+}
+
+export type ProBikeResult =
+  { status: "ok"; id: string } | { status: "error"; message: string };
+
+/**
+ * A bike added from Bikit Pro (by request, 2026-10-27): the name, type,
+ * brand, model and year — the facts the lab shows — under the same plan
+ * limit as the app's form. Returns rather than redirects, so the dialog
+ * keeps its fields and writes the refusal in place; the caller opens the
+ * bike's Pro page.
+ */
+export async function createProBike(input: {
+  name: string;
+  type: string;
+  brand: string;
+  model: string;
+  year: string;
+}): Promise<ProBikeResult> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const claims = userData?.claims;
+  const t = getProDictionary(localeFromMetadata(claims?.user_metadata)).report
+    .bikes.errors;
+  const userId = claims?.sub as string | undefined;
+  const email = claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return {
+      status: "error",
+      message: getProDictionary(localeFromMetadata(claims?.user_metadata))
+        .common.noAccess,
+    };
+
+  const parsed = bikeSchema.safeParse({
+    name: input.name,
+    type: input.type,
+    brand: input.brand,
+    model: input.model,
+    year: input.year,
+  });
+  if (!parsed.success) return { status: "error", message: t.invalid };
+  const data = parsed.data;
+  if (!data.name && !data.brand && !data.model)
+    return { status: "error", message: t.nameRequired };
+
+  const { plan } = await getUserSubscription(userId);
+  const maxBikes = PLAN_LIMITS[plan].maxBikes;
+  if (maxBikes !== null) {
+    const { count } = await supabase
+      .from("bikes")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if ((count ?? 0) >= maxBikes)
+      return { status: "error", message: t.limit(maxBikes) };
+  }
+
+  const { data: bike, error } = await supabase
+    .from("bikes")
+    .insert({ ...data, name: deriveBikeName(data), user_id: userId })
+    .select("id")
+    .single();
+  if (error || !bike)
+    return { status: "error", message: error?.message ?? t.invalid };
+
+  revalidatePath("/pro/bicicletas");
+  revalidatePath("/bikes");
+  return { status: "ok", id: bike.id };
+}
+
+/**
+ * Deletes a bike from Bikit Pro (by request, 2026-10-27). Scoped to the
+ * owner as well as the id, so a foreign id deletes nothing and says so.
+ * The database does the rest: components, interventions and Strava
+ * activities go with the bike (cascade); IMU sessions and setups stay,
+ * without a bike (set null). The dialog says as much before it asks.
+ */
+export async function deleteProBike(bikeId: string): Promise<ProBikeResult> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const claims = userData?.claims;
+  const t = getProDictionary(localeFromMetadata(claims?.user_metadata));
+  const userId = claims?.sub as string | undefined;
+  const email = claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: t.common.noAccess };
+  const { data, error } = await supabase
+    .from("bikes")
+    .delete()
+    .eq("id", bikeId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { status: "error", message: error.message };
+  if (!data)
+    return { status: "error", message: t.report.bikes.errors.notFound };
+  revalidatePath("/pro/bicicletas");
+  revalidatePath("/pro");
+  revalidatePath("/bikes");
+  return { status: "ok", id: data.id };
 }

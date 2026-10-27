@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { ImuBikeSetups } from "@/components/imu-bike-setups";
+import { ProDeleteBikeButton } from "@/components/pro-bike-actions";
+import { ImuSessionSetup } from "@/components/imu-session-setup";
+import { buttonVariants } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import type { ImuSetupLabels } from "@/components/imu-session-setup";
 import type { BikeType } from "@/lib/constants";
 import { groupBikeSetups, type BikeSetupRow } from "@/lib/imu/bike-setups";
@@ -50,7 +54,7 @@ export default async function ProBikePage({
     await Promise.all([
       supabase
         .from("imu_setups")
-        .select("id, values, note")
+        .select("id, values, note, created_at")
         .eq("user_id", userId)
         .eq("bike_id", bikeId),
       supabase
@@ -71,7 +75,18 @@ export default async function ProBikePage({
     ]);
   const rows: BikeSetupRow[] = (setupRows ?? [])
     .filter((r) => isSetupValues(r.values))
-    .map((r) => ({ id: r.id, values: r.values as never, note: r.note }));
+    .map((r) => ({
+      id: r.id,
+      values: r.values as never,
+      note: r.note,
+      createdAt: r.created_at,
+    }));
+  // What a new setup starts from: the bike's latest, the one imports
+  // inherit — a new setup is usually that one with a knob turned.
+  const latestRow = rows.reduce<BikeSetupRow | null>(
+    (best, r) => (!best || r.createdAt! > best.createdAt! ? r : best),
+    null,
+  );
   const setups = groupBikeSetups(
     rows,
     (sessions ?? []).map((s) => ({
@@ -87,7 +102,34 @@ export default async function ProBikePage({
   return (
     <div className="pt-4 sm:pt-8">
       <div className={cn("mb-6 rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
-        <div className="px-5 py-5 sm:px-6 sm:py-6">
+        {/* The delete button in the card's top-right corner (by request,
+            2026-10-27), level with the bike's mark. */}
+        <div className="relative px-5 py-5 sm:px-6 sm:py-6">
+          <div className="absolute top-5 right-5 flex gap-2 sm:top-6 sm:right-6">
+            {/* A setup for the next ride (2026-10-27): the setup form,
+                saved to the bike rather than a session. */}
+            <ImuSessionSetup
+              sessionId=""
+              bikeId={bike.id}
+              values={latestRow?.values ?? {}}
+              note={null}
+              labels={labels}
+              bikeType={(bike.type as BikeType | undefined) ?? null}
+              title={t.report.bikes.newSetupTitle}
+              triggerLabel={t.report.bikes.newSetup}
+              triggerIcon={<Plus className="size-4" aria-hidden />}
+              triggerClassName={buttonVariants({
+                variant: "inverted",
+                size: "sm",
+                className: "px-4",
+              })}
+            />
+            <ProDeleteBikeButton
+              bikeId={bike.id}
+              bikeName={bike.name}
+              sessionCount={t.common.session(sessionCount)}
+            />
+          </div>
           <BikeIcon type={bike.type} plain />
           <h1 className="mt-2 font-display text-2xl font-bold">{bike.name}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -117,6 +159,7 @@ export default async function ProBikePage({
         </p>
       ) : (
         <ImuBikeSetups
+          bikeId={bike.id}
           setups={setups}
           labels={labels}
           bikeType={(bike.type as BikeType | null) ?? null}
