@@ -291,6 +291,15 @@ const en = {
           "Vertical. The front from the fork's sag and the head angle; the rear from the sensor.",
         needsForkSag:
           "With the fork's sag and the head angle, it splits the front from the rear.",
+        /** The bike's readings, one per calibration (migration 00052). */
+        historyTitle: "Rider sag history",
+        historyHint:
+          "One line per logger calibration, with the setup of the first run that carried it.",
+        calibration: (n: number): string => `Calibration ${n}`,
+        sessions: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
+        thisRecording: "This recording",
+        roll: (deg: string): string => `roll ${deg}`,
+        noSetup: "No setup recorded",
         none: "No rider-sag step in this recording.",
       },
     },
@@ -545,6 +554,14 @@ const pt: typeof en = {
           "Na vertical. A frente pelo SAG do garfo e o ângulo de direção; a traseira pelo sensor.",
         needsForkSag:
           "Com o SAG do garfo e o ângulo de direção, separa a frente da traseira.",
+        historyTitle: "Histórico do rider sag",
+        historyHint:
+          "Uma linha por calibração do logger, com a afinação da primeira volta que a trouxe.",
+        calibration: (n) => `Calibração ${n}`,
+        sessions: (n) => (n === 1 ? "1 volta" : `${n} voltas`),
+        thisRecording: "Esta gravação",
+        roll: (deg) => `roll ${deg}`,
+        noSetup: "Sem afinação registada",
         none: "Sem passo de rider sag nesta gravação.",
       },
     },

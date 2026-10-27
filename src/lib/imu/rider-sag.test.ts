@@ -4,6 +4,8 @@ import {
   rearMinusFrontDropMm,
   riderAttitude,
   riderSagDropsMm,
+  riderSagHistory,
+  storedRiderSag,
 } from "./rider-sag";
 
 /** A sensor mounted with its x forward, y left and z up. */
@@ -22,7 +24,11 @@ function sagAt(deg: number, rollDeg = 0): ImuRiderSag {
   const p = (deg * Math.PI) / 180;
   const r = (rollDeg * Math.PI) / 180;
   return {
-    gravityG: [Math.sin(p), Math.cos(p) * Math.sin(r), Math.cos(p) * Math.cos(r)],
+    gravityG: [
+      Math.sin(p),
+      Math.cos(p) * Math.sin(r),
+      Math.cos(p) * Math.cos(r),
+    ],
     accelStddevG: 0.002,
     gyroStddevDps: 0.05,
     sampleCount: 1600,
@@ -82,5 +88,53 @@ describe("riderSagDropsMm", () => {
     });
     expect(d.frontMm).toBeCloseTo(30.56, 1);
     expect(d.rearMm).toBeCloseTo(30.56 + 41.83, 0);
+  });
+});
+
+describe("riderSagHistory", () => {
+  const a = storedRiderSag({ ...sagAt(1.9), calibrationCount: 4 }, level)!;
+  const b = storedRiderSag({ ...sagAt(1.2), calibrationCount: 5 }, level)!;
+
+  it("stores the reading in the bike's frame", () => {
+    expect(a.pitchDeg).toBeCloseTo(1.9, 5);
+    expect(a.calibrationCount).toBe(4);
+    expect(storedRiderSag(undefined, level)).toBeNull();
+  });
+
+  it("keeps each calibration once, newest first, with its first setup", () => {
+    const history = riderSagHistory([
+      {
+        id: "1",
+        name: "R0126",
+        createdAt: "2026-10-27T08:00:00Z",
+        riderSag: a,
+        setup: "A",
+      },
+      {
+        id: "2",
+        name: "R0135",
+        createdAt: "2026-10-27T09:00:00Z",
+        riderSag: a,
+        setup: "B",
+      },
+      {
+        id: "3",
+        name: "R0140",
+        createdAt: "2026-10-28T09:00:00Z",
+        riderSag: b,
+        setup: null,
+      },
+      {
+        id: "4",
+        name: "R0100",
+        createdAt: "2026-10-20T09:00:00Z",
+        riderSag: null,
+        setup: "C",
+      },
+    ]);
+    expect(history.map((e) => e.reading.calibrationCount)).toEqual([5, 4]);
+    expect(history[1].sessionNames).toEqual(["R0126", "R0135"]);
+    expect(history[1].setup).toBe("A");
+    expect(history[1].firstAt).toBe("2026-10-27T08:00:00Z");
   });
 });

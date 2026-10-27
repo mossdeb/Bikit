@@ -56,6 +56,115 @@ export function riderAttitude(
   };
 }
 
+/**
+ * The reading as a session row keeps it (`imu_sessions.rider_sag`,
+ * migration 00052) — the setup's history across a bike's sessions without
+ * downloading their files. Analysis and display only (by request,
+ * 2026-10-27): ORI1 stays the frame every figure is read in, and nothing
+ * detected or measured reads this.
+ */
+export interface StoredRiderSag {
+  pitchDeg: number;
+  rollDeg: number;
+  /** The calibration it was taken in: the logger repeats one SAG1 in
+   * every file until it is calibrated again, so this tells readings apart. */
+  calibrationCount: number;
+  gravityG: [number, number, number];
+  sampleCount: number;
+  accelStddevG: number;
+}
+
+/** What a session's file says, ready to store; null without the step or
+ * without a mounting orientation to read it in. */
+export function storedRiderSag(
+  sag: ImuRiderSag | undefined,
+  orientation: ImuMountOrientation | undefined,
+): StoredRiderSag | null {
+  const attitude = riderAttitude(sag, orientation);
+  if (!sag || !attitude) return null;
+  return {
+    pitchDeg: attitude.pitchDeg,
+    rollDeg: attitude.rollDeg,
+    calibrationCount: sag.calibrationCount,
+    gravityG: sag.gravityG,
+    sampleCount: sag.sampleCount,
+    accelStddevG: sag.accelStddevG,
+  };
+}
+
+export function isStoredRiderSag(value: unknown): value is StoredRiderSag {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  const finite = (x: unknown) => typeof x === "number" && Number.isFinite(x);
+  return (
+    finite(v.pitchDeg) &&
+    finite(v.rollDeg) &&
+    finite(v.calibrationCount) &&
+    finite(v.sampleCount) &&
+    finite(v.accelStddevG) &&
+    Array.isArray(v.gravityG) &&
+    v.gravityG.length === 3 &&
+    v.gravityG.every(finite)
+  );
+}
+
+/** Two stored readings are one calibration's — the same SAG1 repeated in
+ * several files — when the logger's count and the gravity agree. */
+export function sameRiderSag(a: StoredRiderSag, b: StoredRiderSag): boolean {
+  return (
+    a.calibrationCount === b.calibrationCount &&
+    a.gravityG.every((x, i) => Math.abs(x - b.gravityG[i]) < 1e-6)
+  );
+}
+
+/** One rider-sag reading in a bike's history: one calibration, however
+ * many recordings repeated it. */
+export interface RiderSagHistoryEntry<S> {
+  reading: StoredRiderSag;
+  /** The first session that carried it, ISO. */
+  firstAt: string;
+  sessionIds: string[];
+  sessionNames: string[];
+  /** The setup of that first session — the nearest record of what the
+   * bike was set to when it was calibrated; null when it had none. */
+  setup: S | null;
+}
+
+/**
+ * A bike's sessions folded into its rider-sag history (by request,
+ * 2026-10-27: compare the bike's configurations by the SAG1): each
+ * calibration once, newest first. The rows come oldest first; rows
+ * without a reading are skipped.
+ */
+export function riderSagHistory<S>(
+  rows: {
+    id: string;
+    name: string;
+    createdAt: string;
+    riderSag: unknown;
+    setup: S | null;
+  }[],
+): RiderSagHistoryEntry<S>[] {
+  const entries: RiderSagHistoryEntry<S>[] = [];
+  for (const row of rows) {
+    if (!isStoredRiderSag(row.riderSag)) continue;
+    const reading = row.riderSag;
+    const entry = entries.find((e) => sameRiderSag(e.reading, reading));
+    if (entry) {
+      entry.sessionIds.push(row.id);
+      entry.sessionNames.push(row.name);
+    } else
+      entries.push({
+        reading,
+        firstAt: row.createdAt,
+        sessionIds: [row.id],
+        sessionNames: [row.name],
+        setup: row.setup,
+      });
+  }
+  return entries.reverse();
+}
+
 /** How much more the rear sank than the front, mm (negative: the front
  * sank more), from the frame's pitch and the wheelbase. */
 export function rearMinusFrontDropMm(

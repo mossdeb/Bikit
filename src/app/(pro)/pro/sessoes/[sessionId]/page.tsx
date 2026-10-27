@@ -26,6 +26,10 @@ import {
 } from "@/components/imu-session-setup";
 import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import {
+  riderSagHistory,
+  type RiderSagHistoryEntry,
+} from "@/lib/imu/rider-sag";
 import { trimOf } from "@/lib/imu/trim";
 import {
   SETUP_COMPONENT_CATEGORIES,
@@ -63,7 +67,7 @@ export default async function ImuSessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms, trim_by_track",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms, trim_by_track, rider_sag",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -169,6 +173,46 @@ export default async function ImuSessionPage({
   ]);
   const setupValues: ImuSetupValues =
     setupRow && isSetupValues(setupRow.values) ? setupRow.values : {};
+  // The bike's rider-sag readings (migration 00052), each calibration once,
+  // with the setup of the first session that carried it — the setup's
+  // history, to compare the bike's configurations by. Rows only; no file
+  // is read for it.
+  let sagHistory: RiderSagHistoryEntry<ImuSetupValues>[] = [];
+  if (session.bike_id) {
+    const { data: sagRows } = await supabase
+      .from("imu_sessions")
+      .select("id, name, created_at, setup_id, rider_sag")
+      .eq("user_id", userId)
+      .eq("bike_id", session.bike_id)
+      .not("rider_sag", "is", null)
+      .order("created_at", { ascending: true });
+    const setupIds = [
+      ...new Set(
+        (sagRows ?? [])
+          .map((row) => row.setup_id)
+          .filter((id): id is string => id != null),
+      ),
+    ];
+    const setupsById = new Map<string, ImuSetupValues>();
+    if (setupIds.length > 0) {
+      const { data: setupRows } = await supabase
+        .from("imu_setups")
+        .select("id, values")
+        .eq("user_id", userId)
+        .in("id", setupIds);
+      for (const row of setupRows ?? [])
+        if (isSetupValues(row.values)) setupsById.set(row.id, row.values);
+    }
+    sagHistory = riderSagHistory(
+      (sagRows ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        createdAt: row.created_at,
+        riderSag: row.rider_sag,
+        setup: row.setup_id ? (setupsById.get(row.setup_id) ?? null) : null,
+      })),
+    );
+  }
   const setupNote = setupRow?.note ?? null;
   const setupLabels: ImuSetupLabels = setupLabelsOf(dampers);
   const BikeGlyph = bike
@@ -211,6 +255,7 @@ export default async function ImuSessionPage({
         }
         trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
         trimByTrack={session.trim_by_track}
+        riderSagStored={session.rider_sag != null}
         timedTracks={timedTracks}
         trackCandidates={trackCandidates}
         header={
@@ -314,6 +359,7 @@ export default async function ImuSessionPage({
                   note={setupNote}
                   labels={setupLabels}
                   bikeType={(bike?.type as BikeType | undefined) ?? null}
+                  sagHistory={sagHistory}
                 />
                 <Link
                   href={`/pro/sessoes/${session.id}/afinacoes`}

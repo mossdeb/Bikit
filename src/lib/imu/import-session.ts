@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createImuSession, setImuSessionTrim } from "@/lib/actions/imu";
 import { createImuTrack } from "@/lib/actions/imu-tracks";
 import { lookupPlaceName } from "@/lib/imu/place-name";
+import { storedRiderSag } from "@/lib/imu/rider-sag";
 import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
 import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
@@ -192,6 +193,9 @@ export async function uploadAndRegisterImuSession(input: {
     trackIndex: buildTrackIndex(gps),
     trim,
     trimByTrack,
+    // The rider-sag step's reading (firmware V18), for the setup's
+    // history — in the frame the page reads, so after the alignment.
+    riderSag: storedRiderSag(session.riderSag, session.orientation),
   });
   if (result.status === "error") return { ok: false, error: result.message };
   if (!newTrack || !session.gps) return { ok: true, track: null };

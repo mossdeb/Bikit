@@ -31,13 +31,18 @@ import {
   RIDER_ATTITUDE_TIE_DEG,
   riderAttitude,
   riderSagDropsMm,
+  sameRiderSag,
+  storedRiderSag,
+  type RiderSagHistoryEntry,
 } from "@/lib/imu/rider-sag";
+import { formatDate } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
 import {
   circuitMode,
   DAMPER_FIELDS,
   damperSpring,
+  setupSummary,
   setupValuesEqual,
   type ImuCircuit,
   type ImuDamperSetup,
@@ -181,7 +186,11 @@ export function ImuSessionSetup({
   triggerContent,
   readOnly = false,
   title,
+  sagHistory = [],
 }: {
+  /** The bike's rider-sag readings (riderSagHistory), newest first — the
+   * setup's history, under the tyres. Only the session page has them. */
+  sagHistory?: RiderSagHistoryEntry<ImuSetupValues>[];
   /** The session the setup is saved to. Unused when `readOnly`. */
   sessionId: string;
   /** The session's current setup, or empty. */
@@ -418,6 +427,12 @@ export function ImuSessionSetup({
             </div>
           </div>
 
+          <RiderSagHistory
+            history={sagHistory}
+            draft={draft}
+            labels={labels}
+          />
+
           {/* Read-only, the note shows only when there is one to read. */}
           {(!readOnly || draftNote.trim()) && (
             <div className="space-y-1.5">
@@ -524,6 +539,116 @@ function RiderSagReading({ draft }: { draft: Draft }) {
           </p>
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * The bike's rider-sag readings, one per logger calibration (by request,
+ * 2026-10-27: keep the SAG1's history to compare the bike's setups), newest
+ * first, each with the setup of the first run that carried it. The loaded
+ * recording's own reading is marked — and added, when its row has not kept
+ * it yet. Nothing here is measured again: the rows hold the readings.
+ */
+function RiderSagHistory({
+  history,
+  draft,
+  labels,
+}: {
+  history: RiderSagHistoryEntry<ImuSetupValues>[];
+  draft: Draft;
+  labels: ImuSetupLabels;
+}) {
+  const dict = useProDict();
+  const t = dict.report.setup.form.riderSag;
+  const locale = useProLocale();
+  const session = useLoadedSession();
+  const current = session
+    ? storedRiderSag(session.riderSag, session.orientation)
+    : null;
+  const entries = [...history];
+  if (current && !entries.some((e) => sameRiderSag(e.reading, current)))
+    entries.unshift({
+      reading: current,
+      firstAt: new Date().toISOString(),
+      sessionIds: [],
+      sessionNames: [],
+      setup: null,
+    });
+  if (entries.length === 0) return null;
+
+  const wheelbase = Number(draft[WHEELBASE_KEY]?.trim().replace(",", "."));
+  const hasWheelbase =
+    !!draft[WHEELBASE_KEY]?.trim() && Number.isFinite(wheelbase) && wheelbase > 0;
+  const deg = (n: number) => `${proNumber(Math.abs(n), locale, 1)}°`;
+  return (
+    <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
+      <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+        <p className="text-lg font-semibold">{t.historyTitle}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t.historyHint}</p>
+        <ul className="mt-3 divide-y divide-border">
+          {entries.map((entry) => {
+            const r = entry.reading;
+            const isCurrent = current != null && sameRiderSag(r, current);
+            const level = Math.abs(r.pitchDeg) < RIDER_ATTITUDE_TIE_DEG;
+            const diff = hasWheelbase
+              ? rearMinusFrontDropMm(r.pitchDeg, wheelbase)
+              : null;
+            const setup = entry.setup
+              ? setupSummary(entry.setup, labels, locale)
+              : null;
+            return (
+              <li
+                key={`${r.calibrationCount}:${r.gravityG.join(",")}`}
+                className="grid gap-1 py-3 sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-4"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {t.calibration(r.calibrationCount)}
+                    {entry.sessionIds.length > 0 && (
+                      <span className="text-muted-foreground">
+                        {" · "}
+                        {formatDate(entry.firstAt, locale)}
+                        {" · "}
+                        {t.sessions(entry.sessionIds.length)}
+                      </span>
+                    )}
+                    {isCurrent && (
+                      <span className="ml-2 inline-block rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-background">
+                        {t.thisRecording}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {setup ?? t.noSetup}
+                  </p>
+                </div>
+                <div className="text-sm tabular-nums sm:text-right">
+                  <span className="font-semibold">
+                    {level
+                      ? t.level
+                      : r.pitchDeg > 0
+                        ? t.noseUp(deg(r.pitchDeg))
+                        : t.noseDown(deg(r.pitchDeg))}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {t.roll(
+                      `${r.rollDeg < 0 ? "−" : ""}${deg(r.rollDeg)}`,
+                    )}
+                    {diff != null && !level && (
+                      <>
+                        {" · "}
+                        {`${diff > 0 ? "+" : "−"}${proNumber(Math.abs(diff), locale, 0)} mm`}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 }

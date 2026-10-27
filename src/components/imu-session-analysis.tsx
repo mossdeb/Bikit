@@ -1,6 +1,8 @@
 "use client";
 
 import { SessionDataContext } from "@/components/imu-session-data";
+import { recordImuSessionRiderSag } from "@/lib/actions/imu";
+import { riderAttitude, storedRiderSag } from "@/lib/imu/rider-sag";
 import {
   useCallback,
   useContext,
@@ -140,6 +142,9 @@ const SERIES_DEFS = [
   { id: "roughness", unit: "G RMS", color: "#D97706" },
   { id: "jerk", unit: "G/s", color: "#DB2777" },
   { id: "lean", unit: "°", color: "#475569" },
+  /** The estimated pitch (pitchSeries), in the empty bike's frame (ORI1);
+   * the rider-sag line and the "from the sag" reading dress it (2026-10-27). */
+  { id: "pitch", unit: "°", color: "#7C3AED" },
   /** Only offered when the file carries a GPS track — the recorded speed,
    * with the forward accelerometer drawing the shape between fixes once the
    * bike's forward is known (fusedSpeedKmhSeries); a straight line between
@@ -161,7 +166,12 @@ type LabelledSeriesDef = (typeof SERIES_DEFS)[number] & {
 
 /** The series computed from the raw channels rather than recorded by the
  * sensor — listed apart in the details panel, never under "Dados brutos". */
-const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean"]);
+const DERIVED_IDS = new Set<SeriesId>([
+  "roughness",
+  "jerk",
+  "lean",
+  "pitch",
+]);
 
 /** The series that cannot go below zero — magnitudes, an RMS, a ground
  * speed, an altitude above sea level. Their gauge starts at the left of the
@@ -1198,9 +1208,14 @@ export function ImuSessionAnalysis({
   mountOrientation = null,
   trim = null,
   trimByTrack = false,
+  riderSagStored = true,
   timedTracks = [],
   trackCandidates = [],
 }: {
+  /** The row already keeps the file's rider-sag reading (migration
+   * 00052); when it does not and the file has one, the page hands it over
+   * once, for the setup's history. */
+  riderSagStored?: boolean;
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
   /** The account's Snapshots, so the dialog on an event's card can say
@@ -1484,6 +1499,7 @@ export function ImuSessionAnalysis({
         data.aligned ? gz : null,
         speed,
       ),
+      pitch: pitchSeries(tMs, ax, ay, az),
     };
     if (data.gps && speed) {
       values.speed = speed;
@@ -1570,6 +1586,48 @@ export function ImuSessionAnalysis({
   }, [data]);
 
   /**
+   * The rider-sag step's pitch (firmware V18, SAG1), in the frame the page
+   * reads everything in — ORI1, the empty bike — so it lands on the pitch
+   * series' own scale. A reference for looking only (by request,
+   * 2026-10-27): no figure, event or metric reads it, and the pitch the
+   * dashboard and the report use stays the empty bike's.
+   */
+  const sagPitchDeg = useMemo(
+    () =>
+      data
+        ? (riderAttitude(data.riderSag, data.orientation)?.pitchDeg ?? null)
+        : null,
+    [data],
+  );
+  /** The pitch drawn against the rider-sag attitude instead of the empty
+   * bike's: 0 is the bike as it stands with the rider on. Off by default. */
+  const [pitchFromSag, setPitchFromSag] = useState(false);
+  /** The rider-sag attitude as a dashed line across the pitch trace. */
+  const [sagLineOn, setSagLineOn] = useState(true);
+  /** The series as shown — the pitch shifted when it is read from the
+   * sag; every other series, and the dashboard's pitch, as computed. */
+  const shownValues = useMemo(() => {
+    if (!seriesValues) return null;
+    if (!pitchFromSag || sagPitchDeg == null) return seriesValues;
+    const pitch = seriesValues.pitch;
+    const shifted = new Float32Array(pitch.length);
+    for (let i = 0; i < pitch.length; i++) shifted[i] = pitch[i] - sagPitchDeg;
+    return { ...seriesValues, pitch: shifted };
+  }, [seriesValues, pitchFromSag, sagPitchDeg]);
+
+  // A session imported before its row kept the reading: hand it over once,
+  // for the setup's history. Fire and forget — a failure costs a line in
+  // the history and nothing on this page.
+  const sagRecorded = useRef(false);
+  useEffect(() => {
+    if (riderSagStored || sagRecorded.current || !data) return;
+    const riderSag = storedRiderSag(data.riderSag, data.orientation);
+    if (!riderSag) return;
+    sagRecorded.current = true;
+    void recordImuSessionRiderSag({ sessionId, riderSag });
+  }, [data, riderSagStored, sessionId]);
+
+  /**
    * What each channel did across this session: its extremes, its mean, and
    * the biggest magnitude it reached — the last being the full end of that
    * channel's gauge.
@@ -1590,13 +1648,13 @@ export function ImuSessionAnalysis({
    * hundreds of thousands of samples long.
    */
   const seriesStats = useMemo(() => {
-    if (!seriesValues) return null;
+    if (!shownValues) return null;
     const stats = {} as Record<
       SeriesId,
       { min: number; max: number; avg: number; peak: number }
     >;
     for (const def of SERIES_DEFS) {
-      const values = seriesValues[def.id];
+      const values = shownValues[def.id];
       if (!values) continue; // speed, in a file without GPS
       let min = Infinity;
       let max = -Infinity;
@@ -1617,7 +1675,7 @@ export function ImuSessionAnalysis({
         : { min: 0, max: 0, avg: 0, peak: 0 };
     }
     return stats;
-  }, [seriesValues]);
+  }, [shownValues]);
 
   if (loadError) {
     // Written on screen with the whole message — the garage rule.
@@ -1633,6 +1691,7 @@ export function ImuSessionAnalysis({
     !data ||
     !summary ||
     !seriesValues ||
+    !shownValues ||
     !seriesStats ||
     !gForce ||
     !pitchValues
@@ -1680,8 +1739,19 @@ export function ImuSessionAnalysis({
     id: def.id,
     label: def.label,
     color: def.color,
-    values: seriesValues[def.id],
+    values: shownValues[def.id],
+    // The rider-sag attitude across the pitch: at its own angle, or at 0
+    // when the pitch is read from it.
+    ...(def.id === "pitch" &&
+      sagLineOn &&
+      sagPitchDeg != null && {
+        reference: {
+          value: pitchFromSag ? 0 : sagPitchDeg,
+          label: t.sag.line,
+        },
+      }),
   }));
+  const pitchOn = activeSeries.has("pitch") && sagPitchDeg != null;
 
   const cursorIndex = cursorMs != null ? nearestSampleIndex(tMs, cursorMs) : -1;
   // The filters hold here too, not just on the plot: a kind switched off is
@@ -2441,6 +2511,24 @@ export function ImuSessionAnalysis({
                     />
                   </span>
                 </button>
+                {/* The rider-sag reference, only while the pitch is drawn and
+                  the file has the step (2026-10-27): its line, and the pitch
+                  read from it rather than from the empty bike. Looking
+                  only — nothing measured changes. */}
+                {pitchOn && (
+                  <>
+                    <SmallSwitch
+                      label={t.sag.lineToggle}
+                      checked={sagLineOn}
+                      onToggle={() => setSagLineOn((on) => !on)}
+                    />
+                    <SmallSwitch
+                      label={t.sag.relativeToggle}
+                      checked={pitchFromSag}
+                      onToggle={() => setPitchFromSag((on) => !on)}
+                    />
+                  </>
+                )}
                 {/* The scissors: trim the session to the window shown. On the
                   zoom row because that is the gesture — zoom onto the run,
                   cut — and flush right, an icon in a circle like the zoom
@@ -2953,7 +3041,7 @@ export function ImuSessionAnalysis({
                                 rung there — `text-xl` is 20. */}
                               <span className="min-w-[132px] text-[22px] leading-none font-semibold tabular-nums whitespace-nowrap sm:min-w-[164px]">
                                 {proNumber(
-                                  seriesValues[def.id][cursorIndex],
+                                  shownValues[def.id][cursorIndex],
                                   locale,
                                   4,
                                 )}{" "}
@@ -2962,7 +3050,7 @@ export function ImuSessionAnalysis({
                                 </span>
                               </span>
                               <MetricGauge
-                                value={seriesValues[def.id][cursorIndex]}
+                                value={shownValues[def.id][cursorIndex]}
                                 peak={seriesStats[def.id].peak}
                                 signed={!UNSIGNED_IDS.has(def.id)}
                               />
@@ -3399,6 +3487,44 @@ function SessionCards({
  * 2026-09-27; they stood beside the panel switches, where they read as a
  * control's label). Nothing until the recording is loaded.
  */
+/** The zoom row's small switch — "Valores"'s track and thumb, for the
+ * rider-sag reference's two. */
+function SmallSwitch({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex h-8 cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
+    >
+      {label}
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+          checked ? "bg-foreground" : "bg-muted-foreground/30",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 size-3 rounded-full bg-background transition-transform",
+            checked && "translate-x-3",
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
 export function SessionFileBadges() {
   const session = useContext(SessionDataContext);
   if (!session) return null;

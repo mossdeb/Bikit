@@ -70,6 +70,12 @@ const en = {
       description:
         "Estimated lean — roll gyroscope, anchored to the corner's balance angle atan(v·ω/g) from the GPS speed and the yaw; without GPS, the accelerometer's mean tilt",
     },
+    pitch: {
+      label: "Pitch (est.)",
+      summary: "Estimated pitch",
+      description:
+        "Estimated pitch — the direction of the force over 1.5 s, nose up positive, against the empty bike (ORI1)",
+    },
     speed: {
       label: "Speed",
       summary: "GPS speed",
@@ -256,6 +262,12 @@ const en = {
   },
 
   /** The zoom row under the plot. */
+  /** The rider-sag reference on the pitch (firmware V18's SAG1). */
+  sag: {
+    line: "SAG1",
+    lineToggle: "SAG line",
+    relativeToggle: "From SAG",
+  },
   zoom: {
     in: "Zoom in",
     out: "Zoom out",
@@ -429,6 +441,12 @@ const pt: typeof en = {
       description:
         "Inclinação estimada — giroscópio de rolamento, ancorado ao ângulo de equilíbrio da curva atan(v·ω/g) da velocidade do GPS e da guinada; sem GPS, a inclinação média do acelerómetro",
     },
+    pitch: {
+      label: "Pitch (est.)",
+      summary: "Pitch estimado",
+      description:
+        "Pitch estimado — a direção da força ao longo de 1,5 s, nariz acima positivo, contra a bicicleta vazia (ORI1)",
+    },
     speed: {
       label: "Velocidade",
       summary: "Velocidade GPS",
@@ -587,6 +605,11 @@ const pt: typeof en = {
     rough: "Acidentado",
   },
 
+  sag: {
+    line: "SAG1",
+    lineToggle: "Linha SAG",
+    relativeToggle: "Relativo ao SAG",
+  },
   zoom: {
     in: "Aproximar",
     out: "Afastar",

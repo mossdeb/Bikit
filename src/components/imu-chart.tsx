@@ -106,6 +106,10 @@ export interface ImuChartSeries {
   /** Stroke color, fixed in both themes — lab palette, not design system. */
   color: string;
   values: ArrayLike<number>;
+  /** A level drawn across the plot on this series' own scale, dashed in
+   * its colour — the rider-sag attitude on the pitch (2026-10-27). The
+   * scale stretches to keep it in view. */
+  reference?: { value: number; label: string };
 }
 
 /**
@@ -301,6 +305,11 @@ export function ImuChart({
           if (v < min) min = v;
           if (v > max) max = v;
         }
+        const ref = s.reference?.value;
+        if (ref != null && Number.isFinite(ref) && min <= max) {
+          min = Math.min(min, ref);
+          max = Math.max(max, ref);
+        }
         return min <= max ? { min, max } : { min: 0, max: 0 };
       }),
     [series],
@@ -335,6 +344,20 @@ export function ImuChart({
       };
     });
   }, [tMs, series, seriesRanges, w0, w1, span]);
+
+  /** The series' reference levels, placed on their own scales. */
+  const references = useMemo(
+    () =>
+      series.flatMap((s, si) => {
+        const ref = s.reference;
+        if (!ref || !Number.isFinite(ref.value)) return [];
+        const { min, max } = seriesRanges[si];
+        const range = max - min || 1;
+        const y = H - PAD_Y - ((ref.value - min) / range) * (H - PAD_Y * 2);
+        return [{ id: s.id, color: s.color, label: ref.label, y }];
+      }),
+    [series, seriesRanges],
+  );
 
   const visibleEvents = useMemo(
     () =>
@@ -746,7 +769,30 @@ export function ImuChart({
               vectorEffect="non-scaling-stroke"
             />
           ))}
+          {references.map((r) => (
+            <line
+              key={r.id}
+              x1={0}
+              x2={W}
+              y1={r.y}
+              y2={r.y}
+              stroke={r.color}
+              strokeWidth={1}
+              strokeDasharray="6 4"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
         </svg>
+        {references.map((r) => (
+          <span
+            key={r.id}
+            aria-hidden
+            className="pointer-events-none absolute left-1.5 -translate-y-full rounded-[4px] bg-card/90 px-1 text-[10px] leading-tight font-medium tabular-nums"
+            style={{ top: `${(r.y / H) * 100}%`, color: r.color }}
+          >
+            {r.label}
+          </span>
+        ))}
 
         {/* The y extremes of the first active series, over the whole
             recording — the scale the plot is drawn against, so they hold

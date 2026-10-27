@@ -11,6 +11,7 @@ import { getUserSubscription } from "@/lib/subscription";
 import { PLAN_LIMITS } from "@/lib/plans";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isTrackIndex, type SnapshotTrackIndex } from "@/lib/imu/snapshot";
+import { isStoredRiderSag, type StoredRiderSag } from "@/lib/imu/rider-sag";
 import type { Json } from "@/types/database.types";
 
 export type ImuActionResult =
@@ -88,6 +89,9 @@ export interface CreateImuSessionInput {
   /** The trim is a track's lines — lifted again once the run passes no
    * track (setImuSessionTrim's byTrack). */
   trimByTrack?: boolean;
+  /** The file's rider-sag reading (firmware V18's SAG1), for the setup's
+   * history. Omitted for none. */
+  riderSag?: StoredRiderSag | null;
 }
 
 /**
@@ -143,6 +147,9 @@ export async function createImuSession(
       trim.endMs <= trim.startMs)
   )
     return { status: "error", message: t.sessions.actions.invalidTrimWindow };
+  // A malformed reading is dropped, not refused: it is a history line, and
+  // the file still has the record.
+  const riderSag = isStoredRiderSag(input.riderSag) ? input.riderSag : null;
 
   const bike = await resolveBike(supabase, userId, input.bike, t);
   if (bike.status === "error") return bike;
@@ -191,6 +198,7 @@ export async function createImuSession(
     trim_start_ms: trim ? Math.round(trim.startMs) : null,
     trim_end_ms: trim ? Math.round(trim.endMs) : null,
     trim_by_track: trim != null && input.trimByTrack === true,
+    rider_sag: riderSag as unknown as Json,
   })
     .select("id")
     .single();
@@ -483,6 +491,32 @@ export async function updateImuSession(input: {
  * name — a Snapshot pointing outside its own recording is a broken one,
  * and the honest answer is to widen the window or delete the Snapshot.
  */
+/**
+ * Keeps a session's rider-sag reading for the setup's history, when the
+ * session was imported before the column existed (migration 00052) — the
+ * page reads the file anyway and hands the reading over once. Only fills
+ * a blank: what the import stored is the file's own and is not rewritten.
+ * Never revalidates; nothing on the page reads the column.
+ */
+export async function recordImuSessionRiderSag(input: {
+  sessionId: string;
+  riderSag: StoredRiderSag;
+}): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (caller.status === "error") return caller;
+  const { supabase, userId, t } = caller;
+  if (!isStoredRiderSag(input.riderSag))
+    return { status: "error", message: t.sessions.actions.invalidMetadata };
+  const { error } = await supabase
+    .from("imu_sessions")
+    .update({ rider_sag: input.riderSag as unknown as Json })
+    .eq("id", input.sessionId)
+    .eq("user_id", userId)
+    .is("rider_sag", null);
+  if (error) return { status: "error", message: error.message };
+  return { status: "ok" };
+}
+
 export async function setImuSessionTrim(input: {
   sessionId: string;
   trim: { startMs: number; endMs: number } | null;

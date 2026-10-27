@@ -537,6 +537,7 @@ export type Database = {
           mount_orientation: Json | null;
           name: string;
           rider_name: string | null;
+          rider_sag: Json | null;
           sample_count: number;
           sample_rate_hz: number;
           setup_id: string | null;
@@ -563,6 +564,7 @@ export type Database = {
           mount_orientation?: Json | null;
           name: string;
           rider_name?: string | null;
+          rider_sag?: Json | null;
           sample_count: number;
           sample_rate_hz: number;
           setup_id?: string | null;
@@ -589,6 +591,7 @@ export type Database = {
           mount_orientation?: Json | null;
           name?: string;
           rider_name?: string | null;
+          rider_sag?: Json | null;
           sample_count?: number;
           sample_rate_hz?: number;
           setup_id?: string | null;
