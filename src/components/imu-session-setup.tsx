@@ -782,22 +782,28 @@ function RiderSagReading({ draft }: { draft: Draft }) {
       title={t.explain}
     >
       <p className="text-lg font-semibold">{t.title}</p>
-      <div className="flex min-h-24 items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-4 py-5">
+      {/* The supplied layout (2026-10-27, second pass): the angle large on
+          a tall quiet panel with its meaning in mm beside it, then the
+          estimated vertical displacement of each end under its heading. */}
+      <div className="flex min-h-32 items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-5 py-8">
         <p className="text-3xl font-semibold tabular-nums">{signedDeg}</p>
-        <p className="text-sm leading-tight tabular-nums">
+        <p className="text-base leading-tight tabular-nums">
           {wheelbaseMm == null ? (
-            <span className="text-muted-foreground">{t.needsWheelbase}</span>
+            <span className="text-sm text-muted-foreground">
+              {t.needsWheelbase}
+            </span>
           ) : diff == null ? (
             t.same
           ) : (
             <>
-              <span className="font-medium">{mm(diff)}</span>
+              {mm(diff)}
               <br />
               {diff > 0 ? t.deeperRear : t.deeperFront}
             </>
           )}
         </p>
       </div>
+      <p className="pt-1 font-semibold">{t.displacement}</p>
       <div className="grid grid-cols-2 gap-3">
         {(
           [
@@ -805,12 +811,12 @@ function RiderSagReading({ draft }: { draft: Draft }) {
             [t.rear, drops?.rearMm, t.rearCaption],
           ] as const
         ).map(([name, value, caption]) => (
-          <div key={name} className="rounded-[10px] bg-muted/60 px-4 py-3">
+          <div key={name} className="rounded-[10px] bg-muted/60 px-5 py-4">
             <p className="text-sm">{name}</p>
-            <p className="text-xl font-semibold tabular-nums">
+            <p className="text-2xl font-semibold tabular-nums">
               {value != null ? mm(value) : "–"}
             </p>
-            <p className="text-xs text-muted-foreground">{caption}</p>
+            <p className="text-sm">{caption}</p>
           </div>
         ))}
       </div>

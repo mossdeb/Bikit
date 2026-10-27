@@ -281,7 +281,7 @@ const en = {
         `The sessions that rode on it (${sessions}) stay, with no setup. This cannot be undone.`,
       /** The rider-sag calibration step, read from the file (firmware V18). */
       riderSag: {
-        title: "Rider sag",
+        title: "IMU SAG",
         explain:
           "How far the frame turned when the rider got on, from the logger's calibration. The rear sinking more lifts the nose.",
         noseUp: (deg: string): string => `${deg} nose up`,
@@ -295,6 +295,7 @@ const en = {
         needsWheelbase: "Enter the wheelbase to read it in mm.",
         /** Each end's vertical drop, from the fork's sag and the head
          * angle — the rear's is the one the sensor measured. */
+        displacement: "Estimated vertical displacement",
         front: "Front",
         rear: "Rear",
         deeperRear: "deeper at the rear",
@@ -597,7 +598,7 @@ const pt: typeof en = {
       deleteWarning: (sessions) =>
         `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
-        title: "Rider sag",
+        title: "IMU SAG",
         explain:
           "Quanto o quadro rodou quando o rider subiu, lido da calibração do logger. A traseira a afundar mais levanta o nariz.",
         noseUp: (deg) => `${deg} nariz acima`,
@@ -607,6 +608,7 @@ const pt: typeof en = {
         frontDeeper: (mm) => `A frente afunda ${mm} mais do que a traseira`,
         same: "Frente e traseira afundam o mesmo",
         needsWheelbase: "Indica a distância entre eixos para ler em mm.",
+        displacement: "Deslocamento vertical estimado",
         front: "Frente",
         rear: "Traseira",
         deeperRear: "mais afundada atrás",
