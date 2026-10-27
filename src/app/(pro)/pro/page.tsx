@@ -120,7 +120,7 @@ export default async function ImuLabPage() {
     return (
       <div
         className={cn(
-          "relative flex gap-5 rounded-lg bg-card p-5",
+          "relative flex min-h-[140px] gap-5 rounded-lg bg-card p-5",
           DARK_CARD_HAIRLINE,
           CLICKABLE_CARD_HOVER,
         )}
@@ -196,12 +196,13 @@ export default async function ImuLabPage() {
           </div>
         </div>
         {/* The route, as the Snapshots' list shows theirs (by request,
-            2026-10-26). From `sm`: a phone's card has no room beside the
+            2026-10-26), at half the card's padding from its top, foot and right
+            edge (2026-10-27). From `sm`: a phone's card has no room beside the
             words. Not without GPS. */}
         {outline && (
           <ImuSessionThumb
             outline={outline}
-            className="pointer-events-none hidden h-[106px] w-[156px] shrink-0 self-end sm:block"
+            className="pointer-events-none -my-2.5 -mr-2.5 hidden h-[120px] w-[177px] shrink-0 self-center sm:block"
           />
         )}
       </div>
@@ -221,7 +222,7 @@ export default async function ImuLabPage() {
         <div>
           {/* "Sessions" and not "IMU sessions": the lockup above it already
               says which lab this is, and the page was naming itself twice. */}
-          <h1 className="font-display text-2xl font-bold">
+          <h1 className="font-display text-[32px] leading-tight font-bold">
             {t.sessions.list.title}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -21,7 +21,7 @@ type LatLon = [number, number];
 
 const PLATE = "#101412";
 const MINT = "#43F3AF";
-const RADIUS = 8;
+const RADIUS = 12;
 /** The route's line, px (3 since 2026-10-27, by request: 2 read thin). */
 const ROUTE_WIDTH = 3;
 /** The north badge, drawn at 19px across and scaled (1.5×, by request,
