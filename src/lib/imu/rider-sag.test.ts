@@ -22,6 +22,7 @@ function sagAt(deg: number, rollDeg = 0): ImuRiderSag {
     accelStddevG: 0.002,
     gyroStddevDps: 0.05,
     sampleCount: 1600,
+    calibrationCount: 1,
   };
 }
 

@@ -22,6 +22,9 @@
  *   [128, 188)   orientation     "ORI1"  — BKT1 with flag bit 0, firmware
  *                                V13.5+: the bike's up/front/left in the
  *                                sensor's frame (the two-step calibration)
+ *   [192, 210)   high-g metadata "HGM1"  — firmware V16.1+; not read
+ *   [256, 296)   rider sag       "SAG1"  — firmware V18: gravity with the
+ *                                rider on (the three-step calibration)
  *   [4096, …)    blocks of 4096 bytes, each: 32-byte header "BLK1" + payload
  *                type 1 = IMU, 12-byte samples (six int16)
  *                type 2 = GNSS, 36-byte samples (or 32 in older firmware,
@@ -62,6 +65,7 @@ import type {
   ImuHighGEvent,
   ImuMountOrientation,
   ImuParseResult,
+  ImuRiderSag,
   ImuTimelineGap,
 } from "./format";
 
@@ -126,6 +130,15 @@ const FLAG_HIGHG = 0x4;
 const ORI_MAGIC = "ORI1";
 const ORI_OFFSET = 128;
 const ORI_SIZE = 60;
+/** Firmware V18's rider-sag record (`BikitSagReference`, `<4sHH5fIII>`):
+ * magic, version 1, size 40, the rider-on gravity xyz in the sensor's
+ * frame, accel and gyro stddev, sample_count, calibration_count, crc32 —
+ * over all 40 bytes with the field zero, like ORI1. Outside the header
+ * CRC; the firmware writes it only when its calibration_count is CAL1's. */
+const SAG_MAGIC = "SAG1";
+const SAG_OFFSET = 256;
+const SAG_SIZE = 40;
+const SAG_VERSION = 1;
 /** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
  * clock stamps before they wrap. */
 const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
@@ -481,6 +494,40 @@ export function parseBktFile(
     };
   }
 
+  // The rider sag, firmware V18's middle calibration step (Neutral → Rider
+  // Sag → Forward). Like ORI1: absent is a file from before the step, a
+  // bad CRC is a corrupt one. A layout this parser does not know (another
+  // version or size) is skipped rather than refused — the ride is still a
+  // ride — and so is a record from another calibration than CAL1's, which
+  // the firmware never writes but would make the comparison meaningless.
+  let riderSag: ImuRiderSag | undefined;
+  if (
+    magic === MAGIC_V1 &&
+    calibration &&
+    bytes.byteLength >= SAG_OFFSET + SAG_SIZE &&
+    ascii(view, SAG_OFFSET, 4) === SAG_MAGIC &&
+    view.getUint16(SAG_OFFSET + 4, true) === SAG_VERSION &&
+    view.getUint16(SAG_OFFSET + 6, true) === SAG_SIZE
+  ) {
+    const storedSagCrc = view.getUint32(SAG_OFFSET + 36, true);
+    if (recordCrc(u8, SAG_OFFSET, SAG_SIZE, magic) !== storedSagCrc)
+      return fail(t.sagCrc);
+    const f = (i: number) => view.getFloat32(SAG_OFFSET + 8 + i * 4, true);
+    const v = Array.from({ length: 5 }, (_, i) => f(i));
+    const calibrationCount = view.getUint32(SAG_OFFSET + 32, true);
+    if (
+      v.every(Number.isFinite) &&
+      calibrationCount === calibration.calibrationCount
+    )
+      riderSag = {
+        gravityG: [v[0], v[1], v[2]],
+        accelStddevG: v[3],
+        gyroStddevDps: v[4],
+        sampleCount: view.getUint32(SAG_OFFSET + 28, true),
+        calibrationCount,
+      };
+  }
+
   const expectedSize = BLOCK_SIZE + h.totalBlocks * BLOCK_SIZE;
   if (bytes.byteLength !== expectedSize) {
     const present = Math.max(0, Math.floor(bytes.byteLength / BLOCK_SIZE) - 1);
@@ -765,6 +812,7 @@ export function parseBktFile(
       imuGaps,
       sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
       orientation,
+      ...(riderSag && { riderSag }),
       // Present — empty, even — when the file says the sensor was there:
       // header flag bit 2, or a HIGHG block. "No shock crossed the
       // threshold" and "no such sensor" are different recordings.

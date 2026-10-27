@@ -225,8 +225,9 @@ export interface ImuHighGEvent {
  * Optional: a file from before the step has none, and nothing that existed
  * before it depends on it (by request, 2026-10-26).
  *
- * The on-disk record is not specified yet; this is what the app needs from
- * it, whatever its layout.
+ * On disk (firmware V18, read in bkt.ts): the 40-byte SAG1 record at byte
+ * 256 of the .BKT header page, written only when it belongs to the same
+ * calibration as CAL1 — first seen in R0135, a bench test, 2026-10-27.
  */
 export interface ImuRiderSag {
   /** Mean specific force with the rider on, in the SENSOR's frame, G. */
@@ -234,6 +235,8 @@ export interface ImuRiderSag {
   accelStddevG: number;
   gyroStddevDps: number;
   sampleCount: number;
+  /** The calibration it was taken in — CAL1's and ORI1's. */
+  calibrationCount: number;
 }
 
 export interface ImuMountOrientation {

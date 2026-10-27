@@ -84,6 +84,11 @@ function buildBkt(
     /** Write firmware V13.5's ORI1 record after CAL1 (BKT1 only). */
     orientation?: boolean;
     breakOrientationCrc?: boolean;
+    /** Write firmware V18's SAG1 record at 256 (BKT1 only). */
+    riderSag?: boolean;
+    /** Its calibration_count; CAL1's (3) by default. */
+    riderSagCalibration?: number;
+    breakSagCrc?: boolean;
     breakHeaderCrc?: boolean;
     breakBlockCrc?: number;
     breakSequence?: number;
@@ -178,6 +183,20 @@ function buildBkt(
       overrides.breakOrientationCrc ? oriCrc ^ 1 : oriCrc,
       true,
     );
+  }
+
+  if (overrides.riderSag) {
+    // R0135's record (firmware V18, 2026-10-27), in CAL1's calibration.
+    put(256, "SAG1");
+    view.setUint16(260, 1, true);
+    view.setUint16(262, 40, true);
+    [0.030047, -0.873692, 0.531574, 0.0125, 0.2786].forEach((x, i) =>
+      view.setFloat32(264 + i * 4, x, true),
+    );
+    view.setUint32(284, 1664, true);
+    view.setUint32(288, overrides.riderSagCalibration ?? 3, true);
+    const sagCrc = crc32(u8.subarray(256, 296));
+    view.setUint32(292, overrides.breakSagCrc ? sagCrc ^ 1 : sagCrc, true);
   }
 
   let imuIndex = 0;
@@ -400,6 +419,47 @@ describe("parseBktFile", () => {
     );
     expect(broken.ok).toBe(false);
     if (!broken.ok) expect(broken.error).toMatch(/orientação/);
+  });
+
+  it("reads firmware V18's SAG1 rider sag at byte 256", () => {
+    const result = parseBktFile(
+      buildBkt([imuBlock(10)], {
+        magic: "BKT1",
+        orientation: true,
+        riderSag: true,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sag = result.session.riderSag!;
+    expect(sag.gravityG[1]).toBeCloseTo(-0.873692, 5);
+    expect(sag.accelStddevG).toBeCloseTo(0.0125, 5);
+    expect(sag.sampleCount).toBe(1664);
+    expect(sag.calibrationCount).toBe(3);
+    // A file from before the step has none.
+    const before = parseBktFile(
+      buildBkt([imuBlock(10)], { magic: "BKT1", orientation: true }),
+    );
+    expect(before.ok && before.session.riderSag).toBeUndefined();
+    // Another calibration's sag is not this one's: skipped, not refused.
+    const stale = parseBktFile(
+      buildBkt([imuBlock(10)], {
+        magic: "BKT1",
+        riderSag: true,
+        riderSagCalibration: 2,
+      }),
+    );
+    expect(stale.ok && stale.session.riderSag).toBeUndefined();
+    // A damaged record is a corrupt file.
+    const broken = parseBktFile(
+      buildBkt([imuBlock(10)], {
+        magic: "BKT1",
+        riderSag: true,
+        breakSagCrc: true,
+      }),
+    );
+    expect(broken.ok).toBe(false);
+    if (!broken.ok) expect(broken.error).toMatch(/rider sag/);
   });
 
   it("times the samples by the blocks' real clock stamps when the firmware stamps them", () => {
