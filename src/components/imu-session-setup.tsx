@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -469,13 +468,8 @@ export function ImuSessionSetup({
       >
         <DialogHeader>
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
-          <DialogDescription className="mt-1">
-            {readOnly
-              ? t.descriptionReadOnly
-              : bikeSetup
-                ? t.descriptionBikeSetup
-                : t.description}
-          </DialogDescription>
+          {/* No description under the title (by request, 2026-10-27): the
+              units are on the fields, and the form says the rest. */}
         </DialogHeader>
 
         <form

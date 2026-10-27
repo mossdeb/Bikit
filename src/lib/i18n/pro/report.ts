@@ -241,12 +241,6 @@ const en = {
     form: {
       title: "Setup for this run",
       triggerTitle: "The bike's setup for this run",
-      description:
-        "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Only what you fill in is kept; a change creates a new setup for the bike, which the next imports inherit.",
-      descriptionReadOnly:
-        "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg, as they were recorded.",
-      descriptionBikeSetup:
-        "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Saving corrects this setup in every session that rode on it.",
       setupName: "Name",
       preset: "Bike setup",
       presetNone: "Custom",
@@ -566,12 +560,6 @@ const pt: typeof en = {
     form: {
       title: "Afinação nesta volta",
       triggerTitle: "A afinação da bicicleta nesta volta",
-      description:
-        "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Só o que preencheres fica guardado; uma alteração cria uma afinação nova para a bicicleta, que as próximas importações herdam.",
-      descriptionReadOnly:
-        "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg, tal como foram registados.",
-      descriptionBikeSetup:
-        "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Guardar corrige esta afinação em todas as sessões que a usaram.",
       setupName: "Nome",
       preset: "Setup da bicicleta",
       presetNone: "Personalizado",
