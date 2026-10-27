@@ -676,7 +676,7 @@ export function ImuSnapshotView({
               does not jump when the picture arrives. */}
           <div
             className={cn(
-              "h-[150px] w-full shrink-0 overflow-hidden rounded-[12px] bg-sidebar sm:w-[220px]",
+              "h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] bg-sidebar sm:w-[220px]",
               // On the page the map stops short of the three dots' corner;
               // in the popup there are no dots, and it sits in the band's
               // bottom-right corner, under the close disc (by request,

@@ -1,123 +1,33 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import "leaflet/dist/leaflet.css";
-import { cn } from "@/lib/utils";
-import { ImuMapNorthBadge } from "@/components/imu-map-north-badge";
+import { ImuRoutePlate } from "@/components/imu-route-plate";
 
 /**
- * A Snapshot's stretch of trail, as a small fixed map (by request,
- * 2026-09-10): the reference session's track dimmed as context and the
- * ground between the gates at full strength. No interaction at all — it is a picture of
- * where the Snapshot is, not a map to explore; the session's map is a link
- * away. Same imagery and the same dark treatment as the session map, so
- * the two read as one surface.
+ * A Snapshot's stretch of trail as a small picture (by request,
+ * 2026-09-10): the reference session's track faint as context and the
+ * ground between the gates bright, framed on the stretch. A satellite map
+ * until 2026-10-27; since then the plain plate the sessions list uses (by
+ * request — see imu-route-plate.tsx), with its north but not its start and
+ * finish marks: the stretch is a section, not a ride.
  */
 export function ImuSnapshotMiniMap({
   track,
   section,
   className,
-  sectionWeight = 5,
 }: {
   /** The whole track, [lat, lon]. */
   track: [number, number][];
   /** The ground between the gates, entry first. */
   section: [number, number][];
   className?: string;
-  /** The bright stretch's line, px — thinner on the sessions list's
-   * thumbnails, where it is the whole route (2026-10-26). */
-  sectionWeight?: number;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<HTMLDivElement>(null);
-
-  // No zoom, by any gesture (by request, 2026-09-27). Leaflet's own zoom
-  // handlers are off below, yet a wheel still zoomed it: leaflet-rotate,
-  // loaded by the session's map, patches the global L. So the map takes no
-  // pointer at all (`pointer-events-none` on its container) and a plain
-  // wheel over it scrolls the page or popup underneath, as anywhere; a
-  // trackpad pinch (a wheel with ctrlKey) is swallowed here, or the browser
-  // would zoom the whole page instead.
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) event.preventDefault();
-    };
-    frame.addEventListener("wheel", onWheel, { passive: false });
-    return () => frame.removeEventListener("wheel", onWheel);
-  }, []);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || section.length < 2) return;
-    let cancelled = false;
-    let map: import("leaflet").Map | null = null;
-    (async () => {
-      const L = await import("leaflet");
-      if (cancelled || !containerRef.current) return;
-      map = L.map(container, {
-        attributionControl: false,
-        zoomControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        touchZoom: false,
-        boxZoom: false,
-        keyboard: false,
-        zoomSnap: 0,
-        // This map never imports leaflet-rotate, but the session's map
-        // does, and the plugin patches the global L: reached from that
-        // page without a reload, a map made here would grow the plugin's
-        // rotate control (seen 2026-09-10). Off explicitly.
-        rotateControl: false,
-      });
-      L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { maxZoom: 20, maxNativeZoom: 19 },
-      ).addTo(map);
-      map.getPane("tilePane")!.style.filter = "brightness(0.62) saturate(0.65)";
-      L.polyline(track, {
-        color: "#43F3AF",
-        weight: Math.min(3, sectionWeight),
-        opacity: 0.3,
-        interactive: false,
-      }).addTo(map);
-      L.polyline(section, {
-        color: "#43F3AF",
-        weight: sectionWeight,
-        opacity: 1,
-        interactive: false,
-      }).addTo(map);
-      // No marker at the entry (removed by request, 2026-09-10): the bright
-      // stretch against the dimmed track already says where it starts, and
-      // the cursor's halo read as a cursor on a map that has none.
-      map.fitBounds(L.latLngBounds(section), { padding: [22, 22] });
-    })();
-    return () => {
-      cancelled = true;
-      map?.remove();
-      map = null;
-    };
-  }, [track, section, sectionWeight]);
-
+  // A section of a ride: no start dot, no finish disc.
   return (
-    <div
-      ref={frameRef}
-      className={cn("imu-map relative overflow-hidden", className)}
-    >
-      <div
-        ref={containerRef}
-        className="pointer-events-none absolute inset-0"
-      />
-      {/* North-up, so the arrow points up — the session map's own badge,
-          so the two maps read as one (by request, 2026-09-10). Above the
-          panes, which Leaflet stacks up to 1000. */}
-      <ImuMapNorthBadge className="z-[1100]" />
-      {/* The imagery's credit, kept even on a picture this small. */}
-      <span className="pointer-events-none absolute right-1.5 bottom-0.5 text-[9px] text-white/60">
-        © Esri
-      </span>
-    </div>
+    <ImuRoutePlate
+      section={section}
+      track={track}
+      ends={false}
+      className={className}
+    />
   );
 }

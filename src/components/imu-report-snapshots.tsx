@@ -329,7 +329,7 @@ function SnapshotCard({
             {snapshot.sessionCount ?? "—"}
           </p>
         </div>
-        <div className="h-[106px] w-[156px] overflow-hidden rounded-[12px] bg-sidebar">
+        <div className="h-[106px] w-[156px] overflow-hidden rounded-[8px] bg-sidebar">
           {mapData && (
             <ImuSnapshotMiniMap
               track={mapData.track}
