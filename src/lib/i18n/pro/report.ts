@@ -266,6 +266,24 @@ const en = {
       clicks: "Clicks",
       clicksUnit: "clicks",
       sagShare: (percent: string): string => `${percent} of the travel`,
+      /** The frame's geometry, under the bike's mark (2026-10-27). */
+      wheelbase: "Wheelbase",
+      /** The rider-sag calibration step, read from the file (firmware V18). */
+      riderSag: {
+        title: "Rider sag",
+        explain:
+          "How far the frame turned when the rider got on, from the logger's calibration. The rear sinking more lifts the nose.",
+        noseUp: (deg: string): string => `${deg} nose up`,
+        noseDown: (deg: string): string => `${deg} nose down`,
+        level: "Frame level",
+        rearDeeper: (mm: string): string =>
+          `The rear sinks ${mm} more than the front`,
+        frontDeeper: (mm: string): string =>
+          `The front sinks ${mm} more than the rear`,
+        same: "Front and rear sink the same",
+        needsWheelbase: "Enter the wheelbase to read it in mm.",
+        none: "No rider-sag step in this recording.",
+      },
     },
     /** The server action's refusals. */
     errors: {
@@ -499,6 +517,20 @@ const pt: typeof en = {
       clicks: "Cliques",
       clicksUnit: "cliques",
       sagShare: (percent) => `${percent} do curso`,
+      wheelbase: "Entre eixos",
+      riderSag: {
+        title: "Rider sag",
+        explain:
+          "Quanto o quadro rodou quando o rider subiu, lido da calibração do logger. A traseira a afundar mais levanta o nariz.",
+        noseUp: (deg) => `${deg} nariz acima`,
+        noseDown: (deg) => `${deg} nariz abaixo`,
+        level: "Quadro nivelado",
+        rearDeeper: (mm) => `A traseira afunda ${mm} mais do que a frente`,
+        frontDeeper: (mm) => `A frente afunda ${mm} mais do que a traseira`,
+        same: "Frente e traseira afundam o mesmo",
+        needsWheelbase: "Indica a distância entre eixos para ler em mm.",
+        none: "Sem passo de rider sag nesta gravação.",
+      },
     },
     errors: {
       invalidValues: "Valores da afinação inválidos.",

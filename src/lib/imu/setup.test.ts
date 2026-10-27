@@ -283,3 +283,23 @@ describe("sag and the spread of a set of setups", () => {
     });
   });
 });
+
+describe("the frame's wheelbase", () => {
+  const base = { fork: { pressurePsi: 78 } };
+  const withWheelbase = { ...base, frame: { wheelbaseMm: 1265 } };
+
+  it("is kept and checked like the rest", () => {
+    expect(isSetupValues(withWheelbase)).toBe(true);
+    expect(isSetupValues({ frame: { wheelbaseMm: "1265" } })).toBe(false);
+    expect(normalizeSetupValues(withWheelbase).frame).toEqual({
+      wheelbaseMm: 1265,
+    });
+    expect(normalizeSetupValues({ frame: { wheelbaseMm: 0 } })).toEqual({});
+  });
+
+  it("is saved when it changes, but is not a setup of its own", () => {
+    expect(setupValuesEqual(base, withWheelbase)).toBe(false);
+    expect(setupKey(base)).toBe(setupKey(withWheelbase));
+    expect(setupDiff(base, withWheelbase, "pt")).toEqual([]);
+  });
+});

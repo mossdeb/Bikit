@@ -24,7 +24,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { ProDictionary } from "@/lib/i18n/pro";
-import { proPercent } from "@/lib/i18n/pro";
+import { proNumber, proPercent } from "@/lib/i18n/pro";
+import { useLoadedSession } from "@/components/imu-session-data";
+import {
+  rearMinusFrontDropMm,
+  RIDER_ATTITUDE_TIE_DEG,
+  riderAttitude,
+} from "@/lib/imu/rider-sag";
 import type { Locale } from "@/lib/i18n";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
 import {
@@ -57,6 +63,7 @@ const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
   `${block}.${field}`;
 const tireKey = (field: keyof ImuTireSetup) => `tires.${field}`;
 const RIDER_WEIGHT_KEY = "rider.weightKg";
+const WHEELBASE_KEY = "frame.wheelbaseMm";
 
 /** The draft holds the numbers as strings and, under the same keys as the
  * values, the choices: "air"/"coil" and "simple"/"dual". */
@@ -81,6 +88,8 @@ function toDraft(values: ImuSetupValues): Draft {
     values.tires?.rearPsi != null ? String(values.tires.rearPsi) : "";
   draft[RIDER_WEIGHT_KEY] =
     values.rider?.weightKg != null ? String(values.rider.weightKg) : "";
+  draft[WHEELBASE_KEY] =
+    values.frame?.wheelbaseMm != null ? String(values.frame.wheelbaseMm) : "";
   return draft;
 }
 
@@ -137,6 +146,7 @@ function fromDraft(draft: Draft): ImuSetupValues {
       rearPsi: num(tireKey("rearPsi")),
     },
     rider: { weightKg: num(RIDER_WEIGHT_KEY) },
+    frame: { wheelbaseMm: num(WHEELBASE_KEY) },
   };
 }
 
@@ -301,10 +311,11 @@ export function ImuSessionSetup({
                 choose={choose}
                 readOnly={readOnly}
               />
-              <div
-                aria-hidden
-                className="hidden w-32 items-center justify-center sm:flex lg:w-40"
-              >
+              {/* The bike's own column: its mark, and under it the frame's
+                  wheelbase with the rider-sag reading it turns into mm (by
+                  request, 2026-10-27). On a phone the mark goes and the
+                  field and the reading come after the fork, in a card. */}
+              <div className="flex flex-col items-stretch justify-center gap-4 rounded-[14px] border border-border bg-card p-4 sm:w-36 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 lg:w-44">
                 {/* Mirrored: the art faces right, and here the fork's card is
                     on the left — the bike should face its own fork (by
                     request, 2026-09-11). */}
@@ -313,7 +324,21 @@ export function ImuSessionSetup({
                     cards): the art's own stroke is 4 in a 101-wide box,
                     which painted ~5 px at 128 px. Fixed in screen pixels,
                     the event cards' way. */}
-                <BikeMark className="h-auto w-24 -scale-x-100 text-foreground lg:w-32 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]" />
+                <BikeMark
+                  aria-hidden
+                  className="mx-auto hidden h-auto w-24 -scale-x-100 text-foreground sm:block lg:w-32 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
+                />
+                <NumberField
+                  id="setup-frame-wheelbase"
+                  label={t.wheelbase}
+                  unit="mm"
+                  value={draft[WHEELBASE_KEY]}
+                  onChange={set(WHEELBASE_KEY)}
+                  small
+                  readOnly={readOnly}
+                  className="sm:rounded-[12px] sm:border sm:border-border sm:bg-card sm:p-3"
+                />
+                <RiderSagReading wheelbase={draft[WHEELBASE_KEY]} />
               </div>
               <DamperBlock
                 block="shock"
@@ -405,6 +430,49 @@ export function ImuSessionSetup({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * What the rider-sag calibration step says (firmware V18, SAG1): how far
+ * the frame pitched when the rider got on and, with the wheelbase as typed,
+ * how many mm more one end sank than the other. Only where a recording is
+ * loaded — the session page; the report and a bike's setups have none — and
+ * read from it, so it follows the file and not the setup.
+ */
+function RiderSagReading({ wheelbase }: { wheelbase: string }) {
+  const t = useProDict().report.setup.form.riderSag;
+  const locale = useProLocale();
+  const session = useLoadedSession();
+  if (!session) return null;
+  const attitude = riderAttitude(session.riderSag, session.orientation);
+  if (!attitude)
+    return <p className="text-xs text-muted-foreground">{t.none}</p>;
+
+  const pitch = attitude.pitchDeg;
+  const level = Math.abs(pitch) < RIDER_ATTITUDE_TIE_DEG;
+  const deg = `${proNumber(Math.abs(pitch), locale, 1)}°`;
+  const wheelbaseMm = Number(wheelbase.trim().replace(",", "."));
+  let drop: string;
+  if (!wheelbase.trim() || !Number.isFinite(wheelbaseMm) || wheelbaseMm <= 0)
+    drop = t.needsWheelbase;
+  else if (level) drop = t.same;
+  else {
+    const mm = rearMinusFrontDropMm(pitch, wheelbaseMm);
+    const text = `${proNumber(Math.abs(mm), locale, 0)} mm`;
+    drop = mm > 0 ? t.rearDeeper(text) : t.frontDeeper(text);
+  }
+  return (
+    <div
+      className="space-y-1 rounded-[12px] border border-border bg-card p-3"
+      title={t.explain}
+    >
+      <p className="text-xs font-medium">{t.title}</p>
+      <p className="text-lg font-semibold tabular-nums">
+        {level ? t.level : pitch > 0 ? t.noseUp(deg) : t.noseDown(deg)}
+      </p>
+      <p className="text-xs text-muted-foreground tabular-nums">{drop}</p>
+    </div>
   );
 }
 

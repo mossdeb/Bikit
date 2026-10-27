@@ -1,7 +1,7 @@
 "use client";
 
+import { SessionDataContext } from "@/components/imu-session-data";
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -3392,10 +3392,6 @@ function SessionCards({
  * on the page are now believed, not read, and the firmware still has the
  * fault. Nothing when the file was clean.
  */
-/** The loaded recording, for what the page's header shows of it: the
- * header is the server page's, handed in as a prop, but it renders inside
- * this component's tree, so a context reaches it once the file is read. */
-const SessionDataContext = createContext<ImuSessionData | null>(null);
 
 /**
  * How the file was read — the realignment warning and the mounting line —

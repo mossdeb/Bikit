@@ -85,11 +85,21 @@ export interface ImuRiderSetup {
   weightKg?: number;
 }
 
+/** The frame's geometry (by request, 2026-10-27): the wheelbase, mm, which
+ * turns the rider-sag step's change of pitch into millimetres. Kept with
+ * the setup so it is saved and inherited like the rest, but it is not a
+ * knob: it stays out of setupKey, so it never splits two runs into two
+ * setups nor shows as a change between them. */
+export interface ImuFrameSetup {
+  wheelbaseMm?: number;
+}
+
 export interface ImuSetupValues {
   fork?: ImuDamperSetup;
   shock?: ImuDamperSetup;
   tires?: ImuTireSetup;
   rider?: ImuRiderSetup;
+  frame?: ImuFrameSetup;
 }
 
 /** The numbers, in the order they are compared and listed — low speed
@@ -166,18 +176,32 @@ function isRider(value: unknown): value is ImuRiderSetup {
   );
 }
 
+function isFrame(value: unknown): value is ImuFrameSetup {
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).every(
+    ([key, v]) =>
+      key === "wheelbaseMm" && (v === undefined || isFiniteNumber(v)),
+  );
+}
+
 /** The shape check on what comes back from the `values` column. */
 export function isSetupValues(value: unknown): value is ImuSetupValues {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   return (
     Object.keys(v).every(
-      (k) => k === "fork" || k === "shock" || k === "tires" || k === "rider",
+      (k) =>
+        k === "fork" ||
+        k === "shock" ||
+        k === "tires" ||
+        k === "rider" ||
+        k === "frame",
     ) &&
     (v.fork === undefined || isDamper(v.fork)) &&
     (v.shock === undefined || isDamper(v.shock)) &&
     (v.tires === undefined || isTires(v.tires)) &&
-    (v.rider === undefined || isRider(v.rider))
+    (v.rider === undefined || isRider(v.rider)) &&
+    (v.frame === undefined || isFrame(v.frame))
   );
 }
 
@@ -267,6 +291,8 @@ export function normalizeSetupValues(values: ImuSetupValues): ImuSetupValues {
   }
   if (isFiniteNumber(values.rider?.weightKg))
     out.rider = { weightKg: values.rider.weightKg };
+  if (isFiniteNumber(values.frame?.wheelbaseMm) && values.frame.wheelbaseMm > 0)
+    out.frame = { wheelbaseMm: values.frame.wheelbaseMm };
   return out;
 }
 
@@ -275,12 +301,18 @@ export function isSetupEmpty(values: ImuSetupValues): boolean {
   return Object.keys(normalizeSetupValues(values)).length === 0;
 }
 
-/** Field by field, after normalising — the test for "did anything change". */
+/** Field by field, after normalising — the test for "did anything change".
+ * The wheelbase counts here, so a new one is saved, though not in
+ * setupKey (see ImuFrameSetup). */
 export function setupValuesEqual(
   a: ImuSetupValues,
   b: ImuSetupValues,
 ): boolean {
-  return setupKey(a) === setupKey(b);
+  return (
+    setupKey(a) === setupKey(b) &&
+    (normalizeSetupValues(a).frame?.wheelbaseMm ?? null) ===
+      (normalizeSetupValues(b).frame?.wheelbaseMm ?? null)
+  );
 }
 
 /** A knob's number as the reader's language writes it, to one decimal at
@@ -601,7 +633,8 @@ export function setupSpread(
 
 /** A stable key for "the same setup": the normalised values, serialised
  * with their keys in order. Two sessions on one setup row share it, and so
- * do two rows that happen to hold the same numbers. */
+ * do two rows that happen to hold the same numbers. The frame's geometry
+ * is left out: it is not something the rider set for the run. */
 export function setupKey(values: ImuSetupValues): string {
   const v = normalizeSetupValues(values);
   const block = (d?: ImuDamperSetup) =>
