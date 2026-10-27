@@ -5,7 +5,8 @@
 const en = {
   /** The button beside the scissors. */
   button: "Start and finish",
-  buttonWithTime: (time: string): string => `Start and finish — this run ${time}`,
+  buttonWithTime: (time: string): string =>
+    `Start and finish — this run ${time}`,
   title: "Start and finish",
   thisRun: "This run",
   /** The ranking under the duration (2026-10-26): the bold part, then the
@@ -39,6 +40,10 @@ const en = {
   /** The form that draws the lines. */
   name: "Track name",
   namePlaceholder: "e.g. Fonte Ferrea — race track",
+  /** A new track's suggested name, editable: the place, when the map has
+   * a name for it, then "New track 03". */
+  newTrackName: (place: string | null, n: number): string =>
+    `${place ? `${place} - ` : ""}New track ${String(n).padStart(2, "0")}`,
   start: "Start",
   finish: "Finish",
   trimWindow: "Trim",
@@ -85,6 +90,8 @@ const pt: typeof en = {
   tie: "Diferenças abaixo de 0,2 s são empate: as linhas não medem mais fino.",
   name: "Nome da pista",
   namePlaceholder: "ex. Fonte Ferrea — pista de corrida",
+  newTrackName: (place, n) =>
+    `${place ? `${place} - ` : ""}Nova pista ${String(n).padStart(2, "0")}`,
   start: "Partida",
   finish: "Chegada",
   trimWindow: "Recorte",

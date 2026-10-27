@@ -21,6 +21,7 @@ import { formatDate } from "@/lib/format";
 import { prepareSnapshotSession } from "@/lib/imu/snapshot";
 import { parseSessionTime, type ImuSessionTrim } from "@/lib/imu/trim";
 import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
+import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { saveImuSessionTrim } from "@/components/imu-session-trim";
 import {
   createTimedTrack,
@@ -126,7 +127,10 @@ export function ImuSessionTrackButton({
   // on a run no track passes, stays.
   const router = useRouter();
   const synced = useRef<string | null>(null);
-  const target = useMemo(() => trackTrimOf(prepared, tracks), [prepared, tracks]);
+  const target = useMemo(
+    () => trackTrimOf(prepared, tracks),
+    [prepared, tracks],
+  );
   useEffect(() => {
     let next: ImuSessionTrim | null;
     if (target) {
@@ -142,7 +146,8 @@ export function ImuSessionTrackButton({
     void saveImuSessionTrim(sessionId, whole, next, next != null).then(
       (result) => {
         if (result.status === "ok") router.refresh();
-        else console.warn("Trim to the start and finish lines:", result.message);
+        else
+          console.warn("Trim to the start and finish lines:", result.message);
       },
     );
   }, [target, trim, trimByTrack, sessionId, whole, router]);
@@ -272,6 +277,7 @@ function ImuTrackDialog({
               trim={trim}
               visibleMs={visibleMs}
               editing={mode === "edit" ? current : null}
+              tracks={tracks}
               // From a new track back to the one being edited; from the
               // edit itself, out.
               onCancel={
@@ -311,7 +317,12 @@ type RunRow =
 
 /** One session's runs down a track — each its own row. */
 function rowsOf(
-  candidate: { id: string; name: string; riderName: string | null; createdAt: string | null },
+  candidate: {
+    id: string;
+    name: string;
+    riderName: string | null;
+    createdAt: string | null;
+  },
   runs: TimedRun[],
 ): RunRow[] {
   return runs.map((run) => ({
@@ -389,9 +400,11 @@ function TrackView({
     for (const c of toRead) {
       let loading = cache.current.get(c.id);
       if (!loading) {
-        loading = loadWholeImuSession(c.storagePath, c.mountOrientation, locale).then(
-          (r) => (r.data ? prepareSnapshotSession(r.data) : null),
-        );
+        loading = loadWholeImuSession(
+          c.storagePath,
+          c.mountOrientation,
+          locale,
+        ).then((r) => (r.data ? prepareSnapshotSession(r.data) : null));
         cache.current.set(c.id, loading);
       }
       void loading.then((p) => {
@@ -430,8 +443,7 @@ function TrackView({
   const pending = all.filter((r) => r.status !== "ok");
   const bestMs = timed[0]?.run.durationMs ?? null;
   const mine = current.runs[0];
-  const myGap =
-    bestMs != null ? formatRunGap(mine.durationMs, bestMs) : null;
+  const myGap = bestMs != null ? formatRunGap(mine.durationMs, bestMs) : null;
 
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -454,7 +466,9 @@ function TrackView({
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-4 rounded-md bg-muted px-4 py-3">
         <div>
-          <p className="text-xs font-medium text-muted-foreground">{t.thisRun}</p>
+          <p className="text-xs font-medium text-muted-foreground">
+            {t.thisRun}
+          </p>
           <p className="font-display text-3xl font-bold tabular-nums">
             {formatRunTime(mine.durationMs)}
           </p>
@@ -483,11 +497,19 @@ function TrackView({
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-sm", isSelf && "font-semibold")}>
+                  <span
+                    className={cn(
+                      "block truncate text-sm",
+                      isSelf && "font-semibold",
+                    )}
+                  >
                     {r.name}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {[r.riderName, r.createdAt && formatDate(r.createdAt, locale)]
+                    {[
+                      r.riderName,
+                      r.createdAt && formatDate(r.createdAt, locale),
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
@@ -504,7 +526,9 @@ function TrackView({
             return (
               <li key={key}>
                 {isSelf ? (
-                  <div className="flex items-center gap-3 bg-muted/60 px-3 py-2">{body}</div>
+                  <div className="flex items-center gap-3 bg-muted/60 px-3 py-2">
+                    {body}
+                  </div>
                 ) : (
                   <Link
                     href={`/pro/sessoes/${r.sessionId}`}
@@ -537,7 +561,9 @@ function TrackView({
 
       {others.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">{t.otherTracks}</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            {t.otherTracks}
+          </p>
           <div className="flex flex-wrap gap-2">
             {others.map((m) => (
               <Chip key={m.track.id} onClick={() => onPick(m.track.id)}>
@@ -585,7 +611,10 @@ function TrackView({
             <Plus className="size-3.5" />
             {t.newTrack}
           </Chip>
-          <Chip onClick={() => setConfirming(true)} className="text-destructive">
+          <Chip
+            onClick={() => setConfirming(true)}
+            className="text-destructive"
+          >
             <Trash2 className="size-3.5" />
             {t.delete}
           </Chip>
@@ -602,6 +631,7 @@ function TrackForm({
   trim,
   visibleMs,
   editing,
+  tracks,
   onCancel,
   onSaved,
 }: {
@@ -613,6 +643,8 @@ function TrackForm({
   /** The track being renamed or redrawn, with this run's pass of it;
    * null to draw a new one. */
   editing: Passed[number] | null;
+  /** The account's tracks, to number a new one past them. */
+  tracks: ImuTimedTrack[];
   onCancel?: () => void;
   onSaved: (trackId: string) => void;
 }) {
@@ -628,9 +660,39 @@ function TrackForm({
     : trim
       ? [trim.startMs, trim.endMs]
       : [visibleMs[0], Math.min(visibleMs[1], fullMs)];
-  const [name, setName] = useState(editing?.track.name ?? "");
-  const [startText, setStartText] = useState(formatSessionTime(initial[0], true));
-  const [finishText, setFinishText] = useState(formatSessionTime(initial[1], true));
+  // A new track comes named (by request, 2026-10-27): the place the map
+  // names, then "Nova pista 03" — the account's next number, past any name
+  // already taken. Editable like any name; the place is filled in when the
+  // lookup answers, unless the rider has typed by then.
+  const locale = useProLocale();
+  const suggestName = (place: string | null) => {
+    const taken = new Set(tracks.map((tr) => tr.name.trim()));
+    let n = tracks.length + 1;
+    while (taken.has(t.newTrackName(place, n))) n++;
+    return t.newTrackName(place, n);
+  };
+  const [name, setName] = useState(
+    () =>
+      editing?.track.name ??
+      suggestName(whole.gps ? readCachedPlace(whole.gps, locale) : null),
+  );
+  const nameTouched = useRef(false);
+  useEffect(() => {
+    if (editing || !whole.gps) return;
+    const ctrl = new AbortController();
+    void lookupPlaceName(whole.gps, locale, ctrl.signal).then((place) => {
+      if (place && !nameTouched.current) setName(suggestName(place));
+    });
+    return () => ctrl.abort();
+    // Once per form: the suggestion is a starting point, not a binding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [startText, setStartText] = useState(
+    formatSessionTime(initial[0], true),
+  );
+  const [finishText, setFinishText] = useState(
+    formatSessionTime(initial[1], true),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -662,7 +724,11 @@ function TrackForm({
         setError(t.noGps);
         return;
       }
-      const made = createTimedTrack(prepared, startMs!, Math.min(finishMs!, fullMs));
+      const made = createTimedTrack(
+        prepared,
+        startMs!,
+        Math.min(finishMs!, fullMs),
+      );
       if (!made) {
         setError(t.noLines);
         return;
@@ -701,7 +767,10 @@ function TrackForm({
           id="track-name"
           value={name}
           placeholder={t.namePlaceholder}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            nameTouched.current = true;
+            setName(e.target.value);
+          }}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -840,7 +909,10 @@ function TrackEditActions({
             <Plus className="size-3.5" />
             {t.newTrack}
           </Chip>
-          <Chip onClick={() => setConfirming(true)} className="text-destructive">
+          <Chip
+            onClick={() => setConfirming(true)}
+            className="text-destructive"
+          >
             <Trash2 className="size-3.5" />
             {t.delete}
           </Chip>
@@ -922,7 +994,12 @@ export function ImuTrackRanking({
  * a head on it. */
 function PodiumGlyph({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
       <circle cx={8} cy={2.6} r={1.9} />
       <rect x={5.5} y={6} width={5} height={10} rx={0.6} />
       <rect x={0.5} y={9.5} width={4.5} height={6.5} rx={0.6} />
@@ -961,7 +1038,12 @@ function Chip({
  */
 function FinishFlag({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 38 40" fill="currentColor" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 38 40"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
       <path d="M0.00900656 21.3756C0.00900656 15.8337 0.0170637 10.2919 1.63562e-05 4.75006C-0.00244218 3.95094 0.272139 3.38778 0.905719 2.91496C5.00031 -0.140654 9.48637 -0.73551 14.2248 0.856294C16.8762 1.74699 19.4358 2.9231 22.0375 3.96866C23.8171 4.68389 25.6156 5.32272 27.5348 5.53818C30.3285 5.85183 32.8124 5.04005 35.0653 3.39858C35.6995 2.9365 36.3286 2.56433 37.1094 2.96725C37.9076 3.37914 37.9979 4.12514 37.9967 4.94506C37.9855 12.7272 37.9832 20.5094 38 28.2916C38.0018 29.13 37.7149 29.7151 37.0509 30.209C33.0661 33.1724 28.6973 33.8173 24.0602 32.3211C21.6189 31.5334 19.2562 30.4857 16.8739 29.5148C14.9299 28.7227 12.9924 27.9276 10.9049 27.6108C8.18971 27.1987 5.70347 27.8216 3.42874 29.3567C3.28332 29.4548 3.18862 29.7387 3.18751 29.9368C3.17202 32.7161 3.17988 35.4954 3.17512 38.2748C3.17361 39.1518 2.67797 39.7967 1.90211 39.9654C0.953559 40.1717 0.0444365 39.4305 0.0138721 38.4053C-0.00569316 37.749 0.00906798 37.0916 0.00905411 36.4346C0.00895109 31.415 0.00900656 26.3953 0.00900656 21.3756ZM13.4584 14.0125C13.3945 13.997 13.33 13.9836 13.2668 13.9656C9.91343 13.0148 6.66042 13.141 3.54453 14.8779C3.24977 15.0422 3.16922 15.2199 3.17032 15.5426C3.18136 18.776 3.17703 22.0094 3.17703 25.2429C3.17703 25.3892 3.17703 25.5356 3.17703 25.7634C6.50711 24.0414 9.9206 23.9041 13.4458 24.8485C13.4458 21.201 13.4458 17.6 13.4465 13.9999C13.7284 14.0924 14.0169 14.1681 14.2912 14.28C16.6735 15.2514 19.0497 16.2387 21.4356 17.201C22.4372 17.6049 23.4576 17.9601 24.5358 18.3622C24.5358 14.9884 24.5386 11.7401 24.5241 8.49182C24.5236 8.37993 24.3709 8.21264 24.2531 8.16572C21.8799 7.22036 19.5016 6.2886 17.124 5.35471C15.931 4.88612 14.7376 4.41873 13.4584 3.91706L13.4584 14.0125ZM24.5568 29.1243C28.0371 30.3007 31.3379 30.1174 34.4563 28.0888C34.7231 27.9152 34.8319 27.7419 34.8305 27.4098C34.8164 24.1924 34.8223 20.9749 34.8209 17.7574C34.8209 17.6166 34.8046 17.4757 34.7917 17.2682C31.5098 19.2131 28.0992 19.3816 24.5568 18.3282V29.1243Z" />
     </svg>
   );

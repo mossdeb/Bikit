@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { Crosshair, Minus, Plus } from "lucide-react";
 import { ImuMapNorthBadge } from "@/components/imu-map-north-badge";
 import { useProDict, useProLocale } from "@/components/pro-locale";
-import type { Locale } from "@/lib/i18n";
 import type {
   CircleMarker,
   LatLngBounds,
@@ -16,6 +15,7 @@ import type {
 } from "leaflet";
 import { cn } from "@/lib/utils";
 import type { GpsChannels, ImuEvent } from "@/lib/imu/format";
+import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import {
   smoothPiece,
   smoothPolyline,
@@ -176,31 +176,6 @@ function paintTrack(
       interactive: false,
     }).addTo(layer);
   }
-}
-
-/**
- * The key a ride's place name is cached under — the middle of the track,
- * rounded to ~100 m of ground. Nominatim's terms ask that results be cached
- * rather than re-requested, and two sessions on the same trail should cost
- * one lookup. The language is part of the key: the name is asked for in the
- * reader's language, and a Portuguese answer must not be served to an
- * English reader of the same ground.
- */
-function placeCacheKey(gps: GpsChannels, locale: Locale): string | null {
-  const m = gps.tMs.length;
-  if (m === 0) return null;
-  const mid = Math.floor(m / 2);
-  return `imu-place:${locale}:${gps.latDeg[mid].toFixed(3)},${gps.lonDeg[mid].toFixed(3)}`;
-}
-
-/** The cached name, read at first render so a revisit paints it with the
- * map rather than a beat later. Nothing on the server, where there is no
- * sessionStorage — and nothing is rendered there either, since the label
- * only appears once the map is up. */
-function readCachedPlace(gps: GpsChannels, locale: Locale): string | null {
-  if (typeof window === "undefined") return null;
-  const key = placeCacheKey(gps, locale);
-  return key ? sessionStorage.getItem(key) || null : null;
 }
 
 /** The finish marker: a checkered disc in a white ring, drawn as inline SVG
@@ -885,50 +860,10 @@ export function ImuSessionMap({
    * two sessions on the same trail should cost one lookup.
    */
   useEffect(() => {
-    const key = placeCacheKey(gps, locale);
-    // Already answered for this ground — the initial state read it.
-    if (!key || sessionStorage.getItem(key) != null) return;
-    const mid = Math.floor(gps.tMs.length / 2);
-    const lat = gps.latDeg[mid];
-    const lon = gps.lonDeg[mid];
     const ctrl = new AbortController();
-    (async () => {
-      try {
-        // Asked for in the reader's language: Nominatim carries the names
-        // OpenStreetMap has in each, and falls back to the local one.
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=16&accept-language=${locale}`,
-          { signal: ctrl.signal },
-        );
-        if (!res.ok) return;
-        const address = (await res.json())?.address ?? {};
-        // The finest named place, then the council it belongs to — the
-        // shape a rider would say out loud. `city` is the concelho in
-        // Portuguese addresses, which is why it leads the second half.
-        const place =
-          address.village ??
-          address.hamlet ??
-          address.suburb ??
-          address.neighbourhood ??
-          address.isolated_dwelling ??
-          address.locality ??
-          address.town;
-        const area =
-          address.city ??
-          address.municipality ??
-          address.town ??
-          address.county;
-        const label = [place, area === place ? null : area]
-          .filter(Boolean)
-          .join(", ");
-        // An empty string is cached too: "we asked, there is no name here"
-        // is an answer, and re-asking would not change it.
-        sessionStorage.setItem(key, label);
-        if (label) setPlaceName(label);
-      } catch {
-        // Offline, blocked, rate-limited: the title stands.
-      }
-    })();
+    void lookupPlaceName(gps, locale, ctrl.signal).then((label) => {
+      if (label) setPlaceName(label);
+    });
     return () => ctrl.abort();
   }, [gps, locale]);
 
