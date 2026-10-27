@@ -62,6 +62,13 @@ export interface BikitDeviceInfo {
    * own word for what is wrong. Null when the line was not sent. */
   sd: string | null;
   imu: string | null;
+  /** `INFO_CAL <VALID|INVALID> [<steps>]` — whether the logger holds a
+   * calibration it will record with (V17 on). The steps — 2 for Neutral +
+   * Forward, 3 with the Rider Sag between them — are not sent by any
+   * firmware yet (2026-10-27): proposed to the firmware as the line's second
+   * word, read when it comes, null until then. Null altogether when the
+   * line was not sent. */
+  calibration: { valid: boolean; steps: number | null } | null;
 }
 
 export interface BikitSessionEntry {
@@ -394,6 +401,7 @@ export class BikitDevice {
             gps: null,
             sd: null,
             imu: null,
+            calibration: null,
           };
           armGrace();
           return;
@@ -444,6 +452,16 @@ export class BikitDevice {
             info.imu = parts.slice(1).join(" ") || null;
             armGrace();
             return;
+          case "INFO_CAL": {
+            // "3", "3STEP" and "3_STEPS" all read as three.
+            const steps = parseInt(parts[2] ?? "", 10);
+            info.calibration = {
+              valid: (parts[1] ?? "").toUpperCase() === "VALID",
+              steps: Number.isFinite(steps) && steps > 0 ? steps : null,
+            };
+            armGrace();
+            return;
+          }
           case "INFO_END":
             done();
             return;

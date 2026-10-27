@@ -513,7 +513,11 @@ export function BikitDeviceImport({
           is left out, not shown as OK. */}
       {connected &&
         info &&
-        (info.battery || info.gps || info.sd || info.imu) && (
+        (info.battery ||
+          info.gps ||
+          info.sd ||
+          info.imu ||
+          info.calibration) && (
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
             {info.battery && (
               <>
@@ -559,6 +563,26 @@ export function BikitDeviceImport({
                   }
                 >
                   {info.imu}
+                </dd>
+              </>
+            )}
+            {/* The calibration the logger will record with (by request,
+                2026-10-27): its state, and its steps once the firmware
+                sends them — V17 sends the state alone. */}
+            {info.calibration && (
+              <>
+                <dt>{t.info.calibration}</dt>
+                <dd
+                  className={
+                    info.calibration.valid
+                      ? "text-foreground"
+                      : "text-destructive"
+                  }
+                >
+                  {info.calibration.valid ? t.info.calValid : t.info.calInvalid}
+                  {info.calibration.valid &&
+                    info.calibration.steps !== null &&
+                    ` · ${t.info.calSteps(info.calibration.steps)}`}
                 </dd>
               </>
             )}

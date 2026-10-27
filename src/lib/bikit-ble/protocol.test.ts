@@ -43,6 +43,8 @@ class FakeLogger implements BikitTransport {
   /** Delay the block by this much — an ADC read behind INFO_BAT is not
    * instant, and the block must still be waited for. */
   slowInfoMs = 0;
+  /** The INFO_CAL line: V17 sends the state alone. */
+  calLine = "INFO_CAL VALID";
 
   private ackOffset = 0;
   private windowEnd = 0;
@@ -102,6 +104,7 @@ class FakeLogger implements BikitTransport {
           this.notify("INFO_GPS FIX 11 95 GOOD 420");
           this.notify("INFO_SD OK");
           this.notify("INFO_IMU OK");
+          this.notify(this.calLine);
           this.notify("INFO_END");
         };
         if (this.slowInfoMs > 0) setTimeout(rest, this.slowInfoMs);
@@ -199,6 +202,7 @@ describe("BikitDevice", () => {
       gps: null,
       sd: null,
       imu: null,
+      calibration: null,
     });
     const sessions = await device.listSessions();
     expect(sessions.map((s) => s.id)).toEqual([48, 47, 46]);
@@ -385,6 +389,24 @@ describe("BikitDevice — extended INFO", () => {
     });
     expect(info.sd).toBe("OK");
     expect(info.imu).toBe("OK");
+    expect(info.calibration).toEqual({ valid: true, steps: null });
+  });
+
+  it("reads the calibration's steps when the firmware sends them, and INVALID as not valid", async () => {
+    const logger = new FakeLogger();
+    logger.extendedInfo = true;
+    logger.calLine = "INFO_CAL VALID 3STEP";
+    let device = await BikitDevice.connect(logger);
+    expect((await device.info()).calibration).toEqual({
+      valid: true,
+      steps: 3,
+    });
+    logger.calLine = "INFO_CAL INVALID";
+    device = await BikitDevice.connect(logger);
+    expect((await device.info()).calibration).toEqual({
+      valid: false,
+      steps: null,
+    });
   });
 
   it("still gets the battery when the block starts late, and reads units off the numbers", async () => {

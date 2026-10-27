@@ -90,6 +90,16 @@ const en = {
       gpsFix: "Fix",
       gpsNoFix: "No fix",
       gpsNoData: "No data",
+      calibration: "Calibration",
+      calValid: "Valid",
+      calInvalid: "Not calibrated",
+      /** "Neutral + Forward" or with the Rider Sag between them. */
+      calSteps: (steps: number): string =>
+        steps === 3
+          ? "3 steps (with rider sag)"
+          : steps === 2
+            ? "2 steps"
+            : `${steps} steps`,
       satellites: (n: number): string => `${n} sat`,
       hdop: (value: string): string => `HDOP ${value}`,
       signalGood: "good signal",
@@ -308,6 +318,15 @@ const pt: typeof en = {
       gpsFix: "Fix",
       gpsNoFix: "Sem fix",
       gpsNoData: "Sem dados",
+      calibration: "Calibração",
+      calValid: "Válida",
+      calInvalid: "Por calibrar",
+      calSteps: (steps) =>
+        steps === 3
+          ? "3 passos (com sag do rider)"
+          : steps === 2
+            ? "2 passos"
+            : `${steps} passos`,
       satellites: (n) => `${n} sat`,
       hdop: (value) => `HDOP ${value}`,
       signalGood: "sinal bom",
