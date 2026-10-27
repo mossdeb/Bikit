@@ -86,13 +86,22 @@ export interface ImuRiderSetup {
 }
 
 /** The frame's geometry (by request, 2026-10-27): the wheelbase, mm, which
- * turns the rider-sag step's change of pitch into millimetres. Kept with
- * the setup so it is saved and inherited like the rest, but it is not a
- * knob: it stays out of setupKey, so it never splits two runs into two
- * setups nor shows as a change between them. */
+ * turns the rider-sag step's change of pitch into millimetres, and the
+ * head angle, degrees from the ground, which turns the fork's sag along
+ * its leg into how far the front sank. Kept with the setup so it is saved
+ * and inherited like the rest, but not a knob: it stays out of setupKey,
+ * so it never splits two runs into two setups nor shows as a change
+ * between them. */
 export interface ImuFrameSetup {
   wheelbaseMm?: number;
+  headAngleDeg?: number;
 }
+
+/** The geometry's fields, in the form's order. */
+const FRAME_FIELDS = [
+  "wheelbaseMm",
+  "headAngleDeg",
+] as const satisfies readonly (keyof ImuFrameSetup)[];
 
 export interface ImuSetupValues {
   fork?: ImuDamperSetup;
@@ -180,7 +189,8 @@ function isFrame(value: unknown): value is ImuFrameSetup {
   if (typeof value !== "object" || value === null) return false;
   return Object.entries(value).every(
     ([key, v]) =>
-      key === "wheelbaseMm" && (v === undefined || isFiniteNumber(v)),
+      (FRAME_FIELDS as readonly string[]).includes(key) &&
+      (v === undefined || isFiniteNumber(v)),
   );
 }
 
@@ -291,8 +301,15 @@ export function normalizeSetupValues(values: ImuSetupValues): ImuSetupValues {
   }
   if (isFiniteNumber(values.rider?.weightKg))
     out.rider = { weightKg: values.rider.weightKg };
-  if (isFiniteNumber(values.frame?.wheelbaseMm) && values.frame.wheelbaseMm > 0)
-    out.frame = { wheelbaseMm: values.frame.wheelbaseMm };
+  if (values.frame) {
+    // Lengths and angles of nothing are blanks, not geometry.
+    const kept: ImuFrameSetup = {};
+    for (const field of FRAME_FIELDS) {
+      const v = values.frame[field];
+      if (isFiniteNumber(v) && v > 0) kept[field] = v;
+    }
+    if (Object.keys(kept).length > 0) out.frame = kept;
+  }
   return out;
 }
 
@@ -302,16 +319,17 @@ export function isSetupEmpty(values: ImuSetupValues): boolean {
 }
 
 /** Field by field, after normalising — the test for "did anything change".
- * The wheelbase counts here, so a new one is saved, though not in
+ * The geometry counts here, so a new one is saved, though not in
  * setupKey (see ImuFrameSetup). */
 export function setupValuesEqual(
   a: ImuSetupValues,
   b: ImuSetupValues,
 ): boolean {
+  const fa = normalizeSetupValues(a).frame;
+  const fb = normalizeSetupValues(b).frame;
   return (
     setupKey(a) === setupKey(b) &&
-    (normalizeSetupValues(a).frame?.wheelbaseMm ?? null) ===
-      (normalizeSetupValues(b).frame?.wheelbaseMm ?? null)
+    FRAME_FIELDS.every((f) => (fa?.[f] ?? null) === (fb?.[f] ?? null))
   );
 }
 

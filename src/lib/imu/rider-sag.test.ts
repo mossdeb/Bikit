@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ImuMountOrientation, ImuRiderSag } from "./format";
-import { rearMinusFrontDropMm, riderAttitude } from "./rider-sag";
+import {
+  rearMinusFrontDropMm,
+  riderAttitude,
+  riderSagDropsMm,
+} from "./rider-sag";
 
 /** A sensor mounted with its x forward, y left and z up. */
 const level: ImuMountOrientation = {
@@ -63,5 +67,20 @@ describe("rearMinusFrontDropMm", () => {
     // 1 mm over a 1250 mm wheelbase is ~0.046°.
     expect(rearMinusFrontDropMm(0.0458, 1250)).toBeCloseTo(1, 1);
     expect(rearMinusFrontDropMm(-1, 1250)).toBeCloseTo(-21.8, 1);
+  });
+});
+
+describe("riderSagDropsMm", () => {
+  it("stands the fork's sag up by the head angle and adds the difference", () => {
+    // 34 mm along a 64° fork is ~30.6 mm of drop; R0126's 1.86° over
+    // 1288 mm puts the rear ~41.8 mm deeper.
+    const d = riderSagDropsMm({
+      pitchDeg: 1.86,
+      wheelbaseMm: 1288,
+      headAngleDeg: 64,
+      forkSagMm: 34,
+    });
+    expect(d.frontMm).toBeCloseTo(30.56, 1);
+    expect(d.rearMm).toBeCloseTo(30.56 + 41.83, 0);
   });
 });

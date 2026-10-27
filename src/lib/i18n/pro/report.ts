@@ -268,6 +268,7 @@ const en = {
       sagShare: (percent: string): string => `${percent} of the travel`,
       /** The frame's geometry, under the bike's mark (2026-10-27). */
       wheelbase: "Wheelbase",
+      headAngle: "Head angle",
       /** The rider-sag calibration step, read from the file (firmware V18). */
       riderSag: {
         title: "Rider sag",
@@ -282,6 +283,14 @@ const en = {
           `The front sinks ${mm} more than the rear`,
         same: "Front and rear sink the same",
         needsWheelbase: "Enter the wheelbase to read it in mm.",
+        /** Each end's vertical drop, from the fork's sag and the head
+         * angle — the rear's is the one the sensor measured. */
+        front: "Front",
+        rear: "Rear",
+        dropsNote:
+          "Vertical. The front from the fork's sag and the head angle; the rear from the sensor.",
+        needsForkSag:
+          "With the fork's sag and the head angle, it splits the front from the rear.",
         none: "No rider-sag step in this recording.",
       },
     },
@@ -518,6 +527,7 @@ const pt: typeof en = {
       clicksUnit: "cliques",
       sagShare: (percent) => `${percent} do curso`,
       wheelbase: "Entre eixos",
+      headAngle: "Ângulo de direção",
       riderSag: {
         title: "Rider sag",
         explain:
@@ -529,6 +539,12 @@ const pt: typeof en = {
         frontDeeper: (mm) => `A frente afunda ${mm} mais do que a traseira`,
         same: "Frente e traseira afundam o mesmo",
         needsWheelbase: "Indica a distância entre eixos para ler em mm.",
+        front: "Frente",
+        rear: "Traseira",
+        dropsNote:
+          "Na vertical. A frente pelo SAG do garfo e o ângulo de direção; a traseira pelo sensor.",
+        needsForkSag:
+          "Com o SAG do garfo e o ângulo de direção, separa a frente da traseira.",
         none: "Sem passo de rider sag nesta gravação.",
       },
     },

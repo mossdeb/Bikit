@@ -295,10 +295,21 @@ describe("the frame's wheelbase", () => {
       wheelbaseMm: 1265,
     });
     expect(normalizeSetupValues({ frame: { wheelbaseMm: 0 } })).toEqual({});
+    expect(
+      normalizeSetupValues({ frame: { wheelbaseMm: 1288, headAngleDeg: 64 } })
+        .frame,
+    ).toEqual({ wheelbaseMm: 1288, headAngleDeg: 64 });
+    expect(isSetupValues({ frame: { reach: 480 } })).toBe(false);
   });
 
   it("is saved when it changes, but is not a setup of its own", () => {
     expect(setupValuesEqual(base, withWheelbase)).toBe(false);
+    expect(
+      setupValuesEqual(withWheelbase, {
+        ...base,
+        frame: { wheelbaseMm: 1265, headAngleDeg: 64 },
+      }),
+    ).toBe(false);
     expect(setupKey(base)).toBe(setupKey(withWheelbase));
     expect(setupDiff(base, withWheelbase, "pt")).toEqual([]);
   });

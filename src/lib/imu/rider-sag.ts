@@ -64,3 +64,28 @@ export function rearMinusFrontDropMm(
 ): number {
   return wheelbaseMm * Math.tan((pitchDeg * Math.PI) / 180);
 }
+
+/**
+ * Each end's drop, mm, vertical (by request, 2026-10-27): the one measured
+ * — the fork's sag off its O-ring, along the leg — stood up by the head
+ * angle (degrees from the ground, the catalogue's), and the rear's as the
+ * front's plus the difference the pitch says. So the rear's is a sag the
+ * sensor measured, to set beside what the shock's O-ring shows.
+ *
+ * Approximate on purpose: the head angle is the bike's unladen one and
+ * sag itself slackens it by about the pitch, a ~1 % error on the front's
+ * drop; and each figure carries its tyre's squash, the rear's more.
+ */
+export function riderSagDropsMm(input: {
+  pitchDeg: number;
+  wheelbaseMm: number;
+  headAngleDeg: number;
+  forkSagMm: number;
+}): { frontMm: number; rearMm: number } {
+  const frontMm =
+    input.forkSagMm * Math.sin((input.headAngleDeg * Math.PI) / 180);
+  return {
+    frontMm,
+    rearMm: frontMm + rearMinusFrontDropMm(input.pitchDeg, input.wheelbaseMm),
+  };
+}

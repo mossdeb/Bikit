@@ -30,6 +30,7 @@ import {
   rearMinusFrontDropMm,
   RIDER_ATTITUDE_TIE_DEG,
   riderAttitude,
+  riderSagDropsMm,
 } from "@/lib/imu/rider-sag";
 import type { Locale } from "@/lib/i18n";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
@@ -64,6 +65,7 @@ const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
 const tireKey = (field: keyof ImuTireSetup) => `tires.${field}`;
 const RIDER_WEIGHT_KEY = "rider.weightKg";
 const WHEELBASE_KEY = "frame.wheelbaseMm";
+const HEAD_ANGLE_KEY = "frame.headAngleDeg";
 
 /** The draft holds the numbers as strings and, under the same keys as the
  * values, the choices: "air"/"coil" and "simple"/"dual". */
@@ -90,6 +92,10 @@ function toDraft(values: ImuSetupValues): Draft {
     values.rider?.weightKg != null ? String(values.rider.weightKg) : "";
   draft[WHEELBASE_KEY] =
     values.frame?.wheelbaseMm != null ? String(values.frame.wheelbaseMm) : "";
+  draft[HEAD_ANGLE_KEY] =
+    values.frame?.headAngleDeg != null
+      ? String(values.frame.headAngleDeg)
+      : "";
   return draft;
 }
 
@@ -146,7 +152,10 @@ function fromDraft(draft: Draft): ImuSetupValues {
       rearPsi: num(tireKey("rearPsi")),
     },
     rider: { weightKg: num(RIDER_WEIGHT_KEY) },
-    frame: { wheelbaseMm: num(WHEELBASE_KEY) },
+    frame: {
+      wheelbaseMm: num(WHEELBASE_KEY),
+      headAngleDeg: num(HEAD_ANGLE_KEY),
+    },
   };
 }
 
@@ -338,7 +347,17 @@ export function ImuSessionSetup({
                   readOnly={readOnly}
                   className="sm:rounded-[12px] sm:border sm:border-border sm:bg-card sm:p-3"
                 />
-                <RiderSagReading wheelbase={draft[WHEELBASE_KEY]} />
+                <NumberField
+                  id="setup-frame-head-angle"
+                  label={t.headAngle}
+                  unit="°"
+                  value={draft[HEAD_ANGLE_KEY]}
+                  onChange={set(HEAD_ANGLE_KEY)}
+                  small
+                  readOnly={readOnly}
+                  className="sm:rounded-[12px] sm:border sm:border-border sm:bg-card sm:p-3"
+                />
+                <RiderSagReading draft={draft} />
               </div>
               <DamperBlock
                 block="shock"
@@ -436,11 +455,13 @@ export function ImuSessionSetup({
 /**
  * What the rider-sag calibration step says (firmware V18, SAG1): how far
  * the frame pitched when the rider got on and, with the wheelbase as typed,
- * how many mm more one end sank than the other. Only where a recording is
- * loaded — the session page; the report and a bike's setups have none — and
- * read from it, so it follows the file and not the setup.
+ * how many mm more one end sank than the other; with the fork's sag and the
+ * head angle too, how far each end sank (by request, 2026-10-27). Only
+ * where a recording is loaded — the session page; the report and a bike's
+ * setups have none — and read from it, so it follows the file and not the
+ * setup. The numbers are the draft's, as typed.
  */
-function RiderSagReading({ wheelbase }: { wheelbase: string }) {
+function RiderSagReading({ draft }: { draft: Draft }) {
   const t = useProDict().report.setup.form.riderSag;
   const locale = useProLocale();
   const session = useLoadedSession();
@@ -449,19 +470,29 @@ function RiderSagReading({ wheelbase }: { wheelbase: string }) {
   if (!attitude)
     return <p className="text-xs text-muted-foreground">{t.none}</p>;
 
+  const positive = (key: string) => {
+    const n = Number(draft[key]?.trim().replace(",", "."));
+    return draft[key]?.trim() && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const wheelbaseMm = positive(WHEELBASE_KEY);
+  const headAngleDeg = positive(HEAD_ANGLE_KEY);
+  const forkSagMm = positive(damperKey("fork", "sagMm"));
+  const mm = (n: number) => `${proNumber(Math.abs(n), locale, 0)} mm`;
+
   const pitch = attitude.pitchDeg;
   const level = Math.abs(pitch) < RIDER_ATTITUDE_TIE_DEG;
   const deg = `${proNumber(Math.abs(pitch), locale, 1)}°`;
-  const wheelbaseMm = Number(wheelbase.trim().replace(",", "."));
   let drop: string;
-  if (!wheelbase.trim() || !Number.isFinite(wheelbaseMm) || wheelbaseMm <= 0)
-    drop = t.needsWheelbase;
+  if (wheelbaseMm == null) drop = t.needsWheelbase;
   else if (level) drop = t.same;
   else {
-    const mm = rearMinusFrontDropMm(pitch, wheelbaseMm);
-    const text = `${proNumber(Math.abs(mm), locale, 0)} mm`;
-    drop = mm > 0 ? t.rearDeeper(text) : t.frontDeeper(text);
+    const diff = rearMinusFrontDropMm(pitch, wheelbaseMm);
+    drop = diff > 0 ? t.rearDeeper(mm(diff)) : t.frontDeeper(mm(diff));
   }
+  const drops =
+    wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
+      ? riderSagDropsMm({ pitchDeg: pitch, wheelbaseMm, headAngleDeg, forkSagMm })
+      : null;
   return (
     <div
       className="space-y-1 rounded-[12px] border border-border bg-card p-3"
@@ -472,6 +503,27 @@ function RiderSagReading({ wheelbase }: { wheelbase: string }) {
         {level ? t.level : pitch > 0 ? t.noseUp(deg) : t.noseDown(deg)}
       </p>
       <p className="text-xs text-muted-foreground tabular-nums">{drop}</p>
+      {drops ? (
+        <div className="space-y-1 pt-2">
+          <dl className="grid grid-cols-2 gap-2 tabular-nums">
+            <div>
+              <dt className="text-xs text-muted-foreground">{t.front}</dt>
+              <dd className="font-semibold">{mm(drops.frontMm)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t.rear}</dt>
+              <dd className="font-semibold">{mm(drops.rearMm)}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-muted-foreground">{t.dropsNote}</p>
+        </div>
+      ) : (
+        wheelbaseMm != null && (
+          <p className="pt-1 text-xs text-muted-foreground">
+            {t.needsForkSag}
+          </p>
+        )
+      )}
     </div>
   );
 }
