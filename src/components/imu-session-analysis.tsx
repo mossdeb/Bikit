@@ -3329,9 +3329,9 @@ function SessionCards({
             with the identity from `2xl`; below it the corner floats in the
             card's top-right from `lg`, and on
             a phone it stands between the identity and the figures. */}
-        <div className="2xl:flex 2xl:shrink-0 2xl:flex-col 2xl:items-end 2xl:justify-between 2xl:gap-[60px] 2xl:py-6 2xl:pr-6">
+        <div className="2xl:flex 2xl:shrink-0 2xl:flex-col 2xl:items-end 2xl:justify-between 2xl:gap-[30px] 2xl:py-6 2xl:pr-6">
           {corner && (
-            <div className="px-5 pb-5 sm:px-6 lg:absolute lg:top-5 lg:right-6 lg:p-0 2xl:static">
+            <div className="px-5 pb-5 sm:px-6 lg:absolute lg:top-[63px] lg:right-6 lg:p-0 2xl:static 2xl:mt-[43px]">
               {corner}
             </div>
           )}
