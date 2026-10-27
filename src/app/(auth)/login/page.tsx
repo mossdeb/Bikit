@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LogoMark } from "@/components/logo";
+import { BikitLockup } from "@/components/logo";
 import { GoogleIcon } from "@/components/google-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,9 @@ export default async function LoginPage({
   return (
     <div className={`rounded-lg bg-card p-8 shadow-sm ${DARK_CARD_HAIRLINE}`}>
       <div className="mb-6 flex flex-col items-center text-center">
-        <LogoMark className="mb-4" />
+        {/* The full Bikit Pro lockup (by request, 2026-10-27): the login
+            lands in Pro. */}
+        <BikitLockup pro className="mb-5 h-10 w-auto" />
         <h1 className="text-xl font-display font-bold tracking-tight">Welcome back</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Bike Intelligence &amp; Telemetry System
