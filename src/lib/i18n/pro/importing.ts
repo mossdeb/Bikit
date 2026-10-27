@@ -32,7 +32,6 @@ const en = {
       `Importing ${i} of ${n}…`,
     sharedHint: "Rider, bike and group apply to every file.",
     fileFailed: (name: string, error: string): string => `${name}: ${error}`,
-    nameLabel: (file: string): string => `Name · ${file}`,
   },
 
   /** The questions asked of every session (imu-session-details-fields.tsx). */
@@ -256,7 +255,6 @@ const pt: typeof en = {
     importingProgress: (i, n) => `A importar ${i} de ${n}…`,
     sharedHint: "O rider, a bicicleta e o grupo valem para todos os ficheiros.",
     fileFailed: (name, error) => `${name}: ${error}`,
-    nameLabel: (file) => `Nome · ${file}`,
   },
 
   fields: {

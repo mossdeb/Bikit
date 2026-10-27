@@ -136,51 +136,60 @@ export default async function ImuLabPage() {
             positioned, so they stacked above the covering link and a click
             on them opened nothing (2026-10-26). The trash can takes the
             pointer back. */}
-        <div className="pointer-events-none relative min-w-0 flex-1">
-          <div className="flex items-center gap-2 pr-8 text-sm text-muted-foreground">
+        <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col">
+          {/* The name first, then its provenance (by request,
+              2026-10-27). */}
+          <p className="pr-8 font-display text-xl leading-tight font-bold">
+            {session.name}
+          </p>
+          {/* One line of provenance (by request, 2026-10-27): the bike,
+              the rider and the day in the ink, the file's rate and count
+              stepping back. Who rode it sits beside what carried the
+              sensor — the list is where sessions are told apart. */}
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-muted-foreground">
             {BikeGlyph && (
               <BikeGlyph
-                className="h-5 w-7 shrink-0 text-foreground"
+                className="mr-0.5 h-5 w-7 shrink-0 text-foreground"
                 aria-hidden
               />
             )}
-            <span>{bike?.name ?? t.sessions.list.noBike}</span>
-            {/* Who rode it, beside what carried the sensor: two facts of the
-                same kind, and the list is where sessions are told apart from
-                each other. */}
+            <span className="text-foreground">
+              {bike?.name ?? t.sessions.list.noBike}
+            </span>
             {session.rider_name && (
-              <span className="truncate">· {session.rider_name}</span>
+              <>
+                <span>·</span>
+                <span className="text-foreground">{session.rider_name}</span>
+              </>
             )}
-          </div>
-          <p className="mt-1 font-display text-xl leading-tight font-bold">
-            {session.name}
-          </p>
-          <div className="mt-2 text-sm text-muted-foreground">
-            <p>
-              {formatDate(session.created_at, locale)} ·{" "}
-              {Math.round(session.sample_rate_hz)} Hz ·{" "}
+            <span>·</span>
+            <span className="text-foreground">
+              {formatDate(session.created_at, locale)}
+            </span>
+            <span>
+              · {Math.round(session.sample_rate_hz)} Hz ·{" "}
               <span className="tabular-nums">
                 {proNumber(session.sample_count, locale)}
               </span>{" "}
               {t.common.units.samples}
-            </p>
-            {/* The duration to the thousandth with the résumé's clock (by
-                request, 2026-10-24) — trimmed to a track's lines, the run's
-                time, read off the lines as the session page reads it. In the ink
-                and bold, apart from the grey facts beside it. */}
-            {/* Under the provenance, on the left (by request, 2026-10-26):
-              the thumbnail took the card's right-hand side. */}
-          <p className="mt-3 flex items-center gap-1.5 font-bold text-foreground tabular-nums">
-              <StatClockIcon className="size-4" />
-              {formatDurationMillis(
-                session.trim_by_track &&
-                  session.trim_start_ms != null &&
-                  session.trim_end_ms != null
-                  ? session.trim_end_ms - session.trim_start_ms
-                  : session.duration_ms,
-              )}
-            </p>
-          </div>
+            </span>
+          </p>
+          {/* The duration to the thousandth with the résumé's clock (by
+              request, 2026-10-24) — trimmed to a track's lines, the run's
+              time, read off the lines as the session page reads it. In the
+              ink and bold; on the left, since the thumbnail took the card's
+              right-hand side (2026-10-26), and at the card's foot, level
+              with the thumbnail's (2026-10-27). */}
+          <p className="mt-auto flex items-center gap-1.5 pt-3 text-sm font-bold text-foreground tabular-nums">
+            <StatClockIcon className="size-4" />
+            {formatDurationMillis(
+              session.trim_by_track &&
+                session.trim_start_ms != null &&
+                session.trim_end_ms != null
+                ? session.trim_end_ms - session.trim_start_ms
+                : session.duration_ms,
+            )}
+          </p>
           {/* Above the covering link, so the trash can is clickable. */}
           <div className="pointer-events-auto absolute -top-2 -right-2 z-10">
             <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
@@ -192,7 +201,7 @@ export default async function ImuLabPage() {
         {outline && (
           <ImuSessionThumb
             outline={outline}
-            className="pointer-events-none hidden h-[106px] w-[156px] shrink-0 sm:block"
+            className="pointer-events-none hidden h-[106px] w-[156px] shrink-0 self-end sm:block"
           />
         )}
       </div>

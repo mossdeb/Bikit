@@ -202,6 +202,23 @@ export function ImuSessionImport({
     finish();
   }
 
+  /** A file's facts, under its name when it is the only one. */
+  function item0Meta(item: ImportItem): string {
+    const parts = [
+      item.session.format,
+      formatSessionTime(item.summary.durationMs),
+      `${Math.round(item.summary.sampleRateHz)} Hz`,
+      `${proNumber(item.summary.sampleCount, locale)} ${t.common.units.samples}`,
+      t.importing.dialog.events(item.summary.eventCount),
+    ];
+    // The high-g sensor's shocks (firmware V15), when the file has the
+    // sensor — nought included, which says the sensor was there and
+    // nothing crossed it.
+    if (item.session.highG)
+      parts.push(t.importing.dialog.highGShocks(item.session.highG.length));
+    return parts.join(" · ");
+  }
+
   return (
     <Dialog
       open={open}
@@ -270,44 +287,46 @@ export function ImuSessionImport({
 
               {items.length > 0 && (
                 <>
-                  {items.map((item, i) => (
-                    <div
-                      key={`${item.file.name}-${i}`}
-                      className="space-y-1.5 rounded-[12px] border border-border px-3 py-2.5"
-                    >
-                      <Label htmlFor={`imu-name-${i}`}>
-                        {items.length > 1
-                          ? t.importing.dialog.nameLabel(item.file.name)
-                          : t.importing.fields.name}
+                  {items.length === 1 ? (
+                    // One file: its name is the one question asked of it.
+                    <div className="space-y-1.5 rounded-[12px] border border-border px-3 py-2.5">
+                      <Label htmlFor="imu-name-0">
+                        {t.importing.fields.name}
                       </Label>
                       <Input
-                        id={`imu-name-${i}`}
-                        value={item.name}
+                        id="imu-name-0"
+                        value={items[0].name}
                         onChange={(event) =>
-                          setItems((prev) =>
-                            prev.map((p, k) =>
-                              k === i ? { ...p, name: event.target.value } : p,
-                            ),
-                          )
+                          setItems((prev) => [
+                            { ...prev[0], name: event.target.value },
+                          ])
                         }
                       />
                       <p className="text-sm text-muted-foreground">
-                        {item.session.format} ·{" "}
-                        {formatSessionTime(item.summary.durationMs)} ·{" "}
-                        {Math.round(item.summary.sampleRateHz)} Hz ·{" "}
-                        <span className="tabular-nums">
-                          {proNumber(item.summary.sampleCount, locale)}
-                        </span>{" "}
-                        {t.common.units.samples} ·{" "}
-                        {t.importing.dialog.events(item.summary.eventCount)}
-                        {/* The high-g sensor's shocks (firmware V15), when
-                            the file has the sensor — nought included, which
-                            says the sensor was there and nothing crossed it. */}
-                        {item.session.highG &&
-                          ` · ${t.importing.dialog.highGShocks(item.session.highG.length)}`}
+                        {item0Meta(items[0])}
                       </p>
                     </div>
-                  ))}
+                  ) : (
+                    // Several: the names as a list, read-only (by request,
+                    // 2026-10-27) — the dialog stays short, and each name
+                    // can be changed on the session afterwards.
+                    <ul className="divide-y divide-border rounded-[12px] border border-border">
+                      {items.map((item, i) => (
+                        <li
+                          key={`${item.file.name}-${i}`}
+                          className="flex items-baseline justify-between gap-3 px-3 py-2"
+                        >
+                          <span className="min-w-0 truncate text-sm font-medium">
+                            {item.name}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                            {formatSessionTime(item.summary.durationMs)} ·{" "}
+                            {t.importing.dialog.events(item.summary.eventCount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {items.length > 1 && (
                     <p className="text-sm text-muted-foreground">
                       {t.importing.dialog.sharedHint}
