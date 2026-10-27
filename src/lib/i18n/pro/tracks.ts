@@ -12,7 +12,7 @@ const en = {
   /** The ranking under the duration (2026-10-26): the bold part, then the
    * rest. */
   rank: (n: number): string => {
-    if (n === 1) return "Best run";
+    if (n === 1) return "Best time";
     const tens = n % 100;
     const suffix =
       tens >= 11 && tens <= 13
@@ -24,7 +24,7 @@ const en = {
             : n % 10 === 3
               ? "rd"
               : "th";
-    return `${n}${suffix} best run`;
+    return `${n}${suffix} best time`;
   },
   onTrack: "on this track",
   best: "Best",
@@ -77,7 +77,7 @@ const pt: typeof en = {
   buttonWithTime: (time) => `Partida e chegada — esta run ${time}`,
   title: "Partida e chegada",
   thisRun: "Esta run",
-  rank: (n) => (n === 1 ? "Melhor run" : `${n}.ª melhor run`),
+  rank: (n) => (n === 1 ? "Melhor tempo" : `${n}.º melhor tempo`),
   onTrack: "nesta pista",
   best: "Melhor",
   tied: "Empate",
