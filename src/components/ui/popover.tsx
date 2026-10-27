@@ -24,7 +24,10 @@ function PopoverContent({
         sideOffset={sideOffset}
         align={align}
         alignOffset={alignOffset}
-        className="isolate z-40"
+        // The dialogs' layer: at z-40 a popover opened inside a dialog (the
+        // (i) of the IMU SAG card, 2026-10-27) sat under it, unseen. Opened
+        // after the dialog, it paints above it at the same z.
+        className="isolate z-50"
       >
         <PopoverPrimitive.Popup
           data-slot="popover-content"

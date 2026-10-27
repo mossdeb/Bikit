@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
+import { MetricInfo } from "@/components/imu-setup-compare-view";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
@@ -777,16 +778,26 @@ function RiderSagReading({ draft }: { draft: Draft }) {
   // it means in mm on the right, on a quiet panel; under it each end's drop
   // in a tile of its own.
   return (
-    <div
-      className="space-y-3 rounded-[12px] border border-border p-3 sm:p-4"
-      title={t.explain}
-    >
-      <p className="text-lg font-semibold">{t.title}</p>
+    <div className="space-y-3 rounded-[12px] border border-border p-3 sm:p-4">
+      {/* The (i) explains the card (by request, 2026-10-27): what was
+          measured, how the mm come out of it, and what it leaves out. */}
+      <div className="flex items-center gap-1.5">
+        <p className="text-lg font-semibold">{t.title}</p>
+        <MetricInfo
+          label={t.title}
+          description={t.infoDescription}
+          method={t.infoMethod}
+          methodLabel={t.infoMethodLabel}
+          footnote={t.infoFootnote}
+        />
+      </div>
       {/* The supplied layout (2026-10-27, second pass): the angle large on
           a tall quiet panel with its meaning in mm beside it, then the
           estimated vertical displacement of each end under its heading. */}
       <div className="flex min-h-32 items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-5 py-8">
-        <p className="text-3xl font-semibold tabular-nums">{signedDeg}</p>
+        <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">
+          {signedDeg}
+        </p>
         <p className="text-base leading-tight tabular-nums">
           {wheelbaseMm == null ? (
             <span className="text-sm text-muted-foreground">
@@ -796,14 +807,14 @@ function RiderSagReading({ draft }: { draft: Draft }) {
             t.same
           ) : (
             <>
-              {mm(diff)}
+              <span className="whitespace-nowrap">{mm(diff)}</span>
               <br />
               {diff > 0 ? t.deeperRear : t.deeperFront}
             </>
           )}
         </p>
       </div>
-      <p className="pt-1 font-semibold">{t.displacement}</p>
+      <p className="pt-1 text-sm font-semibold">{t.displacement}</p>
       <div className="grid grid-cols-2 gap-3">
         {(
           [
@@ -813,7 +824,7 @@ function RiderSagReading({ draft }: { draft: Draft }) {
         ).map(([name, value, caption]) => (
           <div key={name} className="rounded-[10px] bg-muted/60 px-5 py-4">
             <p className="text-sm">{name}</p>
-            <p className="text-2xl font-semibold tabular-nums">
+            <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
               {value != null ? mm(value) : "–"}
             </p>
             <p className="text-sm">{caption}</p>

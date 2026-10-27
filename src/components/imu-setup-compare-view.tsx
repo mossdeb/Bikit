@@ -976,10 +976,15 @@ export function MetricInfo({
   method,
   footnote,
   band,
+  methodLabel,
 }: {
   label: string;
+  /** Paragraphs split by a blank line keep it (whitespace-pre-line). */
   description: string;
   method?: string;
+  /** The label before the method, when not "Como é calculado:" — the
+   * IMU SAG card's "Cálculo:" (2026-10-27). */
+  methodLabel?: string;
   footnote?: string;
   /** The band, light after the name (by request, 2026-09-12). */
   band?: string;
@@ -998,13 +1003,13 @@ export function MetricInfo({
           {band ? label.replace(` ${band}`, "") : label}
           {band && <span className="ml-1.5 font-light">[{band}]</span>}
         </p>
-        <p className="mt-1.5 text-sm font-normal text-muted-foreground">
+        <p className="mt-1.5 text-sm font-normal whitespace-pre-line text-muted-foreground">
           {description}
         </p>
         {method && (
           <p className="mt-2 border-t border-border pt-2 text-xs font-normal text-muted-foreground">
             <span className="font-medium text-foreground">
-              {t.compare.metricInfo.method}
+              {methodLabel ?? t.compare.metricInfo.method}
             </span>{" "}
             {method}
           </p>

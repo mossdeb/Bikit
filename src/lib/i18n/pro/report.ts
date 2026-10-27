@@ -282,8 +282,6 @@ const en = {
       /** The rider-sag calibration step, read from the file (firmware V18). */
       riderSag: {
         title: "IMU SAG",
-        explain:
-          "How far the frame turned when the rider got on, from the logger's calibration. The rear sinking more lifts the nose.",
         noseUp: (deg: string): string => `${deg} nose up`,
         noseDown: (deg: string): string => `${deg} nose down`,
         level: "Frame level",
@@ -296,6 +294,13 @@ const en = {
         /** Each end's vertical drop, from the fork's sag and the head
          * angle — the rear's is the one the sensor measured. */
         displacement: "Estimated vertical displacement",
+        infoDescription:
+          "Measures how much the bike tilts when the rider gets on, comparing its position unladen with the rider in their riding position.\n\nPositive angle (+): the rear suspension sank more than the front.",
+        infoMethodLabel: "Calculation:",
+        infoMethod:
+          "uses the measured tilt, the wheelbase and the fork's sag to estimate how far the front and the rear sank.",
+        infoFootnote:
+          "Note: the values are estimates and include the tyres' compression. They hold for the calibration that was carried out.",
         front: "Front",
         rear: "Rear",
         deeperRear: "deeper at the rear",
@@ -599,8 +604,6 @@ const pt: typeof en = {
         `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
         title: "IMU SAG",
-        explain:
-          "Quanto o quadro rodou quando o rider subiu, lido da calibração do logger. A traseira a afundar mais levanta o nariz.",
         noseUp: (deg) => `${deg} nariz acima`,
         noseDown: (deg) => `${deg} nariz abaixo`,
         level: "Quadro nivelado",
@@ -609,6 +612,13 @@ const pt: typeof en = {
         same: "Frente e traseira afundam o mesmo",
         needsWheelbase: "Indica a distância entre eixos para ler em mm.",
         displacement: "Deslocamento vertical estimado",
+        infoDescription:
+          "Mede quanto a bicicleta inclina quando o rider sobe, comparando a posição sem peso e com o rider em posição de condução.\n\nÂngulo positivo (+): a suspensão traseira afundou mais do que a dianteira.",
+        infoMethodLabel: "Cálculo:",
+        infoMethod:
+          "utiliza a inclinação medida, a distância entre eixos e o SAG do garfo para estimar o afundamento da frente e da traseira.",
+        infoFootnote:
+          "Nota: os valores são estimativas e incluem a compressão dos pneus. São válidos para a calibração realizada.",
         front: "Frente",
         rear: "Traseira",
         deeperRear: "mais afundada atrás",
