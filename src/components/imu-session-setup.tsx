@@ -139,8 +139,11 @@ function draftSagPercent(draft: Draft, block: "fork" | "shock") {
 const SAG_BAR_MAX = 55;
 const SAG_BAR_TICKS = [0, 10, 20, 30, 40, 50];
 /** Where a sag reads as the trade sets it, %: the fork's 15–30 and the
- * shock's 25–35. Inside, the bar is green; outside, amber. A guide, not a
- * rule — the manufacturer's chart is. */
+ * shock's 25–35. Inside, the bar is green; outside, amber; from
+ * SAG_BAR_DANGER up, red (by request, 2026-10-27) — half the travel gone
+ * before the first bump. A guide, not a rule — the manufacturer's chart
+ * is. */
+const SAG_BAR_DANGER = 50;
 const SAG_RANGE: Record<"fork" | "shock", [number, number]> = {
   fork: [15, 30],
   shock: [25, 35],
@@ -158,6 +161,7 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
   const pct = draftSagPercent(draft, block);
   const [lo, hi] = SAG_RANGE[block];
   const inRange = pct != null && pct >= lo && pct <= hi;
+  const danger = pct != null && pct >= SAG_BAR_DANGER;
   const at = (v: number) =>
     `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
   return (
@@ -178,7 +182,11 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
           <div
             className={cn(
               "absolute inset-y-0 left-0 rounded-full",
-              inRange ? "bg-[#3DDC97]" : "bg-[#F5B82E]",
+              danger
+                ? "bg-[#FF5A39]"
+                : inRange
+                  ? "bg-[#3DDC97]"
+                  : "bg-[#F5B82E]",
             )}
             style={{ width: at(pct) }}
           />
