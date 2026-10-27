@@ -625,6 +625,15 @@ export function ImuSessionSetup({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          {/* A new setup starts from the bike's current one, so Guardar
+              stays off until a value moves — said, rather than left as a
+              dead button (2026-10-27). */}
+          {bikeId && !bikeSetup && !dirty && (
+            <p className="text-center text-sm text-muted-foreground">
+              {t.newSetupHint}
+            </p>
+          )}
+
           {/* A bike's setup is deleted in two clicks: the first arms the
               button and says what stays (2026-10-27). */}
           {bikeSetup && confirmingDelete && (

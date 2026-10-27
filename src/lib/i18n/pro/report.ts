@@ -248,6 +248,8 @@ const en = {
       descriptionBikeSetup:
         "Pressures in psi, clicks counted from fully closed and the rider's weight kitted up in kg. Saving corrects this setup in every session that rode on it.",
       setupName: "Name",
+      newSetupHint:
+        "It starts from the bike's current setup: change at least one value to make a new one.",
       setupNamePlaceholder: "e.g. Race, Wet",
       tyres: "Tyres",
       front: (label: string): string => `Front · ${label}`,
@@ -324,6 +326,8 @@ const en = {
       invalidValues: "Invalid setup values.",
       emptySetup: "Fill in at least one value.",
       setupNotFound: "Setup not found.",
+      sameAsExisting: (name: string | null): string =>
+        `${name ? `"${name}"` : "A setup of this bike"} already has these values. Change at least one to make a new setup.`,
       sessionNotFound: "Session not found.",
       noResponse: "No response.",
     },
@@ -567,6 +571,8 @@ const pt: typeof en = {
       descriptionBikeSetup:
         "Pressões em psi, cliques contados a partir de fechado e o peso do rider equipado em kg. Guardar corrige esta afinação em todas as sessões que a usaram.",
       setupName: "Nome",
+      newSetupHint:
+        "Parte da afinação atual da bicicleta: muda pelo menos um valor para criar um setup novo.",
       setupNamePlaceholder: "ex. Corrida, Molhado",
       tyres: "Pneus",
       front: (label) => `À frente · ${label}`,
@@ -634,6 +640,8 @@ const pt: typeof en = {
       invalidValues: "Valores da afinação inválidos.",
       emptySetup: "Preenche pelo menos um valor.",
       setupNotFound: "Afinação não encontrada.",
+      sameAsExisting: (name) =>
+        `${name ? `O setup "${name}"` : "Um setup desta bicicleta"} já tem estes valores. Muda pelo menos um para criar um setup novo.`,
       sessionNotFound: "Sessão não encontrada.",
       noResponse: "Sem resposta.",
     },

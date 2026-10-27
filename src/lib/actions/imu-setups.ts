@@ -9,6 +9,7 @@ import {
   isSetupEmpty,
   isSetupValues,
   normalizeSetupValues,
+  setupKey,
   setupValuesEqual,
   type ImuSetupValues,
 } from "@/lib/imu/setup";
@@ -150,6 +151,26 @@ export async function createImuBikeSetup(input: {
     .maybeSingle();
   if (!bike)
     return { status: "error", message: t.report.bikes.errors.notFound };
+
+  // A setup is its values (setupKey): the same numbers saved again would
+  // only join the setup that holds them, with no card of its own — three
+  // "new" setups saved that way on 2026-10-27 showed nothing. Refused, and
+  // the setup that already has them is named.
+  const { data: existing } = await supabase
+    .from("imu_setups")
+    .select("values, name")
+    .eq("user_id", userId)
+    .eq("bike_id", bike.id)
+    .order("created_at", { ascending: false });
+  const twin = (existing ?? []).find(
+    (row) =>
+      isSetupValues(row.values) && setupKey(row.values) === setupKey(values),
+  );
+  if (twin)
+    return {
+      status: "error",
+      message: t.report.setup.errors.sameAsExisting(twin.name?.trim() || null),
+    };
 
   const { data: inserted, error } = await supabase
     .from("imu_setups")
