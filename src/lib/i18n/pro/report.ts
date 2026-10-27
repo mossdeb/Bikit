@@ -269,6 +269,8 @@ const en = {
       /** The frame's geometry, under the bike's mark (2026-10-27). */
       wheelbase: "Wheelbase",
       headAngle: "Head angle",
+      geometry: "Geometry",
+      sagOfTravel: "of the travel",
       /** The rider-sag calibration step, read from the file (firmware V18). */
       riderSag: {
         title: "Rider sag",
@@ -287,6 +289,10 @@ const en = {
          * angle — the rear's is the one the sensor measured. */
         front: "Front",
         rear: "Rear",
+        deeperRear: "deeper at the rear",
+        deeperFront: "deeper at the front",
+        frontCaption: "from the fork's sag",
+        rearCaption: "from the sensor",
         dropsNote:
           "Vertical. The front from the fork's sag and the head angle; the rear from the sensor.",
         needsForkSag:
@@ -537,6 +543,8 @@ const pt: typeof en = {
       sagShare: (percent) => `${percent} do curso`,
       wheelbase: "Entre eixos",
       headAngle: "Ângulo de direção",
+      geometry: "Geometria",
+      sagOfTravel: "do curso",
       riderSag: {
         title: "Rider sag",
         explain:
@@ -550,6 +558,10 @@ const pt: typeof en = {
         needsWheelbase: "Indica a distância entre eixos para ler em mm.",
         front: "Frente",
         rear: "Traseira",
+        deeperRear: "mais afundada atrás",
+        deeperFront: "mais afundada à frente",
+        frontCaption: "pelo SAG do garfo",
+        rearCaption: "pelo sensor",
         dropsNote:
           "Na vertical. A frente pelo SAG do garfo e o ângulo de direção; a traseira pelo sensor.",
         needsForkSag:

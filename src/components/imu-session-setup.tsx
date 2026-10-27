@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useProDict, useProLocale } from "@/components/pro-locale";
-import type { ProDictionary } from "@/lib/i18n/pro";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
 import {
@@ -36,7 +35,6 @@ import {
   type RiderSagHistoryEntry,
 } from "@/lib/imu/rider-sag";
 import { formatDate } from "@/lib/format";
-import type { Locale } from "@/lib/i18n";
 import { saveImuSessionSetup } from "@/lib/actions/imu-setups";
 import {
   circuitMode,
@@ -69,6 +67,11 @@ const damperKey = (block: "fork" | "shock", field: keyof ImuDamperSetup) =>
   `${block}.${field}`;
 const tireKey = (field: keyof ImuTireSetup) => `tires.${field}`;
 const RIDER_WEIGHT_KEY = "rider.weightKg";
+/** The rider-sag history card, hidden for now (by request, 2026-10-27).
+ * The readings are still stored (rider_sag) and the history still read;
+ * back with true. */
+const SHOW_SAG_HISTORY = false;
+
 const WHEELBASE_KEY = "frame.wheelbaseMm";
 const HEAD_ANGLE_KEY = "frame.headAngleDeg";
 
@@ -104,24 +107,87 @@ function toDraft(values: ImuSetupValues): Draft {
   return draft;
 }
 
-/** "30 % do curso" ("30% of the travel") under the sag field, from the
- * two strings as typed — the same arithmetic the summary prints
- * (sagPercent). Null until both numbers are in. */
-function sagShare(
-  draft: Draft,
-  block: "fork" | "shock",
-  t: ProDictionary["report"]["setup"]["form"],
-  locale: Locale,
-): string | null {
+/** The sag as a share of the travel, from the two strings as typed — the
+ * same arithmetic the summary prints (sagPercent). Null until both
+ * numbers are in. */
+function draftSagPercent(draft: Draft, block: "fork" | "shock") {
   const num = (key: string) => {
     const n = Number(draft[key]?.trim().replace(",", "."));
     return draft[key]?.trim() && Number.isFinite(n) ? n : undefined;
   };
-  const share = sagPercent({
+  return sagPercent({
     travelMm: num(damperKey(block, "travelMm")),
     sagMm: num(damperKey(block, "sagMm")),
   });
-  return share != null ? t.sagShare(proPercent(share, locale)) : null;
+}
+
+/** The bar's scale, %: 0 to 50 marked, and a hatched stretch past it. */
+const SAG_BAR_MAX = 55;
+const SAG_BAR_TICKS = [0, 10, 20, 30, 40, 50];
+/** Where a sag reads as the trade sets it, %: the fork's 15–30 and the
+ * shock's 25–35. Inside, the bar is green; outside, amber. A guide, not a
+ * rule — the manufacturer's chart is. */
+const SAG_RANGE: Record<"fork" | "shock", [number, number]> = {
+  fork: [15, 30],
+  shock: [25, 35],
+};
+
+/**
+ * The sag's share of the travel as a bar (the supplied layout, 2026-10-27):
+ * the figure large over it, a scale from 0 to 50 % under it, green inside
+ * the usual range and amber outside it. An empty track until both numbers
+ * are in.
+ */
+function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
+  const t = useProDict().report.setup.form;
+  const locale = useProLocale();
+  const pct = draftSagPercent(draft, block);
+  const [lo, hi] = SAG_RANGE[block];
+  const inRange = pct != null && pct >= lo && pct <= hi;
+  const at = (v: number) => `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
+  return (
+    <div className="mt-3 rounded-[10px] bg-muted/60 px-4 pt-3 pb-2">
+      <p className="text-center tabular-nums">
+        <span className="text-2xl font-semibold">
+          {pct != null ? proPercent(pct, locale) : "–"}
+        </span>{" "}
+        <span className="text-xs text-muted-foreground">{t.sagOfTravel}</span>
+      </p>
+      <div className="relative mt-2 h-1.5 rounded-full bg-foreground/10">
+        <div
+          aria-hidden
+          className="imu-event-band absolute inset-y-0 right-0 rounded-r-full"
+          style={{ left: at(50) }}
+        />
+        {pct != null && (
+          <div
+            className={cn(
+              "absolute inset-y-0 left-0 rounded-full",
+              inRange ? "bg-[#3DDC97]" : "bg-[#F5B82E]",
+            )}
+            style={{ width: at(pct) }}
+          />
+        )}
+        <div
+          aria-hidden
+          className="absolute -top-1 h-3.5 w-px bg-foreground/60"
+          style={{ left: at(50) }}
+        />
+      </div>
+      <div className="relative mt-1.5 h-4 text-[10px] text-muted-foreground tabular-nums">
+        {SAG_BAR_TICKS.map((v) => (
+          <span
+            key={v}
+            className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0"
+            style={{ left: at(v) }}
+          >
+            {proPercent(v, locale)}
+          </span>
+        ))}
+        <span className="absolute right-0">…</span>
+      </div>
+    </div>
+  );
 }
 
 /** Back from the strings the inputs hold — a comma is a decimal point
@@ -223,10 +289,26 @@ export function ImuSessionSetup({
   const [draftNote, setDraftNote] = useState(note ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * What the last save wrote, until the page brings it back (2026-10-27):
+   * the refresh after a save takes seconds on this page, and the dialog
+   * reopened before it arrived filled itself with the setup from before —
+   * a saved 10 read back as the old 30. Kept against the props it was
+   * saved over, so the props win as soon as they change.
+   */
+  const [saved, setSaved] = useState<{
+    values: ImuSetupValues;
+    note: string;
+    over: ImuSetupValues;
+  } | null>(null);
+  const current =
+    saved && saved.over === values
+      ? { values: saved.values, note: saved.note }
+      : { values, note: note ?? "" };
 
   const dirty =
-    !setupValuesEqual(fromDraft(draft), values) ||
-    draftNote.trim() !== (note ?? "");
+    !setupValuesEqual(fromDraft(draft), current.values) ||
+    draftNote.trim() !== current.note;
 
   async function save() {
     if (busy) return;
@@ -242,6 +324,7 @@ export function ImuSessionSetup({
       setError(result.message);
       return;
     }
+    setSaved({ values: fromDraft(draft), note: draftNote.trim(), over: values });
     setOpen(false);
     router.refresh();
   }
@@ -259,8 +342,8 @@ export function ImuSessionSetup({
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          setDraft(toDraft(values));
-          setDraftNote(note ?? "");
+          setDraft(toDraft(current.values));
+          setDraftNote(current.note);
           setBusy(false);
           setError(null);
         }
@@ -297,7 +380,7 @@ export function ImuSessionSetup({
         // the documentation's): it rises 48 px into place over 400 ms, no
         // zoom, and sinks back in 250 ms; it keeps 16 px from the window's
         // edges from `sm` and 32 from `lg`, under its own 896 px cap.
-        className="duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:w-[calc(100%-2rem)] sm:max-w-4xl lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)]"
+        className="duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:w-[calc(100%-2rem)] sm:max-w-7xl lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)]"
       >
         <DialogHeader>
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
@@ -320,7 +403,11 @@ export function ImuSessionSetup({
               is a desktop affair; stacked on a phone the two cards follow
               each other and it would be a picture between forms. */}
           <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4">
+            {/* Three equal columns (the supplied layout, 2026-10-27): the
+                fork, the bike's geometry with its rider-sag reading, the
+                shock. Between `sm` and `lg` the two dampers share a row and
+                the geometry takes the one under them. */}
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               <DamperBlock
                 block="fork"
                 heading={labels.fork || dict.report.setup.fork}
@@ -329,11 +416,31 @@ export function ImuSessionSetup({
                 choose={choose}
                 readOnly={readOnly}
               />
-              {/* The bike's own column: its mark, and under it the frame's
-                  wheelbase with the rider-sag reading it turns into mm (by
-                  request, 2026-10-27). On a phone the mark goes and the
-                  field and the reading come after the fork, in a card. */}
-              <div className="flex flex-col items-stretch justify-center gap-4 rounded-[14px] border border-border bg-card p-4 sm:w-36 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 lg:w-44">
+              {/* The bike's own card: the frame's wheelbase and head angle,
+                  its mark, and the rider-sag reading they turn into mm (by
+                  request, 2026-10-27). */}
+              <div className="order-last flex flex-col gap-4 rounded-[14px] border border-border bg-card p-4 sm:col-span-2 sm:p-5 lg:order-none lg:col-span-1">
+                <p className="text-lg font-semibold">{t.geometry}</p>
+                <div className="grid grid-cols-2 gap-3 rounded-[12px] border border-border p-3">
+                  <NumberField
+                    id="setup-frame-wheelbase"
+                    label={t.wheelbase}
+                    unit="mm"
+                    value={draft[WHEELBASE_KEY]}
+                    onChange={set(WHEELBASE_KEY)}
+                    small
+                    readOnly={readOnly}
+                  />
+                  <NumberField
+                    id="setup-frame-head-angle"
+                    label={t.headAngle}
+                    unit="°"
+                    value={draft[HEAD_ANGLE_KEY]}
+                    onChange={set(HEAD_ANGLE_KEY)}
+                    small
+                    readOnly={readOnly}
+                  />
+                </div>
                 {/* Mirrored: the art faces right, and here the fork's card is
                     on the left — the bike should face its own fork (by
                     request, 2026-09-11). */}
@@ -342,30 +449,12 @@ export function ImuSessionSetup({
                     cards): the art's own stroke is 4 in a 101-wide box,
                     which painted ~5 px at 128 px. Fixed in screen pixels,
                     the event cards' way. */}
-                <BikeMark
-                  aria-hidden
-                  className="mx-auto hidden h-auto w-24 -scale-x-100 text-foreground sm:block lg:w-32 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
-                />
-                <NumberField
-                  id="setup-frame-wheelbase"
-                  label={t.wheelbase}
-                  unit="mm"
-                  value={draft[WHEELBASE_KEY]}
-                  onChange={set(WHEELBASE_KEY)}
-                  small
-                  readOnly={readOnly}
-                  className="sm:rounded-[12px] sm:border sm:border-border sm:bg-card sm:p-3"
-                />
-                <NumberField
-                  id="setup-frame-head-angle"
-                  label={t.headAngle}
-                  unit="°"
-                  value={draft[HEAD_ANGLE_KEY]}
-                  onChange={set(HEAD_ANGLE_KEY)}
-                  small
-                  readOnly={readOnly}
-                  className="sm:rounded-[12px] sm:border sm:border-border sm:bg-card sm:p-3"
-                />
+                <div className="flex flex-1 items-center justify-center py-4">
+                  <BikeMark
+                    aria-hidden
+                    className="h-auto w-32 -scale-x-100 text-foreground lg:w-40 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
+                  />
+                </div>
                 <RiderSagReading draft={draft} />
               </div>
               <DamperBlock
@@ -427,11 +516,13 @@ export function ImuSessionSetup({
             </div>
           </div>
 
-          <RiderSagHistory
-            history={sagHistory}
-            draft={draft}
-            labels={labels}
-          />
+          {SHOW_SAG_HISTORY && (
+            <RiderSagHistory
+              history={sagHistory}
+              draft={draft}
+              labels={labels}
+            />
+          )}
 
           {/* Read-only, the note shows only when there is one to read. */}
           {(!readOnly || draftNote.trim()) && (
@@ -496,48 +587,59 @@ function RiderSagReading({ draft }: { draft: Draft }) {
 
   const pitch = attitude.pitchDeg;
   const level = Math.abs(pitch) < RIDER_ATTITUDE_TIE_DEG;
-  const deg = `${proNumber(Math.abs(pitch), locale, 1)}°`;
-  let drop: string;
-  if (wheelbaseMm == null) drop = t.needsWheelbase;
-  else if (level) drop = t.same;
-  else {
-    const diff = rearMinusFrontDropMm(pitch, wheelbaseMm);
-    drop = diff > 0 ? t.rearDeeper(mm(diff)) : t.frontDeeper(mm(diff));
-  }
+  // Signed, as the pitch is: nose up positive.
+  const signedDeg = `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`;
+  const diff =
+    wheelbaseMm != null && !level
+      ? rearMinusFrontDropMm(pitch, wheelbaseMm)
+      : null;
   const drops =
     wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
       ? riderSagDropsMm({ pitchDeg: pitch, wheelbaseMm, headAngleDeg, forkSagMm })
       : null;
+  // The supplied layout (2026-10-27): the angle large on the left and what
+  // it means in mm on the right, on a quiet panel; under it each end's drop
+  // in a tile of its own.
   return (
     <div
-      className="space-y-1 rounded-[12px] border border-border bg-card p-3"
+      className="space-y-3 rounded-[12px] border border-border p-3 sm:p-4"
       title={t.explain}
     >
-      <p className="text-xs font-medium">{t.title}</p>
-      <p className="text-lg font-semibold tabular-nums">
-        {level ? t.level : pitch > 0 ? t.noseUp(deg) : t.noseDown(deg)}
-      </p>
-      <p className="text-xs text-muted-foreground tabular-nums">{drop}</p>
-      {drops ? (
-        <div className="space-y-1 pt-2">
-          <dl className="grid grid-cols-2 gap-2 tabular-nums">
-            <div>
-              <dt className="text-xs text-muted-foreground">{t.front}</dt>
-              <dd className="font-semibold">{mm(drops.frontMm)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">{t.rear}</dt>
-              <dd className="font-semibold">{mm(drops.rearMm)}</dd>
-            </div>
-          </dl>
-          <p className="text-xs text-muted-foreground">{t.dropsNote}</p>
-        </div>
-      ) : (
-        wheelbaseMm != null && (
-          <p className="pt-1 text-xs text-muted-foreground">
-            {t.needsForkSag}
-          </p>
-        )
+      <p className="text-lg font-semibold">{t.title}</p>
+      <div className="flex min-h-24 items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-4 py-5">
+        <p className="text-3xl font-semibold tabular-nums">{signedDeg}</p>
+        <p className="text-sm leading-tight tabular-nums">
+          {wheelbaseMm == null ? (
+            <span className="text-muted-foreground">{t.needsWheelbase}</span>
+          ) : diff == null ? (
+            t.same
+          ) : (
+            <>
+              <span className="font-medium">{mm(diff)}</span>
+              <br />
+              {diff > 0 ? t.deeperRear : t.deeperFront}
+            </>
+          )}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {(
+          [
+            [t.front, drops?.frontMm, t.frontCaption],
+            [t.rear, drops?.rearMm, t.rearCaption],
+          ] as const
+        ).map(([name, value, caption]) => (
+          <div key={name} className="rounded-[10px] bg-muted/60 px-4 py-3">
+            <p className="text-sm">{name}</p>
+            <p className="text-xl font-semibold tabular-nums">
+              {value != null ? mm(value) : "–"}
+            </p>
+            <p className="text-xs text-muted-foreground">{caption}</p>
+          </div>
+        ))}
+      </div>
+      {!drops && (
+        <p className="text-xs text-muted-foreground">{t.needsForkSag}</p>
       )}
     </div>
   );
@@ -678,7 +780,6 @@ function DamperBlock({
   readOnly?: boolean;
 }) {
   const t = useProDict().report.setup.form;
-  const locale = useProLocale();
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
   return (
@@ -718,11 +819,11 @@ function DamperBlock({
             unit="mm"
             value={draft[damperKey(block, "sagMm")]}
             onChange={set(damperKey(block, "sagMm"))}
-            hint={sagShare(draft, block, t, locale)}
             small
             readOnly={readOnly}
           />
         </div>
+        <SagBar draft={draft} block={block} />
         <div className="mt-3">
           {air ? (
             <NumberField
