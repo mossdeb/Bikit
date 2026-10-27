@@ -72,8 +72,10 @@ export function ImuSessionDetailsFields({
   onNewBikeNameChange,
 }: {
   idPrefix: string;
-  name: string;
-  onNameChange: (value: string) => void;
+  /** Omitted together where each session is named on its own (an import
+   * of several files, 2026-10-27): the field is not drawn. */
+  name?: string;
+  onNameChange?: (value: string) => void;
   rider: string;
   onRiderChange: (value: string) => void;
   riderDefault: string;
@@ -98,14 +100,16 @@ export function ImuSessionDetailsFields({
   const locale = useProLocale();
   return (
     <>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-name`}>{t.name}</Label>
-        <Input
-          id={`${idPrefix}-name`}
-          value={name}
-          onChange={(event) => onNameChange(event.target.value)}
-        />
-      </div>
+      {onNameChange && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-name`}>{t.name}</Label>
+          <Input
+            id={`${idPrefix}-name`}
+            value={name ?? ""}
+            onChange={(event) => onNameChange(event.target.value)}
+          />
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-rider`}>{t.rider}</Label>
         {riders ? (

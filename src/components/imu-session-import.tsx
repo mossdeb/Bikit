@@ -19,7 +19,14 @@ import {
   formatSessionTime,
   type ImuSessionSummary,
 } from "@/lib/imu/derive";
-import { uploadAndRegisterImuSession } from "@/lib/imu/import-session";
+import {
+  firstTrackPassed,
+  loadImportTracks,
+  uploadAndRegisterImuSession,
+  type ImportTrack,
+} from "@/lib/imu/import-session";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { alignSession } from "@/lib/imu/derive";
 import { withBikeFrameEvents } from "@/lib/imu/events";
 import {
@@ -52,6 +59,14 @@ import { proNumber } from "@/lib/i18n/pro";
  * error is written into the dialog rather than toasted: the failed choice
  * stays visible next to what went wrong.
  */
+/** A file picked for import, parsed and named. */
+interface ImportItem {
+  file: File;
+  session: ImuSessionData;
+  summary: ImuSessionSummary;
+  name: string;
+}
+
 export function ImuSessionImport({
   userId,
   bikes,
@@ -76,12 +91,11 @@ export function ImuSessionImport({
   const [tab, setTab] = useState<"device" | "file">("device");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [parsed, setParsed] = useState<{
-    file: File;
-    session: ImuSessionData;
-    summary: ImuSessionSummary;
-  } | null>(null);
-  const [name, setName] = useState("");
+  /** The files picked, parsed and named (several at once since
+   * 2026-10-27, by request): each its own name, the rest shared. */
+  const [items, setItems] = useState<ImportItem[]>([]);
+  const [tracks, setTracks] = useState<ImportTrack[] | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [rider, setRider] = useState(riderDefault);
   const [bikeId, setBikeId] = useState("");
   const [newBikeName, setNewBikeName] = useState("");
@@ -89,10 +103,11 @@ export function ImuSessionImport({
   const [newGroupName, setNewGroupName] = useState("");
 
   function reset() {
-    setParsed(null);
+    setItems([]);
+    setTracks(null);
+    setProgress(null);
     setError(null);
     setBusy(false);
-    setName("");
     setRider(riderDefault);
     setBikeId("");
     setGroupId(defaultGroupId(groups));
@@ -106,53 +121,83 @@ export function ImuSessionImport({
     router.refresh();
   }
 
-  async function handleFile(file: File | undefined) {
+  /**
+   * Every file picked is parsed here, and a bad one is named in the error
+   * without stopping the rest. Each is named from its file — "R0126" — and
+   * when its run passes one of the account's timed tracks, after the track
+   * too: "R0126 - mytica" (by request, 2026-10-27). The names stay
+   * editable; the rider, the bike and the group are asked once and given
+   * to all.
+   */
+  async function handleFiles(list: FileList | null) {
     setError(null);
-    setParsed(null);
-    if (!file) return;
-    // Bytes and not text: the logger's .BKT is binary, and the dispatcher
-    // sniffs the first four of them to pick the parser.
-    const result = parseImuBytes(await file.arrayBuffer(), locale);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    setItems([]);
+    const files = list ? [...list] : [];
+    if (files.length === 0) return;
+    const known = tracks ?? (await loadImportTracks());
+    setTracks(known);
+    const next: ImportItem[] = [];
+    const failures: string[] = [];
+    for (const file of files) {
+      // Bytes and not text: the logger's .BKT is binary, and the
+      // dispatcher sniffs the first four of them to pick the parser.
+      const result = parseImuBytes(await file.arrayBuffer(), locale);
+      if (!result.ok) {
+        failures.push(t.importing.dialog.fileFailed(file.name, result.error));
+        continue;
+      }
+      const base =
+        result.session.sessionId ?? file.name.replace(/\.(json|bkt)$/i, "");
+      const track = firstTrackPassed(result.session, known);
+      next.push({
+        file,
+        session: result.session,
+        // The summary the row will carry, computed the way the page
+        // computes it: in the bike's frame, with the curves and braking
+        // that frame makes visible. The uploaded bytes stay the file as it
+        // came.
+        summary: sessionSummary(
+          withBikeFrameEvents(alignSession(result.session)),
+        ),
+        name: track ? `${base} - ${track.name}` : base,
+      });
     }
-    setParsed({
-      file,
-      session: result.session,
-      // The summary the row will carry, computed the way the page computes
-      // it: in the bike's frame, with the curves and braking that frame
-      // makes visible. The uploaded bytes stay the file as it came.
-      summary: sessionSummary(
-        withBikeFrameEvents(alignSession(result.session)),
-      ),
-    });
-    setName(
-      result.session.sessionId ?? file.name.replace(/\.(json|bkt)$/i, ""),
-    );
+    setItems(next);
+    if (failures.length > 0) setError(failures.join("\n"));
   }
 
   async function handleImport() {
-    if (!parsed || busy) return;
+    if (items.length === 0 || busy) return;
     setBusy(true);
     setError(null);
-    // The raw file goes up as-is — the storage object IS the raw data, and
-    // nothing recorded by the sensor is rewritten on the way in.
-    const outcome = await uploadAndRegisterImuSession({
-      userId,
-      bytes: parsed.file,
-      session: parsed.session,
-      summary: parsed.summary,
-      name,
-      riderName: rider,
-      bike: bikeRefFromForm(bikeId, newBikeName),
-      group: groupRefFromForm(groupId, newGroupName),
-      locale,
-    });
-    if (!outcome.ok) {
-      setBusy(false);
-      setError(outcome.error);
-      return;
+    // One at a time: a new bike or group named in the form is created by
+    // the first and found by name for the rest, never made twice.
+    for (let i = 0; i < items.length; i++) {
+      setProgress(i + 1);
+      const item = items[i];
+      // The raw file goes up as-is — the storage object IS the raw data,
+      // and nothing recorded by the sensor is rewritten on the way in.
+      const outcome = await uploadAndRegisterImuSession({
+        userId,
+        bytes: item.file,
+        session: item.session,
+        summary: item.summary,
+        name: item.name,
+        riderName: rider,
+        bike: bikeRefFromForm(bikeId, newBikeName),
+        group: groupRefFromForm(groupId, newGroupName),
+        locale,
+        tracks: tracks ?? undefined,
+      });
+      if (!outcome.ok) {
+        // What landed stays; the list keeps what did not, to try again.
+        setItems(items.slice(i));
+        setProgress(null);
+        setBusy(false);
+        setError(t.importing.dialog.fileFailed(item.file.name, outcome.error));
+        if (i > 0) router.refresh();
+        return;
+      }
     }
     finish();
   }
@@ -217,34 +262,59 @@ export function ImuSessionImport({
               <input
                 ref={fileRef}
                 type="file"
+                multiple
                 accept=".bkt,.BKT,.json,application/json,application/octet-stream"
                 className="block w-full text-sm text-muted-foreground file:mr-3 file:h-11 file:cursor-pointer file:rounded-full file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium file:text-secondary-foreground"
-                onChange={(event) => handleFile(event.target.files?.[0])}
+                onChange={(event) => void handleFiles(event.target.files)}
               />
 
-              {parsed && (
+              {items.length > 0 && (
                 <>
-                  <div className="rounded-[12px] border border-border px-3 py-2.5 text-sm">
-                    <p className="font-medium">{parsed.session.format}</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      {formatSessionTime(parsed.summary.durationMs)} ·{" "}
-                      {Math.round(parsed.summary.sampleRateHz)} Hz ·{" "}
-                      <span className="tabular-nums">
-                        {proNumber(parsed.summary.sampleCount, locale)}
-                      </span>{" "}
-                      {t.common.units.samples} ·{" "}
-                      {t.importing.dialog.events(parsed.summary.eventCount)}
-                      {/* The high-g sensor's shocks (firmware V15), when the
-                          file has the sensor — nought included, which says
-                          the sensor was there and nothing crossed it. */}
-                      {parsed.session.highG &&
-                        ` · ${t.importing.dialog.highGShocks(parsed.session.highG.length)}`}
+                  {items.map((item, i) => (
+                    <div
+                      key={`${item.file.name}-${i}`}
+                      className="space-y-1.5 rounded-[12px] border border-border px-3 py-2.5"
+                    >
+                      <Label htmlFor={`imu-name-${i}`}>
+                        {items.length > 1
+                          ? t.importing.dialog.nameLabel(item.file.name)
+                          : t.importing.fields.name}
+                      </Label>
+                      <Input
+                        id={`imu-name-${i}`}
+                        value={item.name}
+                        onChange={(event) =>
+                          setItems((prev) =>
+                            prev.map((p, k) =>
+                              k === i ? { ...p, name: event.target.value } : p,
+                            ),
+                          )
+                        }
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        {item.session.format} ·{" "}
+                        {formatSessionTime(item.summary.durationMs)} ·{" "}
+                        {Math.round(item.summary.sampleRateHz)} Hz ·{" "}
+                        <span className="tabular-nums">
+                          {proNumber(item.summary.sampleCount, locale)}
+                        </span>{" "}
+                        {t.common.units.samples} ·{" "}
+                        {t.importing.dialog.events(item.summary.eventCount)}
+                        {/* The high-g sensor's shocks (firmware V15), when
+                            the file has the sensor — nought included, which
+                            says the sensor was there and nothing crossed it. */}
+                        {item.session.highG &&
+                          ` · ${t.importing.dialog.highGShocks(item.session.highG.length)}`}
+                      </p>
+                    </div>
+                  ))}
+                  {items.length > 1 && (
+                    <p className="text-sm text-muted-foreground">
+                      {t.importing.dialog.sharedHint}
                     </p>
-                  </div>
+                  )}
                   <ImuSessionDetailsFields
                     idPrefix="imu"
-                    name={name}
-                    onNameChange={setName}
                     rider={rider}
                     onRiderChange={setRider}
                     riderDefault={riderDefault}
@@ -264,21 +334,29 @@ export function ImuSessionImport({
               )}
 
               {/* Written on screen, never a toast — the garage rule. */}
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <p className="text-sm whitespace-pre-line text-destructive">
+                  {error}
+                </p>
+              )}
 
               <Button
                 className="w-full"
                 variant="inverted"
                 disabled={
-                  !parsed ||
-                  !name.trim() ||
+                  items.length === 0 ||
+                  items.some((item) => !item.name.trim()) ||
                   !groupFormValid(groupId, newGroupName) ||
                   !bikeFormValid(bikeId, newBikeName) ||
                   busy
                 }
                 onClick={handleImport}
               >
-                {busy ? t.importing.importingButton : t.importing.importButton}
+                {busy
+                  ? items.length > 1 && progress != null
+                    ? t.importing.dialog.importingProgress(progress, items.length)
+                    : t.importing.importingButton
+                  : t.importing.dialog.importMany(items.length)}
               </Button>
             </div>
           </TabsContent>

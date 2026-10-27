@@ -22,9 +22,52 @@ import { buildTrackIndex, prepareSnapshotSession } from "@/lib/imu/snapshot";
 import { alignSession, sessionSummary } from "@/lib/imu/derive";
 import { withBikeFrameEvents } from "@/lib/imu/events";
 import { suggestTrim, trimSession } from "@/lib/imu/trim";
-import { isTimedTrackDefinition, runTrimOf } from "@/lib/imu/timed-track";
+import {
+  findTimedRuns,
+  isTimedTrackDefinition,
+  runTrimOf,
+  type TimedTrackDefinition,
+} from "@/lib/imu/timed-track";
 
 export type ImportOutcome = { ok: true } | { ok: false; error: string };
+
+/** One of the account's timed tracks, as an import reads it. */
+export interface ImportTrack {
+  name: string;
+  definition: TimedTrackDefinition;
+}
+
+/** The account's timed tracks, newest first — the order the session page
+ * and runTrimOf give them. Read once per import, however many files. The
+ * account's own (RLS); a failed read is no tracks. */
+export async function loadImportTracks(): Promise<ImportTrack[]> {
+  const { data } = await createClient()
+    .from("imu_tracks")
+    .select("name, definition")
+    .order("created_at", { ascending: false });
+  return (data ?? []).flatMap((row) => {
+    const definition: unknown = row.definition;
+    return isTimedTrackDefinition(definition)
+      ? [{ name: row.name, definition }]
+      : [];
+  });
+}
+
+/** The first of the tracks a recording passes, or null — the one its trim
+ * comes from, and whose name the import gives it (2026-10-27). */
+export function firstTrackPassed(
+  session: ImuSessionData,
+  tracks: ImportTrack[],
+): ImportTrack | null {
+  if (!session.gps || tracks.length === 0) return null;
+  const prepared = prepareSnapshotSession(
+    withBikeFrameEvents(alignSession(session)),
+  );
+  return (
+    tracks.find((t) => findTimedRuns(prepared, t.definition).length > 0) ??
+    null
+  );
+}
 
 export async function uploadAndRegisterImuSession(input: {
   userId: string;
@@ -38,6 +81,9 @@ export async function uploadAndRegisterImuSession(input: {
   /** The reader's language, for the one message this side writes; the
    * server action's come back in it too, from the session's own setting. */
   locale: Locale;
+  /** The account's tracks, when the caller has read them already (an
+   * import of several files reads them once). */
+  tracks?: ImportTrack[];
 }): Promise<ImportOutcome> {
   const { session, summary } = input;
   const isBkt = session.format === BKT_FORMAT;
@@ -72,13 +118,9 @@ export async function uploadAndRegisterImuSession(input: {
   if (session.gps) {
     // As the page reads it: aligned, with the bike-frame events.
     const whole = withBikeFrameEvents(alignSession(session));
-    const { data: tracks } = await supabase
-      .from("imu_tracks")
-      .select("definition")
-      .order("created_at", { ascending: false });
-    const definitions = (tracks ?? [])
-      .map((row): unknown => row.definition)
-      .filter(isTimedTrackDefinition);
+    const definitions = (input.tracks ?? (await loadImportTracks())).map(
+      (track) => track.definition,
+    );
     trim =
       definitions.length > 0
         ? runTrimOf(prepareSnapshotSession(whole), definitions)

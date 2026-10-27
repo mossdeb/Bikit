@@ -25,6 +25,14 @@ const en = {
     events: (n: number): string => (n === 1 ? "1 event" : `${n} events`),
     highGShocks: (n: number): string =>
       n === 1 ? "1 high-G shock" : `${n} high-G shocks`,
+    /** Several files at once (2026-10-27). */
+    importMany: (n: number): string =>
+      n <= 1 ? "Import" : `Import ${n} sessions`,
+    importingProgress: (i: number, n: number): string =>
+      `Importing ${i} of ${n}…`,
+    sharedHint: "Rider, bike and group apply to every file.",
+    fileFailed: (name: string, error: string): string => `${name}: ${error}`,
+    nameLabel: (file: string): string => `Name · ${file}`,
   },
 
   /** The questions asked of every session (imu-session-details-fields.tsx). */
@@ -244,6 +252,11 @@ const pt: typeof en = {
     tabFile: "Ficheiro",
     events: (n) => `${n} eventos`,
     highGShocks: (n) => `${n} ${n === 1 ? "choque" : "choques"} high-G`,
+    importMany: (n) => (n <= 1 ? "Importar" : `Importar ${n} sessões`),
+    importingProgress: (i, n) => `A importar ${i} de ${n}…`,
+    sharedHint: "O rider, a bicicleta e o grupo valem para todos os ficheiros.",
+    fileFailed: (name, error) => `${name}: ${error}`,
+    nameLabel: (file) => `Nome · ${file}`,
   },
 
   fields: {
