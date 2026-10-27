@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal } from "lucide-react";
+import { MoveVertical, SlidersHorizontal } from "lucide-react";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
@@ -179,19 +179,16 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
           className="imu-event-band absolute inset-y-0 right-0 rounded-r-full"
           style={{ left: at(50) }}
         />
-        {pct != null && (
-          <div
-            className={cn(
-              "absolute inset-y-0 left-0 rounded-full",
-              danger
-                ? "bg-[#FF5A39]"
-                : inRange
-                  ? "bg-[#3DDC97]"
-                  : "bg-[#F5B82E]",
-            )}
-            style={{ width: at(pct) }}
-          />
-        )}
+        {/* Always there, at nothing until both numbers are in, so the
+            fill grows into place and slides and changes colour as the sag
+            is typed (by request, 2026-10-27). */}
+        <div
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ease-out motion-reduce:transition-none",
+            danger ? "bg-[#FF5A39]" : inRange ? "bg-[#3DDC97]" : "bg-[#F5B82E]",
+          )}
+          style={{ width: pct != null ? at(pct) : "0%" }}
+        />
         <div
           aria-hidden
           className="absolute -top-1 h-3.5 w-px bg-foreground/60"
@@ -400,6 +397,10 @@ export function ImuSessionSetup({
   }
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /** The IMU SAG's switch (by request, 2026-10-27): with the rider on, as
+   * the step measured it, or the empty bike — the reference, level. The
+   * illustration and the card follow it together. */
+  const [withRider, setWithRider] = useState(true);
   async function remove() {
     if (busy || !bikeSetup) return;
     setBusy(true);
@@ -582,13 +583,14 @@ export function ImuSessionSetup({
                     cards): the art's own stroke is 4 in a 101-wide box,
                     which painted ~5 px at 128 px. Fixed in screen pixels,
                     the event cards' way. */}
-                <div className="flex flex-1 items-center justify-center py-4">
-                  <BikeMark
-                    aria-hidden
-                    className="h-auto w-32 text-foreground lg:w-40 [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
-                  />
+                <div className="flex flex-1 items-center justify-center py-2">
+                  <SagIllustration BikeMark={BikeMark} withRider={withRider} />
                 </div>
-                <RiderSagReading draft={draft} />
+                <RiderSagReading
+                  draft={draft}
+                  withRider={withRider}
+                  onToggleRider={() => setWithRider((on) => !on)}
+                />
               </div>
               <DamperBlock
                 block="fork"
@@ -732,6 +734,101 @@ export function ImuSessionSetup({
   );
 }
 
+/** The bike's height in the illustration, px, and where it stands. The
+ * art is 101 × 61 with the wheel hubs at y ≈ 42.6, so at 176 px wide it is
+ * ~106 px tall and the hubs sit ~32 px above the ground. */
+const SAG_ART_W = 176;
+const SAG_GROUND_PX = 22;
+const SAG_HUB_PX =
+  SAG_GROUND_PX + Math.round(((61 - 42.6) / 61) * ((SAG_ART_W * 61) / 101));
+/** 1.9° is a line nobody sees tilt across 300 px: the drawing exaggerates
+ * the angle, within a bound, and the pill says the real one. */
+const SAG_TILT_GAIN = 2.5;
+const SAG_TILT_MAX_DEG = 12;
+const SAG_MINT = "#7BF1B8";
+
+/**
+ * The bike as the IMU SAG reads it (the supplied illustration,
+ * 2026-10-27): a dashed ground, the bike standing on it, and a mint line at
+ * the hubs tilted by the rider-sag pitch — rising towards the fork, on the
+ * right, when the nose is up — with the angle on a pill and the two ends'
+ * heights marked. Level, with no pill, where the file has no reading.
+ */
+function SagIllustration({
+  BikeMark,
+  withRider,
+}: {
+  BikeMark: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  /** Off, the empty bike: the reference, level at 0°. */
+  withRider: boolean;
+}) {
+  const locale = useProLocale();
+  const session = useLoadedSession();
+  const measured = session
+    ? (riderAttitude(session.riderSag, session.orientation)?.pitchDeg ?? null)
+    : null;
+  const pitch = measured == null ? null : withRider ? measured : 0;
+  const drawn =
+    pitch == null
+      ? 0
+      : Math.max(
+          -SAG_TILT_MAX_DEG,
+          Math.min(SAG_TILT_MAX_DEG, pitch * SAG_TILT_GAIN),
+        );
+  const label =
+    pitch == null
+      ? null
+      : `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`;
+  return (
+    <div aria-hidden className="relative h-[170px] w-full max-w-[320px]">
+      {/* The ground. */}
+      <div
+        className="absolute inset-x-0 border-t-2 border-dashed border-foreground/15"
+        style={{ bottom: SAG_GROUND_PX }}
+      />
+      {/* The two ends' heights, ground to hubs. */}
+      {(["left-1", "right-1"] as const).map((side) => (
+        <MoveVertical
+          key={side}
+          className={cn("absolute size-9 text-foreground/25", side)}
+          strokeWidth={1}
+          style={{ bottom: SAG_GROUND_PX }}
+        />
+      ))}
+      {/* A 3 px line on screen whatever the size it is drawn at (by
+          request, 2026-09-11), the event cards' way. The art faces right,
+          towards the fork's card (2026-10-27). */}
+      <BikeMark
+        className="absolute left-1/2 h-auto -translate-x-1/2 text-foreground [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
+        style={{ width: SAG_ART_W, bottom: SAG_GROUND_PX - 1 }}
+      />
+      {/* The line at the hubs, turned by the drawn angle about the
+          middle; nose up turns it anticlockwise. A box of no height, so
+          its middle is the line's. */}
+      <div
+        className="absolute inset-x-0 h-0 transition-transform duration-500 ease-out motion-reduce:transition-none"
+        style={{
+          bottom: SAG_HUB_PX,
+          transform: `rotate(${-drawn}deg)`,
+        }}
+      >
+        <div
+          className="absolute inset-x-0 -top-px h-0.5"
+          style={{ backgroundColor: SAG_MINT }}
+        />
+        {label && (
+          <span
+            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap text-[#101014] tabular-nums"
+            style={{ backgroundColor: SAG_MINT }}
+          >
+            {label}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * What the rider-sag calibration step says (firmware V18, SAG1): how far
  * the frame pitched when the rider got on and, with the wheelbase as typed,
@@ -741,7 +838,17 @@ export function ImuSessionSetup({
  * setups have none — and read from it, so it follows the file and not the
  * setup. The numbers are the draft's, as typed.
  */
-function RiderSagReading({ draft }: { draft: Draft }) {
+function RiderSagReading({
+  draft,
+  withRider,
+  onToggleRider,
+}: {
+  draft: Draft;
+  /** Off, the empty bike — the reference the step measures from: 0°, and
+   * no end sunk. */
+  withRider: boolean;
+  onToggleRider: () => void;
+}) {
   const t = useProDict().report.setup.form.riderSag;
   const locale = useProLocale();
   const session = useLoadedSession();
@@ -759,7 +866,7 @@ function RiderSagReading({ draft }: { draft: Draft }) {
   const forkSagMm = positive(damperKey("fork", "sagMm"));
   const mm = (n: number) => `${proNumber(Math.abs(n), locale, 0)} mm`;
 
-  const pitch = attitude.pitchDeg;
+  const pitch = withRider ? attitude.pitchDeg : 0;
   const level = Math.abs(pitch) < RIDER_ATTITUDE_TIE_DEG;
   // Signed, as the pitch is: nose up positive.
   const signedDeg = `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`;
@@ -767,8 +874,9 @@ function RiderSagReading({ draft }: { draft: Draft }) {
     wheelbaseMm != null && !level
       ? rearMinusFrontDropMm(pitch, wheelbaseMm)
       : null;
-  const drops =
-    wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
+  const drops = !withRider
+    ? { frontMm: 0, rearMm: 0 }
+    : wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
       ? riderSagDropsMm({
           pitchDeg: pitch,
           wheelbaseMm,
@@ -783,14 +891,21 @@ function RiderSagReading({ draft }: { draft: Draft }) {
     <div className="space-y-3 rounded-[12px] border border-border p-3 sm:p-4">
       {/* The (i) explains the card (by request, 2026-10-27): what was
           measured, how the mm come out of it, and what it leaves out. */}
-      <div className="flex items-center gap-1.5">
-        <p className="text-lg font-semibold">{t.title}</p>
-        <MetricInfo
-          label={t.title}
-          description={t.infoDescription}
-          method={t.infoMethod}
-          methodLabel={t.infoMethodLabel}
-          footnote={t.infoFootnote}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <p className="text-lg font-semibold">{t.title}</p>
+          <MetricInfo
+            label={t.title}
+            description={t.infoDescription}
+            method={t.infoMethod}
+            methodLabel={t.infoMethodLabel}
+            footnote={t.infoFootnote}
+          />
+        </div>
+        <ModeSwitch
+          label={t.riderToggle}
+          checked={withRider}
+          onToggle={onToggleRider}
         />
       </div>
       {/* The supplied layout (2026-10-27, second pass): the angle large on
@@ -801,7 +916,9 @@ function RiderSagReading({ draft }: { draft: Draft }) {
           {signedDeg}
         </p>
         <p className="text-base leading-tight tabular-nums">
-          {wheelbaseMm == null ? (
+          {!withRider ? (
+            t.emptyBike
+          ) : wheelbaseMm == null ? (
             <span className="text-sm text-muted-foreground">
               {t.needsWheelbase}
             </span>

@@ -294,6 +294,9 @@ const en = {
         /** Each end's vertical drop, from the fork's sag and the head
          * angle — the rear's is the one the sensor measured. */
         displacement: "Estimated vertical displacement",
+        /** The switch between the rider on and the empty bike. */
+        riderToggle: "with Rider",
+        emptyBike: "empty bike, the reference",
         infoDescription:
           "Measures how much the bike tilts when the rider gets on, comparing its position unladen with the rider in their riding position.\n\nPositive angle (+): the rear suspension sank more than the front.",
         infoMethodLabel: "Calculation:",
@@ -612,6 +615,8 @@ const pt: typeof en = {
         same: "Frente e traseira afundam o mesmo",
         needsWheelbase: "Indica a distância entre eixos para ler em mm.",
         displacement: "Deslocamento vertical estimado",
+        riderToggle: "com Rider",
+        emptyBike: "bicicleta vazia, a referência",
         infoDescription:
           "Mede quanto a bicicleta inclina quando o rider sobe, comparando a posição sem peso e com o rider em posição de condução.\n\nÂngulo positivo (+): a suspensão traseira afundou mais do que a dianteira.",
         infoMethodLabel: "Cálculo:",
