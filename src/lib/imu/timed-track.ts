@@ -103,6 +103,19 @@ export function runTrimOf(
   return null;
 }
 
+/**
+ * The name a track drawn at import takes from the run's (2026-10-27): what
+ * the rider wrote after the logger's code — "R0117 - Salgueiro" names it
+ * "Salgueiro" — or the whole name when it has no code. Null when the name
+ * is only the code, "R0117", which says nothing of the trail.
+ */
+export function trackNameOfRun(runName: string): string | null {
+  const name = runName.trim();
+  if (!name || /^[A-Za-z]?\d+$/.test(name)) return null;
+  const rest = /^[A-Za-z]?\d+\s*[-–—]\s*(.+)$/.exec(name)?.[1].trim();
+  return rest || name;
+}
+
 export function isTimedTrackDefinition(
   value: unknown,
 ): value is TimedTrackDefinition {

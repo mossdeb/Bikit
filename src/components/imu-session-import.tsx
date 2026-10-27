@@ -65,6 +65,8 @@ interface ImportItem {
   session: ImuSessionData;
   summary: ImuSessionSummary;
   name: string;
+  /** The logger's code the name started from, "R0126". */
+  base: string;
 }
 
 export function ImuSessionImport({
@@ -160,6 +162,7 @@ export function ImuSessionImport({
           withBikeFrameEvents(alignSession(result.session)),
         ),
         name: track ? `${base} - ${track.name}` : base,
+        base,
       });
     }
     setItems(next);
@@ -171,10 +174,18 @@ export function ImuSessionImport({
     setBusy(true);
     setError(null);
     // One at a time: a new bike or group named in the form is created by
-    // the first and found by name for the rest, never made twice.
+    // the first and found by name for the rest, never made twice. So is a
+    // track: a run that passes none draws one (2026-10-27), and the files
+    // after it of the same trail are runs of it, named after it as if it
+    // had been there when they were picked.
+    let known = tracks ?? (await loadImportTracks());
     for (let i = 0; i < items.length; i++) {
       setProgress(i + 1);
-      const item = items[i];
+      let item = items[i];
+      if (item.name === item.base) {
+        const track = firstTrackPassed(item.session, known);
+        if (track) item = { ...item, name: `${item.base} - ${track.name}` };
+      }
       // The raw file goes up as-is — the storage object IS the raw data,
       // and nothing recorded by the sensor is rewritten on the way in.
       const outcome = await uploadAndRegisterImuSession({
@@ -187,11 +198,15 @@ export function ImuSessionImport({
         bike: bikeRefFromForm(bikeId, newBikeName),
         group: groupRefFromForm(groupId, newGroupName),
         locale,
-        tracks: tracks ?? undefined,
+        tracks: known,
       });
+      // Newest first, as the session page orders them.
+      if (outcome.ok && outcome.track) known = [outcome.track, ...known];
       if (!outcome.ok) {
-        // What landed stays; the list keeps what did not, to try again.
+        // What landed stays; the list keeps what did not, to try again —
+        // with the tracks the landed ones drew, so none is drawn twice.
         setItems(items.slice(i));
+        setTracks(known);
         setProgress(null);
         setBusy(false);
         setError(t.importing.dialog.fileFailed(item.file.name, outcome.error));

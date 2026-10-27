@@ -12,7 +12,9 @@
 import type { Locale } from "@/lib/i18n";
 import { getProDictionary } from "@/lib/i18n/pro";
 import { createClient } from "@/lib/supabase/client";
-import { createImuSession } from "@/lib/actions/imu";
+import { createImuSession, setImuSessionTrim } from "@/lib/actions/imu";
+import { createImuTrack } from "@/lib/actions/imu-tracks";
+import { lookupPlaceName } from "@/lib/imu/place-name";
 import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
 import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
@@ -23,13 +25,19 @@ import { alignSession, sessionSummary } from "@/lib/imu/derive";
 import { withBikeFrameEvents } from "@/lib/imu/events";
 import { suggestTrim, trimSession } from "@/lib/imu/trim";
 import {
+  createTimedTrack,
   findTimedRuns,
   isTimedTrackDefinition,
   runTrimOf,
+  trackNameOfRun,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
 
-export type ImportOutcome = { ok: true } | { ok: false; error: string };
+/** `track` is the track this import drew, when it drew one — for the
+ * caller to count the next files of the same trail on it. */
+export type ImportOutcome =
+  | { ok: true; track: ImportTrack | null }
+  | { ok: false; error: string };
 
 /** One of the account's timed tracks, as an import reads it. */
 export interface ImportTrack {
@@ -111,22 +119,47 @@ export async function uploadAndRegisterImuSession(input: {
   // from the start. The tracks are the account's own (RLS), newest first;
   // a failed read only costs the lines, and the page still applies them
   // when the session is opened.
+  //
+  // A run that passes none of them draws a new track (by request,
+  // 2026-10-27, after R0117 - Salgueiro came in without one): its lines on
+  // the suggested stretch, as the track form would place them, and the
+  // run trimmed to those lines like any other run of a track. Only when it
+  // passes none — a run down a known track never makes a second one.
   let trim: { startMs: number; endMs: number } | null = null;
   let trimByTrack = false;
   let figures = summary;
   let gps = session.gps;
+  let newTrack: TimedTrackDefinition | null = null;
+  let tracks: ImportTrack[] = [];
   if (session.gps) {
     // As the page reads it: aligned, with the bike-frame events.
     const whole = withBikeFrameEvents(alignSession(session));
-    const definitions = (input.tracks ?? (await loadImportTracks())).map(
-      (track) => track.definition,
-    );
+    const prepared = prepareSnapshotSession(whole);
+    tracks = input.tracks ?? (await loadImportTracks());
     trim =
-      definitions.length > 0
-        ? runTrimOf(prepareSnapshotSession(whole), definitions)
+      tracks.length > 0
+        ? runTrimOf(
+            prepared,
+            tracks.map((track) => track.definition),
+          )
         : null;
     trimByTrack = trim != null;
-    trim ??= suggestTrim(whole);
+    if (!trim) {
+      const suggested = suggestTrim(whole);
+      const made = createTimedTrack(
+        prepared,
+        suggested?.startMs ?? 0,
+        suggested?.endMs ?? whole.durationMs,
+      );
+      if (made) {
+        newTrack = made.definition;
+        trim = {
+          startMs: Math.round(made.reference.entryMs),
+          endMs: Math.round(made.reference.exitMs),
+        };
+        trimByTrack = true;
+      } else trim = suggested;
+    }
     // A suggestion that keeps the whole recording is no trim at all.
     if (trim && trim.startMs <= 0 && trim.endMs >= whole.durationMs)
       trim = null;
@@ -161,5 +194,43 @@ export async function uploadAndRegisterImuSession(input: {
     trimByTrack,
   });
   if (result.status === "error") return { ok: false, error: result.message };
-  return { ok: true };
+  if (!newTrack || !session.gps) return { ok: true, track: null };
+
+  // The track after the session, which it names as the run it was drawn
+  // from. Its name: the trail the rider wrote, or else the form's own
+  // suggestion — the place and the account's next number.
+  let trackName = trackNameOfRun(input.name);
+  if (!trackName) {
+    const place = await lookupPlaceName(session.gps, input.locale);
+    const { newTrackName } = getProDictionary(input.locale).tracks;
+    const taken = new Set(tracks.map((track) => track.name.trim()));
+    let n = tracks.length + 1;
+    while (taken.has(newTrackName(place, n))) n++;
+    trackName = newTrackName(place, n);
+  }
+  const made = await createImuTrack({
+    name: trackName,
+    definition: newTrack,
+    referenceSessionId: result.id,
+  });
+  if (made.status === "error") {
+    // The session is in, and stays: only its trim is no longer a track's,
+    // so it is kept as a trim of its own rather than lifted on opening.
+    await setImuSessionTrim({
+      sessionId: result.id,
+      trim,
+      durationMs: figures.durationMs,
+      sampleCount: figures.sampleCount,
+      maxG: figures.maxG,
+      eventCount: figures.eventCount,
+      curveCount: figures.curveCount,
+      jumpCount: figures.jumpCount,
+      impactCount: figures.impactCount,
+      airtimeMs: figures.airtimeMs,
+      trackIndex: buildTrackIndex(gps),
+      byTrack: false,
+    });
+    return { ok: true, track: null };
+  }
+  return { ok: true, track: { name: trackName, definition: newTrack } };
 }

@@ -99,7 +99,7 @@ export interface CreateImuSessionInput {
  */
 export async function createImuSession(
   input: CreateImuSessionInput,
-): Promise<ImuActionResult> {
+): Promise<{ status: "ok"; id: string } | { status: "error"; message: string }> {
   const caller = await labCaller();
   if (caller.status === "error") return caller;
   const { supabase, userId, t } = caller;
@@ -167,7 +167,7 @@ export async function createImuSession(
     setupId = latest?.id ?? null;
   }
 
-  const { error } = await supabase.from("imu_sessions").insert({
+  const { data: created, error } = await supabase.from("imu_sessions").insert({
     user_id: userId,
     bike_id: bikeId,
     group_id: group.id,
@@ -191,11 +191,18 @@ export async function createImuSession(
     trim_start_ms: trim ? Math.round(trim.startMs) : null,
     trim_end_ms: trim ? Math.round(trim.endMs) : null,
     trim_by_track: trim != null && input.trimByTrack === true,
-  });
-  if (error) return { status: "error", message: error.message };
+  })
+    .select("id")
+    .single();
+  if (error || !created)
+    return {
+      status: "error",
+      message: error?.message ?? t.tracks.errors.noResponse,
+    };
 
   revalidatePath("/pro");
-  return { status: "ok" };
+  // The id, for a track drawn from this run at import (2026-10-27).
+  return { status: "ok", id: created.id };
 }
 
 /**

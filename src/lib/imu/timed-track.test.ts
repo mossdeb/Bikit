@@ -8,6 +8,7 @@ import {
   formatRunTime,
   isTimedTrackDefinition,
   runTrimOf,
+  trackNameOfRun,
 } from "./timed-track";
 
 const LAT0 = 37.1;
@@ -125,5 +126,22 @@ describe("timed tracks", () => {
     expect(formatRunGap(108_732, 107_320)).toBe("+1.412 s");
     expect(formatRunGap(107_500, 107_320)).toBeNull();
     expect(formatRunGap(107_320, 107_320)).toBeNull();
+  });
+});
+
+describe("trackNameOfRun", () => {
+  it("takes the trail the rider wrote after the logger's code", () => {
+    expect(trackNameOfRun("R0117 - Salgueiro")).toBe("Salgueiro");
+    expect(trackNameOfRun("S0089 – Casa Velha ")).toBe("Casa Velha");
+    expect(trackNameOfRun("R0022-Xdream")).toBe("Xdream");
+  });
+
+  it("keeps a name without a code whole", () => {
+    expect(trackNameOfRun("Fonte Ferrea")).toBe("Fonte Ferrea");
+  });
+
+  it("has no name for the code alone", () => {
+    expect(trackNameOfRun("R0117")).toBeNull();
+    expect(trackNameOfRun("  ")).toBeNull();
   });
 });
