@@ -38,6 +38,7 @@ import {
 } from "@/components/imu-setup-dynamics";
 import { ImuSetupDocs } from "@/components/imu-setup-docs";
 import { ImuSetupBalance } from "@/components/imu-setup-balance";
+import type { BikeType } from "@/lib/constants";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
 import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
@@ -203,6 +204,7 @@ export function ImuSetupCompareView({
   reference,
   runs,
   labels,
+  bikeType = null,
 }: {
   /** The session this page was reached from: the row every other is
    * read against. */
@@ -211,6 +213,8 @@ export function ImuSetupCompareView({
   runs: ImuSnapshotCandidate[];
   /** What the bike calls its dampers, for the sentence and the tiles. */
   labels: ImuSetupCompareLabels;
+  /** The bike's kind, for its drawing in the Balance. */
+  bikeType?: BikeType | null;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -935,6 +939,7 @@ export function ImuSetupCompareView({
           of one knob on one figure. */}
       {groups.length > 0 && (
         <ImuSetupBalance
+          bikeType={bikeType}
           setups={groups.map((g) => ({
             letter: g.letter,
             setup: g.setup,

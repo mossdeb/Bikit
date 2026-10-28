@@ -675,6 +675,12 @@ const en = {
   balance: {
     title: "Balance",
     subtitle: "How each setup sits, and what each knob did",
+    /** The bike drawn with each setup's rider-sag line (2026-10-28). */
+    art: {
+      title: "Bike Balance",
+      hint: "Each line is a setup's IMU SAG, tilt exaggerated; the pill says the real angle.",
+      none: "No setup here has an IMU SAG reading yet: it needs a file from firmware V18 with the rider-sag step.",
+    },
     standing: {
       title: "How each setup sits",
       setup: "Setup",
@@ -968,6 +974,11 @@ const pt: typeof en = {
   balance: {
     title: "Balance",
     subtitle: "Como cada setup assenta, e o que cada ajuste fez",
+    art: {
+      title: "Bike Balance",
+      hint: "Cada linha é o IMU SAG de um setup, com a inclinação exagerada; a pílula diz o ângulo real.",
+      none: "Nenhum setup aqui tem ainda leitura de IMU SAG: precisa de um ficheiro do firmware V18 com o passo de rider sag.",
+    },
     standing: {
       title: "Como cada setup assenta",
       setup: "Setup",

@@ -7,7 +7,13 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber } from "@/lib/i18n/pro";
-import type { ImuSetupValues } from "@/lib/imu/setup";
+import { normalizeSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
+import type { BikeType } from "@/lib/constants";
+import {
+  BIKE_ICON_FALLBACK,
+  BIKE_TYPE_ICON,
+} from "@/components/bike-type-icon";
+import { BikeBalanceArt } from "@/components/bike-balance-art";
 import type { StoredRiderSag } from "@/lib/imu/rider-sag";
 import {
   knobEffects,
@@ -70,7 +76,9 @@ function median(values: number[]): number | null {
 export function ImuSetupBalance({
   setups,
   metrics,
+  bikeType = null,
 }: {
+  bikeType?: BikeType | null;
   setups: BalanceSetup[];
   /** The figures the effect can be read on, in the table's order. */
   metrics: BalanceMetric[];
@@ -90,6 +98,28 @@ export function ImuSetupBalance({
       s.members.map((m) => m.riderSag),
     ),
   }));
+
+  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
+  // A line per setup with a reading, in its colour, letter and real angle
+  // on the pill; it sinks by the mean drop where the setup gives the
+  // wheelbase, the head angle and the fork's sag.
+  const artLines = balances.flatMap(({ s, b }) => {
+    if (b.pitchDeg == null) return [];
+    const wheelbaseMm = normalizeSetupValues(s.setup).frame?.wheelbaseMm;
+    return [
+      {
+        key: s.letter,
+        pitchDeg: b.pitchDeg,
+        drops:
+          b.frontMm != null && b.rearMm != null && wheelbaseMm
+            ? { frontMm: b.frontMm, rearMm: b.rearMm, wheelbaseMm }
+            : null,
+        colour: colourOf(indexOf.get(s.letter)!),
+        labelInk: "#ffffff",
+        label: `${s.letter} ${signedDeg(b.pitchDeg)}`,
+      },
+    ];
+  });
 
   const effects = useMemo(
     () =>
@@ -232,119 +262,164 @@ export function ImuSetupBalance({
           </p>
         </div>
 
-        {/* The effect of one knob on one figure. */}
-        <div className="mt-6 rounded-[12px] border border-border p-4 sm:p-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <p className="font-semibold">{words.effect.title}</p>
-            {effect && metric && (
-              <div className="flex flex-wrap gap-3">
-                <div className="w-56 space-y-1.5">
-                  <Label htmlFor="balance-knob" className="text-xs">
-                    {words.effect.knob}
-                  </Label>
-                  <NativeSelect
-                    id="balance-knob"
-                    value={effect.knob}
-                    onChange={(e) =>
-                      setKnobPick(e.target.value as EffectKnobId)
-                    }
-                  >
-                    {effects.map((e) => (
-                      <option key={e.knob} value={e.knob}>
-                        {knobName(e.knob)}
-                      </option>
+        {/* The bike with each setup's line on the left, the effect of
+            one knob on the right (by request, 2026-10-28). One column
+            until xl, where the chart still has room beside the drawing. */}
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="flex flex-col rounded-[12px] border border-border p-4 sm:p-5">
+            <p className="font-semibold">{words.art.title}</p>
+            <div className="flex flex-1 items-center justify-center py-6">
+              <BikeBalanceArt BikeMark={BikeMark} lines={artLines} />
+            </div>
+            {artLines.length > 0 ? (
+              <>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+                  {balances
+                    .filter(({ b }) => b.pitchDeg != null)
+                    .map(({ s, b }) => (
+                      <span
+                        key={s.letter}
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        <span
+                          aria-hidden
+                          className="size-2.5 rounded-full"
+                          style={{
+                            backgroundColor: colourOf(indexOf.get(s.letter)!),
+                          }}
+                        />
+                        Setup {s.letter}
+                        <span className="text-muted-foreground tabular-nums">
+                          {signedDeg(b.pitchDeg!)}
+                        </span>
+                      </span>
                     ))}
-                  </NativeSelect>
                 </div>
-                <div className="w-56 space-y-1.5">
-                  <Label htmlFor="balance-metric" className="text-xs">
-                    {words.effect.metric}
-                  </Label>
-                  <NativeSelect
-                    id="balance-metric"
-                    value={metric.key}
-                    onChange={(e) => setMetricPick(e.target.value)}
-                  >
-                    {metrics.map((m) => (
-                      <option key={m.key} value={m.key}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </div>
-              </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {words.art.hint}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">{words.art.none}</p>
             )}
           </div>
-          {!effect || !metric ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {words.effect.none}
-            </p>
-          ) : (
-            <>
-              <EffectChart
-                points={effect.values.flatMap(({ letter, value }) => {
-                  const s = setups.find((x) => x.letter === letter)!;
-                  return s.members.flatMap((m) => {
-                    const y = m.figures?.get(metric.key);
-                    return y == null
-                      ? []
-                      : [{ letter, x: value, y, run: m.name }];
-                  });
-                })}
-                colourOf={(letter) => colourOf(indexOf.get(letter) ?? 0)}
-                xLabel={(v) => `${n(v, v % 1 ? 1 : 0)}${knobUnit(effect.knob)}`}
-                yLabel={(v) =>
-                  `${n(v, metric.digits)}${metric.unit ? ` ${metric.unit}` : ""}`.replace(
-                    " %",
-                    "%",
-                  )
-                }
-                medianWord={words.effect.median}
-                noData={words.effect.noData}
-                tie={metric.tie}
-              />
-              {/* The legend: each setup's colour with its letter and what
-                  the knob was on it. */}
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
-                {effect.values.map(({ letter, value }) => (
-                  <span
-                    key={letter}
-                    className="inline-flex items-center gap-1.5"
-                  >
-                    <span
-                      aria-hidden
-                      className="size-2.5 rounded-full"
-                      style={{
-                        backgroundColor: colourOf(indexOf.get(letter)!),
-                      }}
-                    />
-                    Setup {letter}
-                    <span className="text-muted-foreground tabular-nums">
-                      {n(value, value % 1 ? 1 : 0)}
-                      {knobUnit(effect.knob)}
-                    </span>
-                  </span>
-                ))}
-              </div>
-              <p
-                className={cn(
-                  "mt-3 text-xs",
-                  effect.confounded.length > 0
-                    ? "text-foreground"
-                    : "text-muted-foreground",
-                )}
-              >
-                {effect.confounded.length > 0
-                  ? words.effect.confounded(
-                      effect.confounded.map(knobName).join(", "),
-                    )
-                  : words.effect.clean}{" "}
-                <span className="text-muted-foreground">
-                  {words.effect.note}
-                </span>
+
+          {/* The effect of one knob on one figure. */}
+          <div className="min-w-0 rounded-[12px] border border-border p-4 sm:p-5">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <p className="font-semibold">{words.effect.title}</p>
+              {effect && metric && (
+                <div className="flex flex-wrap gap-3">
+                  <div className="w-56 space-y-1.5">
+                    <Label htmlFor="balance-knob" className="text-xs">
+                      {words.effect.knob}
+                    </Label>
+                    <NativeSelect
+                      id="balance-knob"
+                      value={effect.knob}
+                      onChange={(e) =>
+                        setKnobPick(e.target.value as EffectKnobId)
+                      }
+                    >
+                      {effects.map((e) => (
+                        <option key={e.knob} value={e.knob}>
+                          {knobName(e.knob)}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                  <div className="w-56 space-y-1.5">
+                    <Label htmlFor="balance-metric" className="text-xs">
+                      {words.effect.metric}
+                    </Label>
+                    <NativeSelect
+                      id="balance-metric"
+                      value={metric.key}
+                      onChange={(e) => setMetricPick(e.target.value)}
+                    >
+                      {metrics.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                </div>
+              )}
+            </div>
+            {!effect || !metric ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                {words.effect.none}
               </p>
-            </>
-          )}
+            ) : (
+              <>
+                <EffectChart
+                  points={effect.values.flatMap(({ letter, value }) => {
+                    const s = setups.find((x) => x.letter === letter)!;
+                    return s.members.flatMap((m) => {
+                      const y = m.figures?.get(metric.key);
+                      return y == null
+                        ? []
+                        : [{ letter, x: value, y, run: m.name }];
+                    });
+                  })}
+                  colourOf={(letter) => colourOf(indexOf.get(letter) ?? 0)}
+                  xLabel={(v) =>
+                    `${n(v, v % 1 ? 1 : 0)}${knobUnit(effect.knob)}`
+                  }
+                  yLabel={(v) =>
+                    `${n(v, metric.digits)}${metric.unit ? ` ${metric.unit}` : ""}`.replace(
+                      " %",
+                      "%",
+                    )
+                  }
+                  medianWord={words.effect.median}
+                  noData={words.effect.noData}
+                  tie={metric.tie}
+                />
+                {/* The legend: each setup's colour with its letter and what
+                  the knob was on it. */}
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+                  {effect.values.map(({ letter, value }) => (
+                    <span
+                      key={letter}
+                      className="inline-flex items-center gap-1.5"
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-full"
+                        style={{
+                          backgroundColor: colourOf(indexOf.get(letter)!),
+                        }}
+                      />
+                      Setup {letter}
+                      <span className="text-muted-foreground tabular-nums">
+                        {n(value, value % 1 ? 1 : 0)}
+                        {knobUnit(effect.knob)}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <p
+                  className={cn(
+                    "mt-3 text-xs",
+                    effect.confounded.length > 0
+                      ? "text-foreground"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {effect.confounded.length > 0
+                    ? words.effect.confounded(
+                        effect.confounded.map(knobName).join(", "),
+                      )
+                    : words.effect.clean}{" "}
+                  <span className="text-muted-foreground">
+                    {words.effect.note}
+                  </span>
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </section>
     </div>

@@ -6,6 +6,7 @@ import { ImuSetupCompareView } from "@/components/imu-setup-compare-view";
 import type { ImuSnapshotCandidate } from "@/components/imu-snapshot-view";
 import { formatGroupDay } from "@/lib/imu/groups";
 import type { ImuMountOrientation } from "@/lib/imu/format";
+import type { BikeType } from "@/lib/constants";
 import { isSetupValues, type ImuSetupValues } from "@/lib/imu/setup";
 import { trimOf } from "@/lib/imu/trim";
 import { isStoredRiderSag } from "@/lib/imu/rider-sag";
@@ -60,7 +61,7 @@ export default async function ImuSetupComparePage({
           .eq("bike_id", session.bike_id)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: null }),
-    supabase.from("bikes").select("id, name").eq("user_id", userId),
+    supabase.from("bikes").select("id, name, type").eq("user_id", userId),
     supabase
       .from("imu_session_groups")
       .select("id, name, day")
@@ -144,6 +145,10 @@ export default async function ImuSetupComparePage({
         reference={candidateOf(session)}
         runs={runs.map(candidateOf)}
         labels={labels}
+        bikeType={
+          ((bikes ?? []).find((b) => b.id === session.bike_id)?.type as
+            BikeType | undefined) ?? null
+        }
       />
     </div>
   );
