@@ -69,6 +69,10 @@ const TIE_MS = 200;
 const MAP_PAD = 40;
 /** Half a gate's mark across the trail, px — a tick, not its real width. */
 const GATE_TICK_PX = 12;
+/** The passes' lines fade in over this many pieces, from this opacity at
+ * the entry to full at the dot. */
+const FADE_PIECES = 24;
+const FADE_FROM = 0.05;
 /** The plate's grey made solid — bg-muted/60 over the card. */
 const PLATE_GREY = "color-mix(in srgb, var(--muted) 60%, var(--card))";
 /** The trail drawn about this wide, m — a singletrack's tread — within
@@ -430,7 +434,7 @@ function SimulationMap({
   readout: React.ReactNode;
 }) {
   const [ref, W] = useBoxWidth<HTMLDivElement>();
-  const H = W < 500 ? 280 : 380;
+  const H = W < 500 ? 320 : 460;
 
   // Metres east and north of the reference's entry, fitted with one scale
   // on both axes, north up, on the passes — the trail around runs out of
@@ -468,13 +472,31 @@ function SimulationMap({
     pts.length
       ? `M${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")}`
       : "";
-  const traceLine = (trace: SnapshotPassTrace, upToMs = Infinity) => {
+  const tracePoints = (trace: SnapshotPassTrace, upToMs = Infinity) => {
     const { k, f } = traceSampleAt(trace, upToMs);
     const pts: [number, number][] = [];
     for (let i = 0; i <= k; i++)
       pts.push(place(trace.latDeg[i], trace.lonDeg[i]));
     if (f > 0) pts.push(dotOf(trace, upToMs));
-    return line(pts);
+    return pts;
+  };
+  const traceLine = (trace: SnapshotPassTrace, upToMs = Infinity) =>
+    line(tracePoints(trace, upToMs));
+  // A pass's line fading in from where it entered to its dot (by request,
+  // 2026-10-28): cut into pieces that share their ends, each a shade
+  // stronger than the last. Flat ends, so the pieces meet without the
+  // overlap a round cap would darken.
+  const fadingLine = (trace: SnapshotPassTrace, upToMs: number) => {
+    const pts = tracePoints(trace, upToMs);
+    const n = Math.min(FADE_PIECES, pts.length - 1);
+    return Array.from({ length: Math.max(0, n) }, (_, j) => {
+      const from = Math.floor((j * (pts.length - 1)) / n);
+      const to = Math.floor(((j + 1) * (pts.length - 1)) / n);
+      return {
+        d: line(pts.slice(from, to + 1)),
+        opacity: FADE_FROM + ((1 - FADE_FROM) * (j + 1)) / n,
+      };
+    });
   };
   const dotOf = (trace: SnapshotPassTrace, ms: number): [number, number] =>
     place(
@@ -557,7 +579,9 @@ function SimulationMap({
               outline a shade darker than it, then the plate's own grey,
               solid, so the plate's lines stop at its edge instead of
               showing through, then the grey of the trail — fainter
-              outside the stretch, so the ground compared stands out. */}
+              outside the stretch, so the ground compared stands out. In
+              the dark the stretch is darker than the plate, not lighter (by
+              request, 2026-10-28); the trail either side stays as it was. */}
           {[trailPath, stretchPath].map((d, i) => (
             <path
               key={`edge-${i}`}
@@ -597,7 +621,7 @@ function SimulationMap({
             strokeWidth={trailPx}
             strokeLinecap="butt"
             strokeLinejoin="round"
-            className="text-foreground/[0.07]"
+            className="text-foreground/[0.07] dark:text-black/35"
           />
           {(["entry", "exit"] as const).map((end) => (
             <line
@@ -614,14 +638,18 @@ function SimulationMap({
           {/* Each pass: the ground it has covered, then its dot. */}
           {order.map((p) => (
             <g key={p.key} className={inkOf(p)}>
-              <path
-                d={traceLine(p.trace, cursorMs)}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={p === followed ? 3.5 : 2.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              {fadingLine(p.trace, cursorMs).map((piece, j) => (
+                <path
+                  key={j}
+                  d={piece.d}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeOpacity={piece.opacity}
+                  strokeWidth={p === followed ? 3.5 : 2.5}
+                  strokeLinecap="butt"
+                  strokeLinejoin="round"
+                />
+              ))}
               {(() => {
                 const [x, y] = dotOf(p.trace, cursorMs);
                 return (
