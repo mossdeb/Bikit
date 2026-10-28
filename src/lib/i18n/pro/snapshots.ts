@@ -52,6 +52,8 @@ const en = {
     deltaChart:
       "The gap to the reference along the stretch: above the line behind it, below ahead.",
     select: (name: string): string => `Follow ${name}`,
+    /** The box beside each pass that takes it off the map and the chart. */
+    showOnMap: (name: string): string => `Show ${name} on the map`,
     notShown: (n: number): string =>
       n === 1
         ? "1 more pass is not replayed — narrow them with the filters."
@@ -241,6 +243,7 @@ const pt: typeof en = {
     deltaChart:
       "A diferença para a referência ao longo do troço: acima da linha atrás dela, abaixo à frente.",
     select: (name) => `Seguir ${name}`,
+    showOnMap: (name) => `Mostrar ${name} no mapa`,
     notShown: (n) =>
       n === 1
         ? "Mais 1 passagem não é repetida — reduz com os filtros."

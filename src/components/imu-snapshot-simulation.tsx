@@ -7,7 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Pause, Play } from "lucide-react";
+import { Check, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n";
 import { proNumber } from "@/lib/i18n/pro";
@@ -144,6 +144,16 @@ export function ImuSnapshotSimulation({
   const [cursorMs, setCursorMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [followKey, setFollowKey] = useState<string | null>(null);
+  // The passes taken off the map and the chart by their box in the list
+  // (by request, 2026-10-28). The list keeps them all.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const toggleShown = (key: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const followed =
     passes.find((p) => p.key === followKey) ?? others[0] ?? reference;
 
@@ -208,24 +218,45 @@ export function ImuSnapshotSimulation({
                     ? "better"
                     : "worse";
             return (
-              <li key={p.key}>
+              <li
+                key={p.key}
+                className={cn(
+                  "flex items-start gap-1 rounded-[12px] transition-colors hover:bg-muted/60",
+                  p === followed && "bg-muted",
+                )}
+              >
+                {/* The pass's colour as its box: filled while it is on
+                    the map, an outline when taken off. */}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={!hidden.has(p.key)}
+                  aria-label={words.showOnMap(p.name)}
+                  onClick={() => toggleShown(p.key)}
+                  className={cn(
+                    "mt-3 ml-3 flex size-4 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-current",
+                    inkOf(p),
+                    !hidden.has(p.key) && "bg-current",
+                  )}
+                >
+                  {!hidden.has(p.key) && (
+                    <Check
+                      className="size-3 text-card"
+                      strokeWidth={3}
+                      aria-hidden
+                    />
+                  )}
+                </button>
                 <button
                   type="button"
                   aria-pressed={p === followed}
                   aria-label={words.select(p.name)}
                   onClick={() => setFollowKey(p.key)}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-[12px] px-3 py-3 text-left transition-colors hover:bg-muted/60",
-                    p === followed && "bg-muted",
+                    "flex min-w-0 flex-1 items-start gap-3 py-3 pr-3 pl-2 text-left",
+                    hidden.has(p.key) && "opacity-50",
                   )}
                 >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "mt-[5px] size-2.5 shrink-0 rounded-full bg-current",
-                      inkOf(p),
-                    )}
-                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{p.name}</span>
                     {(p.rider || p.bike) && (
@@ -269,7 +300,7 @@ export function ImuSnapshotSimulation({
 
       <div className="min-w-0">
         <SimulationMap
-          passes={passes}
+          passes={passes.filter((p) => !hidden.has(p.key))}
           reference={reference}
           followed={followed}
           inkOf={inkOf}
@@ -372,7 +403,7 @@ export function ImuSnapshotSimulation({
         </div>
 
         <DeltaChart
-          passes={others}
+          passes={others.filter((p) => !hidden.has(p.key))}
           reference={reference}
           inkOf={inkOf}
           totalMs={totalMs}
@@ -569,7 +600,11 @@ function SimulationMap({
   const stretchPath = traceLine(reference.trace);
   // Cut once per size, not per frame of the replay.
   const contours = useMemo(() => topoContours(W, H), [W, H]);
-  const order = [...passes.filter((p) => p !== followed), followed];
+  // The followed pass on top, when it is on the map at all.
+  const order = [
+    ...passes.filter((p) => p !== followed),
+    ...passes.filter((p) => p === followed),
+  ];
 
   return (
     <div
