@@ -316,7 +316,6 @@ const en = {
         /** The head angle with the rider on: the frame's less the pitch —
          * nose up slackens it (by request, 2026-10-28). */
         headAngle: "Head angle",
-        headAngleCaption: (deg: string): string => `${deg} on the frame chart`,
         dropsNote:
           "Vertical. The front from the fork's sag and the head angle; the rear from the sensor.",
         needsForkSag:
@@ -638,7 +637,6 @@ const pt: typeof en = {
         frontCaption: "pelo SAG do garfo",
         rearCaption: "pelo sensor",
         headAngle: "Ângulo de direção",
-        headAngleCaption: (deg) => `${deg} na tabela do quadro`,
         dropsNote:
           "Na vertical. A frente pelo SAG do garfo e o ângulo de direção; a traseira pelo sensor.",
         needsForkSag:

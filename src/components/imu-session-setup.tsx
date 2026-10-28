@@ -921,11 +921,8 @@ function RiderSagReading({
           {headAngleDeg != null && (
             <div className="border-l border-border pl-5 whitespace-nowrap sm:pl-8">
               <p className="text-sm">{t.headAngle}</p>
-              <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
+              <p className="text-[18px] font-semibold whitespace-nowrap tabular-nums">
                 {proNumber(headAngleDeg - pitch, locale, 1)}°
-              </p>
-              <p className="text-xs leading-snug">
-                {t.headAngleCaption(`${proNumber(headAngleDeg, locale, 1)}°`)}
               </p>
             </div>
           )}
