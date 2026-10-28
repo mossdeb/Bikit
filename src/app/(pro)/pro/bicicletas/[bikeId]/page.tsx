@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { ImuBikeSetups } from "@/components/imu-bike-setups";
-import { ProDeleteBikeButton } from "@/components/pro-bike-actions";
+import { ProBikeMenu } from "@/components/pro-bike-actions";
 import { ImuSessionSetup } from "@/components/imu-session-setup";
 import { buttonVariants } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -127,9 +127,9 @@ export default async function ProBikePage({
                 className: "px-4 dark:hover:bg-foreground/90",
               })}
             />
-            <ProDeleteBikeButton
-              bikeId={bike.id}
-              bikeName={bike.name}
+            {/* Edit and delete behind a ⋯ (by request, 2026-10-28). */}
+            <ProBikeMenu
+              bike={bike}
               sessionCount={t.common.session(sessionCount)}
             />
           </div>

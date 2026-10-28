@@ -388,6 +388,12 @@ const en = {
     upcoming: "Next imports",
     createdOn: (date: string): string => `created ${date}`,
     deleting: "Deleting…",
+    /** The bike's ⋯ menu on its Pro page (2026-10-28): edit and delete. */
+    actions: "Bike options",
+    edit: "Edit",
+    editTitle: "Edit bike",
+    save: "Save",
+    saving: "Saving…",
   },
 };
 
@@ -701,6 +707,11 @@ const pt: typeof en = {
     upcoming: "Próximas importações",
     createdOn: (date) => `criado a ${date}`,
     deleting: "A apagar…",
+    actions: "Opções da bicicleta",
+    edit: "Editar",
+    editTitle: "Editar bicicleta",
+    save: "Guardar",
+    saving: "A guardar…",
   },
 };
 

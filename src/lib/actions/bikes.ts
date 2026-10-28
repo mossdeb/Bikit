@@ -362,6 +362,66 @@ export async function createProBike(input: {
 }
 
 /**
+ * Edits a bike from Bikit Pro (by request, 2026-10-28): the same five facts
+ * the add form asks for, and nothing else — the app's fields (km, Strava,
+ * sensor) are not in the update. Scoped to the owner as well as the id, so
+ * a foreign id changes nothing and says so. A field left empty clears.
+ */
+export async function updateProBike(
+  bikeId: string,
+  input: {
+    name: string;
+    type: string;
+    brand: string;
+    model: string;
+    year: string;
+  },
+): Promise<ProBikeResult> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getClaims();
+  const claims = userData?.claims;
+  const dict = getProDictionary(localeFromMetadata(claims?.user_metadata));
+  const t = dict.report.bikes.errors;
+  const userId = claims?.sub as string | undefined;
+  const email = claims?.email as string | undefined;
+  if (!userId || !hasLabAccess(email))
+    return { status: "error", message: dict.common.noAccess };
+
+  const parsed = bikeSchema.safeParse({
+    name: input.name,
+    type: input.type,
+    brand: input.brand,
+    model: input.model,
+    year: input.year,
+  });
+  if (!parsed.success) return { status: "error", message: t.invalid };
+  const { name, type, brand, model, year } = parsed.data;
+  if (!name && !brand && !model)
+    return { status: "error", message: t.nameRequired };
+
+  const { data, error } = await supabase
+    .from("bikes")
+    .update({
+      name: deriveBikeName(parsed.data),
+      type: type ?? null,
+      brand: brand ?? null,
+      model: model ?? null,
+      year: year ?? null,
+    })
+    .eq("id", bikeId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { status: "error", message: error.message };
+  if (!data) return { status: "error", message: t.notFound };
+  revalidatePath(`/pro/bicicletas/${bikeId}`);
+  revalidatePath("/pro/bicicletas");
+  revalidatePath("/bikes");
+  revalidatePath(`/bikes/${bikeId}`);
+  return { status: "ok", id: data.id };
+}
+
+/**
  * Deletes a bike from Bikit Pro (by request, 2026-10-27). Scoped to the
  * owner as well as the id, so a foreign id deletes nothing and says so.
  * The database does the rest: components, interventions and Strava
