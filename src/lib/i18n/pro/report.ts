@@ -239,10 +239,10 @@ const en = {
     },
     /** The dialog. */
     form: {
-      title: "Setup for this run",
+      title: "Bike Setup",
       triggerTitle: "The bike's setup for this run",
       setupName: "Name",
-      preset: "Bike setup",
+      preset: "Current setup",
       presetNone: "Custom",
       newSetupHint:
         "It starts from the bike's current setup: change at least one value to make a new one.",
@@ -567,10 +567,10 @@ const pt: typeof en = {
       weightVaries: "peso do rider",
     },
     form: {
-      title: "Afinação nesta volta",
+      title: "Bike Setup",
       triggerTitle: "A afinação da bicicleta nesta volta",
       setupName: "Nome",
-      preset: "Setup da bicicleta",
+      preset: "Setup atual",
       presetNone: "Personalizado",
       newSetupHint:
         "Parte da afinação atual da bicicleta: muda pelo menos um valor para criar um setup novo.",

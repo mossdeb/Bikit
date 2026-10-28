@@ -317,7 +317,7 @@ export function ImuSessionSetup({
   /** Looking, not editing (2026-09-24, a bike's setups): the same form
    * with every field held, no note to write and no Guardar. */
   readOnly?: boolean;
-  /** The dialog's title; the dictionary's "Afinação nesta volta" when
+  /** The dialog's title; the dictionary's "Bike Setup" when
    * not given. */
   title?: string;
 }) {
@@ -474,29 +474,35 @@ export function ImuSessionSetup({
         // the documentation's): it rises 48 px into place over 400 ms, no
         // zoom, and sinks back in 250 ms; it keeps 16 px from the window's
         // edges from `sm` and 32 from `lg`, under its own 896 px cap.
-        className="duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:w-[calc(100%-2rem)] sm:max-w-7xl lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)]"
+        // The close disc level with the header's middle (by request,
+        // 2026-10-28): with the 48 px dropdown that middle is 48 px down,
+        // with the title alone 40; the disc is 40 tall.
+        className={cn(
+          "duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:w-[calc(100%-2rem)] sm:max-w-7xl lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)]",
+          showPresets
+            ? "sm:[&>[data-slot=dialog-close-button]]:top-7"
+            : "[&>[data-slot=dialog-close-button]]:top-5",
+        )}
       >
-        <DialogHeader>
+        {/* The bike's setups in the top-right corner, level with the title
+            (by request, 2026-10-28; it stood above the form). Pick one and
+            the form takes its values; what shows is whichever setup the
+            values are, so a value changed by hand shows the blank choice.
+            "Current setup" on its left (2026-10-28).
+            Twice the dialog's gap under it, and well clear of the close
+            button (by request, 2026-10-28). */}
+        <DialogHeader className="mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:pr-20">
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
-          {/* No description under the title (by request, 2026-10-27): the
-              units are on the fields, and the form says the rest. */}
-        </DialogHeader>
-
-        <form
-          className="space-y-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!readOnly) void save();
-          }}
-        >
-          {/* Pick one of the bike's setups and the form takes its values
-              (by request, 2026-10-27); what is shown is whichever setup
-              the form's values are, so a value changed by hand shows the
-              blank choice. */}
           {showPresets && (
-            <div className="max-w-sm space-y-1.5">
-              <Label htmlFor="setup-preset">{t.preset}</Label>
+            <div className="flex w-full items-center gap-3 sm:w-auto">
+              <Label
+                htmlFor="setup-preset"
+                className="shrink-0 text-sm text-muted-foreground"
+              >
+                {t.preset}
+              </Label>
               <NativeSelect
+                wrapperClassName="w-full sm:w-72"
                 id="setup-preset"
                 value={
                   presets.find((p) => p.key === setupKey(fromDraft(draft)))
@@ -516,6 +522,17 @@ export function ImuSessionSetup({
               </NativeSelect>
             </div>
           )}
+          {/* No description under the title (by request, 2026-10-27): the
+              units are on the fields, and the form says the rest. */}
+        </DialogHeader>
+
+        <form
+          className="space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!readOnly) void save();
+          }}
+        >
           {named && (
             <div className="max-w-sm space-y-1.5">
               <Label htmlFor="setup-name">{t.setupName}</Label>
@@ -672,7 +689,9 @@ export function ImuSessionSetup({
                 id="setup-note"
                 value={draftNote}
                 placeholder={t.notesPlaceholder}
-                className="min-h-24"
+                // Half the height it had (by request, 2026-10-28); it
+                // still grows with what is written.
+                className="min-h-12"
                 onChange={(e) => setDraftNote(e.target.value)}
                 readOnly={readOnly}
               />
@@ -792,7 +811,9 @@ function HeightArrow({
  * 2026-10-27): a dashed ground, the bike standing on it, and a mint line
  * across its middle tilted by the rider-sag pitch — rising towards the fork, on the
  * right, when the nose is up — with the angle on a pill and the two ends'
- * heights marked. Level, with no pill, where the file has no reading.
+ * heights marked. Where nothing was read — a bike's setup, with no
+ * recording loaded, or a file without the step — the ground and the bike
+ * alone.
  */
 function SagIllustration({
   BikeMark,
@@ -870,14 +891,17 @@ function SagIllustration({
       {/* The two ends' heights, ground to the line — drawn here and not
           an icon, because an icon cannot stretch without its stroke
           stretching too. */}
-      {(["left-3", "right-3"] as const).map((side) => (
-        <HeightArrow
-          key={side}
-          className={cn("absolute text-foreground/25", side)}
-          height={SAG_LINE_PX - SAG_GROUND_PX}
-          style={{ bottom: SAG_GROUND_PX }}
-        />
-      ))}
+      {/* Only with a reading to show (2026-10-28): a bike's setup, with
+          no recording loaded, keeps the ground and the bike alone. */}
+      {measured != null &&
+        (["left-3", "right-3"] as const).map((side) => (
+          <HeightArrow
+            key={side}
+            className={cn("absolute text-foreground/25", side)}
+            height={SAG_LINE_PX - SAG_GROUND_PX}
+            style={{ bottom: SAG_GROUND_PX }}
+          />
+        ))}
       {/* A 3 px line on screen whatever the size it is drawn at (by
           request, 2026-09-11), the event cards' way. The art faces right,
           towards the fork's card (2026-10-27). */}
@@ -885,29 +909,33 @@ function SagIllustration({
         className="absolute left-1/2 h-auto -translate-x-1/2 text-foreground [&_*]:[stroke-width:3px] [&_*]:[vector-effect:non-scaling-stroke]"
         style={{ width: SAG_ART_W, bottom: SAG_GROUND_PX - 1 }}
       />
-      {/* The line at the bike's middle, lowered by the frame's sink and turned by
+      {measured != null && (
+        <>
+          {/* The line at the bike's middle, lowered by the frame's sink and turned by
           the drawn angle about the middle; nose up turns it anticlockwise. A box of no height, so
           its middle is the line's. */}
-      <div
-        className="absolute inset-x-0 h-0 transition-transform duration-500 ease-out motion-reduce:transition-none"
-        style={{
-          bottom: SAG_LINE_PX,
-          transform: `translateY(${sinkPx}px) rotate(${-drawn}deg)`,
-        }}
-      >
-        <div
-          className="absolute inset-x-0 -top-px h-0.5"
-          style={{ backgroundColor: SAG_MINT }}
-        />
-        {label && (
-          <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap text-[#101014] tabular-nums"
-            style={{ backgroundColor: SAG_MINT }}
+          <div
+            className="absolute inset-x-0 h-0 transition-transform duration-500 ease-out motion-reduce:transition-none"
+            style={{
+              bottom: SAG_LINE_PX,
+              transform: `translateY(${sinkPx}px) rotate(${-drawn}deg)`,
+            }}
           >
-            {label}
-          </span>
-        )}
-      </div>
+            <div
+              className="absolute inset-x-0 -top-px h-0.5"
+              style={{ backgroundColor: SAG_MINT }}
+            />
+            {label && (
+              <span
+                className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap text-[#101014] tabular-nums"
+                style={{ backgroundColor: SAG_MINT }}
+              >
+                {label}
+              </span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
