@@ -102,11 +102,17 @@ export function smoothPiece(pts: LatLon[], i: number): LatLon[] {
   return out;
 }
 
+/** The curve from pts[i] to pts[i + 1] at fraction f of the way. */
+export function curveAt(pts: LatLon[], i: number, f: number): LatLon {
+  return curvePoint(before(pts, i), pts[i], pts[i + 1], after(pts, i + 1), f);
+}
+
 /** A whole line of fixes as a curve through them. */
 export function smoothPolyline(pts: LatLon[]): LatLon[] {
   if (pts.length < 3) return pts.slice();
   const out: LatLon[] = [pts[0]];
-  for (let i = 0; i + 1 < pts.length; i++) out.push(...smoothPiece(pts, i).slice(1));
+  for (let i = 0; i + 1 < pts.length; i++)
+    out.push(...smoothPiece(pts, i).slice(1));
   return out;
 }
 
@@ -137,7 +143,9 @@ export function splinePositionAt(
   const p0 =
     lo > 0 ? at(lo - 1) : ([2 * p1[0] - p2[0], 2 * p1[1] - p2[1]] as LatLon);
   const p3 =
-    hi < m - 1 ? at(hi + 1) : ([2 * p2[0] - p1[0], 2 * p2[1] - p1[1]] as LatLon);
+    hi < m - 1
+      ? at(hi + 1)
+      : ([2 * p2[0] - p1[0], 2 * p2[1] - p1[1]] as LatLon);
   const [latDeg, lonDeg] = curvePoint(p0, p1, p2, p3, f);
   return { latDeg, lonDeg };
 }

@@ -7,6 +7,7 @@ import {
   windowPeak,
 } from "./derive";
 import { lowerBoundIndex, upperBoundIndex } from "./downsample";
+import { curveAt } from "./track-spline";
 // Relative, like the rest of this file's imports: vitest has no config
 // for the `@/` alias, and the tests import this module.
 import type { Locale } from "@/lib/i18n";
@@ -670,6 +671,98 @@ export function snapshotPassPath(
       out.push([track.latDeg[k], track.lonDeg[k]]);
   }
   out.push(at(pass.exitMs));
+  return out;
+}
+
+/** A pass as the simulation replays it (by request, 2026-10-28): where it
+ * was every `stepMs` from the entry gate, how much of its own ground it
+ * had covered, and its speed and G there. The last sample is the exit. */
+export interface SnapshotPassTrace {
+  durationMs: number;
+  stepMs: number;
+  latDeg: number[];
+  lonDeg: number[];
+  /** Share of the pass's ground covered, 0 at the entry to 1 at the exit,
+   * never falling. */
+  progress: number[];
+  /** Null without a speed. */
+  speedKmh: (number | null)[];
+  gForce: number[];
+}
+
+export const SNAPSHOT_TRACE_STEP_MS = 50;
+
+export function snapshotPassTrace(
+  prepared: SnapshotSession,
+  pass: SnapshotPass,
+  stepMs = SNAPSHOT_TRACE_STEP_MS,
+): SnapshotPassTrace | null {
+  const track = prepared.track;
+  if (!track || track.tMs.length < 2) return null;
+  const durationMs = pass.exitMs - pass.entryMs;
+  const d0 = distanceAt(track, pass.entryMs);
+  const length = distanceAt(track, pass.exitMs) - d0;
+  const tMs = prepared.session.channels.tMs;
+  const trace: SnapshotPassTrace = {
+    durationMs,
+    stepMs,
+    latDeg: [],
+    lonDeg: [],
+    progress: [],
+    speedKmh: [],
+    gForce: [],
+  };
+  const steps = Math.ceil(durationMs / stepMs);
+  for (let k = 0; k <= steps; k++) {
+    const at = pass.entryMs + Math.min(k * stepMs, durationMs);
+    const p = curvedPositionAt(track, at);
+    trace.latDeg.push(p.latDeg);
+    trace.lonDeg.push(p.lonDeg);
+    trace.progress.push(
+      length > 0
+        ? Math.min(1, Math.max(0, (distanceAt(track, at) - d0) / length))
+        : k / Math.max(1, steps),
+    );
+    trace.speedKmh.push(
+      prepared.speedKmh ? valueAt(tMs, prepared.speedKmh, at) : null,
+    );
+    trace.gForce.push(valueAt(tMs, prepared.gForce, at));
+  }
+  return trace;
+}
+
+/** Where the bike was at an instant on the curve through the fixes and
+ * not the chords between them (by request, 2026-10-28: the simulation's
+ * lines turned at every fix) — the session map's own spline. */
+function curvedPositionAt(
+  track: SnapshotTrack,
+  timeMs: number,
+): { latDeg: number; lonDeg: number } {
+  const k = segmentAt(track, timeMs);
+  const f = fractionAt(track, k, timeMs);
+  const lo = Math.max(0, k - 1);
+  const hi = Math.min(track.tMs.length - 1, k + 2);
+  const pts: [number, number][] = [];
+  for (let j = lo; j <= hi; j++) pts.push([track.latDeg[j], track.lonDeg[j]]);
+  const [latDeg, lonDeg] = curveAt(pts, k - lo, f);
+  return { latDeg, lonDeg };
+}
+
+/** The ground around a pass, `marginM` before its entry and after its
+ * exit — the trail the simulation draws its stretch on. */
+export function snapshotPassSurroundings(
+  prepared: SnapshotSession,
+  pass: SnapshotPass,
+  marginM: number,
+): [number, number][] {
+  const track = prepared.track;
+  if (!track) return [];
+  const from = distanceAt(track, pass.entryMs) - marginM;
+  const to = distanceAt(track, pass.exitMs) + marginM;
+  const out: [number, number][] = [];
+  for (let k = 0; k < track.tMs.length; k++)
+    if (track.distM[k] >= from && track.distM[k] <= to)
+      out.push([track.latDeg[k], track.lonDeg[k]]);
   return out;
 }
 

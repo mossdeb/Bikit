@@ -35,6 +35,29 @@ const en = {
     airtime: "Airtime",
   },
 
+  /** The replay under the passes (imu-snapshot-simulation, 2026-10-28). */
+  simulation: {
+    title: "Simulation",
+    intro: "Every pass replayed from the entry gate on one clock.",
+    reference: "REF",
+    vsReference: "vs. reference",
+    tie: "≈ reference",
+    atCursor: "At cursor",
+    speed: "km/h",
+    gForce: "G force",
+    play: "Play",
+    pause: "Pause",
+    timeline: "Time from the entry gate",
+    deltaAxis: "Δ time (s)",
+    deltaChart:
+      "The gap to the reference along the stretch: above the line behind it, below ahead.",
+    select: (name: string): string => `Follow ${name}`,
+    notShown: (n: number): string =>
+      n === 1
+        ? "1 more pass is not replayed — narrow them with the filters."
+        : `${n} more passes are not replayed — narrow them with the filters.`,
+  },
+
   /** The Snapshot's page (imu-snapshot-view). */
   view: {
     /** The header's small line over the name, in the comparison that is
@@ -201,6 +224,29 @@ const pt: typeof en = {
     airtime: "No ar",
   },
 
+  simulation: {
+    title: "Simulação",
+    intro:
+      "Todas as passagens repetidas a partir da porta de entrada, no mesmo relógio.",
+    reference: "REF",
+    vsReference: "vs. referência",
+    tie: "≈ referência",
+    atCursor: "No cursor",
+    speed: "km/h",
+    gForce: "Força G",
+    play: "Reproduzir",
+    pause: "Pausa",
+    timeline: "Tempo desde a porta de entrada",
+    deltaAxis: "Δ tempo (s)",
+    deltaChart:
+      "A diferença para a referência ao longo do troço: acima da linha atrás dela, abaixo à frente.",
+    select: (name) => `Seguir ${name}`,
+    notShown: (n) =>
+      n === 1
+        ? "Mais 1 passagem não é repetida — reduz com os filtros."
+        : `Mais ${n} passagens não são repetidas — reduz com os filtros.`,
+  },
+
   view: {
     comparison: "Comparação",
     referenceLabel: "Referência:",
@@ -243,8 +289,7 @@ const pt: typeof en = {
     stopped: "parou",
     noSetupRecorded: "Sem afinação registada",
     sameAsReference: "igual à referência",
-    moreChanges: (n) =>
-      n === 1 ? "mais 1 alteração" : `mais ${n} alterações`,
+    moreChanges: (n) => (n === 1 ? "mais 1 alteração" : `mais ${n} alterações`),
     speedOtherWay: (source) =>
       `Velocidade lida de outra forma (${source}) — as velocidades não se comparam com a referência.`,
     speedSourceGps: "GPS em linha reta",

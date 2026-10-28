@@ -54,6 +54,8 @@ import {
   snapshotKindLabel,
   snapshotPassMetrics,
   snapshotPassPath,
+  snapshotPassSurroundings,
+  snapshotPassTrace,
   type GatePair,
   type SnapshotDefinition,
   type SnapshotKind,
@@ -62,6 +64,11 @@ import {
   type SnapshotSession,
 } from "@/lib/imu/snapshot";
 import { ImuSnapshotMiniMap } from "@/components/imu-snapshot-mini-map";
+import {
+  ImuSnapshotSimulation,
+  SIMULATION_MAX_OTHERS,
+  type SimulationPass,
+} from "@/components/imu-snapshot-simulation";
 import {
   formatSetupChange,
   setupDiff,
@@ -523,7 +530,7 @@ export function ImuSnapshotView({
   // With the reference session gone (deleted), the oldest pass stands in.
   const reference =
     rows.find((r) => r.isReference) ??
-    [...rows].sort(
+    rows.toSorted(
       (a, b) =>
         a.session.createdAt.localeCompare(b.session.createdAt) ||
         a.index - b.index,
@@ -596,7 +603,7 @@ export function ImuSnapshotView({
           ? !r.session.setup
           : (letterOf(r) ?? "") === setupFilter),
     )
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       if (sort === "time") return a.metrics.durationMs - b.metrics.durationMs;
       const byDate =
         b.session.createdAt.localeCompare(a.session.createdAt) ||
@@ -635,7 +642,9 @@ export function ImuSnapshotView({
 
   // The picture of where the Snapshot is: the reference pass's ground and
   // its session's whole track, from the file already read for the rows.
-  const mapData = useMemo(() => {
+  // Left to the compiler to keep between renders: by hand (useMemo) it
+  // could not prove the reference row untouched further down.
+  const mapData = (() => {
     if (!reference) return null;
     const state = loaded.get(reference.session.id);
     if (!state || state.status !== "done" || !state.prepared.track) return null;
@@ -644,8 +653,61 @@ export function ImuSnapshotView({
       lat,
       t.lonDeg[k],
     ]);
-    return { track, section: snapshotPassPath(state.prepared, reference.pass) };
-  }, [reference, loaded]);
+    return {
+      track,
+      section: snapshotPassPath(state.prepared, reference.pass),
+      // The trail either side of the stretch, for the simulation.
+      surroundings: snapshotPassSurroundings(
+        state.prepared,
+        reference.pass,
+        SIMULATION_SURROUNDINGS_M,
+      ),
+    };
+  })();
+
+  // Every pass replayed for the simulation, once per file read.
+  const traces = useMemo(() => {
+    const out = new Map<
+      string,
+      NonNullable<ReturnType<typeof snapshotPassTrace>>
+    >();
+    for (const r of rows) {
+      const state = loaded.get(r.session.id);
+      if (state?.status !== "done") continue;
+      const trace = snapshotPassTrace(state.prepared, r.pass);
+      if (trace) out.set(rowKey(r.session.id, r.index), trace);
+    }
+    return out;
+  }, [rows, loaded]);
+  // The reference and the first passes on show, in the list's order.
+  const simulatedOthers = others
+    .filter((r) => traces.has(rowKey(r.session.id, r.index)))
+    .slice(0, SIMULATION_MAX_OTHERS);
+  const referenceTrace = reference
+    ? traces.get(rowKey(reference.session.id, reference.index))
+    : undefined;
+  const simulated: SimulationPass[] =
+    reference && referenceTrace
+      ? [
+          {
+            key: rowKey(reference.session.id, reference.index),
+            name: reference.session.name,
+            rider: reference.session.riderName,
+            bike: reference.session.bikeName,
+            isReference: true,
+            trace: referenceTrace,
+          },
+          ...simulatedOthers.map((r) => ({
+            key: rowKey(r.session.id, r.index),
+            name: r.session.name,
+            rider: r.session.riderName,
+            bike: r.session.bikeName,
+            isReference: false,
+            trace: traces.get(rowKey(r.session.id, r.index))!,
+          })),
+        ]
+      : [];
+  const notSimulated = others.length - simulatedOthers.length;
 
   return (
     // The pages' rhythm (2026-09-25, the setups page's): 28 px between
@@ -738,10 +800,10 @@ export function ImuSnapshotView({
             {bestMs != null && (
               <p
                 title={t.snapshots.view.bestTime}
-                className="flex items-center gap-2.5 font-display text-[32px] leading-8 font-bold tracking-[-0.6px] tabular-nums"
+                className="flex items-center gap-2 font-display text-[26px] leading-7 font-bold tracking-[-0.5px] tabular-nums"
               >
                 <Timer
-                  className="size-8 shrink-0"
+                  className="size-[26px] shrink-0"
                   strokeWidth={1.75}
                   aria-hidden
                 />
@@ -928,6 +990,15 @@ export function ImuSnapshotView({
           </p>
         )}
       </div>
+
+      {/* The replay of the passes on show (by request, 2026-10-28). */}
+      {pending === 0 && mapData && simulated.length > 1 && (
+        <ImuSnapshotSimulation
+          passes={simulated}
+          surroundings={mapData.surroundings}
+          notShown={notSimulated}
+        />
+      )}
     </div>
   );
 }
@@ -969,6 +1040,11 @@ function FilterPill({
     </label>
   );
 }
+
+/** How much trail the simulation draws either side of the stretch, m. */
+const SIMULATION_SURROUNDINGS_M = 60;
+
+const rowKey = (sessionId: string, index: number) => `${sessionId}:${index}`;
 
 function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
