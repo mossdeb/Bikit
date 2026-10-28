@@ -537,6 +537,8 @@ export function ImuSessionSetup({
                 value={draftName}
                 maxLength={60}
                 placeholder={title ?? t.setupNamePlaceholder}
+                // White on the hatching, as the cards are (2026-10-28).
+                className="bg-card dark:bg-card"
                 onChange={(e) => setDraftName(e.target.value)}
                 readOnly={readOnly}
               />
