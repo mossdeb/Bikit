@@ -272,7 +272,9 @@ const en = {
       wheelbase: "Wheelbase",
       headAngle: "Head angle",
       geometry: "Geometry",
-      sagOfTravel: "of the travel",
+      /** Beside the share on the sag's bar: "33% SAG" (it said "of the
+       * travel" until 2026-10-28). */
+      sagOfTravel: "SAG",
       /** Deleting a bike's setup from its Pro page (2026-10-27). */
       delete: "Delete",
       deleteConfirm: "Confirm delete",
@@ -600,7 +602,7 @@ const pt: typeof en = {
       wheelbase: "Entre eixos",
       headAngle: "Ângulo de direção",
       geometry: "Geometria",
-      sagOfTravel: "do curso",
+      sagOfTravel: "de SAG",
       delete: "Apagar",
       deleteConfirm: "Confirmar apagar",
       deleting: "A apagar…",
