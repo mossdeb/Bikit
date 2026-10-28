@@ -360,25 +360,8 @@ html.imu-lab-texture,
 html.imu-lab-texture body {
   overscroll-behavior-x: none;
 }
-body.imu-lab-texture [data-app-shell] {
-  background-image: radial-gradient(
-    color-mix(in srgb, var(--foreground) 10%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 18px 18px;
-}
-/* Dark carries less of it. One percentage cannot serve both themes: the mix
-   is made from --foreground, which is near-black in light and near-white in
-   dark, so the same number moves the dot in opposite directions. The two
-   also start from different distances — 10% lands the dot 22 levels off the
-   page in light and 23 in dark, and the darker screen shows that separation
-   more. 7% brings dark back to 15. */
-.dark body.imu-lab-texture [data-app-shell] {
-  background-image: radial-gradient(
-    color-mix(in srgb, var(--foreground) 7%, transparent) 1px,
-    transparent 1px
-  );
-}
+/* The dot grid that was here on the shell is gone (by request,
+   2026-10-28): the class now only carries the swipe rule above. */
 
 /* The hatch over an event's stretch in the session plot. The band's flat
    tint says "something is happening here" only by being slightly darker

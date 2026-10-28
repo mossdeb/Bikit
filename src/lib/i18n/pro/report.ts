@@ -306,13 +306,17 @@ const en = {
         infoMethod:
           "uses the measured tilt, the wheelbase and the fork's sag to estimate how far the front and the rear sank.",
         infoFootnote:
-          "Note: the values are estimates and include the tyres' compression. They hold for the calibration that was carried out.",
+          "Note: the values are estimates and include the tyres' compression. They hold for the calibration that was carried out. The head angle with the rider assumes the frame chart's is measured without a rider; some brands publish it already at sag.",
         front: "Front",
         rear: "Rear",
         deeperRear: "deeper at the rear",
         deeperFront: "deeper at the front",
         frontCaption: "from the fork's sag",
         rearCaption: "from the sensor",
+        /** The head angle with the rider on: the frame's less the pitch —
+         * nose up slackens it (by request, 2026-10-28). */
+        headAngle: "Head angle",
+        headAngleCaption: (deg: string): string => `${deg} on the frame chart`,
         dropsNote:
           "Vertical. The front from the fork's sag and the head angle; the rear from the sensor.",
         needsForkSag:
@@ -626,13 +630,15 @@ const pt: typeof en = {
         infoMethod:
           "utiliza a inclinação medida, a distância entre eixos e o SAG do garfo para estimar o afundamento da frente e da traseira.",
         infoFootnote:
-          "Nota: os valores são estimativas e incluem a compressão dos pneus. São válidos para a calibração realizada.",
+          "Nota: os valores são estimativas e incluem a compressão dos pneus. São válidos para a calibração realizada. O ângulo de direção com rider assume que o da tabela do quadro é medido sem rider; algumas marcas publicam-no já em sag.",
         front: "Frente",
         rear: "Traseira",
         deeperRear: "mais afundada atrás",
         deeperFront: "mais afundada à frente",
         frontCaption: "pelo SAG do garfo",
         rearCaption: "pelo sensor",
+        headAngle: "Ângulo de direção",
+        headAngleCaption: (deg) => `${deg} na tabela do quadro`,
         dropsNote:
           "Na vertical. A frente pelo SAG do garfo e o ângulo de direção; a traseira pelo sensor.",
         needsForkSag:

@@ -909,10 +909,27 @@ function RiderSagReading({
       {/* The supplied layout (2026-10-27, second pass): the angle large on
           a tall quiet panel with its meaning in mm beside it, then the
           estimated vertical displacement of each end under its heading. */}
-      <div className="flex min-h-32 items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-5 py-8">
-        <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">
-          {signedDeg}
-        </p>
+      <div className="flex min-h-32 flex-wrap items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-5 py-8">
+        <div className="flex items-center gap-5 sm:gap-8">
+          <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">
+            {signedDeg}
+          </p>
+          {/* The head angle with the rider on, beside the pitch it comes
+              from (by request, 2026-10-28): the frame turns by the pitch and
+              the fork with it, so nose up slackens the angle by as much.
+              Off, the frame chart's own. */}
+          {headAngleDeg != null && (
+            <div className="border-l border-border pl-5 whitespace-nowrap sm:pl-8">
+              <p className="text-sm">{t.headAngle}</p>
+              <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
+                {proNumber(headAngleDeg - pitch, locale, 1)}°
+              </p>
+              <p className="text-xs leading-snug">
+                {t.headAngleCaption(`${proNumber(headAngleDeg, locale, 1)}°`)}
+              </p>
+            </div>
+          )}
+        </div>
         <p className="text-base leading-tight tabular-nums">
           {!withRider ? (
             t.emptyBike
@@ -924,8 +941,8 @@ function RiderSagReading({
             t.same
           ) : (
             <>
-              <span className="whitespace-nowrap">{mm(diff)}</span>
-              <br />
+              {/* On one line (by request, 2026-10-28). */}
+              <span className="whitespace-nowrap">{mm(diff)}</span>{" "}
               {diff > 0 ? t.deeperRear : t.deeperFront}
             </>
           )}

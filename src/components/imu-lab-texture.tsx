@@ -4,6 +4,9 @@ import { useLayoutEffect } from "react";
 
 /**
  * The IMU lab's dot grid, switched on for as long as a lab page is mounted.
+ * The grid itself was taken off on 2026-10-28 (by request): the class now
+ * only switches off the swipe gesture, below; the notes on the texture are
+ * kept for if it comes back.
  *
  * It renders nothing. The texture itself is a background-image on the app
  * shell (see `globals.css`), and this only marks `<body>` so that rule can
