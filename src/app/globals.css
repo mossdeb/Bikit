@@ -169,6 +169,15 @@
   --chart-4: #e0442f;
   --chart-5: #8a8d93;
 
+  /* One colour per setup in the comparison's Balance (2026-10-28): the
+     dataviz reference palette's first five slots, validated light and
+     dark — identity only, never a verdict. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+
   /* Sidebar and "emphasis" cards (dashboard spotlight tiles) share one
      near-black surface in light mode. In dark mode --emphasis gets its own
      lighter value instead (see below) — the sidebar reads fine near-black
@@ -233,6 +242,12 @@
   --chart-3: #edaa4e;
   --chart-4: #ec8271;
   --chart-5: #93969c;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
 
   --sidebar: #1c1c1c;
   --sidebar-foreground: #f5f3ee;

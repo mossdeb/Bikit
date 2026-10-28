@@ -1,5 +1,6 @@
 "use client";
 
+import type { StoredRiderSag } from "@/lib/imu/rider-sag";
 import {
   Fragment,
   useEffect,
@@ -100,6 +101,10 @@ export interface ImuSnapshotCandidate {
    * recording — every loader crops by it, so a pass is found on the same
    * timeline the analysis shows. */
   trim: ImuSessionTrim | null;
+  /** The run's rider-sag reading as its row keeps it (migration 00052),
+   * for the setup comparison's Balance (2026-10-28). Absent or null
+   * without one. */
+  riderSag?: StoredRiderSag | null;
 }
 
 export interface ImuSnapshotRow {

@@ -37,6 +37,7 @@ import {
   type SetupPair,
 } from "@/components/imu-setup-dynamics";
 import { ImuSetupDocs } from "@/components/imu-setup-docs";
+import { ImuSetupBalance } from "@/components/imu-setup-balance";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
 import { proNumber, proPercent, type ProDictionary } from "@/lib/i18n/pro";
@@ -929,6 +930,50 @@ export function ImuSetupCompareView({
           </section>
         </div>
       )}
+      {/* Balance, under "In detail" (by request, 2026-10-28; it sat
+          under the dynamics first): how each setup sits, and the effect
+          of one knob on one figure. */}
+      {groups.length > 0 && (
+        <ImuSetupBalance
+          setups={groups.map((g) => ({
+            letter: g.letter,
+            setup: g.setup,
+            members: g.members.map((m) => {
+              const r = reportOf(m);
+              return {
+                id: m.id,
+                name: m.name,
+                createdAt: m.createdAt,
+                riderSag: m.riderSag ?? null,
+                figures: r
+                  ? new Map(
+                      [
+                        ...r.rider.metrics,
+                        ...r.bike.metrics,
+                        ...r.trail.metrics,
+                      ]
+                        .filter((x) => x.raw != null)
+                        .map((x) => [x.key, x.raw!]),
+                    )
+                  : null,
+              };
+            }),
+          }))}
+          metrics={COLUMNS.map((c) => {
+            const m = referenceReport
+              ? metricOf(referenceReport, c.metric)
+              : null;
+            return {
+              key: c.metric,
+              label: words.columns[c.key].name,
+              unit: m ? unitOf(m) : "",
+              digits: m ? digitsOf(m) : 1,
+              tie: m?.tie ?? 0,
+            };
+          })}
+        />
+      )}
+
       {SHOW_BEST && shown && (
         <div className={cn("rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
           <section className="px-5 py-6 sm:px-8 sm:py-[22px]">

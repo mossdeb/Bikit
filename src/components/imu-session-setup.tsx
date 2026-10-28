@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { MetricInfo } from "@/components/imu-setup-compare-view";
+import { sagTone } from "@/lib/imu/setup-balance";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
@@ -139,16 +140,8 @@ function draftSagPercent(draft: Draft, block: "fork" | "shock") {
 /** The bar's scale, %: 0 to 50 marked, and a hatched stretch past it. */
 const SAG_BAR_MAX = 55;
 const SAG_BAR_TICKS = [0, 10, 20, 30, 40, 50];
-/** Where a sag reads as the trade sets it, %: the fork's 15–30 and the
- * shock's 25–35. Inside, the bar is green; outside, amber; from
- * SAG_BAR_DANGER up, red (by request, 2026-10-27) — half the travel gone
- * before the first bump. A guide, not a rule — the manufacturer's chart
- * is. */
-const SAG_BAR_DANGER = 50;
-const SAG_RANGE: Record<"fork" | "shock", [number, number]> = {
-  fork: [15, 30],
-  shock: [25, 35],
-};
+/** The bar's colours follow sagTone (src/lib/imu/setup-balance.ts): green
+ * inside the usual range, amber outside it, red from half the travel. */
 
 /**
  * The sag's share of the travel as a bar (the supplied layout, 2026-10-27):
@@ -160,9 +153,9 @@ function SagBar({ draft, block }: { draft: Draft; block: "fork" | "shock" }) {
   const t = useProDict().report.setup.form;
   const locale = useProLocale();
   const pct = draftSagPercent(draft, block);
-  const [lo, hi] = SAG_RANGE[block];
-  const inRange = pct != null && pct >= lo && pct <= hi;
-  const danger = pct != null && pct >= SAG_BAR_DANGER;
+  const tone = pct != null ? sagTone(block, pct) : null;
+  const inRange = tone === "good";
+  const danger = tone === "danger";
   const at = (v: number) =>
     `${(Math.min(v, SAG_BAR_MAX) / SAG_BAR_MAX) * 100}%`;
   return (
@@ -489,9 +482,12 @@ export function ImuSessionSetup({
             the form takes its values; what shows is whichever setup the
             values are, so a value changed by hand shows the blank choice.
             "Current setup" on its left (2026-10-28).
+            The supplied layout (2026-10-28): the header a white band over
+            a rule, the form under it on hatching edge to edge, the cards
+            white on it.
             Twice the dialog's gap under it, and well clear of the close
             button (by request, 2026-10-28). */}
-        <DialogHeader className="mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:pr-20">
+        <DialogHeader className="-mx-6 -mt-6 border-b border-border px-6 py-6 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:pr-20">
           <DialogTitle className="text-2xl">{title ?? t.title}</DialogTitle>
           {showPresets && (
             <div className="flex w-full items-center gap-3 sm:w-auto">
@@ -527,7 +523,7 @@ export function ImuSessionSetup({
         </DialogHeader>
 
         <form
-          className="space-y-5"
+          className="imu-event-band -mx-6 -mt-4 -mb-6 space-y-5 px-6 py-6 sm:px-8 sm:py-8"
           onSubmit={(e) => {
             e.preventDefault();
             if (!readOnly) void save();
@@ -546,13 +542,14 @@ export function ImuSessionSetup({
               />
             </div>
           )}
-          {/* The supplied layout (2026-09-11, second pass): the suspension
-              on one hatched plate — the fork's card, the bike's mark on the
+          {/* The supplied layout (2026-09-11, second pass; the plates lost
+              their hatching and outline 2026-10-28): the suspension
+              on one plate — the fork's card, the bike's mark on the
               hatching, the shock's card — and the tyres on a plate of their
               own under it, so the two systems read as two things. The mark
               is a desktop affair; stacked on a phone the two cards follow
               each other and it would be a picture between forms. */}
-          <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
+          <div className="rounded-[18px]">
             {/* Three equal columns (the supplied layout, 2026-10-27): the
                 shock, the bike's geometry with its rider-sag reading, the
                 fork (swapped by request the same day). Between `sm` and
@@ -570,7 +567,7 @@ export function ImuSessionSetup({
               {/* The bike's own card: the frame's wheelbase and head angle,
                   its mark, and the rider-sag reading they turn into mm (by
                   request, 2026-10-27). */}
-              <div className="order-last flex flex-col gap-4 rounded-[14px] border border-border bg-card p-4 sm:col-span-2 sm:p-5 lg:order-none lg:col-span-1">
+              <div className="order-last flex flex-col gap-4 rounded-[18px] bg-card p-4 sm:col-span-2 sm:p-5 lg:order-none lg:col-span-1 border border-border">
                 <p className="text-lg font-semibold">{t.geometry}</p>
                 <div className="grid grid-cols-2 gap-3 rounded-[12px] border border-border p-3">
                   <NumberField
@@ -627,9 +624,9 @@ export function ImuSessionSetup({
           {/* The tyres and the rider side by side on the second plate (the
               supplied layout, 2026-09-11): two thirds and one third, stacked
               on a phone. */}
-          <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
+          <div className="rounded-[18px]">
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr] sm:gap-4">
-              <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-[18px] bg-card p-4 sm:p-5 border border-border">
                 <p className="text-lg font-semibold">{t.tyres}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 sm:gap-4">
                   {/* The rear first, as the shock's card is (2026-10-27). */}
@@ -657,7 +654,7 @@ export function ImuSessionSetup({
                   />
                 </div>
               </div>
-              <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+              <div className="rounded-[18px] bg-card p-4 sm:p-5 border border-border">
                 <p className="text-lg font-semibold">Rider</p>
                 <div className="mt-3">
                   <NumberField
@@ -681,9 +678,10 @@ export function ImuSessionSetup({
             />
           )}
 
-          {/* Read-only, the note shows only when there is one to read. */}
+          {/* Read-only, the note shows only when there is one to read.
+              In a white card on the hatching, the others' (2026-10-28). */}
           {(!readOnly || draftNote.trim()) && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 rounded-[18px] border border-border bg-card p-4 sm:p-5">
               <Label htmlFor="setup-note">{t.notes}</Label>
               <Textarea
                 id="setup-note"
@@ -1110,8 +1108,8 @@ function RiderSagHistory({
     wheelbase > 0;
   const deg = (n: number) => `${proNumber(Math.abs(n), locale, 1)}°`;
   return (
-    <div className="imu-event-band rounded-[18px] border border-border p-3 sm:p-4">
-      <div className="rounded-[14px] border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-[18px]">
+      <div className="rounded-[18px] bg-card p-4 sm:p-5 border border-border">
         <p className="text-lg font-semibold">{t.historyTitle}</p>
         <p className="mt-1 text-xs text-muted-foreground">{t.historyHint}</p>
         <ul className="mt-3 divide-y divide-border">
@@ -1207,7 +1205,7 @@ function DamperBlock({
   const springKey = damperKey(block, "spring");
   const air = draft[springKey] !== "coil";
   return (
-    <div className="space-y-6 rounded-[14px] border border-border bg-card p-4 sm:p-5">
+    <div className="space-y-6 rounded-[18px] bg-card p-4 sm:p-5 border border-border">
       <div className="flex items-center justify-between gap-3">
         <p className="text-lg font-semibold">{heading}</p>
         <ModeSwitch

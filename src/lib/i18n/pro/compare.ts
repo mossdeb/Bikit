@@ -565,7 +565,7 @@ const en = {
   header: {
     /** The bike's name over the title, when the session has no bike. */
     fallbackBike: "Setups",
-    title: "Compare setups",
+    title: "Compare Setups in this track",
     reference: "Reference:",
     /** "3 other runs of the same bike and the same rider on the same
      * trail". */
@@ -671,6 +671,42 @@ const en = {
     rear: "Rear",
   },
 
+  /** The Balance section under the dynamics (2026-10-28). */
+  balance: {
+    title: "Balance",
+    subtitle: "How each setup sits, and what each knob did",
+    standing: {
+      title: "How each setup sits",
+      setup: "Setup",
+      forkSag: "Fork sag",
+      shockSag: "Shock sag",
+      imuSag: "IMU SAG",
+      rearMinusFront: "Rear − front",
+      frontDrop: "Front drop",
+      rearDrop: "Rear drop",
+      calibrations: (n: number): string =>
+        n === 1 ? "1 calibration" : `${n} calibrations`,
+      footnote:
+        "IMU SAG comes from the logger's rider-sag step; a calibration counts once, however many runs repeat it. The mm need the wheelbase, and each end's drop the head angle and the fork's sag, in the setup.",
+    },
+    effect: {
+      title: "Effect of a knob",
+      knob: "Knob",
+      metric: "Figure",
+      none: "Appears once two setups differ in a knob.",
+      noData: "No run of these setups has this figure yet.",
+      clean: "Only this knob changed between these setups.",
+      confounded: (names: string): string =>
+        `Not this knob's alone: ${names} also changed between these setups.`,
+      note: "Each dot is a run; the line joins each setup's median. A difference inside the figure's tie is noise.",
+      sagPct: "sag %",
+      tyreFront: "front tyre",
+      tyreRear: "rear tyre",
+      riderWeight: "rider weight",
+      runs: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
+      median: "median",
+    },
+  },
   dynamics: {
     title: "Dynamics",
     subtitle: "Balance and behaviour of the setup",
@@ -846,7 +882,7 @@ const pt: typeof en = {
 
   header: {
     fallbackBike: "Afinações",
-    title: "Comparar Setups",
+    title: "Comparar setups nesta pista",
     reference: "Referência:",
     otherRuns: (n, sameRider) =>
       `${n === 1 ? "1 outra volta" : `${n} outras voltas`} da mesma bicicleta${sameRider ? " e do mesmo rider" : ""} na mesma pista`,
@@ -929,6 +965,40 @@ const pt: typeof en = {
     rear: "Trás",
   },
 
+  balance: {
+    title: "Balance",
+    subtitle: "Como cada setup assenta, e o que cada ajuste fez",
+    standing: {
+      title: "Como cada setup assenta",
+      setup: "Setup",
+      forkSag: "Sag do garfo",
+      shockSag: "Sag do amortecedor",
+      imuSag: "IMU SAG",
+      rearMinusFront: "Traseira − frente",
+      frontDrop: "Descida da frente",
+      rearDrop: "Descida da traseira",
+      calibrations: (n) => (n === 1 ? "1 calibração" : `${n} calibrações`),
+      footnote:
+        "O IMU SAG vem do passo de rider sag do logger; cada calibração conta uma vez, por muitas runs que a repitam. Os mm precisam da distância entre eixos, e a descida de cada ponta do ângulo de direção e do SAG do garfo, no setup.",
+    },
+    effect: {
+      title: "Efeito de um ajuste",
+      knob: "Ajuste",
+      metric: "Métrica",
+      none: "Aparece quando dois setups diferirem num ajuste.",
+      noData: "Nenhuma run destes setups tem ainda esta métrica.",
+      clean: "Só este ajuste mudou entre estes setups.",
+      confounded: (names) =>
+        `Não é só deste ajuste: ${names} também mudou entre estes setups.`,
+      note: "Cada ponto é uma run; a linha liga a mediana de cada setup. Uma diferença dentro do empate da métrica é ruído.",
+      sagPct: "sag %",
+      tyreFront: "pneu da frente",
+      tyreRear: "pneu de trás",
+      riderWeight: "peso do rider",
+      runs: (n) => (n === 1 ? "1 run" : `${n} runs`),
+      median: "mediana",
+    },
+  },
   dynamics: {
     title: "Dinâmica",
     subtitle: "Equilíbrio e comportamento do setup",

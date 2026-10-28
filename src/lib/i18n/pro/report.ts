@@ -279,9 +279,10 @@ const en = {
       deleting: "Deleting…",
       deleteWarning: (sessions: string): string =>
         `The sessions that rode on it (${sessions}) stay, with no setup. This cannot be undone.`,
-      /** The rider-sag calibration step, read from the file (firmware V18). */
+      /** The rider-sag calibration step, read from the file (firmware V18).
+       * Its card is "Bike Balance" (by request, 2026-10-28; was "IMU SAG"). */
       riderSag: {
-        title: "IMU SAG",
+        title: "Bike Balance",
         noseUp: (deg: string): string => `${deg} nose up`,
         noseDown: (deg: string): string => `${deg} nose down`,
         level: "Frame level",
@@ -606,7 +607,7 @@ const pt: typeof en = {
       deleteWarning: (sessions) =>
         `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
-        title: "IMU SAG",
+        title: "Bike Balance",
         noseUp: (deg) => `${deg} nariz acima`,
         noseDown: (deg) => `${deg} nariz abaixo`,
         level: "Quadro nivelado",
