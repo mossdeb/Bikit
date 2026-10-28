@@ -18,8 +18,8 @@ import { smoothPolyline } from "@/lib/imu/track-spline";
 import { topoContours } from "@/lib/topo-contours";
 import type { SnapshotPassTrace } from "@/lib/imu/snapshot";
 import {
-  alignTrace,
   gapToReferenceAt,
+  laneTrace,
   traceSampleAt,
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
@@ -121,10 +121,20 @@ export function ImuSnapshotSimulation({
   const words = t.snapshots.simulation;
   const reference =
     passesAsRecorded.find((p) => p.isReference) ?? passesAsRecorded[0];
-  // Each pass laid on the reference's line: a run's GPS sits a few metres
-  // off the same way all along, and drew the corner beside itself.
-  const passes = passesAsRecorded.map((p) =>
-    p === reference ? p : { ...p, trace: alignTrace(p.trace, reference.trace) },
+  // Each pass in the reference's lane: along the stretch by its own share
+  // of the ground, to the side by its line less its GPS's steady offset,
+  // within the trail (laneTrace). Once per set of passes, not per frame.
+  const passes = useMemo(
+    () =>
+      passesAsRecorded.map((p) =>
+        p === reference
+          ? p
+          : {
+              ...p,
+              trace: laneTrace(p.trace, reference.trace, TRAIL_WIDTH_M / 2),
+            },
+      ),
+    [passesAsRecorded, reference],
   );
   const others = passes.filter((p) => p !== reference);
   const inkOf = (p: SimulationPass) =>
@@ -434,6 +444,17 @@ function SimulationMap({
   readout: React.ReactNode;
 }) {
   const [ref, W] = useBoxWidth<HTMLDivElement>();
+  // The pass under the mouse and where the mouse is, for its pill.
+  const [hover, setHover] = useState<{
+    key: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const readHover = (key: string, e: ReactPointerEvent<SVGPathElement>) => {
+    const box = ref.current?.getBoundingClientRect();
+    if (box) setHover({ key, x: e.clientX - box.left, y: e.clientY - box.top });
+  };
+  const hovered = hover && passes.find((p) => p.key === hover.key);
   const H = W < 500 ? 320 : 460;
 
   // Metres east and north of the reference's entry, fitted with one scale
@@ -662,6 +683,19 @@ function SimulationMap({
                   />
                 );
               })()}
+              {/* Wider than the line and unseen, so the mouse finds it. */}
+              <path
+                d={traceLine(p.trace, cursorMs)}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={12}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pointerEvents="stroke"
+                className="cursor-default"
+                onPointerMove={(e) => readHover(p.key, e)}
+                onPointerLeave={() => setHover(null)}
+              />
             </g>
           ))}
         </svg>
@@ -686,6 +720,29 @@ function SimulationMap({
         </svg>
         N
       </span>
+      {/* The run and its rider over the line the mouse is on (by request,
+          2026-10-28). */}
+      {hover && hovered && (
+        <div
+          className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-full items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm whitespace-nowrap shadow-sm"
+          style={{
+            left: Math.min(W - 80, Math.max(80, hover.x)),
+            top: hover.y - 10,
+          }}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "size-2.5 shrink-0 rounded-full bg-current",
+              inkOf(hovered),
+            )}
+          />
+          <span className="font-medium">{hovered.name}</span>
+          {hovered.rider && (
+            <span className="text-muted-foreground">{hovered.rider}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

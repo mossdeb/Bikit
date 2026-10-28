@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SnapshotPassTrace } from "./snapshot";
 import {
-  alignTrace,
+  laneTrace,
   gapToReferenceAt,
   traceTimeAtProgress,
   traceValueAt,
@@ -49,17 +49,47 @@ describe("the simulation's gaps", () => {
   });
 });
 
-describe("alignTrace", () => {
-  it("moves a line by its mean distance from the reference", () => {
-    const reference = steady(8000);
-    reference.latDeg = reference.progress.map((p) => p * 0.001);
-    reference.lonDeg = reference.progress.map(() => 0);
-    const beside = steady(9000);
-    beside.latDeg = beside.progress.map((p) => p * 0.001);
-    beside.lonDeg = beside.progress.map(() => 0.00005);
-    const aligned = alignTrace(beside, reference);
-    expect(aligned.lonDeg[0]).toBeCloseTo(0, 9);
-    expect(aligned.latDeg.at(-1)).toBeCloseTo(0.001, 9);
-    expect(aligned.durationMs).toBe(9000);
+describe("laneTrace", () => {
+  const M = 1 / (6_371_000 * (Math.PI / 180));
+  /** A line north along the reference, `east` metres to its side at each
+   * share of the ground. */
+  function north(durationMs: number, east: (p: number) => number) {
+    const t = steady(durationMs);
+    t.latDeg = t.progress.map((p) => p * 100 * M);
+    t.lonDeg = t.progress.map((p) => east(p) * M);
+    return t;
+  }
+
+  it("takes off a pass's steady offset and keeps it on the gates", () => {
+    const reference = north(8000, () => 0);
+    const lane = laneTrace(
+      north(9000, () => 5),
+      reference,
+      1.25,
+    );
+    expect(lane.lonDeg[0] / M).toBeCloseTo(0, 6);
+    expect(lane.latDeg[0] / M).toBeCloseTo(0, 6);
+    expect(lane.latDeg.at(-1)! / M).toBeCloseTo(100, 6);
+    expect(lane.lonDeg.at(-1)! / M).toBeCloseTo(0, 6);
+  });
+
+  it("keeps the line ridden, within the trail", () => {
+    const reference = north(8000, () => 0);
+    // Half a metre wider in the middle, on a 5 m GPS offset.
+    const wide = laneTrace(
+      north(8000, (p) => 5 + 0.5 * Math.sin(Math.PI * p)),
+      reference,
+      1.25,
+    );
+    const mid = Math.round((wide.lonDeg.length - 1) / 2);
+    const ends = (wide.lonDeg[0] + wide.lonDeg.at(-1)!) / 2;
+    expect((wide.lonDeg[mid] - ends) / M).toBeCloseTo(0.5, 1);
+    const far = laneTrace(
+      north(8000, (p) => 20 * Math.sin(Math.PI * p)),
+      reference,
+      1.25,
+    );
+    for (const lon of far.lonDeg)
+      expect(Math.abs(lon / M)).toBeLessThanOrEqual(1.25 + 1e-6);
   });
 });
