@@ -1058,7 +1058,7 @@ function RiderSagReading({
             <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
               {value != null ? mm(value) : "–"}
             </p>
-            <p className="text-sm">{caption}</p>
+            <p className="text-xs leading-snug">{caption}</p>
           </div>
         ))}
       </div>
