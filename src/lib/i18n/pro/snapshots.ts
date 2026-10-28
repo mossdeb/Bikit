@@ -47,13 +47,22 @@ const en = {
     referenceDeleted: "The reference session was deleted",
     gatesFromEvent: (metres: number): string =>
       `gates ${metres} m from the event`,
+    /** The stopwatch beside the map: the fastest pass on show
+     * (2026-10-28). */
+    bestTime: "Best time",
+    /** Pills reading "Bike: All" (2026-10-28), so the options are short —
+     * the label stands outside the list. */
     filters: {
+      track: "Tracks",
+      allTracks: "All",
+      group: "Group",
+      allGroups: "All",
       bike: "Bike",
-      allBikes: "All bikes",
+      allBikes: "All",
       rider: "Rider",
-      allRiders: "All riders",
+      allRiders: "All",
       setup: "Setup",
-      allSetups: "All setups",
+      allSetups: "All",
       noSetup: "No setup",
       order: "Order",
       newestFirst: "Newest first",
@@ -198,13 +207,18 @@ const pt: typeof en = {
     atTime: (time) => `aos ${time}`,
     referenceDeleted: "A sessão de referência foi apagada",
     gatesFromEvent: (metres) => `portas a ${metres} m do evento`,
+    bestTime: "Melhor tempo",
     filters: {
+      track: "Pistas",
+      allTracks: "Todas",
+      group: "Grupo",
+      allGroups: "Todos",
       bike: "Bicicleta",
-      allBikes: "Todas as bicicletas",
+      allBikes: "Todas",
       rider: "Rider",
-      allRiders: "Todos os riders",
+      allRiders: "Todos",
       setup: "Afinação",
-      allSetups: "Todas as afinações",
+      allSetups: "Todas",
       noSetup: "Sem afinação",
       order: "Ordem",
       newestFirst: "Mais recentes primeiro",

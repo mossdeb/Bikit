@@ -11,7 +11,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Ellipsis, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronDown, Ellipsis, Timer, Trash2 } from "lucide-react";
 import { SnapshotKindMark } from "@/components/imu-event-icons";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import {
   Popover,
   PopoverContent,
@@ -46,13 +45,16 @@ import type { ImuMountOrientation } from "@/lib/imu/format";
 import { formatSessionTime } from "@/lib/imu/derive";
 import { loadImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
+import { formatRunTime } from "@/lib/imu/timed-track";
 import {
   findSnapshotPasses,
+  passWithinGates,
   prepareSnapshotSession,
   SNAPSHOT_GATE_OFFSET_M,
   snapshotKindLabel,
   snapshotPassMetrics,
   snapshotPassPath,
+  type GatePair,
   type SnapshotDefinition,
   type SnapshotKind,
   type SnapshotPass,
@@ -105,6 +107,9 @@ export interface ImuSnapshotCandidate {
    * for the setup comparison's Balance (2026-10-28). Absent or null
    * without one. */
   riderSag?: StoredRiderSag | null;
+  /** The timed tracks the recording comes near (src/lib/imu/timed-track),
+   * for the track filter (2026-10-28). Absent where nobody filters. */
+  tracks?: { id: string; name: string; definition: GatePair }[];
 }
 
 export interface ImuSnapshotRow {
@@ -130,7 +135,11 @@ type Loaded =
       /** Kept for the map: the reference's track and the ground between
        * its gates are drawn from it. */
       prepared: SnapshotSession;
-      passes: { pass: SnapshotPass; metrics: SnapshotPassMetrics }[];
+      passes: {
+        pass: SnapshotPass;
+        metrics: SnapshotPassMetrics;
+        trackIds: string[];
+      }[];
     };
 
 export interface SnapshotPassRow {
@@ -141,6 +150,8 @@ export interface SnapshotPassRow {
   pass: SnapshotPass;
   metrics: SnapshotPassMetrics;
   isReference: boolean;
+  /** The timed tracks the pass was ridden on — tracks share stretches. */
+  trackIds?: string[];
 }
 
 /** A pass found again in the reference session within this of the entry
@@ -374,6 +385,8 @@ export function ImuSnapshotView({
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(candidates.map((c) => [c.id, { status: "loading" }])),
   );
+  const [trackFilter, setTrackFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
   const [bikeFilter, setBikeFilter] = useState("");
   const [riderFilter, setRiderFilter] = useState("");
   const [setupFilter, setSetupFilter] = useState("");
@@ -459,6 +472,11 @@ export function ImuSnapshotView({
               (pass) => ({
                 pass,
                 metrics: snapshotPassMetrics(prepared, pass),
+                trackIds: (c.tracks ?? [])
+                  .filter((track) =>
+                    passWithinGates(prepared, pass, track.definition),
+                  )
+                  .map((track) => track.id),
               }),
             ),
           };
@@ -481,7 +499,7 @@ export function ImuSnapshotView({
     for (const session of candidates) {
       const state = loaded.get(session.id);
       if (!state || state.status !== "done") continue;
-      state.passes.forEach(({ pass, metrics }, i) => {
+      state.passes.forEach(({ pass, metrics, trackIds }, i) => {
         // The reference is the pass the Snapshot was made from: the one
         // in its session that crossed the entry gate when the row says.
         const isReference =
@@ -495,6 +513,7 @@ export function ImuSnapshotView({
           pass,
           metrics,
           isReference,
+          trackIds,
         });
       });
     }
@@ -512,6 +531,14 @@ export function ImuSnapshotView({
     null;
   const referenceLost = reference != null && !reference.isReference;
 
+  // Only the tracks a pass was found on, named as the account names them.
+  const tracks = uniqueBy(
+    candidates.flatMap((c) => c.tracks ?? []),
+    (track) => track.id,
+  ).filter((track) => rows.some((r) => r.trackIds?.includes(track.id)));
+  const groups = [
+    ...new Set(candidates.map((c) => c.groupLabel).filter(Boolean)),
+  ] as string[];
   const bikes = uniqueBy(
     candidates.filter((c) => c.bikeId && c.bikeName),
     (c) => c.bikeId!,
@@ -558,6 +585,8 @@ export function ImuSnapshotView({
 
   const others = rows
     .filter((r) => r !== reference)
+    .filter((r) => !trackFilter || (r.trackIds ?? []).includes(trackFilter))
+    .filter((r) => !groupFilter || r.session.groupLabel === groupFilter)
     .filter((r) => !bikeFilter || r.session.bikeId === bikeFilter)
     .filter((r) => !riderFilter || r.session.riderName === riderFilter)
     .filter(
@@ -579,6 +608,25 @@ export function ImuSnapshotView({
       const lb = letterOf(b) ?? "~";
       return la.localeCompare(lb) || byDate;
     });
+
+  // The fastest of what is on show, the reference among it (by request,
+  // 2026-10-28: the stopwatch beside the map).
+  const shownMs = [
+    ...(reference ? [reference.metrics.durationMs] : []),
+    ...others.map((r) => r.metrics.durationMs),
+  ];
+  const bestMs = shownMs.length ? Math.min(...shownMs) : null;
+
+  const f = t.snapshots.view.filters;
+  const showSetup = !draft && setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1;
+  const showOrder = !draft && rows.length > 2;
+  const anyFilter =
+    tracks.length > 0 ||
+    groups.length > 0 ||
+    riders.length > 0 ||
+    bikes.length > 0 ||
+    showSetup ||
+    showOrder;
 
   const columns = SNAPSHOT_COLUMNS[snapshot.definition.kind];
   const referenceSession = candidates.find(
@@ -675,13 +723,11 @@ export function ImuSnapshotView({
               {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
             </p>
           </div>
-          {/* A fixed picture of the stretch (by request, 2026-09-10) — a
-              dark tile like the session's map, so the two read as one
-              surface. Held at its size while the file loads, so the card
-              does not jump when the picture arrives. */}
+          {/* The best time and the map (by request, 2026-10-28, from a
+              sketch): the stopwatch to the map's left from `sm`. */}
           <div
             className={cn(
-              "h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] bg-sidebar sm:w-[220px]",
+              "flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8",
               // On the page the map stops short of the three dots' corner;
               // in the popup there are no dots, and it sits in the band's
               // bottom-right corner, under the close disc (by request,
@@ -689,94 +735,129 @@ export function ImuSnapshotView({
               draft ? "sm:self-end" : "sm:mr-12",
             )}
           >
-            {mapData && (
-              <ImuSnapshotMiniMap
-                track={mapData.track}
-                section={mapData.section}
-                className="h-full w-full"
-              />
+            {bestMs != null && (
+              <p
+                title={t.snapshots.view.bestTime}
+                className="flex items-center gap-2.5 font-display text-[32px] leading-8 font-bold tracking-[-0.6px] tabular-nums"
+              >
+                <Timer
+                  className="size-8 shrink-0"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                <span className="sr-only">{t.snapshots.view.bestTime}: </span>
+                {stopwatch(bestMs)}
+              </p>
             )}
+            {/* A fixed picture of the stretch (by request, 2026-09-10) — a
+                dark tile like the session's map, so the two read as one
+                surface. Held at its size while the file loads, so the card
+                does not jump when the picture arrives. */}
+            <div className="h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] bg-sidebar sm:w-[220px]">
+              {mapData && (
+                <ImuSnapshotMiniMap
+                  track={mapData.track}
+                  section={mapData.section}
+                  className="h-full w-full"
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* The filters and the order. Hidden in the comparison opened from
-          an event's card (by request, 2026-09-20, "por agora"): there the
-          reader came to look at one corner, not to sort a list. Kept off,
-          not deleted — the saved Snapshot's page still has them. */}
-      {!draft && (bikes.length > 1 || riders.length > 1 || rows.length > 2) && (
-        <div className="flex flex-wrap gap-2">
-          {bikes.length > 1 && (
-            <NativeSelect
-              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-              className="h-11 bg-card text-sm"
-              aria-label={t.snapshots.view.filters.bike}
-              value={bikeFilter}
-              onChange={(e) => setBikeFilter(e.target.value)}
+      {/* The filters, as pills centred under the head (by request,
+          2026-10-28, from a sketch) — in the comparison opened from an
+          event's card too, which went without them since 2026-09-20. Each
+          only when it has something to choose; the saved Snapshot's page
+          keeps its setup and its order besides. */}
+      {anyFilter && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {tracks.length > 0 && (
+            <FilterPill
+              label={f.track}
+              value={trackFilter}
+              onChange={setTrackFilter}
             >
-              <option value="">{t.snapshots.view.filters.allBikes}</option>
-              {bikes.map((b) => (
-                <option key={b.bikeId!} value={b.bikeId!}>
-                  {b.bikeName}
+              <option value="">{f.allTracks}</option>
+              {tracks.map((track) => (
+                <option key={track.id} value={track.id}>
+                  {track.name}
                 </option>
               ))}
-            </NativeSelect>
+            </FilterPill>
           )}
-          {riders.length > 1 && (
-            <NativeSelect
-              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-              className="h-11 bg-card text-sm"
-              aria-label={t.snapshots.view.filters.rider}
-              value={riderFilter}
-              onChange={(e) => setRiderFilter(e.target.value)}
+          {groups.length > 0 && (
+            <FilterPill
+              label={f.group}
+              value={groupFilter}
+              onChange={setGroupFilter}
             >
-              <option value="">{t.snapshots.view.filters.allRiders}</option>
+              <option value="">{f.allGroups}</option>
+              {groups.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </FilterPill>
+          )}
+          {riders.length > 0 && (
+            <FilterPill
+              label={f.rider}
+              value={riderFilter}
+              onChange={setRiderFilter}
+            >
+              <option value="">{f.allRiders}</option>
               {riders.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
               ))}
-            </NativeSelect>
+            </FilterPill>
           )}
-          {setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1 && (
-            <NativeSelect
-              wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-              className="h-11 bg-card text-sm"
-              aria-label={t.snapshots.view.filters.setup}
-              value={setupFilter}
-              onChange={(e) => setSetupFilter(e.target.value)}
+          {bikes.length > 0 && (
+            <FilterPill
+              label={f.bike}
+              value={bikeFilter}
+              onChange={setBikeFilter}
             >
-              <option value="">{t.snapshots.view.filters.allSetups}</option>
+              <option value="">{f.allBikes}</option>
+              {bikes.map((b) => (
+                <option key={b.bikeId!} value={b.bikeId!}>
+                  {b.bikeName}
+                </option>
+              ))}
+            </FilterPill>
+          )}
+          {showSetup && (
+            <FilterPill
+              label={f.setup}
+              value={setupFilter}
+              onChange={setSetupFilter}
+            >
+              <option value="">{f.allSetups}</option>
               {setupGroups.map((g) => (
                 <option key={g.letter} value={g.letter}>
                   {t.snapshots.view.setupLetter(g.letter)}
                   {g.summary && ` · ${g.summary}`}
                 </option>
               ))}
-              {unsetCount > 0 && (
-                <option value="none">{t.snapshots.view.filters.noSetup}</option>
-              )}
-            </NativeSelect>
+              {unsetCount > 0 && <option value="none">{f.noSetup}</option>}
+            </FilterPill>
           )}
-          <NativeSelect
-            wrapperClassName="min-w-[180px] flex-1 sm:flex-none"
-            className="h-11 bg-card text-sm"
-            aria-label={t.snapshots.view.filters.order}
-            value={sort}
-            onChange={(e) =>
-              setSort(e.target.value as "date" | "time" | "setup")
-            }
-          >
-            <option value="date">{t.snapshots.view.filters.newestFirst}</option>
-            <option value="time">
-              {t.snapshots.view.filters.fastestFirst}
-            </option>
-            {setupGroups.length > 0 && (
-              <option value="setup">
-                {t.snapshots.view.filters.groupedBySetup}
-              </option>
-            )}
-          </NativeSelect>
+          {showOrder && (
+            <FilterPill
+              label={f.order}
+              value={sort}
+              onChange={(v) => setSort(v as "date" | "time" | "setup")}
+            >
+              <option value="date">{f.newestFirst}</option>
+              <option value="time">{f.fastestFirst}</option>
+              {setupGroups.length > 0 && (
+                <option value="setup">{f.groupedBySetup}</option>
+              )}
+            </FilterPill>
+          )}
         </div>
       )}
 
@@ -848,6 +929,44 @@ export function ImuSnapshotView({
         )}
       </div>
     </div>
+  );
+}
+
+/** A best time as a stopwatch reads it, "00:30.000" (2026-10-28). */
+function stopwatch(ms: number): string {
+  return formatRunTime(ms).padStart(9, "0");
+}
+
+/** A filter as a pill, "Rider: All" (by request, 2026-10-28): the label
+ * outside the list, the chosen option beside it, our chevron at the end. */
+function FilterPill({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="relative inline-flex h-12 max-w-full items-center rounded-full bg-card pl-5 text-sm focus-within:ring-3 focus-within:ring-ring/50">
+      <span className="shrink-0 text-muted-foreground">{label}:</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        // As wide as the chosen option, not the longest (field-sizing,
+        // where the browser has it; elsewhere the longest, capped).
+        className="h-full max-w-56 min-w-0 cursor-pointer appearance-none truncate bg-transparent pr-12 pl-1 text-foreground outline-none [field-sizing:content]"
+      >
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-5 size-4 -translate-y-1/2"
+        aria-hidden
+      />
+    </label>
   );
 }
 

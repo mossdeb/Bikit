@@ -10,6 +10,10 @@ import {
   type SnapshotDefinition,
 } from "@/lib/imu/snapshot";
 import { trimOf } from "@/lib/imu/trim";
+import {
+  isTimedTrackDefinition,
+  type TimedTrackDefinition,
+} from "@/lib/imu/timed-track";
 
 /**
  * The sessions worth reading for a Snapshot's gates: the account's
@@ -35,6 +39,7 @@ export async function loadSnapshotCandidates(
     { data: bikes },
     { data: groups },
     { data: setups },
+    { data: trackRows },
   ] = await Promise.all([
     supabase
       .from("imu_sessions")
@@ -54,7 +59,20 @@ export async function loadSnapshotCandidates(
       .from("imu_setups")
       .select("id, values, note")
       .eq("user_id", userId),
+    // The timed tracks, for the comparison's track filter (2026-10-28).
+    supabase
+      .from("imu_tracks")
+      .select("id, name, definition")
+      .eq("user_id", userId)
+      .order("name"),
   ]);
+  const tracks = (trackRows ?? [])
+    .filter((row) => isTimedTrackDefinition(row.definition))
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      definition: row.definition as unknown as TimedTrackDefinition,
+    }));
   const bikeById = new Map((bikes ?? []).map((b) => [b.id, b.name]));
   const groupById = new Map(
     (groups ?? []).map((g) => [
@@ -92,5 +110,13 @@ export async function loadSnapshotCandidates(
       setup: (s.setup_id && setupById.get(s.setup_id)?.values) || null,
       setupNote: (s.setup_id && setupById.get(s.setup_id)?.note) || null,
       trim: trimOf(s.trim_start_ms, s.trim_end_ms),
+      // The tracks this recording comes near both lines of — whether a
+      // pass of the stretch was ridden on one is for the file to say. The
+      // reference without an index is offered them all.
+      tracks: tracks.filter((track) =>
+        isTrackIndex(s.track_index)
+          ? trackIndexMayPass(s.track_index, track.definition)
+          : s.id === referenceSessionId,
+      ),
     }));
 }

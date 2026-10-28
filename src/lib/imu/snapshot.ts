@@ -445,6 +445,47 @@ export function findSnapshotPasses(
 }
 
 /**
+ * Whether a pass lies on a ride between two other gates — a timed track's
+ * start and finish, for the comparison's track filter (by request,
+ * 2026-10-28: tracks share stretches, and a corner on two of them wants
+ * its passes told apart). The path comes within a gate's half-width of the
+ * start before the pass and of the finish after it, no further apart than
+ * a pass of the track may take. Near and not through, on purpose: a run
+ * trimmed to its track starts on the line, and the fix before it — which a
+ * crossing needs — is cut away.
+ */
+export function passWithinGates(
+  prepared: SnapshotSession,
+  pass: SnapshotPass,
+  outer: GatePair,
+): boolean {
+  const track = prepared.track;
+  if (!track) return false;
+  const near = (k: number, gate: SnapshotGate) => {
+    const [dx, dy] = metresBetween(
+      gate.latDeg,
+      gate.lonDeg,
+      track.latDeg[k],
+      track.lonDeg[k],
+    );
+    return Math.hypot(dx, dy) <= gate.halfWidthM;
+  };
+  let startMs = -Infinity;
+  for (let k = 0; k < track.tMs.length && track.tMs[k] <= pass.entryMs; k++)
+    if (near(k, outer.entry)) startMs = track.tMs[k];
+  if (startMs === -Infinity) return false;
+  let finishMs = Infinity;
+  for (let k = track.tMs.length - 1; k >= 0 && track.tMs[k] >= pass.exitMs; k--)
+    if (near(k, outer.exit)) finishMs = track.tMs[k];
+  if (finishMs === Infinity) return false;
+  const maxMs = Math.max(
+    PASS_MAX_FACTOR * outer.referenceDurationMs,
+    outer.referenceDurationMs + PASS_MAX_SLACK_MS,
+  );
+  return finishMs - startMs <= maxMs;
+}
+
+/**
  * A Snapshot made from one event of a prepared session: the gates
  * SNAPSHOT_GATE_OFFSET_M along the trail before the event starts and after
  * it ends, and the pass it was made from — found by the same rule as any
@@ -584,7 +625,11 @@ export function createGatePair(
   const exit =
     span != null ? gateAlong(track, exitDist, span) : gateAt(track, exitMs);
   if (!entry || !exit) return null;
-  const draft: GatePair = { entry, exit, referenceDurationMs: exitMs - entryMs };
+  const draft: GatePair = {
+    entry,
+    exit,
+    referenceDurationMs: exitMs - entryMs,
+  };
   let reference: SnapshotPass | null = null;
   let bestError = Infinity;
   for (const pass of findSnapshotPasses(prepared, draft)) {

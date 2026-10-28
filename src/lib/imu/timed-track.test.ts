@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { GpsChannels, ImuSessionData } from "./format";
-import { prepareSnapshotSession } from "./snapshot";
+import {
+  findSnapshotPasses,
+  passWithinGates,
+  prepareSnapshotSession,
+} from "./snapshot";
 import {
   createTimedTrack,
   findTimedRuns,
@@ -116,8 +120,34 @@ describe("timed tracks", () => {
       startMs: Math.round(run.entryMs),
       endMs: Math.round(run.exitMs),
     });
-    expect(runTrimOf(prepareSnapshotSession(descent(10, 30)), [made.definition])).toBeNull();
+    expect(
+      runTrimOf(prepareSnapshotSession(descent(10, 30)), [made.definition]),
+    ).toBeNull();
     expect(runTrimOf(other, [])).toBeNull();
+  });
+
+  it("tells which track a stretch's pass was ridden on", () => {
+    const prepared = prepareSnapshotSession(descent(10, 60));
+    const track = createTimedTrack(prepared, 10_000, 50_000)!;
+    const below = createTimedTrack(prepared, 52_000, 58_000)!;
+    const stretch = createTimedTrack(prepared, 20_000, 30_000)!;
+    const pass = findSnapshotPasses(prepared, stretch.definition)[0];
+    expect(passWithinGates(prepared, pass, track.definition)).toBe(true);
+    expect(passWithinGates(prepared, pass, below.definition)).toBe(false);
+    // The same track ridden by a run trimmed to its lines: the fix before
+    // the start is gone, and the pass is still on it.
+    const trimmed = prepareSnapshotSession(descent(10, 60));
+    const cut = trimmed.track!;
+    const from = cut.tMs.findIndex((t) => t >= 10_000);
+    for (const key of ["tMs", "latDeg", "lonDeg", "distM"] as const)
+      cut[key] = cut[key].slice(from);
+    expect(
+      passWithinGates(
+        trimmed,
+        findSnapshotPasses(trimmed, stretch.definition)[0],
+        track.definition,
+      ),
+    ).toBe(true);
   });
 
   it("writes times and gaps to the thousandth, with a point", () => {
