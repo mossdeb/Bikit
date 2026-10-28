@@ -897,6 +897,11 @@ function statCells(columns: Column[]): (Column | Column[])[] {
  * left column and the gap.
  * So the box never has to guess how wide the left column is.
  */
+/** How many setup changes a pass shows before the "…". */
+const SETUP_CHANGES_SHOWN = 2;
+const SETUP_CHANGE_PILL =
+  "rounded-full border border-foreground bg-card px-2 py-0.5 font-medium text-foreground tabular-nums";
+
 export function SnapshotPassLine({
   row,
   reference,
@@ -1025,14 +1030,39 @@ export function SnapshotPassLine({
                 {t.snapshots.view.noSetupRecorded}
               </span>
             )}
-            {setupChanges.map((change) => (
-              <span
-                key={change.label}
-                className="rounded-full border border-foreground bg-card px-2 py-0.5 font-medium text-foreground tabular-nums"
-              >
+            {/* Two changes on the line and the rest behind a "…" (by
+                request, 2026-10-28): a setup that moved every knob took
+                four lines of pills over the figures. */}
+            {setupChanges.slice(0, SETUP_CHANGES_SHOWN).map((change) => (
+              <span key={change.label} className={SETUP_CHANGE_PILL}>
                 {formatSetupChange(change, locale)}
               </span>
             ))}
+            {setupChanges.length > SETUP_CHANGES_SHOWN && (
+              <Popover>
+                <PopoverTrigger
+                  aria-label={t.snapshots.view.moreChanges(
+                    setupChanges.length - SETUP_CHANGES_SHOWN,
+                  )}
+                  className={cn(
+                    SETUP_CHANGE_PILL,
+                    "cursor-pointer outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50",
+                  )}
+                >
+                  …
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="flex w-auto max-w-80 flex-wrap gap-1.5 p-3 text-xs"
+                >
+                  {setupChanges.slice(SETUP_CHANGES_SHOWN).map((change) => (
+                    <span key={change.label} className={SETUP_CHANGE_PILL}>
+                      {formatSetupChange(change, locale)}
+                    </span>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
             {reference?.session.setup &&
               session.setup &&
               setupChanges.length === 0 && (

@@ -83,6 +83,10 @@ const en = {
     stopped: "stopped",
     noSetupRecorded: "No setup recorded",
     sameAsReference: "same as the reference",
+    /** The "…" pill that holds the setup changes past the first two
+     * (by request, 2026-10-28). */
+    moreChanges: (n: number): string =>
+      n === 1 ? "1 more change" : `${n} more changes`,
     /** The note under a pass whose speed was read another way than the
      * reference's; `source` is one of the two below. */
     speedOtherWay: (source: string): string =>
@@ -225,6 +229,8 @@ const pt: typeof en = {
     stopped: "parou",
     noSetupRecorded: "Sem afinação registada",
     sameAsReference: "igual à referência",
+    moreChanges: (n) =>
+      n === 1 ? "mais 1 alteração" : `mais ${n} alterações`,
     speedOtherWay: (source) =>
       `Velocidade lida de outra forma (${source}) — as velocidades não se comparam com a referência.`,
     speedSourceGps: "GPS em linha reta",
