@@ -927,7 +927,7 @@ function RiderSagReading({
             </div>
           )}
         </div>
-        <p className="text-base leading-tight tabular-nums">
+        <p className="text-sm leading-tight tabular-nums">
           {!withRider ? (
             t.emptyBike
           ) : wheelbaseMm == null ? (
