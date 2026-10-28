@@ -180,7 +180,7 @@ export function ImuSnapshotSimulation({
       <div className="min-w-0">
         <h2
           id="snapshot-simulation-title"
-          className="font-display text-[32px] leading-8 font-bold tracking-[-0.6px]"
+          className="font-display text-2xl leading-7 font-bold tracking-[-0.4px]"
         >
           {words.title}
         </h2>
