@@ -1006,13 +1006,16 @@ export function ImuSnapshotView({
       </div>
 
       {/* The replay of the passes on show (by request, 2026-10-28). */}
-      {pending === 0 && mapData && simulated.length > 1 && (
-        <ImuSnapshotSimulation
-          passes={simulated}
-          surroundings={mapData.surroundings}
-          notShown={notSimulated}
-        />
-      )}
+      {pending === 0 &&
+        mapData &&
+        simulated.length > 1 &&
+        SIMULATED_KINDS.has(snapshot.definition.kind) && (
+          <ImuSnapshotSimulation
+            passes={simulated}
+            surroundings={mapData.surroundings}
+            notShown={notSimulated}
+          />
+        )}
     </div>
   );
 }
@@ -1054,6 +1057,10 @@ function FilterPill({
     </label>
   );
 }
+
+/** The kinds the simulation is shown for — not jumps and brakings, for
+ * now (by request, 2026-10-29). */
+const SIMULATED_KINDS = new Set<SnapshotKind>(["curve", "rough_section"]);
 
 /** How much trail the simulation draws either side of the stretch, m. */
 const SIMULATION_SURROUNDINGS_M = 60;
