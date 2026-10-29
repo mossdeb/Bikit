@@ -297,7 +297,8 @@ const en = {
     legalHeading: "Legal",
     legalPrivacy: "Privacy",
     legalTerms: "Terms",
-    copyright: "© 2026 Bikit. All rights reserved.",
+    copyright:
+      "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
     madeFor: "Made for people who love taking care of their own bike.",
   },
 };

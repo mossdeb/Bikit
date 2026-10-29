@@ -9,6 +9,7 @@ import { UserMenu } from "@/components/user-menu";
 import { HeaderBackButton } from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
+import { PatentPill } from "@/components/site-footer";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 import { ProLocaleProvider } from "@/components/pro-locale";
@@ -57,6 +58,7 @@ export default async function ProLayout({
               <HeaderBackButton />
               <BikitLockup pro className="h-8 w-auto sm:hidden" />
               <div className="hidden items-center gap-3 sm:flex">
+                <PatentPill />
                 <ThemeToggle />
                 <UserMenu
                   name={user.user_metadata?.full_name}

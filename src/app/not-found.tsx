@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { SiteFooter } from "@/components/site-footer";
 
 export default function RootNotFound() {
   return (
@@ -13,6 +14,7 @@ export default function RootNotFound() {
       <Button render={<Link href="/" />} nativeButton={false} className="mt-6">
         Back to Bikit
       </Button>
+      <SiteFooter />
     </div>
   );
 }

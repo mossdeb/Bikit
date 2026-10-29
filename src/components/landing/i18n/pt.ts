@@ -293,7 +293,8 @@ const pt: LandingDictionary = {
     legalHeading: "Legal",
     legalPrivacy: "Privacidade",
     legalTerms: "Termos",
-    copyright: "© 2026 Bikit. Todos os direitos reservados.",
+    copyright:
+      "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
     madeFor: "Feito para quem gosta de cuidar da própria bicicleta.",
   },
 };
