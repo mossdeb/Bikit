@@ -16,7 +16,9 @@ export function PatentPill({ className }: { className?: string }) {
         className,
       )}
     >
-      {PATENT_LINE}
+      {/* "Patent Pending" in bold (by request, 2026-10-29). */}
+      <strong className="font-semibold">Patent Pending</strong>
+      {PATENT_LINE.slice("Patent Pending".length)}
     </span>
   );
 }
