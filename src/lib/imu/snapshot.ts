@@ -748,6 +748,55 @@ function curvedPositionAt(
   return { latDeg, lonDeg };
 }
 
+/** A pass's first flight, for the jump's side view (2026-10-29): times
+ * from the pass's entry gate, the speed it left the lip at, the hardest G
+ * of the landing. What the logger measures — the lip's and the landing's
+ * heights, the ramps' lengths, it does not. */
+export interface SnapshotPassFlight {
+  takeoffMs: number;
+  airtimeMs: number;
+  takeoffKmh: number | null;
+  landingG: number | null;
+}
+
+/** How long after touching down the landing's peak G is looked for, ms —
+ * the fork and the tyres take about this to bottom out. */
+const LANDING_WINDOW_MS = 300;
+
+export function snapshotPassFlight(
+  prepared: SnapshotSession,
+  pass: SnapshotPass,
+): SnapshotPassFlight | null {
+  let first: {
+    takeoffMs: number;
+    landingMs: number;
+    airtimeMs: number;
+  } | null = null;
+  for (const e of prepared.session.events)
+    if (
+      (e.kind === "jump" || e.kind === "drop") &&
+      e.takeoffMs >= pass.entryMs &&
+      e.takeoffMs <= pass.exitMs &&
+      (!first || e.takeoffMs < first.takeoffMs)
+    )
+      first = e;
+  if (!first) return null;
+  const tMs = prepared.session.channels.tMs;
+  return {
+    takeoffMs: first.takeoffMs - pass.entryMs,
+    airtimeMs: first.airtimeMs,
+    takeoffKmh: prepared.speedKmh
+      ? valueAt(tMs, prepared.speedKmh, first.takeoffMs)
+      : null,
+    landingG: windowPeak(
+      tMs,
+      prepared.gForce,
+      first.landingMs,
+      first.landingMs + LANDING_WINDOW_MS,
+    ),
+  };
+}
+
 /** The ground around a pass, `marginM` before its entry and after its
  * exit — the trail the simulation draws its stretch on. */
 export function snapshotPassSurroundings(

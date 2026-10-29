@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { SnapshotPassTrace } from "./snapshot";
 import {
+  flightPositionAt,
+  flightShape,
   laneTrace,
   gapToReferenceAt,
   traceTimeAtProgress,
@@ -91,5 +93,22 @@ describe("laneTrace", () => {
     );
     for (const lon of far.lonDeg)
       expect(Math.abs(lon / M)).toBeLessThanOrEqual(1.25 + 1e-6);
+  });
+});
+
+describe("flightShape", () => {
+  it("flies a jump as a ball would, landing as high as the lip", () => {
+    const shape = flightShape(1000, 36)!;
+    expect(shape.apexM).toBeCloseTo((9.81 * 1) / 8, 6);
+    expect(shape.vy).toBeCloseTo(9.81 / 2, 6);
+    expect(shape.distanceM).toBeCloseTo(Math.sqrt(100 - (9.81 / 2) ** 2), 6);
+    expect(flightPositionAt(shape, 0.5).y).toBeCloseTo(shape.apexM, 6);
+    expect(flightPositionAt(shape, 1).y).toBeCloseTo(0, 6);
+    expect(flightPositionAt(shape, 5).x).toBeCloseTo(shape.distanceM, 6);
+  });
+
+  it("has no arc without a speed or a time in the air", () => {
+    expect(flightShape(800, null)).toBeNull();
+    expect(flightShape(0, 30)).toBeNull();
   });
 });

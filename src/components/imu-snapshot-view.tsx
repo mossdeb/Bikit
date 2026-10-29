@@ -55,6 +55,7 @@ import {
   snapshotKindLabel,
   snapshotPassMetrics,
   snapshotPassPath,
+  snapshotPassFlight,
   snapshotPassSurroundings,
   snapshotPassTrace,
   type GatePair,
@@ -703,6 +704,19 @@ export function ImuSnapshotView({
     }
     return out;
   }, [rows, loaded]);
+  // …and each pass's first flight, for a jump's side view.
+  const flights = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof snapshotPassFlight>>();
+    for (const r of rows) {
+      const state = loaded.get(r.session.id);
+      if (state?.status !== "done") continue;
+      out.set(
+        rowKey(r.session.id, r.index),
+        snapshotPassFlight(state.prepared, r.pass),
+      );
+    }
+    return out;
+  }, [rows, loaded]);
   // The reference and the first passes on show, in the list's order.
   const simulatedOthers = others
     .filter((r) => traces.has(rowKey(r.session.id, r.index)))
@@ -720,6 +734,7 @@ export function ImuSnapshotView({
             bike: reference.session.bikeName,
             isReference: true,
             trace: referenceTrace,
+            flight: flights.get(rowKey(reference.session.id, reference.index)),
           },
           ...simulatedOthers.map((r) => ({
             key: rowKey(r.session.id, r.index),
@@ -728,6 +743,7 @@ export function ImuSnapshotView({
             bike: r.session.bikeName,
             isReference: false,
             trace: traces.get(rowKey(r.session.id, r.index))!,
+            flight: flights.get(rowKey(r.session.id, r.index)),
           })),
         ]
       : [];
@@ -1014,6 +1030,7 @@ export function ImuSnapshotView({
             passes={simulated}
             surroundings={mapData.surroundings}
             notShown={notSimulated}
+            kind={snapshot.definition.kind}
           />
         )}
     </div>
@@ -1058,9 +1075,9 @@ function FilterPill({
   );
 }
 
-/** The kinds the simulation is shown for — corners only, for now (by
- * request, 2026-10-29: not jumps, brakings or rough sections). */
-const SIMULATED_KINDS = new Set<SnapshotKind>(["curve"]);
+/** The kinds the simulation is shown for — corners on a map, jumps from
+ * the side (2026-10-29); not brakings or rough sections, for now. */
+const SIMULATED_KINDS = new Set<SnapshotKind>(["curve", "jump"]);
 
 /** How much trail the simulation draws either side of the stretch, m. */
 const SIMULATION_SURROUNDINGS_M = 60;

@@ -16,7 +16,12 @@ import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { formatRunTime } from "@/lib/imu/timed-track";
 import { smoothPolyline } from "@/lib/imu/track-spline";
 import { topoContours } from "@/lib/topo-contours";
-import type { SnapshotPassTrace } from "@/lib/imu/snapshot";
+import type {
+  SnapshotKind,
+  SnapshotPassFlight,
+  SnapshotPassTrace,
+} from "@/lib/imu/snapshot";
+import { ImuSnapshotJumpProfile } from "@/components/imu-snapshot-jump-profile";
 import {
   gapToReferenceAt,
   laneTrace,
@@ -47,6 +52,8 @@ export interface SimulationPass {
   bike: string | null;
   isReference: boolean;
   trace: SnapshotPassTrace;
+  /** Its first flight, for a jump's side view. */
+  flight?: SnapshotPassFlight | null;
 }
 
 /** The passes' colours (by request, 2026-10-28, the lab's palette for
@@ -72,6 +79,11 @@ const GATE_TICK_PX = 12;
 /** Pills under the map at most, the followed pass's among them; the rest
  * wait behind a "…". */
 const READOUT_PILLS = 3;
+/** A jump's clock starts this long before the first take-off — about what
+ * the drawn run-in takes to ride — and ends this long after the last
+ * landing, ms. */
+const JUMP_LEAD_MS = 300;
+const JUMP_TAIL_MS = 500;
 /** The passes' lines fade in over this many pieces, from this opacity at
  * the entry to full at the dot. */
 const FADE_PIECES = 24;
@@ -111,6 +123,7 @@ export function ImuSnapshotSimulation({
   passes: passesAsRecorded,
   surroundings,
   notShown,
+  kind,
 }: {
   /** The reference first, then the others in the list's order. */
   passes: SimulationPass[];
@@ -118,6 +131,8 @@ export function ImuSnapshotSimulation({
   surroundings: [number, number][];
   /** Passes on show but left out of the replay. */
   notShown: number;
+  /** The Snapshot's kind: a jump is drawn from the side, not on a map. */
+  kind: SnapshotKind;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -144,7 +159,22 @@ export function ImuSnapshotSimulation({
     p === reference ? REFERENCE_INK : SERIES[others.indexOf(p)];
 
   const totalMs = Math.max(...passes.map((p) => p.trace.durationMs));
-  const [cursorMs, setCursorMs] = useState(0);
+  // A jump's clock trimmed to the flights (by request, 2026-10-29): the
+  // gates stand 20 m either side of the event, so the first two seconds
+  // were the run-in, the dots waiting at the plate's edge. From a moment
+  // before the first take-off to a moment after the last landing.
+  const flown =
+    kind === "jump" ? passes.flatMap((p) => (p.flight ? [p.flight] : [])) : [];
+  const clipFrom = flown.length
+    ? Math.max(0, Math.min(...flown.map((f) => f.takeoffMs)) - JUMP_LEAD_MS)
+    : 0;
+  const clipTo = flown.length
+    ? Math.min(
+        totalMs,
+        Math.max(...flown.map((f) => f.takeoffMs + f.airtimeMs)) + JUMP_TAIL_MS,
+      )
+    : totalMs;
+  const [cursorMs, setCursorMs] = useState(clipFrom);
   const [playing, setPlaying] = useState(false);
   const [followKey, setFollowKey] = useState<string | null>(null);
   // The passes taken off the map and the chart by their box in the list
@@ -171,16 +201,16 @@ export function ImuSnapshotSimulation({
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const next = Math.min(totalMs, cursorRef.current + (now - last));
+      const next = Math.min(clipTo, cursorRef.current + (now - last));
       last = now;
       cursorRef.current = next;
       setCursorMs(next);
-      if (next >= totalMs) setPlaying(false);
+      if (next >= clipTo) setPlaying(false);
       else frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, totalMs]);
+  }, [playing, clipTo]);
 
   const gapOf = (p: SimulationPass) =>
     p === reference ? 0 : gapToReferenceAt(p.trace, reference.trace, cursorMs);
@@ -234,6 +264,31 @@ export function ImuSnapshotSimulation({
       </div>
     );
   };
+
+  const readout = (
+    // The passes at the cursor, in white pills in the plate's
+    // corner (by request, 2026-10-28/29): the followed one first,
+    // then the others on the map up to
+    // READOUT_PILLS in all; the rest behind a "…" that opens beside
+    // it on hover, on its own row of the wrap.
+    <div className="flex flex-wrap items-end gap-2">
+      {readoutPasses.slice(0, READOUT_PILLS).map((p) => readoutPill(p))}
+      {readoutPasses.length > READOUT_PILLS && (
+        <div
+          tabIndex={0}
+          aria-label={words.morePasses(readoutPasses.length - READOUT_PILLS)}
+          className="group relative rounded-[12px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <div className="flex h-9 items-center rounded-[12px] bg-card px-3 text-sm font-semibold">
+            …
+          </div>
+          <div className="invisible absolute bottom-0 left-full flex flex-col gap-2 pl-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+            {readoutPasses.slice(READOUT_PILLS).map((p) => readoutPill(p))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <section
@@ -345,52 +400,44 @@ export function ImuSnapshotSimulation({
       </div>
 
       <div className="min-w-0">
-        <SimulationMap
-          passes={passes.filter((p) => !hidden.has(p.key))}
-          framed={passes}
-          reference={reference}
-          followed={followed}
-          inkOf={inkOf}
-          surroundings={surroundings}
-          cursorMs={cursorMs}
-          readout={
-            // The passes at the cursor, in white pills in the plate's
-            // corner (by request, 2026-10-28/29): the followed one first,
-            // then the others on the map up to
-            // READOUT_PILLS in all; the rest behind a "…" that opens beside
-            // it on hover, on its own row of the wrap.
-            <div className="flex flex-wrap items-end gap-2">
-              {readoutPasses.slice(0, READOUT_PILLS).map((p) => readoutPill(p))}
-              {readoutPasses.length > READOUT_PILLS && (
-                <div
-                  tabIndex={0}
-                  aria-label={words.morePasses(
-                    readoutPasses.length - READOUT_PILLS,
-                  )}
-                  className="group relative rounded-[12px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <div className="flex h-9 items-center rounded-[12px] bg-card px-3 text-sm font-semibold">
-                    …
-                  </div>
-                  <div className="invisible absolute bottom-0 left-full flex flex-col gap-2 pl-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
-                    {readoutPasses
-                      .slice(READOUT_PILLS)
-                      .map((p) => readoutPill(p))}
-                  </div>
-                </div>
-              )}
-            </div>
-          }
-        />
+        {kind === "jump" ? (
+          <ImuSnapshotJumpProfile
+            passes={passes.filter((p) => !hidden.has(p.key))}
+            framed={passes}
+            reference={reference}
+            followed={followed}
+            inkOf={inkOf}
+            cursorMs={cursorMs}
+            readout={readout}
+            words={words.jump}
+            locale={locale}
+          />
+        ) : (
+          <SimulationMap
+            passes={passes.filter((p) => !hidden.has(p.key))}
+            framed={passes}
+            reference={reference}
+            followed={followed}
+            inkOf={inkOf}
+            surroundings={surroundings}
+            cursorMs={cursorMs}
+            readout={readout}
+          />
+        )}
+        {kind === "jump" && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {words.jump.estimate}
+          </p>
+        )}
 
         {/* The clock. */}
         <div className="mt-4 flex items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={() => {
-              if (!playing && cursorMs >= totalMs) {
-                cursorRef.current = 0;
-                setCursorMs(0);
+              if (!playing && cursorMs >= clipTo) {
+                cursorRef.current = clipFrom;
+                setCursorMs(clipFrom);
               }
               setPlaying(!playing);
             }}
@@ -411,8 +458,8 @@ export function ImuSnapshotSimulation({
           </span>
           <input
             type="range"
-            min={0}
-            max={totalMs}
+            min={clipFrom}
+            max={clipTo}
             step={10}
             value={cursorMs}
             aria-label={words.timeline}
@@ -425,11 +472,11 @@ export function ImuSnapshotSimulation({
             // knob — the thumb is still there to drag, unseen.
             className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-transparent [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-transparent"
             style={{
-              background: `linear-gradient(to right, var(--foreground) ${(100 * cursorMs) / Math.max(1, totalMs)}%, color-mix(in srgb, var(--foreground) 12%, transparent) 0)`,
+              background: `linear-gradient(to right, var(--foreground) ${(100 * (cursorMs - clipFrom)) / Math.max(1, clipTo - clipFrom)}%, color-mix(in srgb, var(--foreground) 12%, transparent) 0)`,
             }}
           />
           <span className="hidden w-[86px] shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
-            {stopwatch(totalMs)}
+            {stopwatch(clipTo)}
           </span>
         </div>
 
@@ -441,7 +488,7 @@ export function ImuSnapshotSimulation({
           cursorMs={cursorMs}
           onCursor={(ms) => {
             setPlaying(false);
-            setCursorMs(ms);
+            setCursorMs(Math.min(clipTo, Math.max(clipFrom, ms)));
           }}
           axisLabel={words.deltaAxis}
           description={words.deltaChart}

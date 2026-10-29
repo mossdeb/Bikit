@@ -57,6 +57,19 @@ const en = {
     /** The "…" after the readout's pills. */
     morePasses: (n: number): string =>
       n === 1 ? "1 more pass" : `${n} more passes`,
+    /** A jump's side view (2026-10-29). */
+    jump: {
+      takeoff: "Take-off",
+      apex: "Apex",
+      landing: "Landing",
+      distance: "Distance",
+      height: "Height",
+      airtime: "Airtime",
+      speed: "km/h",
+      noFlight: "No flight was found in this pass.",
+      estimate:
+        "≈ estimated from the time in the air and the speed off the lip, as if the landing were as high as the lip; a lower landing makes it read high. The ramps are drawn, not measured.",
+    },
     notShown: (n: number): string =>
       n === 1
         ? "1 more pass is not replayed — narrow them with the filters."
@@ -249,6 +262,18 @@ const pt: typeof en = {
     select: (name) => `Seguir ${name}`,
     showOnMap: (name) => `Mostrar ${name} no mapa`,
     morePasses: (n) => (n === 1 ? "Mais 1 passagem" : `Mais ${n} passagens`),
+    jump: {
+      takeoff: "Saída",
+      apex: "Topo",
+      landing: "Receção",
+      distance: "Distância",
+      height: "Altura",
+      airtime: "No ar",
+      speed: "km/h",
+      noFlight: "Não foi encontrado nenhum voo nesta passagem.",
+      estimate:
+        "≈ estimado pelo tempo no ar e pela velocidade de saída, como se a receção estivesse à altura do kicker; uma receção mais baixa dá valores por excesso. As rampas são desenhadas, não medidas.",
+    },
     notShown: (n) =>
       n === 1
         ? "Mais 1 passagem não é repetida — reduz com os filtros."

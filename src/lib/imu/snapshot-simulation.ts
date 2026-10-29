@@ -149,3 +149,55 @@ export function laneTrace(
   });
   return { ...trace, latDeg, lonDeg };
 }
+
+const GRAVITY = 9.81;
+
+/** A flight as a ball would fly it — the side view's arc (2026-10-29). */
+export interface FlightShape {
+  airtimeS: number;
+  /** Along and up at the lip, m/s. */
+  vx: number;
+  vy: number;
+  /** How far and how high, m. */
+  distanceM: number;
+  apexM: number;
+}
+
+/**
+ * The arc of a flight from what the logger knows of it: the time in the
+ * air (the IMU's, to the millisecond) and the speed off the lip (the fused
+ * speed). As if the landing were as high as the lip — the only shape those
+ * two allow: the rise is then g·t/2, the height g·t²/8, the run the rest of
+ * the speed times the time. A landing lower than the lip (most of a
+ * trail's) gives a longer flight for the same jump, so the height reads
+ * over and the run a little over: the page says both are estimates. Null
+ * without a speed or a flight.
+ */
+export function flightShape(
+  airtimeMs: number,
+  takeoffKmh: number | null,
+): FlightShape | null {
+  if (takeoffKmh == null || !(airtimeMs > 0) || !(takeoffKmh > 0)) return null;
+  const t = airtimeMs / 1000;
+  const v = takeoffKmh / 3.6;
+  const vy = (GRAVITY * t) / 2;
+  // A speed too low for the time in the air cannot be split; it is then
+  // all taken as along the ground, the arc's height still the time's.
+  const vx = vy < v ? Math.sqrt(v * v - vy * vy) : v;
+  return {
+    airtimeS: t,
+    vx,
+    vy,
+    distanceM: vx * t,
+    apexM: (GRAVITY * t * t) / 8,
+  };
+}
+
+/** Where a flight is a time after the lip, m along and up from it. */
+export function flightPositionAt(
+  shape: FlightShape,
+  afterTakeoffS: number,
+): { x: number; y: number } {
+  const s = Math.max(0, Math.min(shape.airtimeS, afterTakeoffS));
+  return { x: shape.vx * s, y: shape.vy * s - (GRAVITY * s * s) / 2 };
+}
