@@ -14,6 +14,9 @@ import {
 } from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
+import { cookies } from "next/headers";
+import { ConfidentialityNotice } from "@/components/confidentiality-notice";
+import { NOTICE_COOKIE } from "@/lib/notice";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 
 export default async function AppLayout({
@@ -21,6 +24,8 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // The confidentiality notice, after a sign-in (src/lib/notice.ts).
+  const showNotice = (await cookies()).has(NOTICE_COOKIE);
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
@@ -71,6 +76,7 @@ export default async function AppLayout({
         <MobileNav nav={dict.nav} />
       </div>
       <Toaster />
+      {showNotice && <ConfidentialityNotice />}
     </ToastProvider>
   );
 }

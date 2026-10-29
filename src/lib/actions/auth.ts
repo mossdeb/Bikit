@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { NOTICE_COOKIE, NOTICE_COOKIE_OPTIONS } from "@/lib/notice";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,6 +17,8 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
+  // The confidentiality notice, after every sign-in.
+  (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
   revalidatePath("/", "layout");
   redirect("/");
 }
@@ -41,6 +44,7 @@ export async function signup(formData: FormData) {
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  (await cookies()).delete(NOTICE_COOKIE);
   revalidatePath("/", "layout");
   redirect("/login");
 }
@@ -84,6 +88,7 @@ export async function confirmEmail(formData: FormData) {
     redirect("/login?error=confirmation-failed");
   }
 
+  (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
   revalidatePath("/", "layout");
   redirect(next);
 }

@@ -9,6 +9,9 @@ import { UserMenu } from "@/components/user-menu";
 import { HeaderBackButton } from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
+import { cookies } from "next/headers";
+import { ConfidentialityNotice } from "@/components/confidentiality-notice";
+import { NOTICE_COOKIE } from "@/lib/notice";
 import { PatentPill } from "@/components/site-footer";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
@@ -36,6 +39,8 @@ export default async function ProLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // The confidentiality notice, after a sign-in (src/lib/notice.ts).
+  const showNotice = (await cookies()).has(NOTICE_COOKIE);
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
@@ -73,6 +78,7 @@ export default async function ProLayout({
           <ProMobileNav />
         </div>
         <Toaster />
+        {showNotice && <ConfidentialityNotice />}
       </ToastProvider>
     </ProLocaleProvider>
   );

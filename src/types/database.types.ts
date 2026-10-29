@@ -488,6 +488,24 @@ export type Database = {
           },
         ];
       };
+      notice_acceptances: {
+        Row: {
+          first_accepted_at: string;
+          notice: string;
+          user_id: string;
+        };
+        Insert: {
+          first_accepted_at?: string;
+          notice: string;
+          user_id: string;
+        };
+        Update: {
+          first_accepted_at?: string;
+          notice?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       imu_tracks: {
         Row: {
           created_at: string;
