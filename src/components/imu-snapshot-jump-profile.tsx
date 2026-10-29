@@ -154,11 +154,34 @@ export function ImuSnapshotJumpProfile({
     `M${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")}`;
   // The ground flown so far, solid in the pass's colour and fading in from
   // the lip to the dot — the corners' way (2026-10-29).
+  // A pass's whole ride on the drawing, up to `t` s after its take-off: up
+  // the kicker from the plate's edge, the arc, and down the landing to the
+  // far edge — the line the dot follows (by request, 2026-10-29: the dashes
+  // went on past the landing).
+  const ridePoints = (shape: FlightShape, t: number) => {
+    const v = Math.hypot(shape.vx, shape.vy);
+    const steps = 24;
+    const pts: [number, number][] = [];
+    const runIn = Math.max(fromM, Math.min(0, v * t));
+    for (let i = 0; i <= steps; i++) {
+      const m = fromM + ((runIn - fromM) * i) / steps;
+      pts.push([X(m), groundY - kickerAt(m)]);
+    }
+    if (t <= 0) return pts;
+    pts.push(...arcPoints(shape, t).slice(1));
+    if (t <= shape.airtimeS) return pts;
+    const out = Math.min(toM, shape.distanceM + v * (t - shape.airtimeS));
+    for (let i = 1; i <= steps; i++) {
+      const m = shape.distanceM + ((out - shape.distanceM) * i) / steps;
+      pts.push([X(m), groundY - landingAt(m, shape.distanceM)]);
+    }
+    return pts;
+  };
   const flownPieces = (p: SimulationPass, shape: FlightShape) => {
     if (!p.flight) return [];
     const t = (cursorMs - p.flight.takeoffMs) / 1000;
-    if (t <= 0) return [];
-    const pts = arcPoints(shape, t);
+    const pts = ridePoints(shape, t);
+    if (pts.length < 2) return [];
     const n = FADE_PIECES;
     return Array.from({ length: n }, (_, j) => {
       const from = Math.floor((j * (pts.length - 1)) / n);
@@ -302,7 +325,7 @@ export function ImuSnapshotJumpProfile({
                     flown, solid in colour (by request, 2026-10-29). */}
                 {shape && (
                   <path
-                    d={line(arcPoints(shape))}
+                    d={line(ridePoints(shape, Infinity))}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={1}
