@@ -1058,9 +1058,9 @@ function FilterPill({
   );
 }
 
-/** The kinds the simulation is shown for — not jumps and brakings, for
- * now (by request, 2026-10-29). */
-const SIMULATED_KINDS = new Set<SnapshotKind>(["curve", "rough_section"]);
+/** The kinds the simulation is shown for — corners only, for now (by
+ * request, 2026-10-29: not jumps, brakings or rough sections). */
+const SIMULATED_KINDS = new Set<SnapshotKind>(["curve"]);
 
 /** How much trail the simulation draws either side of the stretch, m. */
 const SIMULATION_SURROUNDINGS_M = 60;
