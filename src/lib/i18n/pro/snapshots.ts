@@ -54,6 +54,9 @@ const en = {
     select: (name: string): string => `Follow ${name}`,
     /** The box beside each pass that takes it off the map and the chart. */
     showOnMap: (name: string): string => `Show ${name} on the map`,
+    /** The "…" after the readout's pills. */
+    morePasses: (n: number): string =>
+      n === 1 ? "1 more pass" : `${n} more passes`,
     notShown: (n: number): string =>
       n === 1
         ? "1 more pass is not replayed — narrow them with the filters."
@@ -62,9 +65,10 @@ const en = {
 
   /** The Snapshot's page (imu-snapshot-view). */
   view: {
-    /** The header's small line over the name, in the comparison that is
-     * not saved yet: "Comparison · Corner". A saved one says "Snapshot". */
-    comparison: "Comparison",
+    /** The header's small line over the kind, in the comparison that is
+     * not saved yet (2026-10-29, from a sketch). A saved one says
+     * "Snapshot". */
+    comparison: "Side by Side",
     /** "Reference: {session link} at 12:34 · " — the link sits between
      * the two, so the sentence is two keys. */
     referenceLabel: "Reference:",
@@ -72,9 +76,9 @@ const en = {
     referenceDeleted: "The reference session was deleted",
     gatesFromEvent: (metres: number): string =>
       `gates ${metres} m from the event`,
-    /** The stopwatch beside the map: the fastest pass on show
-     * (2026-10-28). */
-    bestTime: "Best time",
+    /** The stopwatch beside the map: the reference pass's time
+     * (2026-10-29, from a sketch; the fastest on show until then). */
+    referenceTime: "Reference Time",
     /** Pills reading "Bike: All" (2026-10-28), so the options are short —
      * the label stands outside the list. */
     filters: {
@@ -244,6 +248,7 @@ const pt: typeof en = {
       "A diferença para a referência ao longo do troço: acima da linha atrás dela, abaixo à frente.",
     select: (name) => `Seguir ${name}`,
     showOnMap: (name) => `Mostrar ${name} no mapa`,
+    morePasses: (n) => (n === 1 ? "Mais 1 passagem" : `Mais ${n} passagens`),
     notShown: (n) =>
       n === 1
         ? "Mais 1 passagem não é repetida — reduz com os filtros."
@@ -251,12 +256,12 @@ const pt: typeof en = {
   },
 
   view: {
-    comparison: "Comparação",
+    comparison: "Lado a lado",
     referenceLabel: "Referência:",
     atTime: (time) => `aos ${time}`,
     referenceDeleted: "A sessão de referência foi apagada",
     gatesFromEvent: (metres) => `portas a ${metres} m do evento`,
-    bestTime: "Melhor tempo",
+    referenceTime: "Tempo de referência",
     filters: {
       track: "Pistas",
       allTracks: "Todas",

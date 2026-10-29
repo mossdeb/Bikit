@@ -69,6 +69,9 @@ const TIE_MS = 200;
 const MAP_PAD = 40;
 /** Half a gate's mark across the trail, px — a tick, not its real width. */
 const GATE_TICK_PX = 12;
+/** Pills under the map at most, the followed pass's among them; the rest
+ * wait behind a "…". */
+const READOUT_PILLS = 3;
 /** The passes' lines fade in over this many pieces, from this opacity at
  * the entry to full at the dot. */
 const FADE_PIECES = 24;
@@ -181,13 +184,56 @@ export function ImuSnapshotSimulation({
 
   const gapOf = (p: SimulationPass) =>
     p === reference ? 0 : gapToReferenceAt(p.trace, reference.trace, cursorMs);
-  const followedGap = gapOf(followed);
-  const followedSpeed = speedAt(followed.trace, cursorMs);
-  const followedG = traceValueAt(
-    followed.trace,
-    followed.trace.gForce,
-    cursorMs,
-  );
+  // The readout's passes: the followed one, then the others — only those
+  // on the map; a pass taken off by its box loses its pill too.
+  const readoutPasses = [
+    followed,
+    ...passes.filter((p) => p !== followed),
+  ].filter((p) => !hidden.has(p.key));
+  const readoutPill = (p: SimulationPass) => {
+    const gap = gapOf(p);
+    const speed = speedAt(p.trace, cursorMs);
+    return (
+      <div
+        key={p.key}
+        aria-label={`${words.atCursor}: ${p.name}`}
+        className="flex h-9 items-center divide-x divide-border rounded-[12px] bg-card pr-1 pl-3 text-sm whitespace-nowrap tabular-nums"
+      >
+        <span className="flex items-center gap-2 pr-3">
+          <span
+            aria-hidden
+            className={cn(
+              "size-2.5 shrink-0 rounded-full bg-current",
+              inkOf(p),
+            )}
+          />
+          <span className="font-semibold">
+            {p === reference
+              ? words.reference
+              : gap == null
+                ? "—"
+                : signedSeconds(gap, locale)}
+          </span>
+        </span>
+        <span className="px-3">
+          <span className="font-semibold">
+            {speed == null ? "—" : proNumber(speed, locale, 1)}
+          </span>{" "}
+          <span className="text-muted-foreground">{words.speed}</span>
+        </span>
+        <span className="px-3">
+          <span className="font-semibold">
+            {proNumber(
+              traceValueAt(p.trace, p.trace.gForce, cursorMs),
+              locale,
+              1,
+            )}
+          </span>{" "}
+          <span className="text-muted-foreground">G</span>
+        </span>
+      </div>
+    );
+  };
 
   return (
     <section
@@ -301,53 +347,38 @@ export function ImuSnapshotSimulation({
       <div className="min-w-0">
         <SimulationMap
           passes={passes.filter((p) => !hidden.has(p.key))}
+          framed={passes}
           reference={reference}
           followed={followed}
           inkOf={inkOf}
           surroundings={surroundings}
           cursorMs={cursorMs}
           readout={
-            // The followed pass at the cursor, in a white pill in the
-            // plate's corner (by request, 2026-10-28): its gap, speed, G.
-            <div
-              aria-label={words.atCursor}
-              className="flex items-center divide-x divide-border rounded-[4px] bg-card py-2 pr-1 pl-3 text-sm whitespace-nowrap tabular-nums"
-            >
-              <span className="flex items-center gap-2 pr-3">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "size-2.5 shrink-0 rounded-full bg-current",
-                    inkOf(followed),
+            // The passes at the cursor, in white pills in the plate's
+            // corner (by request, 2026-10-28/29): the followed one first,
+            // then the others on the map up to
+            // READOUT_PILLS in all; the rest behind a "…" that opens beside
+            // it on hover, on its own row of the wrap.
+            <div className="flex flex-wrap items-end gap-2">
+              {readoutPasses.slice(0, READOUT_PILLS).map((p) => readoutPill(p))}
+              {readoutPasses.length > READOUT_PILLS && (
+                <div
+                  tabIndex={0}
+                  aria-label={words.morePasses(
+                    readoutPasses.length - READOUT_PILLS,
                   )}
-                />
-                <span className="font-semibold">
-                  {followed === reference
-                    ? words.reference
-                    : followedGap == null
-                      ? "—"
-                      : signedSeconds(followedGap, locale)}
-                </span>
-                {followed !== reference && (
-                  <span className="text-muted-foreground">
-                    {words.vsReference}
-                  </span>
-                )}
-              </span>
-              <span className="px-3">
-                <span className="font-semibold">
-                  {followedSpeed == null
-                    ? "—"
-                    : proNumber(followedSpeed, locale, 1)}
-                </span>{" "}
-                <span className="text-muted-foreground">{words.speed}</span>
-              </span>
-              <span className="px-3">
-                <span className="font-semibold">
-                  {proNumber(followedG, locale, 1)}
-                </span>{" "}
-                <span className="text-muted-foreground">G</span>
-              </span>
+                  className="group relative rounded-[12px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <div className="flex h-9 items-center rounded-[12px] bg-card px-3 text-sm font-semibold">
+                    …
+                  </div>
+                  <div className="invisible absolute bottom-0 left-full flex flex-col gap-2 pl-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+                    {readoutPasses
+                      .slice(READOUT_PILLS)
+                      .map((p) => readoutPill(p))}
+                  </div>
+                </div>
+              )}
             </div>
           }
         />
@@ -459,6 +490,7 @@ function GapPill({
 
 function SimulationMap({
   passes,
+  framed,
   reference,
   followed,
   inkOf,
@@ -467,6 +499,8 @@ function SimulationMap({
   readout,
 }: {
   passes: SimulationPass[];
+  /** All the passes, shown or not, which the map is fitted to. */
+  framed: SimulationPass[];
   reference: SimulationPass;
   followed: SimulationPass;
   inkOf: (p: SimulationPass) => string;
@@ -498,7 +532,9 @@ function SimulationMap({
     (lon - lon0) * RAD * R * cos,
     (lat - lat0) * RAD * R,
   ];
-  const all = passes.flatMap((p) =>
+  // Framed on every pass, shown or not: the trail stays put while passes
+  // go on and off, and with all of them off it is still drawn.
+  const all = framed.flatMap((p) =>
     p.trace.latDeg.map((lat, k) => toXY(lat, p.trace.lonDeg[k])),
   );
   const xs = all.map((p) => p[0]);
@@ -735,7 +771,7 @@ function SimulationMap({
           ))}
         </svg>
       )}
-      <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] overflow-x-auto">
+      <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
         {readout}
       </div>
       {/* A soft outline round the plate (by request, 2026-10-28) — over

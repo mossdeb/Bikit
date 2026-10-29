@@ -48,9 +48,9 @@ import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { formatRunTime } from "@/lib/imu/timed-track";
 import {
   findSnapshotPasses,
+  SNAPSHOT_GATE_OFFSET_M,
   passWithinGates,
   prepareSnapshotSession,
-  SNAPSHOT_GATE_OFFSET_M,
   snapshotKindLabel,
   snapshotPassMetrics,
   snapshotPassPath,
@@ -368,6 +368,7 @@ export function ImuSnapshotView({
   fromSessionId,
   draft = false,
   loadSession,
+  closeSlot,
 }: {
   snapshot: ImuSnapshotRow;
   candidates: ImuSnapshotCandidate[];
@@ -379,6 +380,8 @@ export function ImuSnapshotView({
    * a name of its own, a date, the menu that renames and deletes. */
   draft?: boolean;
   loadSession?: ImuSnapshotSessionLoader;
+  /** The popup's close, drawn in the head's corner (2026-10-29). */
+  closeSlot?: React.ReactNode;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -616,14 +619,6 @@ export function ImuSnapshotView({
       return la.localeCompare(lb) || byDate;
     });
 
-  // The fastest of what is on show, the reference among it (by request,
-  // 2026-10-28: the stopwatch beside the map).
-  const shownMs = [
-    ...(reference ? [reference.metrics.durationMs] : []),
-    ...others.map((r) => r.metrics.durationMs),
-  ];
-  const bestMs = shownMs.length ? Math.min(...shownMs) : null;
-
   const f = t.snapshots.view.filters;
   const showSetup = !draft && setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1;
   const showOrder = !draft && rows.length > 2;
@@ -709,6 +704,17 @@ export function ImuSnapshotView({
       : [];
   const notSimulated = others.length - simulatedOthers.length;
 
+  // The head's corner: the popup's close disc, or a saved Snapshot's menu.
+  const headAction = draft ? (
+    closeSlot
+  ) : (
+    <SnapshotSettings
+      id={snapshot.id}
+      name={snapshot.name}
+      afterDeleteHref={`/pro/sessoes/${fromSessionId}/relatorio`}
+    />
+  );
+
   return (
     // The pages' rhythm (2026-09-25, the setups page's): 28 px between
     // the cards, 32 under the heading's.
@@ -726,115 +732,94 @@ export function ImuSnapshotView({
             : cn("rounded-lg", DARK_CARD_HAIRLINE),
         )}
       >
-        {!draft && (
-          <div className="absolute top-3 right-3 sm:top-6 sm:right-6">
-            <SnapshotSettings
-              id={snapshot.id}
-              name={snapshot.name}
-              afterDeleteHref={`/pro/sessoes/${fromSessionId}/relatorio`}
-            />
-          </div>
-        )}
-        {/* The identity on the left and the map on the right from `sm`,
-            the map under the words on a phone. The three dots keep the
-            corner: the map stops short of it (`sm:mr-12`). */}
+        {/* The head as the sketch has it (by request, 2026-10-29): the
+            kind's mark top left and the words at the bottom, tight; on the
+            right the close disc (the menu, on a saved Snapshot's page) over
+            the reference's time, and the map in the band's corner, 15 px
+            in. Below `lg` the map goes under the words: beside them it squeezed the title into three lines. */}
         <div
           className={cn(
-            "flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-stretch sm:justify-between sm:p-8",
-            // The band breathes a little wider than a card; the top clears
-            // the close disc's row.
-            draft && "pt-16 sm:px-10 sm:pt-10 sm:pb-10",
+            "flex flex-col gap-5 p-5 lg:flex-row lg:items-stretch lg:gap-8 lg:py-[15px] lg:pr-[15px]",
+            draft ? "lg:pl-10" : "lg:pl-8",
           )}
         >
-          <div className="min-w-0 pr-10 sm:pr-0">
-            <SnapshotKindMark kind={snapshot.definition.kind} />
-            {/* The pages' heading (2026-09-25, the setups page's): the
-                line over the title at 14 px medium, the title at 32 px
-                bold, 26 px between them. */}
-            <p className="mt-[26px] text-sm font-medium text-foreground">
-              {draft ? t.snapshots.view.comparison : "Snapshot"} ·{" "}
-              {snapshotKindLabel(snapshot.definition.kind, locale)}
-            </p>
-            <h1 className="mt-7 font-display text-[32px] leading-8 font-bold tracking-[-0.6px]">
-              {snapshot.name}
-            </h1>
-            <p className="mt-[26px] text-sm text-muted-foreground">
-              {referenceSession ? (
-                <>
-                  {t.snapshots.view.referenceLabel}{" "}
-                  <Link
-                    href={`/pro/sessoes/${referenceSession.id}`}
-                    className="text-foreground underline-offset-2 hover:underline"
-                  >
-                    {referenceSession.name}
-                  </Link>{" "}
-                  {t.snapshots.view.atTime(
-                    formatSessionTime(snapshot.referenceEntryMs),
-                  )}{" "}
-                  ·{" "}
-                </>
-              ) : (
-                `${t.snapshots.view.referenceDeleted} · `
-              )}
-              {!draft && (
-                <>
-                  {t.common.createdOn(formatDate(snapshot.createdAt, locale))}{" "}
-                  ·{" "}
-                </>
-              )}
-              {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
-            </p>
-          </div>
-          {/* The best time and the map (by request, 2026-10-28, from a
-              sketch): the stopwatch to the map's left from `sm`. */}
-          <div
-            className={cn(
-              "flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8",
-              // On the page the map stops short of the three dots' corner;
-              // in the popup there are no dots, and it sits in the band's
-              // bottom-right corner, under the close disc (by request,
-              // 2026-09-27).
-              draft ? "sm:self-end" : "sm:mr-12",
-            )}
-          >
-            {bestMs != null && (
-              <p
-                title={t.snapshots.view.bestTime}
-                className="flex items-center gap-2 font-display text-[26px] leading-7 font-bold tracking-[-0.5px] tabular-nums"
-              >
-                <Timer
-                  className="size-[26px] shrink-0"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                <span className="sr-only">{t.snapshots.view.bestTime}: </span>
-                {stopwatch(bestMs)}
-              </p>
-            )}
-            {/* A fixed picture of the stretch (by request, 2026-09-10) — a
-                dark tile like the session's map, so the two read as one
-                surface. Held at its size while the file loads, so the card
-                does not jump when the picture arrives. */}
-            <div className="h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] bg-sidebar sm:w-[220px]">
-              {mapData && (
-                <ImuSnapshotMiniMap
-                  track={mapData.track}
-                  section={mapData.section}
-                  className="h-full w-full"
-                />
-              )}
+          <div className="flex min-w-0 flex-1 flex-col justify-between gap-6 lg:py-[15px]">
+            <div className="flex items-start justify-between gap-4">
+              <SnapshotKindMark kind={snapshot.definition.kind} />
+              <div className="lg:hidden">{headAction}</div>
             </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                {draft ? t.snapshots.view.comparison : "Snapshot"}
+              </p>
+              <h1 className="font-display text-[32px] leading-9 font-bold tracking-[-0.6px]">
+                {draft
+                  ? snapshotKindLabel(snapshot.definition.kind, locale)
+                  : snapshot.name}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {referenceSession ? (
+                  <>
+                    {t.snapshots.view.referenceLabel}{" "}
+                    <Link
+                      href={`/pro/sessoes/${referenceSession.id}`}
+                      className="underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      {referenceSession.name}
+                    </Link>{" "}
+                    {t.snapshots.view.atTime(
+                      formatSessionTime(snapshot.referenceEntryMs),
+                    )}{" "}
+                    ·{" "}
+                  </>
+                ) : (
+                  `${t.snapshots.view.referenceDeleted} · `
+                )}
+                {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-start justify-between gap-4 lg:items-end lg:py-[15px]">
+            <div className="hidden lg:block">{headAction}</div>
+            {reference && (
+              <div className="lg:text-right">
+                <p className="text-sm font-medium text-foreground">
+                  {t.snapshots.view.referenceTime}
+                </p>
+                <p className="mt-1 flex items-center gap-2.5 font-display text-[32px] leading-9 font-bold tracking-[-0.6px] tabular-nums">
+                  <Timer
+                    className="size-7 shrink-0"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                  {stopwatch(reference.metrics.durationMs)}
+                </p>
+              </div>
+            )}
+          </div>
+          {/* A fixed picture of the stretch (by request, 2026-09-10) — a
+              dark tile like the session's map, so the two read as one
+              surface. Held at its size while the file loads, so the band
+              does not jump when the picture arrives. */}
+          <div className="h-[160px] w-full shrink-0 overflow-hidden rounded-[8px] bg-sidebar lg:w-[240px]">
+            {mapData && (
+              <ImuSnapshotMiniMap
+                track={mapData.track}
+                section={mapData.section}
+                className="h-full w-full"
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {/* The filters, as pills centred under the head (by request,
+      {/* The filters, as pills on the right under the head (by request,
           2026-10-28, from a sketch) — in the comparison opened from an
           event's card too, which went without them since 2026-09-20. Each
           only when it has something to choose; the saved Snapshot's page
           keeps its setup and its order besides. */}
       {anyFilter && (
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {tracks.length > 0 && (
             <FilterPill
               label={f.track}
@@ -1003,7 +988,7 @@ export function ImuSnapshotView({
   );
 }
 
-/** A best time as a stopwatch reads it, "00:30.000" (2026-10-28). */
+/** A time as a stopwatch reads it, "00:30.000" (2026-10-28). */
 function stopwatch(ms: number): string {
   return formatRunTime(ms).padStart(9, "0");
 }

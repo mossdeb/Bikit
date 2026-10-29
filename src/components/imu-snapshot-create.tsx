@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, X } from "lucide-react";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import {
   ImuSnapshotView,
@@ -15,6 +15,7 @@ import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -213,6 +214,7 @@ export function ImuSnapshotCreate({
         // round a sheet this full only costs it 32 px of passes each way.
         // Rises 48 px into place, no zoom, and sinks back — the large
         // popups' entrance (2026-09-27); the backdrop leaves with it.
+        showClose={false}
         overlayClassName="data-closed:duration-250"
         className="h-dvh max-h-none w-screen max-w-none grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none bg-background p-0 ring-0 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:h-[calc(100dvh-4rem)] lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)] sm:max-w-none sm:rounded-lg sm:ring-1"
       >
@@ -230,6 +232,17 @@ export function ImuSnapshotCreate({
           ) : draftRow && candidates ? (
             <ImuSnapshotView
               draft
+              closeSlot={
+                // In the head's corner, over the reference's time (by
+                // request, 2026-10-29, from a sketch): a white disc,
+                // outlined.
+                <DialogClose
+                  aria-label={t.common.close}
+                  className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <X className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                </DialogClose>
+              }
               snapshot={draftRow}
               candidates={candidates}
               fromSessionId={sessionId}
