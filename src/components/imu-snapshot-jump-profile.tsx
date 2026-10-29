@@ -94,8 +94,14 @@ export function ImuSnapshotJumpProfile({
   const landing = LANDING_SHARE * longest;
   // Framed on the jump itself, the ramps only just in (by request,
   // 2026-10-29: trimmed, so they read larger).
-  const fromM = -kicker * 1.02;
-  const toM = longest + landing * 1.02;
+  // Centred (by request, 2026-10-29): the same margin before the kicker's
+  // foot as after the landing's — the landing drawn from the reference's
+  // run, the longest arc's end the farthest anything flies.
+  const landingTop = shapeOf(reference)?.distanceM ?? longest;
+  const drawnTo = Math.max(landingTop + landing, longest);
+  const margin = 0.02 * (drawnTo + kicker);
+  const fromM = -kicker - margin;
+  const toM = drawnTo + margin;
   const sx = W > 0 ? (W - 2 * PAD_X) / (toM - fromM) : 1;
   // Room under the ground for the run's arrow and, below it, the pills —
   // two rows of them on a narrow plate.
@@ -114,8 +120,6 @@ export function ImuSnapshotJumpProfile({
   // their height, so each knuckle's two sides meet there without a notch.
   const landingAt = (m: number, top: number) =>
     m < top || m >= top + landing ? 0 : LIP_PX * (1 - (m - top) / landing) ** 2;
-  const refShape = shapeOf(reference);
-  const landingTop = refShape?.distanceM ?? longest;
 
   // A pass's dot: on the kicker before the lip, on its arc in the air, on
   // the landing after; at the speed it left the lip at.
