@@ -7,6 +7,7 @@ import {
   sessionIdOf,
   SIGNED_IN_ELSEWHERE,
 } from "@/lib/active-session";
+import { NOTICE_COOKIE, NOTICE_PATH } from "@/lib/notice";
 
 // /privacy and /terms have to answer to signed-out visitors and to crawlers:
 // Google reads them when verifying the OAuth consent screen's branding, and a
@@ -85,6 +86,27 @@ export async function updateSession(request: NextRequest) {
     url.search = `?error=${encodeURIComponent(SIGNED_IN_ELSEWHERE)}`;
     const response = NextResponse.redirect(url);
     // The signed-out session's cookies, cleared on the way out.
+    supabaseResponse.cookies
+      .getAll()
+      .forEach((cookie) => response.cookies.set(cookie));
+    return response;
+  }
+
+  // After a sign-in, the confidentiality notice first (src/lib/notice.ts):
+  // every page waits behind its own page until it is confirmed, and comes
+  // back after it.
+  if (
+    user &&
+    !isPublicRoute &&
+    request.nextUrl.pathname !== NOTICE_PATH &&
+    request.cookies.has(NOTICE_COOKIE)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = NOTICE_PATH;
+    url.search = `?next=${encodeURIComponent(
+      request.nextUrl.pathname + request.nextUrl.search,
+    )}`;
+    const response = NextResponse.redirect(url);
     supabaseResponse.cookies
       .getAll()
       .forEach((cookie) => response.cookies.set(cookie));
