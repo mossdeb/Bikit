@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { NOTICE_COOKIE, NOTICE_COOKIE_OPTIONS } from "@/lib/notice";
+import { claimActiveSession } from "@/lib/active-session";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,6 +18,8 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
+  // One session per account: this one, the others ended.
+  await claimActiveSession(supabase);
   // The confidentiality notice, after every sign-in.
   (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
   revalidatePath("/", "layout");
@@ -88,6 +91,7 @@ export async function confirmEmail(formData: FormData) {
     redirect("/login?error=confirmation-failed");
   }
 
+  await claimActiveSession(supabase);
   (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
   revalidatePath("/", "layout");
   redirect(next);

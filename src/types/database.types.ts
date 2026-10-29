@@ -488,6 +488,24 @@ export type Database = {
           },
         ];
       };
+      active_sessions: {
+        Row: {
+          session_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          session_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          session_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       notice_acceptances: {
         Row: {
           first_accepted_at: string;
