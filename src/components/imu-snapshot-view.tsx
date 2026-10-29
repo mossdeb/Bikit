@@ -4,6 +4,7 @@ import type { StoredRiderSag } from "@/lib/imu/rider-sag";
 import {
   Fragment,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -631,6 +632,34 @@ export function ImuSnapshotView({
     showOrder;
 
   const columns = SNAPSHOT_COLUMNS[snapshot.definition.kind];
+
+  // One width per column across the passes (by request, 2026-10-29: the
+  // table's rules ran crooked). Each cell grows from nothing by the same
+  // share, so the rows line up as long as no cell is held wider by its
+  // own figures: every cell of a column is held as wide as the column's
+  // widest content. Measured after each render — the figures change with
+  // the filters and the files as they arrive.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const cells = [...list.querySelectorAll<HTMLElement>("[data-stat-col]")];
+    for (const cell of cells) cell.style.minWidth = "";
+    const widest = new Map<string, number>();
+    for (const cell of cells) {
+      const content = cell.firstElementChild as HTMLElement | null;
+      if (!content) continue;
+      const style = getComputedStyle(cell);
+      const width =
+        content.getBoundingClientRect().width +
+        parseFloat(style.paddingLeft) +
+        parseFloat(style.paddingRight) +
+        parseFloat(style.borderLeftWidth);
+      const key = cell.dataset.statCol!;
+      widest.set(key, Math.max(widest.get(key) ?? 0, Math.ceil(width)));
+    }
+    for (const cell of cells)
+      cell.style.minWidth = `${widest.get(cell.dataset.statCol!)}px`;
+  });
   const referenceSession = candidates.find(
     (c) => c.id === snapshot.referenceSessionId,
   );
@@ -1137,12 +1166,14 @@ export function SnapshotPassLine({
   return (
     <div
       className={cn(
-        "@container flex min-h-[180px] flex-col px-5 py-5 sm:p-8",
-        !pinned && "border-t border-border lg:border-t-0",
+        "@container/pass flex min-h-[180px] flex-col px-5 py-5 sm:p-8",
+        // Ruled off from the pass above at every width: on a desktop the
+        // passes are a table's rows (by request, 2026-10-29, from a sketch).
+        !pinned && "border-t border-border",
       )}
     >
-      <div className="flex flex-1 flex-col gap-4 @min-[1030px]:flex-row @min-[1030px]:items-stretch @min-[1030px]:gap-6">
-        <div className="min-w-0 @min-[1030px]:w-[280px] @min-[1030px]:shrink-0">
+      <div className="flex flex-1 flex-col gap-4 @min-[1030px]/pass:flex-row @min-[1030px]/pass:items-stretch @min-[1030px]/pass:gap-6">
+        <div className="min-w-0 @min-[1030px]/pass:w-[280px] @min-[1030px]/pass:shrink-0">
           <Link
             href={`/pro/sessoes/${session.id}`}
             className="text-lg font-semibold underline-offset-2 hover:underline"
@@ -1255,7 +1286,10 @@ export function SnapshotPassLine({
 
         <div
           data-pass-figures
-          className="@container relative flex min-w-0 flex-1 flex-col"
+          // Side by side, the figures reach the row's top, bottom and right
+          // edges — through the pass's 32 px padding — so their rules run
+          // the row's full height, as a table's (2026-10-29).
+          className="@container relative flex min-w-0 flex-1 flex-col @min-[1030px]/pass:-my-8 @min-[1030px]/pass:-mr-8"
         >
           {/* This pass's stretch of the hovered column's band: the column's
               width plus its right rule, the figures' height and 20–22 px
@@ -1271,7 +1305,7 @@ export function SnapshotPassLine({
           <div
             aria-hidden
             className={cn(
-              "imu-focus-band pointer-events-none absolute rounded-[12px] -inset-y-5 border-x border-border transition-[left,width,opacity] duration-150 sm:-inset-y-[22px]",
+              "imu-focus-band pointer-events-none absolute rounded-[12px] -inset-y-5 border-x border-border transition-[left,width,opacity] duration-150 sm:-inset-y-[22px] @min-[1030px]/pass:inset-y-0 @min-[1030px]/pass:rounded-none",
               focusBandOn ? "opacity-100" : "opacity-0",
             )}
             style={focusBand ?? undefined}
@@ -1285,8 +1319,10 @@ export function SnapshotPassLine({
               a wrapped row is ruled like the first. Beside the left column
               the box stretches to the pass's full height, pills or none
               (by request, 2026-09-14), the figures centred in it. */}
-          <div className="flex w-fit max-w-full flex-1 flex-col overflow-hidden rounded-[14px] border border-border @min-[720px]:w-full">
-            <div className="-mt-px -ml-px flex flex-1 flex-wrap @min-[720px]:flex-nowrap">
+          {/* Side by side, no box: the cells' own left rules divide the
+              columns, and the row's rules close them (2026-10-29). */}
+          <div className="flex w-fit max-w-full flex-1 flex-col overflow-hidden rounded-[14px] border border-border @min-[720px]:w-full @min-[1030px]/pass:rounded-none @min-[1030px]/pass:border-0">
+            <div className="-mt-px -ml-px flex flex-1 flex-wrap @min-[720px]:flex-nowrap @min-[1030px]/pass:mt-0 @min-[1030px]/pass:ml-0 @min-[1030px]/pass:[&>*]:border-t-0 @min-[1030px]/pass:[&>*:first-child]:border-l-0">
               {statCells(columns).map((cell) =>
                 Array.isArray(cell) ? (
                   <div
