@@ -46,6 +46,12 @@ const offsetFor = (slot: number) => `translateY(${(-slot * 100) / SLOTS.length}%
 
 const STORE_PREFIX = "bikit:seen:";
 
+/** The entrance's pace: 1.8 s in all for a session's time, its seven digits
+ * included (by request, 2026-10-30) — the same wave as the odometer's, shorter
+ * because it plays on every visit. */
+const ENTER_TURN_MS = 1320;
+const ENTER_STAGGER_MS = 80;
+
 /** Digit runs and everything between them, in order — "3372 km" becomes
  * ["3372", " km"]. Splitting rather than stripping keeps the unit, the
  * thousands separator and the decimal comma exactly where the formatter put
@@ -217,7 +223,8 @@ export function AnimatedNumber({
       // settles as a wave instead of stopping dead all at once — and the step
       // grows with the duration, or the cascade disappears inside a longer
       // turn and the columns look simultaneous again.
-      strip.style.transitionDelay = `${i * 110}ms`;
+      strip.style.transitionDelay = `${i * (rollOnEnter ? ENTER_STAGGER_MS : 110)}ms`;
+      if (rollOnEnter) strip.style.transitionDuration = `${ENTER_TURN_MS}ms`;
       strip.style.transform = offsetFor(Number(column.dataset.slot));
     });
   }, [value, storageKey, rollOnEnter]);
