@@ -47,12 +47,7 @@ export function LandingPage({ locale }: { locale: LandingLocale }) {
       >
         <LandingHeader nav={dict.nav} locale={locale} onDark />
 
-        <div className="flex items-center gap-[18px] sm:gap-[27px]">
-          <img src="/landing/icons/logo-white.svg" alt="" className="size-16 sm:size-[92px]" />
-          <span className="font-[family-name:var(--font-landing-display)] text-[44px] leading-none font-bold text-white sm:text-[60px]">
-            Bikit
-          </span>
-        </div>
+        <img src="/landing/icons/logo-white.svg" alt="Bikit" className="size-16 sm:size-[92px]" />
 
         <p className="mt-9 text-base text-white uppercase sm:mt-14 sm:text-lg">
           {hero.kicker}
@@ -65,6 +60,7 @@ export function LandingPage({ locale }: { locale: LandingLocale }) {
         </h1>
 
         <p className="mt-14 text-base leading-relaxed text-white sm:mt-[110px] sm:text-lg">
+          <strong className="block font-bold">{hero.leadBold}</strong>
           {hero.lead1} <br className="hidden sm:block" />
           {hero.lead2}
         </p>

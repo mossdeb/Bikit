@@ -28,8 +28,9 @@ const en = {
       titleBold1: "Bike Intelligence",
       titleLight: "and",
       titleBold2: "Telemetry System",
-      lead1: "Be first in line. Get early updates,",
-      lead2: "exclusive benefits, and priority access to the BIKIT device.",
+      leadBold: "Be first in line.",
+      lead1: "Get early updates, exclusive benefits,",
+      lead2: "and priority access to the BIKIT device.",
       emailPlaceholder: "email",
       emailLabel: "Your email address",
       submit: "Join the Waitlist",
@@ -195,7 +196,7 @@ const en = {
     legalTerms: "Terms",
     copyright:
       "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
-    madeFor: "Made by riders",
+    madeFor: "Made by Riders for Riders",
   },
 };
 

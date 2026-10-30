@@ -25,8 +25,9 @@ const pt: LandingDictionary = {
       titleBold1: "Bike Intelligence",
       titleLight: "and",
       titleBold2: "Telemetry System",
-      lead1: "Sê dos primeiros. Recebe novidades em primeira mão,",
-      lead2: "benefícios exclusivos e acesso prioritário ao dispositivo BIKIT.",
+      leadBold: "Sê dos primeiros.",
+      lead1: "Recebe novidades em primeira mão, benefícios exclusivos",
+      lead2: "e acesso prioritário ao dispositivo BIKIT.",
       emailPlaceholder: "email",
       emailLabel: "O teu endereço de email",
       submit: "Entrar na lista de espera",
@@ -192,7 +193,7 @@ const pt: LandingDictionary = {
     legalTerms: "Termos",
     copyright:
       "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
-    madeFor: "Made by riders",
+    madeFor: "Made by Riders for Riders",
   },
 };
 

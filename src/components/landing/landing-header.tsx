@@ -3,6 +3,10 @@ import { LandingLocaleSwitcher } from "@/components/landing/landing-locale-switc
 import type { LandingDictionary } from "@/components/landing/i18n/en";
 import type { LandingLocale } from "@/components/landing/i18n";
 
+/** The sign-in button is hidden for now (by request, 2026-10-30): the beta's
+ * riders go to /login directly. Set back to true to bring it back. */
+const SHOW_LOGIN = false;
+
 export function LandingHeader({
   nav,
   locale,
@@ -53,12 +57,14 @@ export function LandingHeader({
 
         <div className="flex items-center gap-3">
           <LandingLocaleSwitcher locale={locale} label={nav.switchLanguage} onDark={onDark} />
-          <Link
-            href="/login"
-            className="rounded-full bg-[#43F3AF] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90"
-          >
-            {nav.login}
-          </Link>
+          {SHOW_LOGIN && (
+            <Link
+              href="/login"
+              className="rounded-full bg-[#43F3AF] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90"
+            >
+              {nav.login}
+            </Link>
+          )}
         </div>
       </div>
     </header>
