@@ -33,9 +33,9 @@ export function LegalPage({
       {/* Masthead in the header's own colour, inset at xl exactly like the hero
           card — so the coloured band never reads as a stray stripe. */}
       <section className="bg-white xl:px-8 xl:pt-4">
-        <div className="bg-[#B8B3AF] xl:rounded-[20px]">
+        <div className="landing-dots xl:rounded-[20px]">
           <div className="mx-auto max-w-[1160px] px-5 py-12 sm:px-8 xl:py-16">
-            <h1 className="font-[family-name:var(--font-landing-heading)] text-[30px] font-bold leading-tight text-white sm:text-[42px]">
+            <h1 className="font-[family-name:var(--font-landing-heading)] text-[30px] font-bold leading-tight text-[#101014] sm:text-[42px]">
               {doc.title}
             </h1>
             <p className="mt-3 text-xs text-[#101014]/70">

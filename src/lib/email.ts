@@ -1,9 +1,12 @@
 import { Resend } from "resend";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { formatDate } from "@/lib/format";
+import { CONTACT_EMAIL } from "@/lib/contact";
 import { getLandingDictionary, type LandingLocale } from "@/components/landing/i18n";
 
 const FROM = "Bikit <hello@mail.bikit.app>";
+// The sender has to stay on the domain verified with Resend; a reply goes here.
+const REPLY_TO = CONTACT_EMAIL;
 // Absolute and hardcoded rather than derived from the request's origin.
 //
 // Everything in an email is read somewhere else, on a host the sender never
@@ -78,6 +81,7 @@ export async function sendDueSoonEmail(params: {
   );
   const { error } = await client.emails.send({
     from: FROM,
+    replyTo: REPLY_TO,
     to: params.to,
     subject: dict.dueSoon.subject(params.componentName),
     html,
@@ -111,6 +115,7 @@ export async function sendOverdueEmail(params: {
   );
   const { error } = await client.emails.send({
     from: FROM,
+    replyTo: REPLY_TO,
     to: params.to,
     subject: dict.overdue.subject(params.componentName),
     html,
@@ -135,6 +140,7 @@ export async function sendWaitlistEmail(params: { to: string; locale: LandingLoc
   );
   const { error } = await client.emails.send({
     from: FROM,
+    replyTo: REPLY_TO,
     to: params.to,
     subject: dict.subject,
     html,
@@ -189,6 +195,7 @@ export async function sendWeeklySummaryEmail(params: {
 
   const { error } = await client.emails.send({
     from: FROM,
+    replyTo: REPLY_TO,
     to: params.to,
     subject: dict.weeklySummary.subject,
     html,
@@ -228,6 +235,7 @@ export async function sendHardRideEmail(params: {
   );
   const { error } = await client.emails.send({
     from: FROM,
+    replyTo: REPLY_TO,
     to: params.to,
     subject: dict.hardRide.subject(params.bikeName),
     html,

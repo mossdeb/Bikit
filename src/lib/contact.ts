@@ -8,5 +8,5 @@
  * address that appears in a policy must not drift from the one on the page
  * that invites people to write.
  */
-export const SUPPORT_EMAIL = "support@bikit.app";
-export const CONTACT_EMAIL = "hello@bikit.app";
+export const SUPPORT_EMAIL = "bikitproapp@gmail.com";
+export const CONTACT_EMAIL = "bikitproapp@gmail.com";
