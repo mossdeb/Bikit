@@ -1,177 +1,73 @@
+import type { FaqItem } from "@/components/faq-accordion";
 import type { LandingDictionary } from "./en";
 
 const pt: LandingDictionary = {
   nav: {
     features: "Funcionalidades",
-    howItWorks: "Como funciona",
-    pricing: "Preços",
+    device: "O dispositivo",
     faq: "FAQ",
-    login: "Entrar",
-    getStarted: "Começar grátis",
-    switchLanguage: "Mudar para inglês",
+    login: "Entrar na beta",
+    switchLanguage: "Idioma",
   },
-  hero: {
-    badge: "O TEU COMPANHEIRO DE PEDAL",
-    titleLine1: "Toda a manutenção da tua bicicleta",
-    titleLine2: "Num único lugar",
-    subtitle:
-      "Regista cada bicicleta, acompanha o desgaste dos componentes e recebe alertas antes de surgir um problema. Menos avarias inesperadas, mais tempo a pedalar.",
-    alerts: "Alertas",
-    services: "Manutenções",
-    smart: "Gestão Automática",
-    ctaPrimary: "Começar grátis",
-    ctaSecondary: "Ver planos",
-    strava: "Ligar ao Strava",
-    slideLabel: "Ver bicicleta {n}",
-    slides: [
-      {
-        alt: "Bicicleta de enduro",
-        name: "A minha Enduro",
-        stats: "180km  ·  20h",
-        metrics: [
-          { label: "Revisão em 35 horas", percent: 90 },
-          { label: "Revisão em 20 km", percent: 10 },
-        ],
-      },
-      {
-        alt: "Bicicleta de estrada",
-        name: "A minha Estrada",
-        stats: "1 240km  ·  48h",
-        metrics: [{ label: "Tensão dos raios", percent: 90 }],
-      },
-      {
-        alt: "Bicicleta de cross-country",
-        name: "A minha XC",
-        stats: "620km  ·  36h",
-        metrics: [{ label: "Pastilhas", percent: 70 }],
-      },
-    ],
-  },
-  features: {
-    badge: "Funcionalidades",
-    title: "Tudo o que precisas para cuidar da tua bicicleta",
-    subtitle:
-      "Sem folhas de cálculo, sem post-its na garagem. Um sítio só para as tuas bicicletas, os teus componentes e o histórico de tudo o que lhes fizeste.",
-    card1: {
-      panelTitle: "Componentes — A minha Bicicleta",
-      row1Title: "Amortecedor — Fox Float X2",
-      row1Sub: "Instalado há 8 meses",
-      row2Title: "Travões — Shimano XT",
-      row2Sub: "Instalado há 2 meses",
-      row3Title: "Corrente — SRAM GX",
-      row3Sub: "Instalada há 3 meses",
-      heading: "Cada bicicleta, cada componente, num só sítio",
-      body: "Cria um perfil para cada bicicleta e regista suspensão, travões, transmissão, rodas — tudo. Sabes sempre o que tens montado e há quanto tempo está lá.",
+  home: {
+    hero: {
+      kicker: "Percebe cada descida.",
+      titleBold1: "Bike Intelligence",
+      titleLight: "and",
+      titleBold2: "Telemetry System",
+      lead1: "Sê dos primeiros. Recebe novidades em primeira mão,",
+      lead2: "benefícios exclusivos e acesso prioritário ao dispositivo BIKIT.",
+      emailPlaceholder: "email",
+      emailLabel: "O teu endereço de email",
+      submit: "Entrar na lista de espera",
+      sending: "A enviar…",
+      success: "Já estás na lista. Entraremos em contacto.",
+      invalid: "Escreve um endereço de email válido.",
+      failed: "Não correu bem. Tenta outra vez.",
     },
-    card2: {
-      heading: "Alertas antes que seja tarde",
-      body: "Define intervalos de manutenção por componente. O Bikit acompanha os quilómetros e os meses, e avisa-te quando algo se aproxima do limite.",
-      panelTitle: "Precisa de atenção",
-      alert1Title: "Pneus — Trek Domane",
-      alert1Sub: "Ok, revisto há 1 mês",
-      alert1Status: "Em dia",
-      alert2Title: "Corrente — Peugeot Gravel",
-      alert2Sub: "Desgaste a 0.5% do limite",
-      alert2Status: "Em breve",
-      alert3Title: "Travões — Canyon Spectral",
-      alert3Sub: "Serviço vencido há 12 dias",
-      alert3Status: "Atrasado",
+    features: {
+      badge: "Funcionalidades",
+      title: "Tira mais de cada volta.",
+      lead: "Cada movimento conta uma história. O BIKIT transforma-a em dados que consegues perceber.",
     },
-    card3: {
-      heading: "Histórico completo de intervenções",
-      body: "Serviço, reparação ou substituição — cada intervenção fica registada, com data, quilómetros e notas. O histórico da tua bicicleta nunca se perde.",
+    device: {
+      badge: "O dispositivo",
+      title: "Dispositivo pequeno. Dados poderosos.",
+      lead1: "Um dispositivo de telemetria compacto e inteligente, feito para registar a tua volta com precisão.",
+      lead2: "Monta-o, começa a gravar e explora o teu desempenho na plataforma BIKIT.",
+      imageAlt: "O dispositivo de telemetria BIKIT",
     },
-  },
-  howItWorks: {
-    badge: "Como funciona",
-    title: "A postos em três passos",
-    subtitle: "Começa em menos de dois minutos.",
-    // The closing half of the subtitle, set in bold. Kept as its own string
-    // because these dictionaries carry no markup — the component decides what
-    // is emphasised, the same way the landing already splits its other copy.
-    subtitleStrong: "A BIKIT trata do resto.",
-    steps: [
-      {
-        title: "Adiciona a tua bicicleta",
-        description: "Cria uma ficha para cada bicicleta e começa a acompanhar toda a manutenção.",
-      },
-      {
-        title: "Liga ao Strava",
-        description: "Os quilómetros são atualizados automaticamente após cada atividade.",
-      },
-      {
-        title: "Recebe alertas",
-        description: "Recebe alertas antes do próximo serviço e mantém a bicicleta sempre pronta.",
-      },
-    ],
-  },
-  pricing: {
-    badge: "Preços",
-    title: "Escolhe o plano para o teu parque de bicicletas",
-    subtitle: "Começa grátis. Sobe de plano quando tiveres mais que uma bicicleta para cuidar.",
-    monthly: "Mensal",
-    yearly: "Anual",
-    yearlySaving: "Poupa 16%",
-    plans: [
-      {
-        name: "Grátis",
-        description: "Para experimentar sem compromisso.",
-        price: "€0",
-        period: "para sempre",
-        priceYearly: "€0",
-        periodYearly: "para sempre",
-        // Nothing to strike through on a plan that costs nothing.
-        priceYearlyFull: "",
-        featuresLead: "",
-        features: ["1 bicicleta", "Até 2 componentes", "Histórico de intervenções limitado", "Alertas de manutenção"],
-        // Empty on Free: its CTA has nothing to buy and goes straight to signup.
-        checkoutPlan: "",
-        cta: "Começar grátis",
-        highlighted: false,
-      },
-      {
-        name: "Pessoal",
-        description: "Para quem tem mais que uma bicicleta.",
-        price: "€2,99",
-        period: "/ mês",
-        priceYearly: "€29,99",
-        periodYearly: "/ ano",
-        // 12 × the monthly price, struck through next to the yearly one.
-        priceYearlyFull: "€35,88",
-        featuresLead: "",
-        features: [
-          "Até 3 bicicletas",
-          "Componentes ilimitados",
-          "Histórico de intervenções",
-          "Timeline da bicicleta",
-          "Alertas de manutenção",
-        ],
-        checkoutPlan: "personal",
-        cta: "Escolher Pessoal",
-        highlighted: true,
-        badge: "Mais popular",
-      },
-      {
-        name: "Pro",
-        description: "Para coleções sem limites e mais controlo.",
-        price: "€5,99",
-        period: "/ mês",
-        priceYearly: "€59,99",
-        periodYearly: "/ ano",
-        priceYearlyFull: "€71,88",
-        // O Pro repetia quatro linhas do Pessoal. Dizê-lo numa só encurta o
-        // card e deixa à vista o que é mesmo exclusivo deste plano.
-        featuresLead: "Os mesmos benefícios do Pessoal, mais:",
-        features: [
-          "Bicicletas ilimitadas",
-          "Relatórios detalhados (brevemente)",
-          "Exportação PDF/CSV (brevemente)",
-        ],
-        checkoutPlan: "pro",
-        cta: "Escolher Pro",
-        highlighted: false,
-      },
-    ],
+    faq: {
+      badge: "Todas as perguntas",
+      title: "Perguntas frequentes",
+      questions: [
+        {
+          question: "O que é o BIKIT?",
+          answer:
+            "O BIKIT é um sistema de inteligência e telemetria para bicicletas: um pequeno dispositivo que regista a tua volta e uma plataforma que transforma esse registo em dados que consegues perceber.",
+        },
+        {
+          question: "Como funciona o BIKIT?",
+          answer:
+            "Monta o dispositivo na bicicleta, começa a gravar e vai andar. Depois, importa a sessão para a plataforma BIKIT e explora as tuas descidas, curvas, saltos e impactos.",
+        },
+        {
+          question: "O BIKIT é compatível com a minha bicicleta?",
+          answer:
+            "O BIKIT é feito para bicicletas de montanha e motas de motocross, e monta-se no quadro. Entra na lista de espera e dizemos-te como fica na tua montagem.",
+        },
+        {
+          question: "Quando estará disponível o BIKIT?",
+          answer:
+            "O BIKIT está em beta fechada. Entra na lista de espera para receberes novidades em primeira mão e acesso prioritário ao dispositivo.",
+        },
+        {
+          question: "Preciso de conhecimentos técnicos para usar o BIKIT?",
+          answer:
+            "Não. Montar o dispositivo e gravar uma volta é simples, e a plataforma explica o que os dados significam para a tua condução.",
+        },
+      ] as FaqItem[],
+    },
   },
   faq: {
     badge: "FAQ",
@@ -272,18 +168,11 @@ const pt: LandingDictionary = {
       },
     ],
   },
-  cta: {
-    title: "Pronto para deixar de adivinhar quando foi a última manutenção?",
-    subtitle: "Cria a tua conta e regista a tua primeira bicicleta em menos de dois minutos.",
-    button: "Começar grátis",
-    footer: "Grátis para sempre · 1 bicicleta incluída",
-  },
   footer: {
-    tagline: "Manutenção de bicicletas, sem folhas de cálculo. A ferramenta definitiva para ciclistas que cuidam das suas máquinas.",
+    tagline: "Percebe a tua bicicleta. Liberta o teu potencial.",
     productHeading: "Produto",
     productLinks: [
-      { label: "Funcionalidades", href: "#funcionalidades" },
-      { label: "Preços", href: "#precos" },
+      { label: "Funcionalidades", href: "#features" },
       { label: "FAQ", href: "#faq" },
     ],
     productSupport: "Ajuda e suporte",

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PoweredByStrava } from "@/components/strava-brand";
+import { PATENT_LINE } from "@/components/site-footer";
 import type { LandingDictionary } from "@/components/landing/i18n/en";
 
 export function LandingFooter({
@@ -12,8 +12,14 @@ export function LandingFooter({
   hrefBase?: string;
 }) {
   return (
-    <footer className="bg-white px-4 py-16 sm:px-8 md:py-24">
+    <footer className="bg-white px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-[1160px]">
+        <div className="mb-3 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#101014] px-3.5 py-1.5 text-center text-xs font-bold tracking-wide text-white uppercase">
+            <span className="size-1.5 shrink-0 rounded-full bg-white" />
+            {PATENT_LINE}
+          </span>
+        </div>
         <div className="flex flex-col gap-9 border-b border-[#101014]/[0.09] pb-9 sm:flex-row sm:justify-between">
           <div className="flex max-w-[280px] flex-col gap-2">
             <div className="flex items-center gap-2.5">
@@ -68,10 +74,6 @@ export function LandingFooter({
 
         <div className="flex flex-col gap-4 pt-4 text-xs text-[#8A8D93] sm:flex-row sm:items-center sm:justify-between">
           <p>{dict.copyright}</p>
-          {/* Fixed black, not the themed variant: this footer is #fff whatever
-              the visitor's theme is doing, and the app's `dark` class sits on
-              the same <html> when a signed-in reader lands on /privacy. */}
-          <PoweredByStrava variant="black" className="order-first sm:order-none" />
           <p>{dict.madeFor}</p>
         </div>
       </div>

@@ -3,25 +3,41 @@
 import { setLandingLocale } from "@/lib/actions/landing";
 import type { LandingLocale } from "@/components/landing/i18n";
 
-/** Shows the language it switches to, not the one in use — the circle is the action. */
-export function LandingLocaleSwitcher({ locale, label }: { locale: LandingLocale; label: string }) {
-  const next: LandingLocale = locale === "en" ? "pt" : "en";
-
+/** Both languages side by side, the one in use marked (Landing V3). */
+export function LandingLocaleSwitcher({
+  locale,
+  label,
+  onDark = false,
+}: {
+  locale: LandingLocale;
+  label: string;
+  onDark?: boolean;
+}) {
   return (
-    <form action={setLandingLocale}>
-      {/* 44px of tap target around a 25px circle; the negative margin keeps the
-          button occupying only the circle's space, so header spacing is unchanged. */}
-      <button
-        type="submit"
-        name="locale"
-        value={next}
-        aria-label={label}
-        className="-m-[9.5px] flex h-11 w-11 cursor-pointer items-center justify-center transition-opacity hover:opacity-90"
-      >
-        <span className="flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#101014] text-[12px] font-bold uppercase leading-none text-[#F5F3EE]">
-          {next}
-        </span>
-      </button>
+    <form
+      action={setLandingLocale}
+      role="group"
+      aria-label={label}
+      className="flex rounded-full border border-[#101014]/[0.12] p-px"
+    >
+      {(["en", "pt"] as const).map((option) => (
+        <button
+          key={option}
+          type="submit"
+          name="locale"
+          value={option}
+          aria-pressed={option === locale}
+          className={`cursor-pointer rounded-full px-2 py-1 text-[11px] leading-[17px] font-medium uppercase ${
+            option === locale
+              ? "bg-[#101014] text-[#43F3AF]"
+              : onDark
+                ? "text-white"
+                : "text-[#101014]"
+          }`}
+        >
+          {option}
+        </button>
+      ))}
     </form>
   );
 }

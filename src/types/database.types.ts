@@ -506,6 +506,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      waitlist_signups: {
+        Row: {
+          email: string
+          locale: string
+          created_at: string
+        }
+        Insert: {
+          email: string
+          locale?: string
+          created_at?: string
+        }
+        Update: {
+          email?: string
+          locale?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       notice_acceptances: {
         Row: {
           first_accepted_at: string;

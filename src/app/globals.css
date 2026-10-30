@@ -2281,3 +2281,15 @@ html.imu-lab-texture body {
 .imu-focus-band {
   background-color: color-mix(in oklab, var(--background) 40%, var(--card));
 }
+
+/* The landing's light sections (Landing V3): a soft dot grid over grey. */
+.landing-dots {
+  background-color: #eeeeee;
+  background-image: radial-gradient(rgb(16 16 20 / 0.16) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+.landing-dots-white {
+  background-color: #ffffff;
+  background-image: radial-gradient(rgb(16 16 20 / 0.12) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+}

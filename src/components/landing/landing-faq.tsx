@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import type { LandingDictionary } from "@/components/landing/i18n/en";
+import type { FaqItem } from "@/components/faq-accordion";
 
-export function LandingFAQ({ dict }: { dict: LandingDictionary["faq"] }) {
+export function LandingFAQ({
+  dict,
+}: {
+  dict: { badge: string; title: string; questions: readonly FaqItem[] };
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="bg-[#E9EBF6] px-4 py-16 sm:px-8 md:py-24">
+    <section id="faq" className="landing-dots px-4 py-16 sm:px-8 md:py-24">
       <div className="mx-auto flex max-w-[1160px] flex-col items-center gap-12">
         <div className="flex max-w-[620px] flex-col items-center gap-3.5 text-center">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#43F3AF] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-[#101014]">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#101014] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wide text-white">
             <span className="h-1.5 w-1.5 rounded-full bg-white" />
             {dict.badge}
           </span>
