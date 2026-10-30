@@ -46,7 +46,6 @@ const pt: LandingDictionary = {
       lead1: "Um dispositivo de telemetria compacto e inteligente, feito para registar a tua volta com precisão.",
       lead2: "Monta-o, começa a gravar e explora o teu desempenho na plataforma BIKIT.",
       imageAlt: "O dispositivo de telemetria BIKIT",
-      hint: "Arrasta para rodar",
       disclaimer: "Não representa design do produto final",
     },
     faq: {

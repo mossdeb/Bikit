@@ -49,7 +49,6 @@ const en = {
       lead1: "A compact, intelligent telemetry device designed to capture your ride with precision.",
       lead2: "Mount it, start recording, and explore your performance through the BIKIT platform.",
       imageAlt: "The BIKIT telemetry device",
-      hint: "Drag to turn it",
       disclaimer: "Does not represent the final product design",
     },
     faq: {

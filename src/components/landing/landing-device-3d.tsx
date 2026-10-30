@@ -38,17 +38,14 @@ const SHADOW_DEPTH = 0.1;
  */
 export function LandingDevice3D({
   imageAlt,
-  hint,
   disclaimer,
 }: {
   imageAlt: string;
-  hint: string;
   /** The model is not the final design: said beside it (by request, 2026-10-30). */
   disclaimer: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
-  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     const el = host.current;
@@ -248,7 +245,6 @@ export function LandingDevice3D({
         dragging = { x: event.clientX, y: event.clientY };
         canvas.style.cursor = "grabbing";
         spin = 0;
-        setTouched(true);
       };
       const onMove = (event: PointerEvent) => {
         if (!dragging) return;
@@ -343,19 +339,9 @@ export function LandingDevice3D({
           className={`absolute inset-0 m-auto w-[84%] transition-opacity duration-300 ${ready ? "opacity-0" : ""}`}
         />
       </div>
-      <div className="relative pb-8 md:pb-10">
-        <p
-          aria-hidden={touched}
-          className={`text-center text-xs font-medium text-[#8A8D93] transition-opacity duration-300 ${
-            ready && !touched ? "" : "opacity-0"
-          }`}
-        >
-          {hint}
-        </p>
-        <p className="mt-1 text-center text-[11px] text-[#8A8D93] md:absolute md:top-0 md:right-0 md:mt-0 md:text-right">
-          {disclaimer}
-        </p>
-      </div>
+      <p className="pb-8 text-center text-[11px] text-[#8A8D93] md:pb-10 md:text-right">
+        {disclaimer}
+      </p>
     </div>
   );
 }

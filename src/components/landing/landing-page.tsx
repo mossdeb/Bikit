@@ -111,7 +111,6 @@ export function LandingPage({ locale }: { locale: LandingLocale }) {
           </div>
           <LandingDevice3D
             imageAlt={device.imageAlt}
-            hint={device.hint}
             disclaimer={device.disclaimer}
           />
         </div>
