@@ -495,11 +495,12 @@ export function parseBktFile(
   }
 
   // The rider sag, firmware V18's middle calibration step (Neutral → Rider
-  // Sag → Forward). Like ORI1: absent is a file from before the step, a
-  // bad CRC is a corrupt one. A layout this parser does not know (another
-  // version or size) is skipped rather than refused — the ride is still a
-  // ride — and so is a record from another calibration than CAL1's, which
-  // the firmware never writes but would make the comparison meaningless.
+  // Sag → Forward). Absent is a file from before the step. It is an extra no
+  // figure depends on, so nothing wrong with it refuses the ride (by request,
+  // 2026-10-30, after a real file was turned away for its CRC): a bad CRC, a
+  // layout this parser does not know, or a record from another calibration
+  // than CAL1's — which would make the comparison meaningless — is skipped,
+  // and the session simply has no sag.
   let riderSag: ImuRiderSag | undefined;
   if (
     magic === MAGIC_V1 &&
@@ -509,13 +510,15 @@ export function parseBktFile(
     view.getUint16(SAG_OFFSET + 4, true) === SAG_VERSION &&
     view.getUint16(SAG_OFFSET + 6, true) === SAG_SIZE
   ) {
-    const storedSagCrc = view.getUint32(SAG_OFFSET + 36, true);
-    if (recordCrc(u8, SAG_OFFSET, SAG_SIZE, magic) !== storedSagCrc)
-      return fail(t.sagCrc);
+    const sagCrcOk =
+      recordCrc(u8, SAG_OFFSET, SAG_SIZE, magic) ===
+      view.getUint32(SAG_OFFSET + 36, true);
+    if (!sagCrcOk) console.warn("BKT: rider sag CRC does not match; ignored.");
     const f = (i: number) => view.getFloat32(SAG_OFFSET + 8 + i * 4, true);
     const v = Array.from({ length: 5 }, (_, i) => f(i));
     const calibrationCount = view.getUint32(SAG_OFFSET + 32, true);
     if (
+      sagCrcOk &&
       v.every(Number.isFinite) &&
       calibrationCount === calibration.calibrationCount
     )

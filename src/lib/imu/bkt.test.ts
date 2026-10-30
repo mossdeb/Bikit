@@ -458,8 +458,9 @@ describe("parseBktFile", () => {
         breakSagCrc: true,
       }),
     );
-    expect(broken.ok).toBe(false);
-    if (!broken.ok) expect(broken.error).toMatch(/rider sag/);
+    // The ride still imports, without the sag.
+    expect(broken.ok).toBe(true);
+    if (broken.ok) expect(broken.session.riderSag).toBeUndefined();
   });
 
   it("times the samples by the blocks' real clock stamps when the firmware stamps them", () => {

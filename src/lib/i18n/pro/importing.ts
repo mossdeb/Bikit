@@ -186,7 +186,6 @@ const en = {
     calCrc: "The calibration CRC does not match — corrupt file.",
     oriCrc: "The orientation CRC does not match — corrupt file.",
     oriNotOrthonormal: "The logger's orientation is not an orthonormal frame.",
-    sagCrc: "The rider sag CRC does not match — corrupt file.",
     incomplete: (declared: number, present: number): string =>
       `Incomplete file: the header declares ${declared} blocks and the file carries ${present}.`,
     noImuSamples: "The file has no IMU samples.",
@@ -405,7 +404,6 @@ const pt: typeof en = {
     calMagic: 'O bloco de calibração não começa por "CAL1".',
     calCrc: "O CRC da calibração não bate certo — ficheiro corrompido.",
     oriCrc: "O CRC da orientação não bate certo — ficheiro corrompido.",
-    sagCrc: "O CRC do rider sag não bate certo — ficheiro corrompido.",
     oriNotOrthonormal:
       "A orientação do logger não é um referencial ortonormal.",
     incomplete: (declared, present) =>
