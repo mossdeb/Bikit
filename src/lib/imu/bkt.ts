@@ -139,6 +139,7 @@ const SAG_MAGIC = "SAG1";
 const SAG_OFFSET = 256;
 const SAG_SIZE = 40;
 const SAG_VERSION = 1;
+const SAG_UNSTAMPED_G_TOLERANCE = 0.1;
 /** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
  * clock stamps before they wrap. */
 const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
@@ -510,12 +511,18 @@ export function parseBktFile(
     view.getUint16(SAG_OFFSET + 4, true) === SAG_VERSION &&
     view.getUint16(SAG_OFFSET + 6, true) === SAG_SIZE
   ) {
-    const sagCrcOk =
-      recordCrc(u8, SAG_OFFSET, SAG_SIZE, magic) ===
-      view.getUint32(SAG_OFFSET + 36, true);
-    if (!sagCrcOk) console.warn("BKT: rider sag CRC does not match; ignored.");
+    const storedSagCrc = view.getUint32(SAG_OFFSET + 36, true);
     const f = (i: number) => view.getFloat32(SAG_OFFSET + 8 + i * 4, true);
     const v = Array.from({ length: 5 }, (_, i) => f(i));
+    // V18 stamps the CRC on the copy it saves to /BIKIT.SAG and keeps the
+    // record in memory without one, so a ride started after a calibration,
+    // with no restart between, carries a CRC of 0 (R0037, 2026-10-30). Without
+    // a CRC the reading has to look like gravity: a bike at rest reads 1 g.
+    const sagCrcOk =
+      storedSagCrc === 0
+        ? Math.abs(Math.hypot(v[0], v[1], v[2]) - 1) < SAG_UNSTAMPED_G_TOLERANCE
+        : recordCrc(u8, SAG_OFFSET, SAG_SIZE, magic) === storedSagCrc;
+    if (!sagCrcOk) console.warn("BKT: rider sag CRC does not match; ignored.");
     const calibrationCount = view.getUint32(SAG_OFFSET + 32, true);
     if (
       sagCrcOk &&

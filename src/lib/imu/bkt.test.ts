@@ -89,6 +89,8 @@ function buildBkt(
     /** Its calibration_count; CAL1's (3) by default. */
     riderSagCalibration?: number;
     breakSagCrc?: boolean;
+    /** The firmware's own: a record with its CRC never stamped. */
+    zeroSagCrc?: boolean;
     breakHeaderCrc?: boolean;
     breakBlockCrc?: number;
     breakSequence?: number;
@@ -196,7 +198,11 @@ function buildBkt(
     view.setUint32(284, 1664, true);
     view.setUint32(288, overrides.riderSagCalibration ?? 3, true);
     const sagCrc = crc32(u8.subarray(256, 296));
-    view.setUint32(292, overrides.breakSagCrc ? sagCrc ^ 1 : sagCrc, true);
+    view.setUint32(
+      292,
+      overrides.zeroSagCrc ? 0 : overrides.breakSagCrc ? sagCrc ^ 1 : sagCrc,
+      true,
+    );
   }
 
   let imuIndex = 0;
@@ -461,6 +467,18 @@ describe("parseBktFile", () => {
     // The ride still imports, without the sag.
     expect(broken.ok).toBe(true);
     if (broken.ok) expect(broken.session.riderSag).toBeUndefined();
+  });
+
+  it("reads a SAG1 whose CRC the firmware never stamped, when it reads as gravity", () => {
+    const result = parseBktFile(
+      buildBkt([imuBlock(10)], {
+        magic: "BKT1",
+        riderSag: true,
+        zeroSagCrc: true,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.session.riderSag?.sampleCount).toBe(1664);
   });
 
   it("times the samples by the blocks' real clock stamps when the firmware stamps them", () => {
