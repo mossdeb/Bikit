@@ -25,7 +25,10 @@ import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { saveImuSessionTrim } from "@/components/imu-session-trim";
 import {
   createTimedTrack,
+  createLapTrack,
   findTimedRuns,
+  headlineRunMs,
+  isLapTrack,
   formatRunGap,
   formatRunTime,
   runTrimOf,
@@ -118,7 +121,9 @@ export function ImuSessionTrackButton({
   const [open, setOpen] = useState(false);
   const { prepared, passed } = timed;
   const first = passed[0];
-  const time = first ? formatRunTime(first.runs[0].durationMs) : null;
+  const time = first
+    ? formatRunTime(headlineRunMs(first.track.definition, first.runs))
+    : null;
 
   // This run trimmed to the lines, once, when its trim is anything else —
   // a track drawn, redrawn or deleted since, or a trim set by hand before.
@@ -312,6 +317,8 @@ type RunRow =
       riderName: string | null;
       createdAt: string | null;
       run: TimedRun;
+      /** Its number among the session's laps, on a circuit. */
+      lap?: number;
     }
   | { status: "loading" | "error"; sessionId: string; name: string };
 
@@ -324,14 +331,16 @@ function rowsOf(
     createdAt: string | null;
   },
   runs: TimedRun[],
+  laps = false,
 ): RunRow[] {
-  return runs.map((run) => ({
+  return runs.map((run, index) => ({
     status: "ok",
     sessionId: candidate.id,
     name: candidate.name,
     riderName: candidate.riderName,
     createdAt: candidate.createdAt,
     run,
+    ...(laps && { lap: index + 1 }),
   }));
 }
 
@@ -373,6 +382,7 @@ function TrackView({
       createdAt: self?.createdAt ?? null,
     },
     current.runs,
+    isLapTrack(current.track.definition),
   );
   const toRead = useMemo(
     () =>
@@ -425,7 +435,11 @@ function TrackView({
           new Map(prev).set(
             c.id,
             p
-              ? rowsOf(c, findTimedRuns(p, track.definition))
+              ? rowsOf(
+                  c,
+                  findTimedRuns(p, track.definition),
+                  isLapTrack(track.definition),
+                )
               : [{ status: "error", sessionId: c.id, name: c.name }],
           ),
         );
@@ -442,8 +456,9 @@ function TrackView({
     .sort((a, b) => a.run.durationMs - b.run.durationMs);
   const pending = all.filter((r) => r.status !== "ok");
   const bestMs = timed[0]?.run.durationMs ?? null;
-  const mine = current.runs[0];
-  const myGap = bestMs != null ? formatRunGap(mine.durationMs, bestMs) : null;
+  const isCircuit = isLapTrack(current.track.definition);
+  const mineMs = headlineRunMs(current.track.definition, current.runs);
+  const myGap = bestMs != null ? formatRunGap(mineMs, bestMs) : null;
 
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -467,11 +482,16 @@ function TrackView({
       <div className="flex items-end justify-between gap-4 rounded-md bg-muted px-4 py-3">
         <div>
           <p className="text-xs font-medium text-muted-foreground">
-            {t.thisRun}
+            {isCircuit ? t.bestLap : t.thisRun}
           </p>
           <p className="font-display text-3xl font-bold tabular-nums">
-            {formatRunTime(mine.durationMs)}
+            {formatRunTime(mineMs)}
           </p>
+          {isCircuit && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t.lapsTitle(current.runs.length)}
+            </p>
+          )}
         </div>
         {bestMs != null &&
           (myGap ? (
@@ -503,6 +523,7 @@ function TrackView({
                       isSelf && "font-semibold",
                     )}
                   >
+                    {r.lap != null && `${t.lap(r.lap)} · `}
                     {r.name}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
@@ -568,7 +589,8 @@ function TrackView({
             {others.map((m) => (
               <Chip key={m.track.id} onClick={() => onPick(m.track.id)}>
                 <FinishFlag className="size-3.5" />
-                {m.track.name} · {formatRunTime(m.runs[0].durationMs)}
+                {m.track.name} ·{" "}
+                {formatRunTime(headlineRunMs(m.track.definition, m.runs))}
               </Chip>
             ))}
           </div>
@@ -687,6 +709,8 @@ function TrackForm({
     // Once per form: the suggestion is a starting point, not a binding.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const wasCircuit = editing != null && isLapTrack(editing.track.definition);
+  const [circuit, setCircuit] = useState(wasCircuit);
   const [startText, setStartText] = useState(
     formatSessionTime(initial[0], true),
   );
@@ -698,13 +722,15 @@ function TrackForm({
 
   const startMs = parseSessionTime(startText);
   const finishMs = parseSessionTime(finishText);
-  const timesValid =
-    startMs != null && finishMs != null && startMs >= 0 && finishMs > startMs;
+  const timesValid = circuit
+    ? startMs != null && startMs >= 0
+    : startMs != null && finishMs != null && startMs >= 0 && finishMs > startMs;
   // Times left where this run crosses the lines: only the name changes.
   const linesUnchanged =
     editing != null &&
+    circuit === wasCircuit &&
     startText === formatSessionTime(initial[0], true) &&
-    finishText === formatSessionTime(initial[1], true);
+    (circuit || finishText === formatSessionTime(initial[1], true));
 
   function setWindow([a, b]: [number, number]) {
     setStartText(formatSessionTime(a, true));
@@ -724,13 +750,11 @@ function TrackForm({
         setError(t.noGps);
         return;
       }
-      const made = createTimedTrack(
-        prepared,
-        startMs!,
-        Math.min(finishMs!, fullMs),
-      );
+      const made = circuit
+        ? createLapTrack(prepared, startMs!)
+        : createTimedTrack(prepared, startMs!, Math.min(finishMs!, fullMs));
       if (!made) {
-        setError(t.noLines);
+        setError(circuit ? t.noLaps : t.noLines);
         return;
       }
       redraw = { definition: made.definition, referenceSessionId: sessionId };
@@ -773,9 +797,23 @@ function TrackForm({
           }}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={circuit}
+          onChange={(e) => {
+            setCircuit(e.target.checked);
+            setError(null);
+          }}
+          className="size-4 accent-foreground"
+        />
+        {t.circuit}
+      </label>
+      <div className={cn("grid gap-3", !circuit && "grid-cols-2")}>
         <div className="space-y-1.5">
-          <Label htmlFor="track-start">{t.start}</Label>
+          <Label htmlFor="track-start">
+            {circuit ? t.finishLine : t.start}
+          </Label>
           <Input
             id="track-start"
             inputMode="numeric"
@@ -789,31 +827,35 @@ function TrackForm({
             className="font-mono tabular-nums"
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="track-finish">{t.finish}</Label>
-          <Input
-            id="track-finish"
-            inputMode="numeric"
-            placeholder="mm:ss"
-            value={finishText}
-            onChange={(e) => {
-              setFinishText(e.target.value);
-              setError(null);
-            }}
-            aria-invalid={finishMs == null || undefined}
-            className="font-mono tabular-nums"
-          />
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {trim && (
-          <Chip onClick={() => setWindow([trim.startMs, trim.endMs])}>
-            {t.trimWindow}
-          </Chip>
+        {!circuit && (
+          <div className="space-y-1.5">
+            <Label htmlFor="track-finish">{t.finish}</Label>
+            <Input
+              id="track-finish"
+              inputMode="numeric"
+              placeholder="mm:ss"
+              value={finishText}
+              onChange={(e) => {
+                setFinishText(e.target.value);
+                setError(null);
+              }}
+              aria-invalid={finishMs == null || undefined}
+              className="font-mono tabular-nums"
+            />
+          </div>
         )}
-        <Chip onClick={() => setWindow(visibleMs)}>{t.visibleWindow}</Chip>
-        <Chip onClick={() => setWindow([0, fullMs])}>{t.wholeRecording}</Chip>
       </div>
+      {!circuit && (
+        <div className="flex flex-wrap gap-2">
+          {trim && (
+            <Chip onClick={() => setWindow([trim.startMs, trim.endMs])}>
+              {t.trimWindow}
+            </Chip>
+          )}
+          <Chip onClick={() => setWindow(visibleMs)}>{t.visibleWindow}</Chip>
+          <Chip onClick={() => setWindow([0, fullMs])}>{t.wholeRecording}</Chip>
+        </div>
+      )}
       {/* Only when the times do not read — the long hint went by request,
           2026-10-24. */}
       {!timesValid && (
@@ -952,7 +994,8 @@ export function ImuTrackRanking({
   const [open, setOpen] = useState(false);
   const first = timed.passed[0];
   if (!first) return null;
-  const mine = first.runs[0].durationMs;
+  const circuit = isLapTrack(first.track.definition);
+  const mine = headlineRunMs(first.track.definition, first.runs);
   let rank = 1;
   for (const c of candidates) {
     if (c.id === sessionId || !c.trimByTrack || !c.trim) continue;
@@ -968,7 +1011,15 @@ export function ImuTrackRanking({
       >
         <PodiumGlyph className="size-4" />
         <span>
-          <span className="font-semibold">{t.rank(rank)}</span> {t.onTrack}
+          {circuit ? (
+            <span className="font-semibold">
+              {t.lapsSummary(first.runs.length, formatRunTime(mine))}
+            </span>
+          ) : (
+            <>
+              <span className="font-semibold">{t.rank(rank)}</span> {t.onTrack}
+            </>
+          )}
         </span>
       </button>
       {open && (

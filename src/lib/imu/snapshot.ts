@@ -411,6 +411,14 @@ function crossings(track: SnapshotTrack, gate: SnapshotGate): number[] {
   return out;
 }
 
+/** Every crossing of one line, in the order ridden. Empty without a track. */
+export function lineCrossings(
+  prepared: SnapshotSession,
+  gate: SnapshotGate,
+): number[] {
+  return prepared.track ? crossings(prepared.track, gate) : [];
+}
+
 /**
  * Every pass a session makes through a Snapshot: each crossing of the exit
  * gate, paired with the latest crossing of the entry gate before it and
@@ -587,6 +595,21 @@ function gateAlong(
     headingDeg: (Math.atan2(dx, dy) / RAD + 360) % 360,
     halfWidthM: SNAPSHOT_GATE_HALF_WIDTH_M,
   };
+}
+
+/** One gate where the session was at an instant, facing the way the trail
+ * runs there — a circuit's finish line. Null without a track, or where the
+ * bike never moved enough to give it a direction. */
+export function createLineAt(
+  prepared: SnapshotSession,
+  atMs: number,
+  spanM: number,
+): SnapshotGate | null {
+  const track = prepared.track;
+  if (!track) return null;
+  const total = track.distM[track.distM.length - 1];
+  const dist = Math.min(total - 1, Math.max(1, distanceAt(track, atMs)));
+  return gateAlong(track, dist, spanM);
 }
 
 /**

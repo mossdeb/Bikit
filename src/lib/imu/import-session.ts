@@ -30,6 +30,7 @@ import {
   findTimedRuns,
   isTimedTrackDefinition,
   runTrimOf,
+  isClosedStretch,
   trackNameOfRun,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
@@ -147,11 +148,20 @@ export async function uploadAndRegisterImuSession(input: {
     trimByTrack = trim != null;
     if (!trim) {
       const suggested = suggestTrim(whole);
-      const made = createTimedTrack(
+      // A stretch that ends where it began is laps of a circuit: two lines
+      // on top of each other would time nothing. It stays a plain trim, until
+      // the rider marks the finish on the session.
+      const made = isClosedStretch(
         prepared,
         suggested?.startMs ?? 0,
         suggested?.endMs ?? whole.durationMs,
-      );
+      )
+        ? null
+        : createTimedTrack(
+            prepared,
+            suggested?.startMs ?? 0,
+            suggested?.endMs ?? whole.durationMs,
+          );
       if (made) {
         newTrack = made.definition;
         trim = {

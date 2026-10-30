@@ -6,8 +6,10 @@ import {
   prepareSnapshotSession,
 } from "./snapshot";
 import {
+  createLapTrack,
   createTimedTrack,
   findTimedRuns,
+  isClosedStretch,
   formatRunGap,
   formatRunTime,
   isTimedTrackDefinition,
@@ -62,6 +64,114 @@ function descent(speedMps: number, seconds: number, waitS = 0): ImuSessionData {
     durationMs: (seconds + waitS) * 1000,
   } as unknown as ImuSessionData;
 }
+
+/** Laps of a round circuit, `lapS` seconds each, then a few seconds riding
+ * away from the line; `restS` seconds standing still after lap `restAfter`. */
+function circuit(lapsS: number[], restS = 0, restAfter = -1): ImuSessionData {
+  const radiusM = 80;
+  const steps: { x: number; y: number; v: number }[] = [];
+  let angle = -0.3;
+  const leadS = 5;
+  const ride = (seconds: number, angleSpeed: number) => {
+    for (let i = 0; i < seconds * 10; i++) {
+      angle += angleSpeed / 10;
+      steps.push({
+        x: radiusM * Math.sin(angle),
+        y: radiusM * Math.cos(angle),
+        v: Math.abs(angleSpeed) * radiusM,
+      });
+    }
+  };
+  ride(leadS, 0.3 / leadS);
+  lapsS.forEach((lapS, i) => {
+    ride(lapS, (2 * Math.PI) / lapS);
+    if (i === restAfter) ride(restS, 0);
+  });
+  ride(5, 0.06);
+  const fixes = steps.length;
+  const gps = {
+    tMs: Float64Array.from(steps, (_, k) => k * 100),
+    latDeg: Float64Array.from(steps, (p) => LAT0 + p.y / (R * RAD)),
+    lonDeg: Float64Array.from(
+      steps,
+      (p) => LON0 + p.x / (R * RAD * Math.cos(LAT0 * RAD)),
+    ),
+    altitudeM: new Float32Array(fixes),
+    speedMps: Float32Array.from(steps, (p) => p.v),
+  } as unknown as GpsChannels;
+  const seconds = fixes / 10;
+  const rate = 50;
+  const n = Math.round(seconds * rate);
+  const zeros = () => new Float32Array(n);
+  return {
+    channels: {
+      tMs: Float64Array.from({ length: n }, (_, i) => (i / rate) * 1000),
+      ax: zeros(),
+      ay: zeros(),
+      az: new Float32Array(n).fill(1),
+      gx: zeros(),
+      gy: zeros(),
+      gz: zeros(),
+    },
+    gps,
+    events: [],
+    durationMs: seconds * 1000,
+  } as unknown as ImuSessionData;
+}
+
+describe("circuits", () => {
+  // The line stands where the circuit's lead-in ends, at the top: 5 s in.
+  const finishAt = 5_000;
+
+  it("counts N crossings as N - 1 laps, each with its own time", () => {
+    const prepared = prepareSnapshotSession(circuit([60, 55, 58, 52]));
+    const made = createLapTrack(prepared, finishAt);
+    expect(made).not.toBeNull();
+    expect(isTimedTrackDefinition(made!.definition)).toBe(true);
+    const laps = findTimedRuns(prepared, made!.definition);
+    // Five crossings, the first where the lead-in reaches the line.
+    expect(laps.map((l) => Math.round(l.durationMs / 1000))).toEqual([
+      60, 55, 58, 52,
+    ]);
+    // Each lap starts where the one before it ended.
+    expect(laps[1].entryMs).toBe(laps[0].exitMs);
+  });
+
+  it("trims the session to all its laps, not to the first", () => {
+    const prepared = prepareSnapshotSession(circuit([60, 55, 58]));
+    const { definition } = createLapTrack(prepared, finishAt)!;
+    const laps = findTimedRuns(prepared, definition);
+    const trim = runTrimOf(prepared, [definition])!;
+    expect(trim.startMs).toBe(Math.round(laps[0].entryMs));
+    expect(trim.endMs).toBe(Math.round(laps[laps.length - 1].exitMs));
+  });
+
+  it("does not count a long rest as a lap", () => {
+    const prepared = prepareSnapshotSession(
+      circuit([60, 55, 58, 52], 300, 1),
+    );
+    const { definition } = createLapTrack(prepared, finishAt)!;
+    const laps = findTimedRuns(prepared, definition);
+    // The rest falls just short of the line, inside the 55 s lap: that lap
+    // is gone, and the ones around it stay.
+    expect(laps.map((l) => Math.round(l.durationMs / 1000))).toEqual([
+      60, 58, 52,
+    ]);
+  });
+
+  it("makes no circuit of a line crossed once", () => {
+    expect(
+      createLapTrack(prepareSnapshotSession(descent(10, 60)), 20_000),
+    ).toBeNull();
+  });
+
+  it("knows a stretch that ends where it began", () => {
+    const loop = prepareSnapshotSession(circuit([60, 55]));
+    expect(isClosedStretch(loop, 5_000, 65_000)).toBe(true);
+    const line = prepareSnapshotSession(descent(10, 60));
+    expect(isClosedStretch(line, 5_000, 50_000)).toBe(false);
+  });
+});
 
 describe("timed tracks", () => {
   it("times a run between the lines it was made from", () => {

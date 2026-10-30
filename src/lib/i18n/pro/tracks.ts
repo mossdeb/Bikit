@@ -46,6 +46,16 @@ const en = {
     `${place ? `${place} - ` : ""}New track ${String(n).padStart(2, "0")}`,
   start: "Start",
   finish: "Finish",
+  /** A circuit: one line, each crossing a lap. */
+  circuit: "Circuit: one finish line",
+  finishLine: "Crossing the finish",
+  noLaps:
+    "No laps there: the bike has to cross that point at least twice, moving, with GPS.",
+  lap: (n: number): string => `Lap ${n}`,
+  lapsTitle: (n: number): string => (n === 1 ? "1 lap" : `${n} laps`),
+  lapsSummary: (n: number, best: string): string =>
+    `${n === 1 ? "1 lap" : `${n} laps`} · best ${best}`,
+  bestLap: "Best lap",
   trimWindow: "Trim",
   visibleWindow: "Visible window",
   wholeRecording: "Whole recording",
@@ -94,6 +104,15 @@ const pt: typeof en = {
     `${place ? `${place} - ` : ""}Nova pista ${String(n).padStart(2, "0")}`,
   start: "Partida",
   finish: "Chegada",
+  circuit: "Circuito: uma só meta",
+  finishLine: "Passagem pela meta",
+  noLaps:
+    "Sem voltas aí: a bicicleta tem de passar nesse ponto pelo menos duas vezes, em movimento e com GPS.",
+  lap: (n) => `Volta ${n}`,
+  lapsTitle: (n) => (n === 1 ? "1 volta" : `${n} voltas`),
+  lapsSummary: (n, best) =>
+    `${n === 1 ? "1 volta" : `${n} voltas`} · melhor ${best}`,
+  bestLap: "Melhor volta",
   trimWindow: "Recorte",
   visibleWindow: "Janela visível",
   wholeRecording: "Gravação inteira",

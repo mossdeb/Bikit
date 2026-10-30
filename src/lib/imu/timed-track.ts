@@ -1,7 +1,9 @@
 import {
   createGatePair,
+  createLineAt,
   findSnapshotPasses,
   isGatePair,
+  lineCrossings,
   type GatePair,
   type SnapshotPass,
   type SnapshotSession,
@@ -22,8 +24,13 @@ import {
  * WHOLE recording, so a trim that cuts a run's start does not lose it.
  */
 
-/** A track's lines: `entry` is the start, `exit` the finish. */
-export type TimedTrackDefinition = GatePair;
+/** A track's lines: `entry` is the start, `exit` the finish. On a circuit
+ * (by request, 2026-10-30) they are one line, the finish, and `laps` says so:
+ * each crossing closes a lap and opens the next, so N crossings are N − 1
+ * laps, and the ride before the first and after the last is no lap. */
+export interface TimedTrackDefinition extends GatePair {
+  laps?: true;
+}
 
 export interface TimedRun extends SnapshotPass {
   /** Start line to finish line, ms. */
@@ -44,6 +51,103 @@ const LINE_HEADING_SPAN_M = 15;
  * a start drawn where R0100 waited was never crossed by R0022 and R0023,
  * which waited a few metres past it. */
 const LINE_CLEAR_OF_STOPS_M = 15;
+const LAP_MAX_FACTOR = 4;
+const LAP_MAX_SLACK_MS = 60_000;
+
+/** Two crossings closer than this are one pass of the line, ms: GPS wander,
+ * or a rider stopped on it. No lap of a track is this short. */
+const MIN_LAP_MS = 15_000;
+/** A stretch closed within this distance, m, is a circuit: two lines drawn
+ * on its ends would stand on top of each other. */
+const CLOSED_LOOP_M = 30;
+
+export function isLapTrack(definition: TimedTrackDefinition): boolean {
+  return definition.laps === true;
+}
+
+/** A circuit whose finish is where the session was at an instant — null
+ * where there is no direction to give the line, or the session does not
+ * cross it twice, so that there is no lap to measure. */
+export function createLapTrack(
+  prepared: SnapshotSession,
+  atMs: number,
+): { definition: TimedTrackDefinition; reference: TimedRun } | null {
+  const line = createLineAt(prepared, atMs, LINE_HEADING_SPAN_M);
+  if (!line) return null;
+  const crossed = lineCrossings(prepared, line);
+  const gap = crossed.findIndex(
+    (t, i) => i > 0 && t - crossed[i - 1] >= MIN_LAP_MS,
+  );
+  if (gap < 0) return null;
+  const definition: TimedTrackDefinition = {
+    entry: line,
+    exit: line,
+    referenceDurationMs: crossed[gap] - crossed[gap - 1],
+    laps: true,
+  };
+  const reference = findTimedRuns(prepared, definition)[0];
+  return reference ? { definition, reference } : null;
+}
+
+/** A session's laps of a circuit. A gap far longer than the reference — a
+ * rest, a trip to the car — closes no lap, and the line opens a new one. */
+function findLaps(
+  prepared: SnapshotSession,
+  definition: TimedTrackDefinition,
+): TimedRun[] {
+  const maxMs = Math.max(
+    LAP_MAX_FACTOR * definition.referenceDurationMs,
+    definition.referenceDurationMs + LAP_MAX_SLACK_MS,
+  );
+  const laps: TimedRun[] = [];
+  let open: number | null = null;
+  for (const t of lineCrossings(prepared, definition.entry)) {
+    if (open != null && t - open < MIN_LAP_MS) continue;
+    if (open != null && t - open <= maxMs)
+      laps.push({
+        entryMs: open,
+        exitMs: t,
+        durationMs: Math.round(t) - Math.round(open),
+      });
+    open = t;
+  }
+  return laps;
+}
+
+/** What a track's runs read as one time: the run, or a circuit's best lap. */
+export function headlineRunMs(
+  definition: TimedTrackDefinition,
+  runs: TimedRun[],
+): number {
+  return isLapTrack(definition)
+    ? Math.min(...runs.map((run) => run.durationMs))
+    : runs[0].durationMs;
+}
+
+/** Whether a stretch of the recording ends about where it began. */
+export function isClosedStretch(
+  prepared: SnapshotSession,
+  startMs: number,
+  endMs: number,
+): boolean {
+  const track = prepared.track;
+  if (!track || track.tMs.length < 2) return false;
+  const nearest = (ms: number) => {
+    const k = track.tMs.findIndex((t) => t >= ms);
+    return k < 0 ? track.tMs.length - 1 : k;
+  };
+  const a = nearest(startMs);
+  const b = nearest(endMs);
+  if (a === b) return false;
+  const cosLat = Math.cos((track.latDeg[a] * Math.PI) / 180);
+  const metres = (Math.PI / 180) * 6_371_000;
+  return (
+    Math.hypot(
+      (track.lonDeg[b] - track.lonDeg[a]) * metres * cosLat,
+      (track.latDeg[b] - track.latDeg[a]) * metres,
+    ) <= CLOSED_LOOP_M
+  );
+}
 
 /** A track whose start and finish are where the session was at two
  * instants on its own clock — null where createGatePair finds no pass
@@ -73,6 +177,7 @@ export function findTimedRuns(
   prepared: SnapshotSession,
   definition: TimedTrackDefinition,
 ): TimedRun[] {
+  if (isLapTrack(definition)) return findLaps(prepared, definition);
   return findSnapshotPasses(prepared, definition).map((pass) => ({
     ...pass,
     // Between the crossings as the trim stores them, to the millisecond,
@@ -93,11 +198,14 @@ export function runTrimOf(
   definitions: TimedTrackDefinition[],
 ): { startMs: number; endMs: number } | null {
   for (const definition of definitions) {
-    const run = findTimedRuns(prepared, definition)[0];
+    const runs = findTimedRuns(prepared, definition);
+    const run = runs[0];
+    // A circuit's session keeps all its laps, from the first line to the last.
+    const last = isLapTrack(definition) ? runs[runs.length - 1] : run;
     if (run)
       return {
         startMs: Math.round(run.entryMs),
-        endMs: Math.round(run.exitMs),
+        endMs: Math.round(last.exitMs),
       };
   }
   return null;
