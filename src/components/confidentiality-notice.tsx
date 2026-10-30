@@ -39,7 +39,7 @@ export function ConfidentialityNotice({ next }: { next: string }) {
       className={`w-full max-w-xl rounded-lg bg-card shadow-sm ${DARK_CARD_HAIRLINE}`}
     >
       <div className="px-6 pt-7 pb-4 sm:px-8 sm:pt-8">
-        <BikitLockup pro className="mb-6 h-8 w-auto" />
+        <BikitLockup pro className="mx-auto mb-8 h-8 w-auto" />
         <h1 className="font-display text-xl leading-tight font-bold">
           BIKIT — Confidentiality, Intellectual Property &amp; Patent Notice
         </h1>
