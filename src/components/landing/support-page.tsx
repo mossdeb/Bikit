@@ -54,7 +54,7 @@ export function SupportPage({ locale }: { locale: LandingLocale }) {
 
       {/* The same FAQ the landing shows, from the same dictionary — the answers
           people need before writing to either address. */}
-      <LandingFAQ dict={landing.faq} />
+      <LandingFAQ dict={landing.home.faq} />
 
       <LandingFooter dict={landing.footer} hrefBase="/" />
     </div>

@@ -13,6 +13,16 @@ const en = {
     switchLanguage: "Language",
   },
   home: {
+    waitlistEmail: {
+      subject: "You're on the BIKIT waitlist",
+      heading: "Thanks for joining the waitlist",
+      body1: "You're on the list. We're glad to have you with us.",
+      body2:
+        "BIKIT is in development and in private beta. We'll let you know about updates and early access opportunities as soon as there's news to share.",
+      cta: "Visit BIKIT",
+      footer:
+        "You're receiving this because this address joined the waitlist at bikit.app. If that wasn't you, you can ignore this email.",
+    },
     hero: {
       kicker: "Understand every ride.",
       titleBold1: "Bike Intelligence",
@@ -39,35 +49,37 @@ const en = {
       lead1: "A compact, intelligent telemetry device designed to capture your ride with precision.",
       lead2: "Mount it, start recording, and explore your performance through the BIKIT platform.",
       imageAlt: "The BIKIT telemetry device",
+      hint: "Drag to turn it",
+      disclaimer: "Does not represent the final product design",
     },
     faq: {
-      badge: "All questions",
+      badge: "The essentials",
       title: "Frequently asked questions",
       questions: [
         {
           question: "What is BIKIT?",
           answer:
-            "BIKIT is a bike intelligence and telemetry system: a small device that records your ride, and a platform that turns the recording into data you can understand.",
+            "BIKIT is an intelligent telemetry system that combines a compact data logger with an advanced analysis platform, helping riders understand their bike’s behavior, suspension performance, and riding dynamics.",
         },
         {
           question: "How does BIKIT work?",
           answer:
-            "Mount the device on your bike, start recording and ride. Afterwards, bring the session into the BIKIT platform to explore your runs, corners, jumps and impacts.",
+            "The BIKIT device captures motion and impact data during your ride. Once transferred to the platform, the data is processed into intuitive visualizations and performance insights.",
         },
         {
           question: "Is BIKIT compatible with my bike?",
           answer:
-            "BIKIT is made for mountain bikes and motocross bikes, and mounts on the frame. Join the waitlist and we'll let you know about your setup.",
+            "BIKIT is being developed for mountain bikes and motocross motorcycles, with a focus on versatility and easy installation.",
         },
         {
           question: "When will BIKIT be available?",
           answer:
-            "BIKIT is in closed beta. Join the waitlist to get early updates and priority access to the device.",
+            "BIKIT is currently in development and undergoing private beta testing. Join our waitlist to receive updates and early access opportunities.",
         },
         {
           question: "Do I need technical knowledge to use BIKIT?",
           answer:
-            "No. Mounting the device and recording a ride are simple, and the platform explains what the data means for your riding.",
+            "Not at all. BIKIT is designed to make advanced telemetry accessible to every rider, turning complex data into clear, understandable insights.",
         },
       ] as FaqItem[],
     },
@@ -179,15 +191,12 @@ const en = {
       { label: "FAQ", href: "#faq" },
     ],
     productSupport: "Help & Support",
-    accountHeading: "Account",
-    accountLogin: "Log in",
-    accountSignup: "Create account",
     legalHeading: "Legal",
     legalPrivacy: "Privacy",
     legalTerms: "Terms",
     copyright:
       "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
-    madeFor: "Made for people who love taking care of their own bike.",
+    madeFor: "Made by riders",
   },
 };
 

@@ -26,6 +26,9 @@ export const config = {
     // away from, so it had no icons to install and drew its own. The manifest
     // has to be readable by a signed-out visitor: it is fetched on the landing
     // page, before anyone has an account.
-    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest)$).*)",
+    //
+    // `bin` is the landing's 3D model (public/landing/models): answered with
+    // the login page's HTML, its bytes read as a nonsense vertex count.
+    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|bin)$).*)",
   ],
 };

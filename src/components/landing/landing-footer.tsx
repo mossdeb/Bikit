@@ -23,7 +23,7 @@ export function LandingFooter({
         <div className="flex flex-col gap-9 border-b border-[#101014]/[0.09] pb-9 sm:flex-row sm:justify-between">
           <div className="flex max-w-[280px] flex-col gap-2">
             <div className="flex items-center gap-2.5">
-              <img src="/landing/icons/logo.svg" alt="" className="h-[34px] w-[34px]" />
+              <img src="/landing/icons/logo-footer.svg" alt="" className="h-[34px] w-[34px]" />
               <span className="font-[family-name:var(--font-landing-heading)] text-base font-bold text-[#101014]">
                 Bikit
               </span>
@@ -49,15 +49,6 @@ export function LandingFooter({
                   to the landing, and applied here it would build "//support". */}
               <Link href="/support" className="text-sm text-[#101014] hover:text-[#35363C]">
                 {dict.productSupport}
-              </Link>
-            </div>
-            <div className="flex flex-col gap-2.5">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#8A8D93]">{dict.accountHeading}</p>
-              <Link href="/login" className="text-sm text-[#101014] hover:text-[#35363C]">
-                {dict.accountLogin}
-              </Link>
-              <Link href="/signup" className="text-sm text-[#101014] hover:text-[#35363C]">
-                {dict.accountSignup}
               </Link>
             </div>
             <div className="flex flex-col gap-2.5">

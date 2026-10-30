@@ -10,6 +10,16 @@ const pt: LandingDictionary = {
     switchLanguage: "Idioma",
   },
   home: {
+    waitlistEmail: {
+      subject: "Já estás na lista de espera do BIKIT",
+      heading: "Obrigado por te juntares à lista de espera",
+      body1: "Já estás na lista. É bom ter-te connosco.",
+      body2:
+        "O BIKIT está em desenvolvimento e numa beta privada. Damos-te notícias e oportunidades de acesso antecipado assim que houver novidades.",
+      cta: "Visitar o BIKIT",
+      footer:
+        "Recebeste este email porque este endereço entrou na lista de espera em bikit.app. Se não foste tu, podes ignorá-lo.",
+    },
     hero: {
       kicker: "Percebe cada descida.",
       titleBold1: "Bike Intelligence",
@@ -36,35 +46,37 @@ const pt: LandingDictionary = {
       lead1: "Um dispositivo de telemetria compacto e inteligente, feito para registar a tua volta com precisão.",
       lead2: "Monta-o, começa a gravar e explora o teu desempenho na plataforma BIKIT.",
       imageAlt: "O dispositivo de telemetria BIKIT",
+      hint: "Arrasta para rodar",
+      disclaimer: "Não representa design do produto final",
     },
     faq: {
-      badge: "Todas as perguntas",
+      badge: "O essencial",
       title: "Perguntas frequentes",
       questions: [
         {
           question: "O que é o BIKIT?",
           answer:
-            "O BIKIT é um sistema de inteligência e telemetria para bicicletas: um pequeno dispositivo que regista a tua volta e uma plataforma que transforma esse registo em dados que consegues perceber.",
+            "O BIKIT é um sistema inteligente de telemetria que combina um registador de dados compacto com uma plataforma avançada de análise, ajudando os riders a perceber o comportamento da bicicleta, o desempenho da suspensão e a dinâmica da condução.",
         },
         {
           question: "Como funciona o BIKIT?",
           answer:
-            "Monta o dispositivo na bicicleta, começa a gravar e vai andar. Depois, importa a sessão para a plataforma BIKIT e explora as tuas descidas, curvas, saltos e impactos.",
+            "O dispositivo BIKIT regista dados de movimento e de impacto durante a tua volta. Depois de transferidos para a plataforma, os dados são transformados em visualizações intuitivas e informação sobre o teu desempenho.",
         },
         {
           question: "O BIKIT é compatível com a minha bicicleta?",
           answer:
-            "O BIKIT é feito para bicicletas de montanha e motas de motocross, e monta-se no quadro. Entra na lista de espera e dizemos-te como fica na tua montagem.",
+            "O BIKIT está a ser desenvolvido para bicicletas de montanha e motas de motocross, com foco na versatilidade e na facilidade de instalação.",
         },
         {
           question: "Quando estará disponível o BIKIT?",
           answer:
-            "O BIKIT está em beta fechada. Entra na lista de espera para receberes novidades em primeira mão e acesso prioritário ao dispositivo.",
+            "O BIKIT está em desenvolvimento e em testes numa beta privada. Entra na nossa lista de espera para receberes novidades e oportunidades de acesso antecipado.",
         },
         {
           question: "Preciso de conhecimentos técnicos para usar o BIKIT?",
           answer:
-            "Não. Montar o dispositivo e gravar uma volta é simples, e a plataforma explica o que os dados significam para a tua condução.",
+            "De todo. O BIKIT foi pensado para tornar a telemetria avançada acessível a todos os riders, transformando dados complexos em informação clara e fácil de perceber.",
         },
       ] as FaqItem[],
     },
@@ -176,15 +188,12 @@ const pt: LandingDictionary = {
       { label: "FAQ", href: "#faq" },
     ],
     productSupport: "Ajuda e suporte",
-    accountHeading: "Conta",
-    accountLogin: "Entrar",
-    accountSignup: "Criar conta",
     legalHeading: "Legal",
     legalPrivacy: "Privacidade",
     legalTerms: "Termos",
     copyright:
       "© 2026 BIKIT · Patent Pending · Portugal · INPI Request No. 20262008502041",
-    madeFor: "Feito para quem gosta de cuidar da própria bicicleta.",
+    madeFor: "Made by riders",
   },
 };
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { sendWaitlistEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,11 +25,18 @@ export async function joinWaitlist({
   if (website) return { status: "sent" };
   const address = email.trim().toLowerCase();
   if (address.length > 254 || !EMAIL.test(address)) return { status: "invalid" };
-  const { error } = await createAdminClient()
+  const language = locale === "pt" ? "pt" : "en";
+  // `select` returns only the row it wrote: none when the address was already
+  // on the list, so the thank-you goes once, however often someone joins.
+  const { data, error } = await createAdminClient()
     .from("waitlist_signups")
     .upsert(
-      { email: address, locale: locale === "pt" ? "pt" : "en" },
+      { email: address, locale: language },
       { onConflict: "email", ignoreDuplicates: true },
-    );
-  return { status: error ? "failed" : "sent" };
+    )
+    .select("email");
+  if (error) return { status: "failed" };
+  // On the list is what they asked for: an email that fails does not undo it.
+  if (data.length > 0) await sendWaitlistEmail({ to: address, locale: language });
+  return { status: "sent" };
 }

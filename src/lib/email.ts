@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { formatDate } from "@/lib/format";
+import { getLandingDictionary, type LandingLocale } from "@/components/landing/i18n";
 
 const FROM = "Bikit <hello@mail.bikit.app>";
 // Absolute and hardcoded rather than derived from the request's origin.
@@ -114,6 +115,31 @@ export async function sendOverdueEmail(params: {
     subject: dict.overdue.subject(params.componentName),
     html,
   });
+  return !error;
+}
+
+/** The thank-you to someone who just joined the landing's waitlist. Goes to
+ * an address nobody has confirmed, so it says how it got there. */
+export async function sendWaitlistEmail(params: { to: string; locale: LandingLocale }): Promise<boolean> {
+  const client = getResendClient();
+  if (!client) return false;
+
+  const dict = getLandingDictionary(params.locale).home.waitlistEmail;
+  const html = wrapEmail(
+    dict.heading,
+    `<p style="margin:0 0 12px;font-size:15px;line-height:1.5;">${dict.body1}</p>
+      <p style="margin:0;font-size:15px;line-height:1.5;">${dict.body2}</p>`,
+    dict.cta,
+    SITE_URL,
+    dict.footer
+  );
+  const { error } = await client.emails.send({
+    from: FROM,
+    to: params.to,
+    subject: dict.subject,
+    html,
+  });
+  if (error) console.error("Waitlist email failed:", error.message);
   return !error;
 }
 
