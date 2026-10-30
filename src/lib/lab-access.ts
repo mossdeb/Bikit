@@ -16,11 +16,13 @@
  */
 // wearewildpack@gmail.com: the Pro's first beta account (2026-10-23);
 // miguel_gomes@sapo.pt: the owner's second account, to see the Pro as a
-// beta account does.
+// beta account does; foxtrot.mecanicanaval@gmail.com: a beta account
+// (2026-10-30).
 const LAB_EMAILS = [
   "miguelgomesdzn@gmail.com",
   "wearewildpack@gmail.com",
   "miguel_gomes@sapo.pt",
+  "foxtrot.mecanicanaval@gmail.com",
 ];
 
 /**
