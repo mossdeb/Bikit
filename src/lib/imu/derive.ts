@@ -1750,7 +1750,8 @@ export function pitchSeries(
 /** Above this total acceleration, RMS over PITCH_WINDOW_MS, g, the force's
  * direction no longer says the bike's attitude. Measured 2026-10-30: 19
  * bicycle recordings, downhill included, stay under 4.4 g for 99 % of the time;
- * a motocross bike runs 6-7 g for half of it (R0036, R0037), where the mean
+ * a motocross bike, the sensor on top of the fork, runs 6-7 g for half of it
+ * (R0036, R0037; the cause is not settled), where the mean
  * force falls from 1 g to as little as 0.3 g and the pitch reads 66° on flat
  * ground. No other sum recovers it: the forward axis itself stops following
  * the GPS. So it is said, not corrected. */

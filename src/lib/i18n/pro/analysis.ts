@@ -315,7 +315,7 @@ const en = {
   vibration: {
     text: (pct: number): string => `High vibration · ${pct}% of the time`,
     title:
-      "The sensor was shaken past 5 g on average for this part of the ride, as on a motorbike's engine. The direction of the force stops saying the bike's attitude there, so the pitch is hidden at those instants, and the G figures may read wrong too. A firmer or damped mounting should help.",
+      "The sensor was shaken past 5 g on average for this part of the ride. The direction of the force stops saying the bike's attitude there, so the pitch is hidden at those instants, and the G figures may read wrong too. Check that the sensor is fixed firmly to the frame, not to a part that moves or steers.",
     pitchTitle: "Pitch hidden: too much vibration at this instant to read it.",
   },
 
@@ -659,7 +659,7 @@ const pt: typeof en = {
   vibration: {
     text: (pct) => `Vibração elevada · ${pct}% do tempo`,
     title:
-      "O sensor esteve sujeito a mais de 5 g em média nesta parte da volta, como acontece com o motor de uma mota. Aí, a direção da força deixa de indicar a posição da mota, por isso a inclinação fica escondida nesses instantes, e os G também podem estar errados. Uma fixação mais firme ou com amortecimento deve ajudar.",
+      "O sensor esteve sujeito a mais de 5 g em média nesta parte da volta. Aí, a direção da força deixa de indicar a posição da mota, por isso a inclinação fica escondida nesses instantes, e os G também podem estar errados. Confirma que o sensor está bem fixo ao quadro, e não numa peça que se mexa ou rode com a direção.",
     pitchTitle:
       "Inclinação escondida: há demasiada vibração neste instante para a ler.",
   },
