@@ -1747,6 +1747,44 @@ export function pitchSeries(
   return out;
 }
 
+/** Above this total acceleration, RMS over PITCH_WINDOW_MS, g, the force's
+ * direction no longer says the bike's attitude. Measured 2026-10-30: 19
+ * bicycle recordings, downhill included, stay under 4.4 g for 99 % of the time;
+ * a motocross bike runs 6-7 g for half of it (R0036, R0037), where the mean
+ * force falls from 1 g to as little as 0.3 g and the pitch reads 66° on flat
+ * ground. No other sum recovers it: the forward axis itself stops following
+ * the GPS. So it is said, not corrected. */
+export const VIBRATION_LIMIT_G = 5;
+/** Warn about a session with this share of its time over the limit: a few
+ * hard seconds are a rough landing, not a sensor shaken out of its reading. */
+export const VIBRATION_WARNING_SHARE = 0.1;
+
+/** The total acceleration's RMS over PITCH_WINDOW_MS, g, centred on each
+ * sample — the vibration the sensor sits in. */
+export function vibrationSeries(
+  tMs: Float64Array,
+  ax: ArrayLike<number>,
+  ay: ArrayLike<number>,
+  az: ArrayLike<number>,
+): Float32Array {
+  const n = tMs.length;
+  const squared = new Float32Array(n);
+  for (let i = 0; i < n; i++)
+    squared[i] = ax[i] * ax[i] + ay[i] * ay[i] + az[i] * az[i];
+  const mean = centredMeanSeries(tMs, squared, PITCH_WINDOW_MS);
+  for (let i = 0; i < n; i++) mean[i] = Math.sqrt(Math.max(0, mean[i]));
+  return mean;
+}
+
+/** The share of a session's samples over VIBRATION_LIMIT_G, 0..1. */
+export function vibrationShare(series: ArrayLike<number>): number {
+  if (series.length === 0) return 0;
+  let over = 0;
+  for (let i = 0; i < series.length; i++)
+    if (series[i] > VIBRATION_LIMIT_G) over++;
+  return over / series.length;
+}
+
 /** A session's duration to the thousandth, "01:49.167", with a
  * stopwatch's point in both languages (by request, 2026-10-24): with the
  * trim set by a track's start and finish lines, it is the run's time. Read

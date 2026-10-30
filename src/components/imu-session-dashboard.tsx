@@ -424,11 +424,17 @@ function AttitudeTile({
   angleDeg,
   subValue,
   bike,
+  unreliable = false,
+  unreliableTitle,
   className,
 }: {
   title: string;
   angleDeg: number;
   subValue: number;
+  /** The reading is not to be believed: no angle drawn, a dash for the
+   * figure (by request, 2026-10-30, after 66° on flat ground). */
+  unreliable?: boolean;
+  unreliableTitle?: string;
   bike: "rear" | "side";
   className?: string;
 }) {
@@ -437,8 +443,8 @@ function AttitudeTile({
     // The bikes say what each tile measures, so the written title came
     // out — it survives as the tile's accessible name and its hover title.
     <div
-      aria-label={title}
-      title={title}
+      aria-label={unreliable ? unreliableTitle : title}
+      title={unreliable ? unreliableTitle : title}
       // Centred in whatever height the band ends up with: the band stretches
       // to the card's floor, and left to itself the dial would sit against
       // the rule above with all the slack pooled underneath it.
@@ -466,7 +472,8 @@ function AttitudeTile({
             both tiles flipped, and a right-hand corner drew a bike leaning
             left. */}
         <g
-          transform={`rotate(${(bike === "rear" ? angleDeg : -angleDeg).toFixed(1)} 48 27.5)`}
+          transform={`rotate(${(unreliable ? 0 : bike === "rear" ? angleDeg : -angleDeg).toFixed(1)} 48 27.5)`}
+          opacity={unreliable ? 0.3 : undefined}
         >
           <line
             x1={-4}
@@ -500,8 +507,8 @@ function AttitudeTile({
           arcs reach the bottom corners only, and this number is short and
           centred, so it rises into that empty band without meeting them. */}
       <p className="-mt-2 text-base leading-tight font-semibold tabular-nums">
-        {formatAngle(angleDeg, locale)}
-        <span className="text-sm">°</span>
+        {unreliable ? "—" : formatAngle(angleDeg, locale)}
+        {!unreliable && <span className="text-sm">°</span>}
       </p>
       <p className="mt-0.5 border-t border-border pt-0.5 text-xs leading-tight text-muted-foreground tabular-nums">
         {proNumber(subValue, locale, 2)} G
@@ -521,6 +528,7 @@ export function ImuSessionDashboard({
   ay,
   leanDeg,
   pitchDeg,
+  pitchUnreliable = false,
   className,
 }: {
   /** Whose ride these instruments are showing — the panel's title. Null on
@@ -542,6 +550,8 @@ export function ImuSessionDashboard({
   ay: number;
   leanDeg: number;
   pitchDeg: number;
+  /** Too much vibration at this instant to read the pitch (vibrationSeries). */
+  pitchUnreliable?: boolean;
   className?: string;
 }) {
   const t = useProDict();
@@ -633,6 +643,8 @@ export function ImuSessionDashboard({
             angleDeg={pitchDeg}
             subValue={ax}
             bike="side"
+            unreliable={pitchUnreliable}
+            unreliableTitle={t.analysis.vibration.pitchTitle}
             className="flex-1"
           />
         </div>

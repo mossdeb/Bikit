@@ -93,6 +93,10 @@ import {
   leanSeries,
   nearestSampleIndex,
   pitchSeries,
+  VIBRATION_LIMIT_G,
+  VIBRATION_WARNING_SHARE,
+  vibrationSeries,
+  vibrationShare,
   roughnessSeries,
   sessionSummary,
   curveMomentum,
@@ -167,12 +171,7 @@ type LabelledSeriesDef = (typeof SERIES_DEFS)[number] & {
 
 /** The series computed from the raw channels rather than recorded by the
  * sensor — listed apart in the details panel, never under "Dados brutos". */
-const DERIVED_IDS = new Set<SeriesId>([
-  "roughness",
-  "jerk",
-  "lean",
-  "pitch",
-]);
+const DERIVED_IDS = new Set<SeriesId>(["roughness", "jerk", "lean", "pitch"]);
 
 /** The series that cannot go below zero — magnitudes, an RMS, a ground
  * speed, an altitude above sea level. Their gauge starts at the left of the
@@ -217,7 +216,6 @@ const SNAPSHOT_CACHE_MAX = 12;
  * the start and finish lines time the runs, and a trim already set still
  * applies. Back with true. */
 const SHOW_TRIM = false;
-
 
 const HIGHG_KIND = "highg";
 const HIGHG_KIND_DEF = {
@@ -1586,6 +1584,12 @@ export function ImuSessionAnalysis({
     return pitchSeries(tMs, ax, ay, az);
   }, [data]);
 
+  const vibrationValues = useMemo(() => {
+    if (!data) return null;
+    const { tMs, ax, ay, az } = data.channels;
+    return vibrationSeries(tMs, ax, ay, az);
+  }, [data]);
+
   /**
    * The rider-sag step's pitch (firmware V18, SAG1), in the frame the page
    * reads everything in — ORI1, the empty bike — so it lands on the pitch
@@ -2263,8 +2267,8 @@ export function ImuSessionAnalysis({
                 whole={whole}
                 trim={trim}
                 visibleMs={[
-                  (trim?.startMs ?? 0),
-                  (trim?.endMs ?? whole.durationMs),
+                  trim?.startMs ?? 0,
+                  trim?.endMs ?? whole.durationMs,
                 ]}
                 tracks={timedTracks}
                 candidates={trackCandidates}
@@ -2591,6 +2595,10 @@ export function ImuSessionAnalysis({
               ay={data.channels.ay[dashIndex]}
               leanDeg={seriesValues.lean[dashIndex] as number}
               pitchDeg={pitchValues[dashIndex]}
+              pitchUnreliable={
+                vibrationValues != null &&
+                vibrationValues[dashIndex] > VIBRATION_LIMIT_G
+              }
               // No padding on the card itself: its sections are told apart by
               // rules that have to reach both edges, and a padded card would
               // hold every one of them off by 15px. Each section pads itself
@@ -3536,7 +3544,25 @@ export function SessionFileBadges() {
     <p className="mt-1 flex flex-wrap items-baseline gap-x-2.5">
       <RealignmentBadge session={session} />
       <MountingBadge session={session} />
+      <VibrationBadge session={session} />
     </p>
+  );
+}
+
+/** Said when the sensor spent a real part of the ride shaken past reading
+ * (VIBRATION_LIMIT_G), which a motorbike's engine does and a bicycle does not:
+ * the pitch is hidden at those instants, and the other figures are in doubt. */
+function VibrationBadge({ session }: { session: ImuSessionData }) {
+  const t = useProDict().analysis.vibration;
+  const share = useMemo(() => {
+    const { tMs, ax, ay, az } = session.channels;
+    return vibrationShare(vibrationSeries(tMs, ax, ay, az));
+  }, [session]);
+  if (share < VIBRATION_WARNING_SHARE) return null;
+  return (
+    <span className="text-xs text-destructive tabular-nums" title={t.title}>
+      {t.text(Math.round(share * 100))}
+    </span>
   );
 }
 
@@ -4432,9 +4458,7 @@ function CompactStat({
           tall as the rest. */}
       <p className="flex items-baseline gap-1.5 leading-tight tabular-nums">
         <span className="font-semibold">{value}</span>
-        {note && (
-          <span className="text-xs text-muted-foreground">{note}</span>
-        )}
+        {note && <span className="text-xs text-muted-foreground">{note}</span>}
       </p>
     </div>
   );

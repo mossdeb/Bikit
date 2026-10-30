@@ -311,6 +311,14 @@ const en = {
     after: (seconds: string): string => `${seconds} s after`,
   },
 
+  /** Too much vibration for the sensor's reading to say the bike's attitude. */
+  vibration: {
+    text: (pct: number): string => `High vibration · ${pct}% of the time`,
+    title:
+      "The sensor was shaken past 5 g on average for this part of the ride, as on a motorbike's engine. The direction of the force stops saying the bike's attitude there, so the pitch is hidden at those instants, and the G figures may read wrong too. A firmer or damped mounting should help.",
+    pitchTitle: "Pitch hidden: too much vibration at this instant to read it.",
+  },
+
   /** The warning badge for a file whose frames arrived rotated. */
   realignment: {
     text: (pct: number): string => `IMU realigned · ${pct}% of the time`,
@@ -648,6 +656,13 @@ const pt: typeof en = {
     after: (seconds) => `${seconds} s depois`,
   },
 
+  vibration: {
+    text: (pct) => `Vibração elevada · ${pct}% do tempo`,
+    title:
+      "O sensor esteve sujeito a mais de 5 g em média nesta parte da volta, como acontece com o motor de uma mota. Aí, a direção da força deixa de indicar a posição da mota, por isso a inclinação fica escondida nesses instantes, e os G também podem estar errados. Uma fixação mais firme ou com amortecimento deve ajudar.",
+    pitchTitle:
+      "Inclinação escondida: há demasiada vibração neste instante para a ler.",
+  },
   realignment: {
     text: (pct) => `IMU realinhado · ${pct}% do tempo`,
     lost: (pct) => ` · ${pct}% irrecuperável`,

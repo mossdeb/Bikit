@@ -35,6 +35,8 @@ import {
   windowPeak,
   windowRange,
   windowRms,
+  vibrationSeries,
+  vibrationShare,
 } from "./derive";
 
 function session(overrides: Partial<ImuSessionData> = {}): ImuSessionData {
@@ -1249,5 +1251,31 @@ describe("impactRecoveryRatio", () => {
     expect(impactRecoveryRatio(t, band, x, 1800, 1000)).toBeNull();
     const flat = new Float32Array(t.length);
     expect(impactRecoveryRatio(t, flat, flat, 1000, 1800)).toBeNull();
+  });
+});
+
+describe("vibration", () => {
+  const ride = (amplitudeG: number, n = 4160) => {
+    const tMs = new Float64Array(n);
+    const az = new Float32Array(n);
+    const zeros = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      tMs[i] = (i / 416) * 1000;
+      az[i] = 1 + amplitudeG * Math.sin(2 * Math.PI * (150 * i) / 416);
+    }
+    return vibrationSeries(tMs, zeros, zeros, az);
+  };
+
+  it("reads 1 g at rest, and the shaking's RMS on a motor", () => {
+    expect(ride(0)[2000]).toBeCloseTo(1, 3);
+    // sqrt(1 + 10² / 2)
+    expect(ride(10)[2000]).toBeCloseTo(7.14, 1);
+  });
+
+  it("counts the share of the time over the limit", () => {
+    expect(vibrationShare(ride(0))).toBe(0);
+    expect(vibrationShare(ride(10))).toBe(1);
+    expect(vibrationShare([1, 6, 1, 6])).toBe(0.5);
+    expect(vibrationShare([])).toBe(0);
   });
 });
