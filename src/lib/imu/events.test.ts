@@ -276,7 +276,15 @@ describe("detectImuEvents", () => {
     // turns over at `dps` on the roll axis; from 11 s it lies at `tiltDeg`
     // (gravity leaning onto the forward axis, nose down, as R0173 did) until
     // 15 s, then stands up again.
-    function crashRide(opts: { v: number; dps: number; tiltDeg: number }) {
+    function crashRide(opts: {
+      v: number;
+      dps: number;
+      tiltDeg: number;
+      /** A motorbike's vibration on the vertical axis, g. */
+      shakeG?: number;
+      /** The bike rides on through it instead of stopping. */
+      ridesOn?: boolean;
+    }) {
       const seconds = 30;
       const n = seconds * RATE;
       const tMs = new Float64Array(n);
@@ -288,12 +296,16 @@ describe("detectImuEvents", () => {
         const t = i / RATE;
         tMs[i] = t * 1000;
         if (t >= 10 && t < 10.8) gx[i] = opts.dps;
+        if (opts.shakeG) az[i] += opts.shakeG * Math.sin(2 * Math.PI * 150 * t);
         if (t >= 11 && t < 15) {
           ax[i] = -Math.sin(tilt);
-          az[i] = Math.cos(tilt);
+          az[i] =
+            Math.cos(tilt) +
+            (opts.shakeG ?? 0) * Math.sin(2 * Math.PI * 150 * t);
         }
       }
-      const speed = (s: number) => (s < 10 ? opts.v : s < 11 ? opts.v / 2 : 0);
+      const speed = (s: number) =>
+        opts.ridesOn || s < 10 ? opts.v : s < 11 ? opts.v / 2 : 0;
       const gps: GpsChannels = {
         tMs: new Float64Array(
           Array.from({ length: seconds }, (_, s) => s * 1000),
@@ -346,6 +358,18 @@ describe("detectImuEvents", () => {
       // Back up when the tilt falls under 30°, at 15 s.
       expect(c.endMs).toBeCloseTo(15_000, -2);
       expect(c.confidence).toBeGreaterThan(0.8);
+    });
+
+    it("under heavy vibration, wants the bike to have stopped", () => {
+      const shaken = { v: 10, dps: 1300, tiltDeg: 60, shakeG: 12 };
+      expect(crashRide({ ...shaken, ridesOn: true })).toHaveLength(0);
+      expect(crashRide(shaken)).toHaveLength(1);
+    });
+
+    it("without the vibration, a crash needs no stop, as before", () => {
+      expect(
+        crashRide({ v: 7.5, dps: 1300, tiltDeg: 60, ridesOn: true }),
+      ).toHaveLength(1);
     });
 
     it("does not call a whip or a berm a crash: the bike never lies down", () => {

@@ -40,7 +40,14 @@
  */
 
 import type { ImuEvent, ImuSessionData } from "./format";
-import { gForceOf, gpsSpeedAt, roughnessSeries } from "./derive";
+import {
+  gForceOf,
+  gpsSpeedAt,
+  roughnessSeries,
+  VIBRATION_WARNING_SHARE,
+  vibrationSeries,
+  vibrationShare,
+} from "./derive";
 
 /** In the air: the norm below this. Rest is 1 g; a hard compression is 3. */
 const FALL_G = 0.4;
@@ -300,6 +307,10 @@ const CRASH_UP_DEG = 30;
 const CRASH_MAX_DOWN_MS = 60_000;
 /** The tilt is read on windows this long. */
 const CRASH_TILT_WINDOW_MS = 250;
+/** On a recording shaken past reading, a crash also has to stop the bike: the
+ * GPS speed under this, m/s, some time before the event ends or just after. */
+const CRASH_SHAKEN_STOP_MPS = 1.5;
+const CRASH_SHAKEN_STOP_REACH_MS = 3000;
 
 /** Centred moving mean over `windowMs`, via a prefix sum. */
 function movingMean(
@@ -487,6 +498,14 @@ function detectCrashes(session: ImuSessionData): ImuEvent[] {
   const n = tMs.length;
   const gps = session.gps;
   const out: ImuEvent[] = [];
+  // A motorbike's vibration reaches 800 °/s in single samples and takes the
+  // mean force, which "down" is read from, far off gravity: R0037 had eight
+  // falls, the bike going on at 28-51 km/h after each. Under that much
+  // vibration (never reached by a bicycle, see VIBRATION_LIMIT_G) the rotation
+  // and the tilt are not evidence enough, and the GPS has to agree that the
+  // bike stopped. Every other recording is judged exactly as before.
+  const shaken =
+    vibrationShare(vibrationSeries(tMs, ax, ay, az)) >= VIBRATION_WARNING_SHARE;
 
   // The tumbles: samples past the rate, merged into clusters.
   const clusters: { from: number; to: number; peakDps: number }[] = [];
@@ -552,6 +571,15 @@ function detectCrashes(session: ImuSessionData): ImuEvent[] {
       i = k;
     }
     if (downFrom == null || upAt == null) continue;
+    if (shaken) {
+      if (!gps) continue;
+      let stopped = false;
+      const until = tMs[upAt] + CRASH_SHAKEN_STOP_REACH_MS;
+      for (let k = 0; k < gps.tMs.length && gps.tMs[k] <= until; k++)
+        if (gps.tMs[k] >= startMs && gps.speedMps[k] < CRASH_SHAKEN_STOP_MPS)
+          stopped = true;
+      if (!stopped) continue;
+    }
     const downMs = tMs[upAt] - tMs[downFrom];
     const confidence =
       0.5 +
