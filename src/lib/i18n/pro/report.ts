@@ -380,7 +380,7 @@ const en = {
     delete: "Delete",
     deleteTitle: (name: string): string => `Delete ${name}?`,
     deleteBody: (sessions: string): string =>
-      `Its components, maintenance history and Strava activities are deleted with it. Its sessions (${sessions}) and setups stay, without a bike. This cannot be undone.`,
+      `Its components and maintenance history are deleted with it. Its sessions (${sessions}) and setups stay, without a bike. This cannot be undone.`,
     deleteConfirm: "Delete bike",
     /** A setup for the bike, before any session (2026-10-27). */
     newSetup: "New setup",
@@ -700,7 +700,7 @@ const pt: typeof en = {
     delete: "Apagar",
     deleteTitle: (name) => `Apagar ${name}?`,
     deleteBody: (sessions) =>
-      `Os componentes, o histórico de manutenção e as atividades do Strava são apagados com ela. As sessões (${sessions}) e as afinações ficam, sem bicicleta. Não dá para desfazer.`,
+      `Os componentes e o histórico de manutenção são apagados com ela. As sessões (${sessions}) e as afinações ficam, sem bicicleta. Não dá para desfazer.`,
     deleteConfirm: "Apagar bicicleta",
     newSetup: "Novo setup",
     newSetupTitle: "Novo setup",

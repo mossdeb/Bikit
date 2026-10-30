@@ -7,7 +7,6 @@ import { getProDictionary } from "@/lib/i18n/pro";
 import { formatDistance, formatHours } from "@/lib/format";
 import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
-import { StravaBadgeIcon } from "@/components/strava-icon";
 import { ProAddBikeButton } from "@/components/pro-bike-actions";
 import { groupBikeSetups, type BikeSetupRow } from "@/lib/imu/bike-setups";
 import { isSetupValues } from "@/lib/imu/setup";
@@ -38,7 +37,7 @@ export default async function ProBikesPage() {
       supabase
         .from("bikes")
         .select(
-          "id, name, type, brand, model, year, total_km, total_hours, strava_gear_id",
+          "id, name, type, brand, model, year, total_km, total_hours",
         )
         .eq("user_id", userId)
         .order("usage_updated_at", { ascending: false, nullsFirst: false })
@@ -119,9 +118,6 @@ export default async function ProBikesPage() {
                   {bike.name}
                 </h2>
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-                  {bike.strava_gear_id && (
-                    <StravaBadgeIcon className="size-[12px] shrink-0" />
-                  )}
                   {[bike.type, bike.brand, bike.model, bike.year]
                     .filter(Boolean)
                     .join(" · ") || dict.bikes.noDetailsYet}

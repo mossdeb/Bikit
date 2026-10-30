@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkStravaSubscriptionHealth, getValidStravaAccessToken, syncActivityToBike, type StravaActivity } from "@/lib/strava";
+import { checkStravaSubscriptionHealth, getValidStravaAccessToken, STRAVA_ENABLED, syncActivityToBike, type StravaActivity } from "@/lib/strava";
 import { sendStravaSyncPush, type SyncedBike } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,8 @@ export async function GET(request: Request) {
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  if (!STRAVA_ENABLED) return Response.json({ skipped: "strava-disabled" });
 
   await checkStravaSubscriptionHealth();
 

@@ -9,6 +9,7 @@ import {
   stravaAuthorizeUrl,
   accessTokenForConnection,
   hasStravaWriteScope,
+  STRAVA_ENABLED,
   syncActivitiesToBikes,
   type StravaActivity,
 } from "@/lib/strava";
@@ -17,6 +18,7 @@ const MANUAL_SYNC_LOOKBACK_DAYS = 30;
 const MANUAL_SYNC_COOLDOWN_MINUTES = 60;
 
 export async function connectStrava() {
+  if (!STRAVA_ENABLED) redirect("/");
   const origin = (await headers()).get("origin");
   redirect(stravaAuthorizeUrl(`${origin}/api/strava/callback`));
 }
@@ -82,6 +84,7 @@ export async function disconnectStrava() {
 export async function manualSyncStrava(formData: FormData) {
   const bikeIdValue = formData.get("bikeId");
   const redirectTo = typeof bikeIdValue === "string" && bikeIdValue ? `/bikes/${bikeIdValue}` : "/bikes";
+  if (!STRAVA_ENABLED) redirect(redirectTo);
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();

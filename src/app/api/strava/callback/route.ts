@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { exchangeStravaCode } from "@/lib/strava";
+import { exchangeStravaCode, STRAVA_ENABLED } from "@/lib/strava";
 
 // Handles the redirect back from Strava's OAuth consent screen.
 export async function GET(request: NextRequest) {
+  if (!STRAVA_ENABLED) return NextResponse.redirect(new URL("/", request.url));
+
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const oauthError = searchParams.get("error");

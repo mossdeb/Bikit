@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 
+/** Strava is switched off (by request, 2026-10-30): nothing is read from it or
+ * connected to it any more. Every way in — webhook, daily cron, OAuth callback,
+ * connect and manual sync — answers without touching Strava. Nothing is
+ * deleted from the code; connecting again would take each athlete's consent. */
+export const STRAVA_ENABLED = false;
+
 const STRAVA_API = "https://www.strava.com/api/v3";
 const STRAVA_OAUTH = "https://www.strava.com/oauth";
 
@@ -85,6 +91,7 @@ export async function getValidStravaAccessToken(
   supabase: SupabaseClient<Database>,
   userId: string
 ): Promise<string | null> {
+  if (!STRAVA_ENABLED) return null;
   const { data: connection } = await supabase
     .from("strava_connections")
     .select("access_token, refresh_token, expires_at")

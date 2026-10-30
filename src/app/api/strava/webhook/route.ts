@@ -4,6 +4,7 @@ import {
   fetchStravaActivity,
   getValidStravaAccessToken,
   rideStressActivityOf,
+  STRAVA_ENABLED,
   syncActivityToBike,
 } from "@/lib/strava";
 import { sendStravaSyncPush } from "@/lib/push";
@@ -29,6 +30,10 @@ export async function GET(request: Request) {
 // A new activity was created on Strava. We only care about rides logged
 // against a gear that's mapped to one of our bikes.
 export async function POST(request: Request) {
+  // Answered, not refused: Strava retries an error, and the subscription goes
+  // on sending until it is deleted on their side.
+  if (!STRAVA_ENABLED) return Response.json({ ok: true });
+
   const event = await request.json();
 
   if (event.object_type !== "activity" || event.aspect_type !== "create") {
