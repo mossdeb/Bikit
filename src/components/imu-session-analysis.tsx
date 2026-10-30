@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatedNumber } from "@/components/animated-number";
 import { SessionDataContext } from "@/components/imu-session-data";
 import { recordImuSessionRiderSag } from "@/lib/actions/imu";
 import { riderAttitude, storedRiderSag } from "@/lib/imu/rider-sag";
@@ -2251,7 +2252,10 @@ export function ImuSessionAnalysis({
               aria-label={`${t.resume.duration} ${durationText}`}
             >
               <StatStopwatchIcon className="size-8 text-foreground [&_path]:[stroke-width:1.4]" />
-              {durationText}
+              {/* The label above reads it; the columns hold every digit. */}
+              <span aria-hidden="true">
+                <AnimatedNumber value={durationText} rollOnEnter />
+              </span>
             </p>
             {whole && timed && (
               <ImuTrackRanking

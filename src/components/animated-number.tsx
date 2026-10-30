@@ -109,6 +109,7 @@ const digitsOf = (text: string) => text.replace(/\D/g, "");
 export function AnimatedNumber({
   value,
   storageKey,
+  rollOnEnter = false,
   className,
   unitClassName,
 }: {
@@ -119,8 +120,13 @@ export function AnimatedNumber({
    * differs, the shapes stop matching, and a display preference is not a
    * change to report. */
   value: string;
-  /** Stable per bike and per field, e.g. `${bike.id}:km`. */
-  storageKey: string;
+  /** Stable per bike and per field, e.g. `${bike.id}:km`. Unused with
+   * `rollOnEnter`, which has no baseline to keep. */
+  storageKey?: string;
+  /** Roll up from zeros every time this mounts, with no stored baseline — a
+   * session's time as its page opens (by request, 2026-10-30). Only the
+   * entrance rolls: a later change, such as a new trim, lands at once. */
+  rollOnEnter?: boolean;
   className?: string;
   /** Set where the unit is typed differently from the figure, as in the bike
    * header's totals box. The space before it goes with it — the class brings
@@ -128,20 +134,46 @@ export function AnimatedNumber({
   unitClassName?: string;
 }) {
   const root = useRef<HTMLSpanElement>(null);
+  // The value `rollOnEnter` last showed. A ref, not a local: it has to survive
+  // Strict Mode's second run of the effect, which would otherwise take the
+  // entrance for a later change and cut it short.
+  const entered = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
-    const key = STORE_PREFIX + storageKey;
 
     let previous: string | null = null;
-    try {
-      previous = window.localStorage.getItem(key);
-      window.localStorage.setItem(key, value);
-    } catch {
-      // Private mode, or storage full. Nothing to animate from and nothing to
-      // record — the number is still on screen, which is the part that matters.
-      return;
+    if (rollOnEnter) {
+      // Not a number yet: the entrance waits for the first one.
+      if (!/\d/.test(value) || entered.current === value) return;
+      const first = entered.current === null;
+      entered.current = value;
+      if (!first) {
+        // A later change lands at once: the class's transition would otherwise
+        // slide the columns to their new digits.
+        const strips = el.querySelectorAll<HTMLElement>("[data-digit] > span");
+        strips.forEach((strip) => {
+          strip.style.transition = "none";
+        });
+        void el.offsetHeight;
+        strips.forEach((strip) => {
+          strip.style.transition = "";
+          strip.style.transitionDelay = "";
+        });
+        return;
+      }
+      previous = value.replace(/\d/g, "0");
+    } else {
+      const key = STORE_PREFIX + storageKey;
+      try {
+        previous = window.localStorage.getItem(key);
+        window.localStorage.setItem(key, value);
+      } catch {
+        // Private mode, or storage full. Nothing to animate from and nothing to
+        // record — the number is still on screen, which is the part that matters.
+        return;
+      }
     }
 
     if (previous === null || previous === value || !comparable(previous, value)) return;
@@ -188,7 +220,7 @@ export function AnimatedNumber({
       strip.style.transitionDelay = `${i * 110}ms`;
       strip.style.transform = offsetFor(Number(column.dataset.slot));
     });
-  }, [value, storageKey]);
+  }, [value, storageKey, rollOnEnter]);
 
   // The unit is peeled off only to be typed differently; it is never animated,
   // because "km" does not become "mi" because somebody rode.
