@@ -1208,6 +1208,7 @@ export function ImuSessionAnalysis({
   trim = null,
   trimByTrack = false,
   riderSagStored = true,
+  engineFilter = false,
   timedTracks = [],
   trackCandidates = [],
 }: {
@@ -1215,6 +1216,8 @@ export function ImuSessionAnalysis({
    * 00052); when it does not and the file has one, the page hands it over
    * once, for the setup's history. */
   riderSagStored?: boolean;
+  /** The rider's choice in the session's settings: the engine noise filter. */
+  engineFilter?: boolean;
   /** The row's id — what a Snapshot made from this recording points at. */
   sessionId: string;
   /** The account's Snapshots, so the dialog on an event's card can say
@@ -1257,7 +1260,7 @@ export function ImuSessionAnalysis({
     data,
     whole,
     error: loadError,
-  } = useImuSession(storagePath, mountOrientation, trim);
+  } = useImuSession(storagePath, mountOrientation, trim, engineFilter);
   // The run read against the account's tracks once, for the flag on the
   // zoom row and the ranking in the header.
   const timed = useTimedRuns(whole, timedTracks);
@@ -1586,6 +1589,7 @@ export function ImuSessionAnalysis({
 
   const vibrationValues = useMemo(() => {
     if (!data) return null;
+    if (data.unfilteredVibrationG) return data.unfilteredVibrationG;
     const { tMs, ax, ay, az } = data.channels;
     return vibrationSeries(tMs, ax, ay, az);
   }, [data]);
@@ -3555,6 +3559,8 @@ export function SessionFileBadges() {
 function VibrationBadge({ session }: { session: ImuSessionData }) {
   const t = useProDict().analysis.vibration;
   const share = useMemo(() => {
+    if (session.unfilteredVibrationG)
+      return vibrationShare(session.unfilteredVibrationG);
     const { tMs, ax, ay, az } = session.channels;
     return vibrationShare(vibrationSeries(tMs, ax, ay, az));
   }, [session]);

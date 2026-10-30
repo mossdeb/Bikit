@@ -435,6 +435,8 @@ export async function updateImuSession(input: {
   bike: ImuSessionBikeRef;
   /** Same shape as at import: an existing group, a new one, or none. */
   group: ImuSessionGroupRef;
+  /** The engine noise filter, on only by the rider's own choice. */
+  engineFilter: boolean;
 }): Promise<ImuActionResult> {
   const caller = await labCaller();
   if (caller.status === "error") return caller;
@@ -461,6 +463,7 @@ export async function updateImuSession(input: {
       rider_name: riderName,
       bike_id: bike.id,
       group_id: group.id,
+      engine_filter: input.engineFilter,
     })
     .eq("id", input.sessionId)
     .eq("user_id", userId)

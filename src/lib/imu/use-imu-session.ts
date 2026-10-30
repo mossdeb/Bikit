@@ -12,6 +12,7 @@ import {
 } from "./format";
 import { alignSession } from "./derive";
 import { withBikeFrameEvents } from "./events";
+import { withEngineFilter } from "./mx-noise";
 import { trimSession, type ImuSessionTrim } from "./trim";
 
 /**
@@ -95,6 +96,7 @@ export function useImuSession(
   storagePath: string | null,
   mountOrientation: ImuMountOrientation | null,
   trim: ImuSessionTrim | null = null,
+  engineFilter = false,
 ): {
   data: ImuSessionData | null;
   whole: ImuSessionData | null;
@@ -126,13 +128,13 @@ export function useImuSession(
   // object on every render, and the crop must not run on every render.
   const startMs = trim?.startMs ?? null;
   const endMs = trim?.endMs ?? null;
-  const data = useMemo(
-    () =>
+  const data = useMemo(() => {
+    const cropped =
       whole && startMs != null && endMs != null
         ? trimSession(whole, { startMs, endMs })
-        : whole,
-    [whole, startMs, endMs],
-  );
+        : whole;
+    return cropped && engineFilter ? withEngineFilter(cropped) : cropped;
+  }, [whole, startMs, endMs, engineFilter]);
 
   return { data, whole, error };
 }

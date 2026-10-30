@@ -601,6 +601,7 @@ export type Database = {
           storage_path: string;
           track_index: Json | null;
           trim_by_track: boolean;
+          engine_filter: boolean;
           trim_end_ms: number | null;
           trim_start_ms: number | null;
           user_id: string;
@@ -628,6 +629,7 @@ export type Database = {
           storage_path: string;
           track_index?: Json | null;
           trim_by_track?: boolean;
+          engine_filter?: boolean;
           trim_end_ms?: number | null;
           trim_start_ms?: number | null;
           user_id: string;
@@ -655,6 +657,7 @@ export type Database = {
           storage_path?: string;
           track_index?: Json | null;
           trim_by_track?: boolean;
+          engine_filter?: boolean;
           trim_end_ms?: number | null;
           trim_start_ms?: number | null;
           user_id?: string;

@@ -144,6 +144,10 @@ export interface ImuSessionData {
   sampleRateHz: number;
   sampleCount: number;
   channels: ImuChannels;
+  /** With the engine filter on, the vibration the sensor really sat in, g
+   * (vibrationSeries before the filter): the filter cleans the display, and
+   * the warning about the reading must not go with the noise. */
+  unfilteredVibrationG?: Float32Array;
   /** Null when the file records no GNSS — every v1 file, and a v2 file
    * whose valid fixes all dropped out. The speed series and the map exist
    * only when this does. */

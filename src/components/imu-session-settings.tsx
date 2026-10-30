@@ -50,7 +50,10 @@ export function ImuSessionSettings({
   riders,
   storagePath,
   canDownload,
+  engineFilter,
 }: {
+  /** The engine noise filter's state, off unless the rider turned it on. */
+  engineFilter: boolean;
   sessionId: string;
   name: string;
   riderName: string | null;
@@ -77,6 +80,7 @@ export function ImuSessionSettings({
   const [newBikeName, setNewBikeName] = useState("");
   const [draftGroup, setDraftGroup] = useState(groupId ?? "");
   const [newGroupName, setNewGroupName] = useState("");
+  const [draftFilter, setDraftFilter] = useState(engineFilter);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,7 +136,8 @@ export function ImuSessionSettings({
     draftName.trim() !== name ||
     (draftRider.trim() || null) !== (riderName ?? null) ||
     (draftBike || null) !== (bikeId ?? null) ||
-    (draftGroup || null) !== (groupId ?? null);
+    (draftGroup || null) !== (groupId ?? null) ||
+    draftFilter !== engineFilter;
   const valid =
     draftName.trim().length > 0 &&
     groupFormValid(draftGroup, newGroupName) &&
@@ -148,6 +153,7 @@ export function ImuSessionSettings({
       riderName: draftRider,
       bike: bikeRefFromForm(draftBike, newBikeName),
       group: groupRefFromForm(draftGroup, newGroupName),
+      engineFilter: draftFilter,
     });
     if (result.status === "error") {
       setBusy(false);
@@ -214,6 +220,22 @@ export function ImuSessionSettings({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={draftFilter}
+              onChange={(e) => setDraftFilter(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 accent-foreground"
+            />
+            <span>
+              <span className="block text-sm font-medium">
+                {t.sessions.settings.engineFilter}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {t.sessions.settings.engineFilterHint}
+              </span>
+            </span>
+          </label>
           <Button
             type="submit"
             className="w-full"

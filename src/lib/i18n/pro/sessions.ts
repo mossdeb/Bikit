@@ -60,6 +60,10 @@ const en = {
     title: "Session settings",
     description:
       "The name, who rode, which bike carried the sensor and which group it belongs to. The recording itself does not change, and can be downloaded exactly as it was stored.",
+    /** The motorbike's filter: by hand, off by default. */
+    engineFilter: "Motorbike: filter engine noise",
+    engineFilterHint:
+      "Only for motorbikes. Reduces the engine's vibration in this session's charts and G readings. The file and the events do not change. Off by default.",
     preparing: "Preparing…",
     download: (extension: string): string => `Download file (${extension})`,
     downloadFailed: (reason: string): string =>
@@ -168,6 +172,9 @@ const pt: typeof en = {
     title: "Definições da sessão",
     description:
       "O nome, quem pedalou, que bicicleta levou o sensor e a que grupo pertence. A gravação em si não muda, e pode ser descarregada tal como foi guardada.",
+    engineFilter: "Mota: filtrar o ruído do motor",
+    engineFilterHint:
+      "Só para motas. Reduz a vibração do motor nos gráficos e nos G desta sessão. O ficheiro e os eventos não mudam. Desligado por defeito.",
     preparing: "A preparar…",
     download: (extension) => `Descarregar ficheiro (${extension})`,
     downloadFailed: (reason) => `Não foi possível obter o ficheiro: ${reason}.`,
