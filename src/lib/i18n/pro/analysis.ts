@@ -240,6 +240,7 @@ const en = {
   /** The panel switches above the cards. */
   panels: {
     rider: "Rider",
+    laps: "Laps",
     map: "Map",
     show: (label: string): string => `Show ${label}`,
   },
@@ -596,6 +597,7 @@ const pt: typeof en = {
 
   panels: {
     rider: "Rider",
+    laps: "Voltas",
     map: "Mapa",
     show: (label) => `Mostrar ${label}`,
   },

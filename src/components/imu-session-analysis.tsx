@@ -50,6 +50,7 @@ import {
 } from "@/components/imu-event-icons";
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
+import { ImuSessionLaps } from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
 import { isLapTrack, lapMarks } from "@/lib/imu/timed-track";
 import {
@@ -1274,8 +1275,15 @@ export function ImuSessionAnalysis({
   /** The optional panels beside the plot — the dashboard and the map, each
    * behind its own switch on the Telemetria heading row. Per session, like
    * the filters: which panels are up is a way of looking, not a setting. */
-  const [dashOn, setDashOn] = useState(true);
+  // Off by default on a circuit, whose laps take the left of the row (by
+  // request, 2026-10-31); on everywhere else. Null until the rider chooses.
+  const [dashChoice, setDashChoice] = useState<boolean | null>(null);
+  const circuitRuns = timed?.passed.find((m) =>
+    isLapTrack(m.track.definition),
+  )?.runs;
+  const dashOn = dashChoice ?? !circuitRuns;
   const [mapOn, setMapOn] = useState(true);
+  const [lapsOn, setLapsOn] = useState(true);
   /** The event kinds drawn on the plot and read in the panel. "Mostrar
    * eventos" is not a switch of its own but this set's emptiness: unticking
    * it clears the filters, ticking it fills them, and ticking one kind with
@@ -1721,9 +1729,6 @@ export function ImuSessionAnalysis({
   const full: [number, number] = [tMs[0], data.durationMs];
   const win = windowMs ?? full;
   // A circuit's laps across the top of the plot.
-  const circuitRuns = timed?.passed.find((m) =>
-    isLapTrack(m.track.definition),
-  )?.runs;
   const lapBand = circuitRuns
     ? lapMarks(circuitRuns, trim?.startMs ?? 0, win).map((mark) => ({
         key: String(mark.lap),
@@ -1965,7 +1970,7 @@ export function ImuSessionAnalysis({
   function toggleDash() {
     const next = !dashOn;
     if (next) setMapWidth((w) => Math.min(w, maxMapWidth(true)));
-    setDashOn(next);
+    setDashChoice(next);
   }
 
   function startMapResize(event: React.PointerEvent<HTMLElement>) {
@@ -2249,9 +2254,17 @@ export function ImuSessionAnalysis({
   // where the heading has no room for them beside the title. They matter on
   // a phone too — there the panels do not stand beside the plot, they stack
   // under it, so switching one off is scrolling saved.
+  const lapsShown = circuitRuns != null && lapsOn;
   const panelToggles = (
     <>
       <PanelToggle label={t.panels.rider} on={dashOn} onToggle={toggleDash} />
+      {circuitRuns && (
+        <PanelToggle
+          label={t.panels.laps}
+          on={lapsOn}
+          onToggle={() => setLapsOn((v) => !v)}
+        />
+      )}
       {hasGps && (
         <PanelToggle
           label={t.panels.map}
@@ -2407,12 +2420,16 @@ export function ImuSessionAnalysis({
           // spacing lands the same as when they stacked in source order.
           className={cn(
             "flex flex-col",
-            data.gps && mapOn && dashOn
-              ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
-              : data.gps && mapOn
-                ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
-                : dashOn
-                  ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-x-[22px]"
+            lapsShown && dashOn
+              ? data.gps && mapOn
+                ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
+                : "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)] lg:gap-x-[22px]"
+              : lapsShown || dashOn
+                ? data.gps && mapOn
+                  ? "lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
+                  : "lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-x-[22px]"
+                : data.gps && mapOn
+                  ? "lg:grid lg:grid-cols-[minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
                   : undefined,
           )}
         >
@@ -2597,6 +2614,20 @@ export function ImuSessionAnalysis({
               </div>
             </div>
           </div>
+
+          {/* A circuit's laps: the row's first column, before the Rider's. */}
+          {circuitRuns && lapsOn && (
+            <ImuSessionLaps
+              laps={circuitRuns}
+              trimStartMs={trim?.startMs ?? 0}
+              cursorMs={cursorMs}
+              onPick={setWindowMs}
+              className={cn(
+                "order-3 mt-4 flex min-w-0 sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
+                DARK_CARD_HAIRLINE_SM,
+              )}
+            />
+          )}
 
           {/* The instant dashboard — the same cursor, read as instruments. A
             card of its own beside the chart on desktop, a stacked section

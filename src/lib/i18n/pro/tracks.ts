@@ -56,6 +56,9 @@ const en = {
   lapsSummary: (n: number, best: string): string =>
     `${n === 1 ? "1 lap" : `${n} laps`} · best ${best}`,
   bestLap: "Best lap",
+  /** The laps card. */
+  lapsCard: "Laps",
+  lapZoom: (n: number): string => `Zoom the plot to lap ${n}`,
   trimWindow: "Trim",
   visibleWindow: "Visible window",
   wholeRecording: "Whole recording",
@@ -113,6 +116,8 @@ const pt: typeof en = {
   lapsSummary: (n, best) =>
     `${n === 1 ? "1 volta" : `${n} voltas`} · melhor ${best}`,
   bestLap: "Melhor volta",
+  lapsCard: "Voltas",
+  lapZoom: (n) => `Aproximar o gráfico à volta ${n}`,
   trimWindow: "Recorte",
   visibleWindow: "Janela visível",
   wholeRecording: "Gravação inteira",

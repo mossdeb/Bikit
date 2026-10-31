@@ -1087,7 +1087,7 @@ function Chip({
  * icons/bandeira.svg, 2026-10-24) in place of Lucide's plain one, drawn in
  * the ink around it.
  */
-function FinishFlag({ className }: { className?: string }) {
+export function FinishFlag({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 38 40"
