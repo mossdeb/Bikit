@@ -51,6 +51,7 @@ import {
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
+import { isLapTrack, lapMarks } from "@/lib/imu/timed-track";
 import {
   ImuSessionTrackButton,
   ImuTrackRanking,
@@ -1253,6 +1254,7 @@ export function ImuSessionAnalysis({
   // them (proNumber) — read once here and handed to whatever runs outside
   // render, describeEvent above all.
   const t = useProDict().analysis;
+  const tracksT = useProDict().tracks;
   const locale = useProLocale();
   // The file, downloaded, parsed and read in the bike's frame — the same
   // hook the report page uses, so the two pages never disagree.
@@ -1718,6 +1720,21 @@ export function ImuSessionAnalysis({
   const sampleRateHz = data.sampleRateHz;
   const full: [number, number] = [tMs[0], data.durationMs];
   const win = windowMs ?? full;
+  // A circuit's laps across the top of the plot.
+  const circuitRuns = timed?.passed.find((m) =>
+    isLapTrack(m.track.definition),
+  )?.runs;
+  const lapBand = circuitRuns
+    ? lapMarks(circuitRuns, trim?.startMs ?? 0, win).map((mark) => ({
+        key: String(mark.lap),
+        label: tracksT.lap(mark.lap),
+        // A stopwatch's hundredths: the band is read at a glance.
+        time: formatDurationMillis(mark.durationMs).slice(0, -1),
+        from: mark.from,
+        to: mark.to,
+        startsInView: mark.startsInView,
+      }))
+    : undefined;
   const zoomed = win[0] > full[0] || win[1] < full[1];
 
   // The series with their words joined on, in the reader's language — the
@@ -2447,6 +2464,7 @@ export function ImuSessionAnalysis({
                   )
                 }
                 showValues={valuesOn}
+                lapBand={lapBand}
               />
               <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
                 <ZoomButton label={t.zoom.in} onClick={() => zoomAround(0.5)}>

@@ -145,6 +145,7 @@ export function ImuChart({
   onWindowChange,
   onLockChange,
   showValues = true,
+  lapBand,
 }: {
   tMs: Float64Array;
   series: ImuChartSeries[];
@@ -167,6 +168,15 @@ export function ImuChart({
   /** Value pills where the cursor crosses each trace — toggleable, because
    * with several series on they cost real plot. */
   showValues?: boolean;
+  /** A circuit's laps, across the top of the plot, on the plot's own x. */
+  lapBand?: {
+    key: string;
+    label: string;
+    time: string;
+    from: number;
+    to: number;
+    startsInView: boolean;
+  }[];
 }) {
   const t = useProDict().analysis.chart;
   const locale = useProLocale();
@@ -537,6 +547,30 @@ export function ImuChart({
     // Relative so the cursor's badge could hang off the plot's top edge: the
     // plot itself is overflow-hidden (the event bands need clipping).
     <div className="relative">
+      {/* The laps, on the plot's own scale (by request, 2026-10-31). Pulled up
+          over the card's padding to its top edge from `sm`, where it has one. */}
+      {lapBand && lapBand.length > 0 && (
+        <div className="relative mb-1 h-7 overflow-hidden text-xs sm:-mt-5">
+          {lapBand.map((lap, i) => (
+            <div
+              key={lap.key}
+              title={`${lap.label} · ${lap.time}`}
+              className={cn(
+                "absolute inset-y-0 flex items-center justify-center gap-2 overflow-hidden px-1 whitespace-nowrap",
+                i % 2 === 0 ? "bg-muted-foreground/20" : "bg-muted",
+                lap.startsInView && "border-l border-foreground",
+              )}
+              style={{
+                left: `${lap.from * 100}%`,
+                width: `${(lap.to - lap.from) * 100}%`,
+              }}
+            >
+              <span className="font-medium">{lap.label}</span>
+              <span className="tabular-nums">{lap.time}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div
         ref={plotRef}
         role="slider"

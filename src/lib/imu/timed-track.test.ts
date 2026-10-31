@@ -10,6 +10,7 @@ import {
   createTimedTrack,
   findTimedRuns,
   isClosedStretch,
+  lapMarks,
   formatRunGap,
   formatRunTime,
   isTimedTrackDefinition,
@@ -118,6 +119,34 @@ function circuit(lapsS: number[], restS = 0, restAfter = -1): ImuSessionData {
     durationMs: seconds * 1000,
   } as unknown as ImuSessionData;
 }
+
+describe("the plot's lap band", () => {
+  const laps = [
+    { entryMs: 5_000, exitMs: 15_000, durationMs: 10_000 },
+    { entryMs: 15_000, exitMs: 25_000, durationMs: 10_000 },
+    { entryMs: 25_000, exitMs: 35_000, durationMs: 10_000 },
+  ];
+
+  it("places the laps on the trimmed clock", () => {
+    const marks = lapMarks(laps, 5_000, [0, 30_000]);
+    expect(marks.map((m) => m.lap)).toEqual([1, 2, 3]);
+    expect(marks[1].from).toBeCloseTo(1 / 3);
+    expect(marks[1].to).toBeCloseTo(2 / 3);
+    expect(marks[1].startsInView).toBe(true);
+  });
+
+  it("keeps a lap's number and whole time when a zoom cuts it", () => {
+    const marks = lapMarks(laps, 5_000, [15_000, 25_000]);
+    expect(marks.map((m) => m.lap)).toEqual([2, 3]);
+    expect(marks[0]).toMatchObject({ from: 0, durationMs: 10_000 });
+    expect(marks[0].startsInView).toBe(false);
+    expect(marks[1].to).toBe(1);
+  });
+
+  it("shows nothing outside the laps", () => {
+    expect(lapMarks(laps, 5_000, [31_000, 40_000])).toEqual([]);
+  });
+});
 
 describe("circuits", () => {
   // The line stands where the circuit's lead-in ends, at the top: 5 s in.

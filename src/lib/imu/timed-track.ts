@@ -124,6 +124,43 @@ export function headlineRunMs(
     : runs[0].durationMs;
 }
 
+/** A lap as the plot's band draws it: its number, its whole time, and its
+ * place across the visible window, 0..1, clipped to it. */
+export interface LapMark {
+  lap: number;
+  durationMs: number;
+  from: number;
+  to: number;
+  /** Its start is in view: the line between it and the lap before. */
+  startsInView: boolean;
+}
+
+/** The laps a window of the plot shows, on the session's own (trimmed) clock,
+ * with their numbers kept when a zoom leaves the first ones out. */
+export function lapMarks(
+  laps: TimedRun[],
+  trimStartMs: number,
+  windowMs: [number, number],
+): LapMark[] {
+  const [w0, w1] = windowMs;
+  const span = w1 - w0;
+  if (!(span > 0)) return [];
+  const marks: LapMark[] = [];
+  laps.forEach((lap, index) => {
+    const start = lap.entryMs - trimStartMs;
+    const end = lap.exitMs - trimStartMs;
+    if (end <= w0 || start >= w1) return;
+    marks.push({
+      lap: index + 1,
+      durationMs: lap.durationMs,
+      from: (Math.max(start, w0) - w0) / span,
+      to: (Math.min(end, w1) - w0) / span,
+      startsInView: start > w0,
+    });
+  });
+  return marks;
+}
+
 /** Whether a stretch of the recording ends about where it began. */
 export function isClosedStretch(
   prepared: SnapshotSession,
