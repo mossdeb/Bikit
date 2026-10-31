@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, Upload } from "lucide-react";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
@@ -29,14 +29,18 @@ import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
 import { BikeBalanceArt, SAG_MINT } from "@/components/bike-balance-art";
 import {
+  isStoredRiderSag,
   rearMinusFrontDropMm,
   RIDER_ATTITUDE_TIE_DEG,
   riderAttitude,
   riderSagDropsMm,
   sameRiderSag,
   storedRiderSag,
+  type RiderAttitude,
   type RiderSagHistoryEntry,
+  type StoredRiderSag,
 } from "@/lib/imu/rider-sag";
+import { parseSagFiles, type SagFileError } from "@/lib/imu/sag-file";
 import { formatDate } from "@/lib/format";
 import {
   createImuBikeSetup,
@@ -94,6 +98,23 @@ const SHOW_SAG_HISTORY = false;
 const WHEELBASE_KEY = "frame.wheelbaseMm";
 const HEAD_ANGLE_KEY = "frame.headAngleDeg";
 const REAR_TRAVEL_KEY = "frame.rearTravelMm";
+/** The imported rider-sag reading, as JSON: not a number to type, but it
+ * follows the draft like the rest, presets and saving included. */
+const RIDER_SAG_KEY = "riderSag";
+
+function draftRiderSag(draft: Draft): StoredRiderSag | null {
+  if (!draft[RIDER_SAG_KEY]) return null;
+  const parsed: unknown = JSON.parse(draft[RIDER_SAG_KEY]);
+  return isStoredRiderSag(parsed) ? parsed : null;
+}
+
+/** The attitude the form shows: the loaded recording's own where there is
+ * one, as ever; with none (a bike's setup), the reading imported for it. */
+function useFormAttitude(draft: Draft): RiderAttitude | null {
+  const session = useLoadedSession();
+  if (session) return riderAttitude(session.riderSag, session.orientation);
+  return draftRiderSag(draft);
+}
 
 /** The draft holds the numbers as strings and, under the same keys as the
  * values, the choices: "air"/"coil" and "simple"/"dual". */
@@ -124,6 +145,7 @@ function toDraft(values: ImuSetupValues): Draft {
     values.frame?.headAngleDeg != null ? String(values.frame.headAngleDeg) : "";
   draft[REAR_TRAVEL_KEY] =
     values.frame?.rearTravelMm != null ? String(values.frame.rearTravelMm) : "";
+  draft[RIDER_SAG_KEY] = values.riderSag ? JSON.stringify(values.riderSag) : "";
   return draft;
 }
 
@@ -246,6 +268,7 @@ function fromDraft(draft: Draft): ImuSetupValues {
       headAngleDeg: num(HEAD_ANGLE_KEY),
       rearTravelMm: num(REAR_TRAVEL_KEY),
     },
+    riderSag: draftRiderSag(draft) ?? undefined,
   };
 }
 
@@ -535,18 +558,28 @@ export function ImuSessionSetup({
           }}
         >
           {named && (
-            <div className="max-w-sm space-y-1.5">
-              <Label htmlFor="setup-name">{t.setupName}</Label>
-              <Input
-                id="setup-name"
-                value={draftName}
-                maxLength={60}
-                placeholder={title ?? t.setupNamePlaceholder}
-                // White on the hatching, as the cards are (2026-10-28).
-                className="bg-card dark:bg-card"
-                onChange={(e) => setDraftName(e.target.value)}
-                readOnly={readOnly}
-              />
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="w-full max-w-sm space-y-1.5">
+                <Label htmlFor="setup-name">{t.setupName}</Label>
+                <Input
+                  id="setup-name"
+                  value={draftName}
+                  maxLength={60}
+                  placeholder={title ?? t.setupNamePlaceholder}
+                  // White on the hatching, as the cards are (2026-10-28).
+                  className="bg-card dark:bg-card"
+                  onChange={(e) => setDraftName(e.target.value)}
+                  readOnly={readOnly}
+                />
+              </div>
+              {!readOnly && (
+                <RiderSagImport
+                  reading={draftRiderSag(draft)}
+                  onChange={(reading) =>
+                    choose(RIDER_SAG_KEY, reading ? JSON.stringify(reading) : "")
+                  }
+                />
+              )}
             </div>
           )}
           {/* The supplied layout (2026-09-11, second pass; the plates lost
@@ -763,6 +796,80 @@ export function ImuSessionSetup({
 }
 
 /**
+ * The rider-sag files off the logger's card, for a setup with no recording
+ * behind it (by request, 2026-10-31): both are picked together, read here, and
+ * the reading joins the draft, so nothing is kept until the setup is saved.
+ */
+function RiderSagImport({
+  reading,
+  onChange,
+}: {
+  reading: StoredRiderSag | null;
+  onChange: (reading: StoredRiderSag | null) => void;
+}) {
+  const t = useProDict().report.setup.form.riderSag;
+  const locale = useProLocale();
+  const [error, setError] = useState<SagFileError | null>(null);
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const files = Array.from(input.files ?? []);
+    if (files.length === 0) return;
+    const result = parseSagFiles(
+      await Promise.all(files.map((f) => f.arrayBuffer())),
+    );
+    // Cleared, so picking the same files again still fires.
+    input.value = "";
+    if (result.ok) onChange(result.reading);
+    setError(result.ok ? null : result.error);
+  }
+
+  const pitch = reading?.pitchDeg ?? 0;
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {reading && (
+          <>
+            <span className="text-sm font-medium tabular-nums">
+              {t.imported(
+                reading.calibrationCount,
+                `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`,
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="cursor-pointer text-sm text-muted-foreground underline"
+            >
+              {t.importRemove}
+            </button>
+          </>
+        )}
+        <label className="inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-sm border border-input bg-card px-4 text-sm font-medium focus-within:ring-3 focus-within:ring-ring/50">
+          <Upload className="size-4" aria-hidden />
+          {reading ? t.importReplace : t.importLabel}
+          <input
+            type="file"
+            multiple
+            className="sr-only"
+            onChange={(e) => void pick(e)}
+          />
+        </label>
+      </div>
+      <p
+        role={error ? "alert" : undefined}
+        className={cn(
+          "text-xs",
+          error ? "text-destructive" : "text-muted-foreground",
+        )}
+      >
+        {error ? t.importErrors[error] : t.importHint}
+      </p>
+    </div>
+  );
+}
+
+/**
  * The bike as the IMU SAG reads it, in the geometry card: one mint line,
  * from the loaded recording's reading. Where nothing was read — a bike's
  * setup, with no recording loaded, or a file without the step — the
@@ -781,10 +888,7 @@ function SagIllustration({
   draft: Draft;
 }) {
   const locale = useProLocale();
-  const session = useLoadedSession();
-  const measured = session
-    ? (riderAttitude(session.riderSag, session.orientation)?.pitchDeg ?? null)
-    : null;
+  const measured = useFormAttitude(draft)?.pitchDeg ?? null;
   const pitch = measured == null ? null : withRider ? measured : 0;
   // The frame sinks as well as tilts (by request, 2026-10-27), once the
   // drops can be split; till then it only tilts.
@@ -854,10 +958,11 @@ function RiderSagReading({
   const t = useProDict().report.setup.form.riderSag;
   const locale = useProLocale();
   const session = useLoadedSession();
-  if (!session) return null;
-  const attitude = riderAttitude(session.riderSag, session.orientation);
+  const attitude = useFormAttitude(draft);
   if (!attitude)
-    return <p className="text-xs text-muted-foreground">{t.none}</p>;
+    return session ? (
+      <p className="text-xs text-muted-foreground">{t.none}</p>
+    ) : null;
 
   const positive = (key: string) => {
     const n = Number(draft[key]?.trim().replace(",", "."));

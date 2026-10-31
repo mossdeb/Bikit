@@ -39,6 +39,11 @@ import {
   PRO_NUMBER_LOCALE,
   proPercent,
 } from "@/lib/i18n/pro";
+import {
+  isStoredRiderSag,
+  sameRiderSag,
+  type StoredRiderSag,
+} from "@/lib/imu/rider-sag";
 
 export type ImuSpringKind = "air" | "coil";
 export type ImuCircuitMode = "simple" | "dual";
@@ -112,6 +117,10 @@ export interface ImuSetupValues {
   tires?: ImuTireSetup;
   rider?: ImuRiderSetup;
   frame?: ImuFrameSetup;
+  /** The rider-sag reading imported from the logger's card for this setup
+   * (by request, 2026-10-31; sag-file.ts). Like the geometry it is saved but
+   * stays out of setupKey: a measurement, not a knob. */
+  riderSag?: StoredRiderSag;
 }
 
 /** The numbers, in the order they are compared and listed — low speed
@@ -208,8 +217,10 @@ export function isSetupValues(value: unknown): value is ImuSetupValues {
         k === "shock" ||
         k === "tires" ||
         k === "rider" ||
-        k === "frame",
+        k === "frame" ||
+        k === "riderSag",
     ) &&
+    (v.riderSag === undefined || isStoredRiderSag(v.riderSag)) &&
     (v.fork === undefined || isDamper(v.fork)) &&
     (v.shock === undefined || isDamper(v.shock)) &&
     (v.tires === undefined || isTires(v.tires)) &&
@@ -313,6 +324,7 @@ export function normalizeSetupValues(values: ImuSetupValues): ImuSetupValues {
     }
     if (Object.keys(kept).length > 0) out.frame = kept;
   }
+  if (values.riderSag) out.riderSag = values.riderSag;
   return out;
 }
 
@@ -330,9 +342,12 @@ export function setupValuesEqual(
 ): boolean {
   const fa = normalizeSetupValues(a).frame;
   const fb = normalizeSetupValues(b).frame;
+  const sa = a.riderSag;
+  const sb = b.riderSag;
   return (
     setupKey(a) === setupKey(b) &&
-    FRAME_FIELDS.every((f) => (fa?.[f] ?? null) === (fb?.[f] ?? null))
+    FRAME_FIELDS.every((f) => (fa?.[f] ?? null) === (fb?.[f] ?? null)) &&
+    (sa && sb ? sameRiderSag(sa, sb) : !sa && !sb)
   );
 }
 

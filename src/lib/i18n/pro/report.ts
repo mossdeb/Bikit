@@ -286,6 +286,20 @@ const en = {
        * Its card is "Bike Balance" (by request, 2026-10-28; was "IMU SAG"). */
       riderSag: {
         title: "Bike Balance",
+        importLabel: "Import rider SAG",
+        importHint: "Pick BIKIT.SAG and BIKIT.CAL from the logger's card.",
+        importReplace: "Replace",
+        importRemove: "Remove",
+        imported: (count: number, deg: string): string =>
+          `Calibration ${count} · ${deg}`,
+        importErrors: {
+          unknown: "These aren't BIKIT.SAG and BIKIT.CAL files.",
+          needsSag: "BIKIT.SAG is missing: pick both files together.",
+          needsCal: "BIKIT.CAL is missing: pick both files together.",
+          corrupt: "The files are damaged and couldn't be read.",
+          otherCalibration:
+            "These two files come from different calibrations.",
+        },
         noseUp: (deg: string): string => `${deg} nose up`,
         noseDown: (deg: string): string => `${deg} nose down`,
         level: "Frame level",
@@ -621,6 +635,18 @@ const pt: typeof en = {
         `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
         title: "Bike Balance",
+        importLabel: "Importar Rider SAG",
+        importHint: "Escolhe o BIKIT.SAG e o BIKIT.CAL do cartão do logger.",
+        importReplace: "Substituir",
+        importRemove: "Remover",
+        imported: (count, deg) => `Calibração ${count} · ${deg}`,
+        importErrors: {
+          unknown: "Estes ficheiros não são o BIKIT.SAG e o BIKIT.CAL.",
+          needsSag: "Falta o BIKIT.SAG: escolhe os dois ficheiros em conjunto.",
+          needsCal: "Falta o BIKIT.CAL: escolhe os dois ficheiros em conjunto.",
+          corrupt: "Os ficheiros estão danificados e não foi possível lê-los.",
+          otherCalibration: "Estes dois ficheiros são de calibrações diferentes.",
+        },
         noseUp: (deg) => `${deg} nariz acima`,
         noseDown: (deg) => `${deg} nariz abaixo`,
         level: "Quadro nivelado",
