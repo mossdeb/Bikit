@@ -9,20 +9,17 @@ import { cn } from "@/lib/utils";
 /**
  * A circuit's laps as a card (by request, 2026-10-31), dressed like the Rider's
  * and in its place, with its own switch on the page: how many, the best, and each lap's time
- * and gap. The lap under the cursor is marked, and picking one zooms the plot
- * onto it.
+ * and gap. The fastest is marked, and picking one zooms the plot onto it.
  */
 export function ImuSessionLaps({
   laps,
   trimStartMs,
-  cursorMs,
   onPick,
   className,
 }: {
   laps: TimedRun[];
   /** The runs are on the whole recording's clock, the plot on the trimmed. */
   trimStartMs: number;
-  cursorMs: number | null;
   onPick: (window: [number, number]) => void;
   className?: string;
 }) {
@@ -51,7 +48,6 @@ export function ImuSessionLaps({
         {laps.map((lap, index) => {
           const from = lap.entryMs - trimStartMs;
           const to = lap.exitMs - trimStartMs;
-          const here = cursorMs != null && cursorMs >= from && cursorMs < to;
           const best = lap.durationMs === bestMs;
           const gap = formatRunGap(lap.durationMs, bestMs);
           return (
@@ -59,11 +55,10 @@ export function ImuSessionLaps({
               <button
                 type="button"
                 aria-label={t.lapZoom(index + 1)}
-                aria-current={here || undefined}
                 onClick={() => onPick([from, to])}
                 className={cn(
                   "w-full cursor-pointer px-5 py-4 text-left transition-colors hover:bg-muted",
-                  here && "bg-muted",
+                  best && "shadow-[inset_3px_0_0_#43F3AF]",
                 )}
               >
                 <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

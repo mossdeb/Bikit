@@ -2621,7 +2621,6 @@ export function ImuSessionAnalysis({
             <ImuSessionLaps
               laps={circuitRuns}
               trimStartMs={trim?.startMs ?? 0}
-              cursorMs={cursorMs}
               onPick={setWindowMs}
               className={cn(
                 "order-3 mt-4 flex min-w-0 sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
