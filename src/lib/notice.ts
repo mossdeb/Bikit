@@ -1,7 +1,8 @@
 /**
  * The confidentiality, IP and patent notice (by request, 2026-10-29):
- * shown after every sign-in, until it is confirmed. A sign-in sets the
- * cookie; while it is set the proxy sends every page to the notice's own
+ * shown at a sign-in until this version of the text is accepted, so once, and
+ * again when the text changes (a new NOTICE_ID; by request, 2026-10-31). Such a
+ * sign-in sets the cookie (noticeIsDue); while it is set the proxy sends every page to the notice's own
  * page, with nothing of the app behind it (a dialog over the app could be
  * scrolled past on a phone); confirming clears it, records, once, that the
  * user accepted this version of the text (notice_acceptances, migration

@@ -5,8 +5,18 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { NOTICE_COOKIE, NOTICE_COOKIE_OPTIONS } from "@/lib/notice";
 import { claimActiveSession } from "@/lib/active-session";
+import { noticeIsDue } from "@/lib/notice-due";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+
+/** The confidentiality notice, at a sign-in that owes it: the cookie set, or
+ * one left over from before cleared. */
+async function armNotice(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const jar = await cookies();
+  if (await noticeIsDue(supabase))
+    jar.set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
+  else jar.delete(NOTICE_COOKIE);
+}
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -20,8 +30,7 @@ export async function login(formData: FormData) {
 
   // One session per account: this one, the others ended.
   await claimActiveSession(supabase);
-  // The confidentiality notice, after every sign-in.
-  (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
+  await armNotice(supabase);
   revalidatePath("/", "layout");
   redirect("/");
 }
@@ -92,7 +101,7 @@ export async function confirmEmail(formData: FormData) {
   }
 
   await claimActiveSession(supabase);
-  (await cookies()).set(NOTICE_COOKIE, "1", NOTICE_COOKIE_OPTIONS);
+  await armNotice(supabase);
   revalidatePath("/", "layout");
   redirect(next);
 }

@@ -11,7 +11,7 @@ import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 const INPI_REQUEST = "20262008502041";
 
 /**
- * The confidentiality, IP and patent notice, after every sign-in (by
+ * The confidentiality, IP and patent notice, until accepted (by
  * request, 2026-10-29; see src/lib/notice.ts) — a page of its own, with
  * nothing of the app behind it, so the only ways on are its two buttons.
  * Confirming records the first acceptance and goes on to `next`; declining
