@@ -296,6 +296,16 @@ describe("the frame's wheelbase", () => {
     });
     expect(normalizeSetupValues({ frame: { wheelbaseMm: 0 } })).toEqual({});
     expect(
+      normalizeSetupValues({ frame: { rearTravelMm: 170 } }).frame,
+    ).toEqual({ rearTravelMm: 170 });
+    expect(isSetupValues({ frame: { rearTravelMm: 170 } })).toBe(true);
+    expect(
+      setupValuesEqual(base, { ...base, frame: { rearTravelMm: 170 } }),
+    ).toBe(false);
+    expect(setupKey({ ...base, frame: { rearTravelMm: 170 } })).toBe(
+      setupKey(base),
+    );
+    expect(
       normalizeSetupValues({ frame: { wheelbaseMm: 1288, headAngleDeg: 64 } })
         .frame,
     ).toEqual({ wheelbaseMm: 1288, headAngleDeg: 64 });

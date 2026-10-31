@@ -93,6 +93,7 @@ const SHOW_SAG_HISTORY = false;
 
 const WHEELBASE_KEY = "frame.wheelbaseMm";
 const HEAD_ANGLE_KEY = "frame.headAngleDeg";
+const REAR_TRAVEL_KEY = "frame.rearTravelMm";
 
 /** The draft holds the numbers as strings and, under the same keys as the
  * values, the choices: "air"/"coil" and "simple"/"dual". */
@@ -121,6 +122,8 @@ function toDraft(values: ImuSetupValues): Draft {
     values.frame?.wheelbaseMm != null ? String(values.frame.wheelbaseMm) : "";
   draft[HEAD_ANGLE_KEY] =
     values.frame?.headAngleDeg != null ? String(values.frame.headAngleDeg) : "";
+  draft[REAR_TRAVEL_KEY] =
+    values.frame?.rearTravelMm != null ? String(values.frame.rearTravelMm) : "";
   return draft;
 }
 
@@ -241,6 +244,7 @@ function fromDraft(draft: Draft): ImuSetupValues {
     frame: {
       wheelbaseMm: num(WHEELBASE_KEY),
       headAngleDeg: num(HEAD_ANGLE_KEY),
+      rearTravelMm: num(REAR_TRAVEL_KEY),
     },
   };
 }
@@ -909,8 +913,8 @@ function RiderSagReading({
       {/* The supplied layout (2026-10-27, second pass): the angle large on
           a tall quiet panel with its meaning in mm beside it, then the
           estimated vertical displacement of each end under its heading. */}
-      <div className="flex min-h-32 flex-wrap items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-5 py-8">
-        <div className="flex items-center gap-5 sm:gap-8">
+      <div className="flex min-h-32 flex-wrap items-center justify-between gap-4 rounded-[10px] bg-muted/60 px-4 py-8">
+        <div className="flex items-center gap-4">
           <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">
             {signedDeg}
           </p>
@@ -919,7 +923,7 @@ function RiderSagReading({
               the fork with it, so nose up slackens the angle by as much.
               Off, the frame chart's own. */}
           {headAngleDeg != null && (
-            <div className="border-l border-border pl-5 whitespace-nowrap sm:pl-8">
+            <div className="border-l border-border pl-4 whitespace-nowrap">
               <p className="text-sm">{t.headAngle}</p>
               <p className="text-[18px] font-semibold whitespace-nowrap tabular-nums">
                 {proNumber(headAngleDeg - pitch, locale, 1)}°
@@ -954,9 +958,9 @@ function RiderSagReading({
             [t.front, drops?.frontMm, t.frontCaption],
           ] as const
         ).map(([name, value, caption]) => (
-          <div key={name} className="rounded-[10px] bg-muted/60 px-5 py-4">
+          <div key={name} className="min-w-0 rounded-[10px] bg-muted/60 px-3 py-4">
             <p className="text-sm">{name}</p>
-            <p className="text-2xl font-semibold whitespace-nowrap tabular-nums">
+            <p className="text-xl font-semibold whitespace-nowrap tabular-nums">
               {value != null ? mm(value) : "–"}
             </p>
             <p className="text-xs leading-snug">{caption}</p>
@@ -1149,6 +1153,21 @@ function DamperBlock({
           />
         </div>
         <SagBar draft={draft} block={block} />
+        {/* The wheel's travel beside the shock's stroke (by request,
+            2026-10-31); stored with the frame, not a knob. */}
+        {block === "shock" && (
+          <div className="mt-4">
+            <NumberField
+              id="setup-frame-rear-travel"
+              label={t.rearTravel}
+              unit="mm"
+              value={draft[REAR_TRAVEL_KEY]}
+              onChange={set(REAR_TRAVEL_KEY)}
+              small
+              readOnly={readOnly}
+            />
+          </div>
+        )}
         <div className="mt-4">
           {air ? (
             <NumberField
@@ -1351,7 +1370,9 @@ function NumberField({
           onChange={onChange}
           placeholder="–"
           readOnly={readOnly}
-          className="pr-14 tabular-nums"
+          // Room for the unit and no more: a wider gutter cut "180" short
+          // in the narrow columns.
+          className={cn("tabular-nums", unit.length > 3 ? "pr-14" : "pr-9")}
         />
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
           {unit}

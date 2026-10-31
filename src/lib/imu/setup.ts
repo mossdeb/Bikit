@@ -91,16 +91,19 @@ export interface ImuRiderSetup {
  * its leg into how far the front sank. Kept with the setup so it is saved
  * and inherited like the rest, but not a knob: it stays out of setupKey,
  * so it never splits two runs into two setups nor shows as a change
- * between them. */
+ * between them. The rear wheel's travel, mm (by request, 2026-10-31), is the
+ * frame's too: with the shock's stroke it gives the leverage. */
 export interface ImuFrameSetup {
   wheelbaseMm?: number;
   headAngleDeg?: number;
+  rearTravelMm?: number;
 }
 
 /** The geometry's fields, in the form's order. */
 const FRAME_FIELDS = [
   "wheelbaseMm",
   "headAngleDeg",
+  "rearTravelMm",
 ] as const satisfies readonly (keyof ImuFrameSetup)[];
 
 export interface ImuSetupValues {
