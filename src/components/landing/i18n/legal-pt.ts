@@ -1,7 +1,7 @@
 import type { LegalDictionary } from "./legal-en";
 
 const pt: LegalDictionary = {
-  updated: "5 de agosto de 2026",
+  updated: "30 de outubro de 2026",
   updatedLabel: "Última atualização",
   backToHome: "Voltar ao início",
 
@@ -10,7 +10,7 @@ const pt: LegalDictionary = {
     metaDescription: "O que o Bikit guarda sobre ti, porque o guarda, e quais são os teus direitos.",
     title: "Política de Privacidade",
     intro: [
-      "O Bikit é uma aplicação independente de manutenção de bicicletas, criada e mantida por um único programador, não por uma empresa. Esta Política de Privacidade explica que informação o Bikit guarda, porque a guarda, e quais são os teus direitos.",
+      "O Bikit é um serviço independente de telemetria e manutenção de bicicletas, criado e mantida por um único programador, não por uma empresa. Esta Política de Privacidade explica que informação o Bikit guarda, porque a guarda, e quais são os teus direitos.",
       "Esta política aplica-se ao bikit.app e à aplicação Bikit instalada no teu dispositivo.",
     ],
     controller: {
@@ -62,22 +62,8 @@ const pt: LegalDictionary = {
             kind: "term",
             title: "Totais de utilização",
             paragraphs: [
-              "Os quilómetros e as horas acumulados de cada bicicleta, introduzidos manualmente por ti ou sincronizados a partir do Strava.",
+              "Os quilómetros e as horas acumulados de cada bicicleta, introduzidos manualmente por ti.",
             ],
-          },
-          {
-            kind: "term",
-            title: "Strava (opcional)",
-            paragraphs: ["Se ligares a tua conta Strava, o Bikit guarda:"],
-            items: [
-              "o teu identificador de atleta do Strava;",
-              "os tokens de acesso necessários à sincronização;",
-              "por cada atividade associada a uma das tuas bicicletas: o identificador da atividade, a distância e o tempo em movimento.",
-            ],
-          },
-          {
-            kind: "p",
-            text: "O Bikit não pede nem guarda percursos de GPS, historial de localização, frequência cardíaca, cadência, potência, dados de elevação ou qualquer outra informação da volta.",
           },
           {
             kind: "term",
@@ -92,6 +78,13 @@ const pt: LegalDictionary = {
             paragraphs: [
               "Se subscreveres um plano pago, o Bikit guarda o teu identificador de cliente no Stripe, o identificador da subscrição, o plano e o respetivo estado.",
               "Os dados do teu cartão nunca chegam ao Bikit. Os pagamentos são processados inteiramente pelo Stripe.",
+            ],
+          },
+          {
+            kind: "term",
+            title: "Lista de espera (opcional)",
+            paragraphs: [
+              "Se entrares na lista de espera na página inicial, o Bikit guarda o teu endereço de email, o idioma da página e a data de inscrição. Não precisas de conta para te inscreveres.",
             ],
           },
           {
@@ -117,7 +110,7 @@ const pt: LegalDictionary = {
               "guardar as tuas bicicletas e o historial de manutenção;",
               "calcular os planos de manutenção;",
               "enviar os lembretes de manutenção que pediste;",
-              "sincronizar atividades do Strava (se estiver ligado);",
+              "enviar o email de agradecimento da lista de espera e novidades sobre o BIKIT e o acesso antecipado (se entraste na lista de espera);",
               "processar subscrições (quando aplicável);",
               "manter o serviço seguro e fiável.",
             ],
@@ -147,8 +140,9 @@ const pt: LegalDictionary = {
             kind: "term",
             title: "Consentimento",
             paragraphs: [
-              "Ligar o Strava, ativar as notificações push e subscrever o resumo semanal por email, que é opcional.",
+              "Ativar as notificações push e subscrever o resumo semanal por email, que é opcional.",
               "Podes retirar o teu consentimento a qualquer momento nas definições da aplicação, sem afetar o resto do serviço.",
+              "Entrar na lista de espera. Para retirares este consentimento e saíres da lista, escreve para o contacto indicado acima.",
             ],
           },
           {
@@ -180,7 +174,6 @@ const pt: LegalDictionary = {
               "Stripe — processamento de subscrições e pagamentos.",
               "Resend — envio de emails.",
               "Google — entrar com a Google (apenas se o escolheres).",
-              "Strava — sincronização de atividades (apenas se o ligares).",
               "Serviços de push da Apple, Google e Mozilla — entrega das notificações push (apenas se estiverem ativas). Estes prestadores recebem apenas o conteúdo encriptado da notificação e o endereço do dispositivo necessário à entrega.",
             ],
           },
@@ -203,6 +196,10 @@ const pt: LegalDictionary = {
         heading: "Durante quanto tempo são conservados",
         blocks: [
           { kind: "p", text: "A tua informação é conservada enquanto a tua conta existir." },
+          {
+            kind: "p",
+            text: "As inscrições na lista de espera são conservadas até pedires para ser removido ou até a lista terminar, consoante o que acontecer primeiro.",
+          },
           {
             kind: "p",
             text: "Se apagares uma bicicleta, um componente ou um registo de manutenção, este é removido da base de dados ativa.",
@@ -339,7 +336,7 @@ const pt: LegalDictionary = {
         blocks: [
           {
             kind: "p",
-            text: "Todos os lembretes de manutenção que o Bikit mostra assentam inteiramente na informação de que a aplicação dispõe: os intervalos de manutenção que configuraste e a quilometragem ou utilização reportada por ti ou sincronizada a partir do Strava.",
+            text: "Todos os lembretes de manutenção que o Bikit mostra assentam inteiramente na informação de que a aplicação dispõe: os intervalos de manutenção que configuraste e a quilometragem ou utilização reportada por ti.",
           },
           {
             kind: "p",
@@ -427,23 +424,6 @@ const pt: LegalDictionary = {
               "revender, copiar ou apresentar o Bikit como produto teu;",
               "usar o Bikit para qualquer atividade ilícita.",
             ],
-          },
-        ],
-      },
-      {
-        heading: "Integração com o Strava",
-        blocks: [
-          {
-            kind: "p",
-            text: "Ligar o Strava é inteiramente opcional e está também sujeito aos Termos de Serviço do próprio Strava.",
-          },
-          {
-            kind: "p",
-            text: "Quando ligado, o Bikit acede apenas à informação necessária para sincronizar a utilização das tuas bicicletas e o historial de manutenção.",
-          },
-          {
-            kind: "p",
-            text: "Podes desligar a tua conta Strava a qualquer momento nas definições da aplicação. Desligar o Strava não remove automaticamente a informação que já tenha sido sincronizada para o Bikit.",
           },
         ],
       },

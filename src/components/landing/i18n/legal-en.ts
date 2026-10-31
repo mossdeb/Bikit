@@ -38,7 +38,7 @@ export type LegalDocument = {
 };
 
 const en = {
-  updated: "5 August 2026",
+  updated: "30 October 2026",
   updatedLabel: "Last updated",
   backToHome: "Back to home",
 
@@ -47,7 +47,7 @@ const en = {
     metaDescription: "What Bikit stores about you, why it stores it, and what your rights are.",
     title: "Privacy Policy",
     intro: [
-      "Bikit is an independent bike maintenance app created and operated by a single developer, not a company. This Privacy Policy explains what information Bikit stores, why it stores it, and what your rights are.",
+      "Bikit is an independent bike telemetry and maintenance service created and operated by a single developer, not a company. This Privacy Policy explains what information Bikit stores, why it stores it, and what your rights are.",
       "This policy applies to bikit.app and the Bikit app installed on your device.",
     ],
     controller: {
@@ -99,22 +99,8 @@ const en = {
             kind: "term",
             title: "Usage totals",
             paragraphs: [
-              "The accumulated kilometres and hours for each bike, either entered manually by you or synchronised from Strava.",
+              "The accumulated kilometres and hours for each bike, entered manually by you.",
             ],
-          },
-          {
-            kind: "term",
-            title: "Strava (optional)",
-            paragraphs: ["If you connect your Strava account, Bikit stores:"],
-            items: [
-              "your Strava athlete ID;",
-              "the access tokens required for synchronisation;",
-              "for each activity matched to one of your bikes: the activity ID, distance and moving time.",
-            ],
-          },
-          {
-            kind: "p",
-            text: "Bikit does not request or store GPS routes, location history, heart rate, cadence, power, elevation data or any other ride information.",
           },
           {
             kind: "term",
@@ -129,6 +115,13 @@ const en = {
             paragraphs: [
               "If you subscribe to a paid plan, Bikit stores your Stripe customer ID, subscription ID, subscription plan and subscription status.",
               "Your payment card details never reach Bikit. Payments are processed entirely by Stripe.",
+            ],
+          },
+          {
+            kind: "term",
+            title: "Waitlist (optional)",
+            paragraphs: [
+              "If you join the waitlist on the home page, Bikit stores your email address, the language of the page and the date you joined. You do not need an account to join.",
             ],
           },
           {
@@ -154,7 +147,7 @@ const en = {
               "storing your bikes and maintenance history;",
               "calculating maintenance schedules;",
               "sending maintenance reminders you requested;",
-              "synchronising activities from Strava (if connected);",
+              "sending the waitlist thank-you email and updates about BIKIT and early access (if you joined the waitlist);",
               "processing subscriptions (if applicable);",
               "keeping the service secure and reliable.",
             ],
@@ -184,8 +177,9 @@ const en = {
             kind: "term",
             title: "Consent",
             paragraphs: [
-              "Connecting Strava, enabling push notifications and subscribing to the optional weekly summary email.",
+              "Enabling push notifications and subscribing to the optional weekly summary email.",
               "You can withdraw your consent at any time through the app settings without affecting the rest of the service.",
+              "Joining the waitlist. To withdraw this consent and be removed from the list, write to the contact address above.",
             ],
           },
           {
@@ -217,7 +211,6 @@ const en = {
               "Stripe — subscription and payment processing.",
               "Resend — sending emails.",
               "Google — Sign in with Google (only if you choose it).",
-              "Strava — activity synchronisation (only if you connect it).",
               "Apple, Google and Mozilla Push Services — delivery of push notifications (only if enabled). These providers receive only the encrypted notification payload and the device endpoint required for delivery.",
             ],
           },
@@ -240,6 +233,10 @@ const en = {
         heading: "How long your data is kept",
         blocks: [
           { kind: "p", text: "Your information is kept for as long as your account exists." },
+          {
+            kind: "p",
+            text: "Waitlist entries are kept until you ask to be removed or until the waitlist ends, whichever comes first.",
+          },
           {
             kind: "p",
             text: "If you delete a bike, component or maintenance record, it is removed from the active database.",
@@ -377,7 +374,7 @@ const en = {
         blocks: [
           {
             kind: "p",
-            text: "Every maintenance reminder shown by Bikit is based entirely on the information available to the app: the maintenance intervals you configured and the mileage or usage reported by you or synchronised from Strava.",
+            text: "Every maintenance reminder shown by Bikit is based entirely on the information available to the app: the maintenance intervals you configured and the mileage or usage reported by you.",
           },
           {
             kind: "p",
@@ -465,23 +462,6 @@ const en = {
               "resell, copy or present Bikit as your own product;",
               "use Bikit for any unlawful activity.",
             ],
-          },
-        ],
-      },
-      {
-        heading: "Strava integration",
-        blocks: [
-          {
-            kind: "p",
-            text: "Connecting Strava is entirely optional and is also subject to Strava's own Terms of Service.",
-          },
-          {
-            kind: "p",
-            text: "When connected, Bikit only accesses the information required to synchronise your bike usage and maintenance history.",
-          },
-          {
-            kind: "p",
-            text: "You may disconnect your Strava account at any time through the app settings. Disconnecting Strava does not automatically remove information that has already been synchronised into Bikit.",
           },
         ],
       },
