@@ -131,6 +131,9 @@ export interface LapMark {
   durationMs: number;
   from: number;
   to: number;
+  /** The lap's true middle, on the same scale and not clipped: a zoom can put
+   * it outside 0..1, and the label stays with the lap, not with what shows. */
+  center: number;
   /** Its start is in view: the line between it and the lap before. */
   startsInView: boolean;
 }
@@ -155,6 +158,7 @@ export function lapMarks(
       durationMs: lap.durationMs,
       from: (Math.max(start, w0) - w0) / span,
       to: (Math.min(end, w1) - w0) / span,
+      center: ((start + end) / 2 - w0) / span,
       startsInView: start > w0,
     });
   });

@@ -139,6 +139,9 @@ describe("the plot's lap band", () => {
     const marks = lapMarks(laps, 5_000, [15_000, 25_000]);
     expect(marks.map((m) => m.lap)).toEqual([2, 3]);
     expect(marks[0]).toMatchObject({ from: 0, durationMs: 10_000 });
+    // Lap 2 runs 10-20 s on this clock: its middle is out of the window.
+    expect(marks[0].center).toBeCloseTo(0);
+    expect(marks[1].center).toBeCloseTo(1);
     expect(marks[0].startsInView).toBe(false);
     expect(marks[1].to).toBe(1);
   });

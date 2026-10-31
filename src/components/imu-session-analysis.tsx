@@ -1737,6 +1737,7 @@ export function ImuSessionAnalysis({
         time: formatDurationMillis(mark.durationMs).slice(0, -1),
         from: mark.from,
         to: mark.to,
+        center: mark.center,
         startsInView: mark.startsInView,
       }))
     : undefined;

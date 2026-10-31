@@ -175,6 +175,7 @@ export function ImuChart({
     time: string;
     from: number;
     to: number;
+    center: number;
     startsInView: boolean;
   }[];
 }) {
@@ -550,23 +551,31 @@ export function ImuChart({
       {/* The laps, on the plot's own scale (by request, 2026-10-31). Pulled up
           over the card's padding to its top edge from `sm`, where it has one. */}
       {lapBand && lapBand.length > 0 && (
-        <div className="relative mb-1 h-7 overflow-hidden text-xs sm:-mt-5">
-          {lapBand.map((lap, i) => (
+        <div className="relative mb-1 h-7 overflow-hidden border-b border-border bg-card text-xs text-muted-foreground sm:-mt-5">
+          {lapBand.map((lap) => (
             <div
               key={lap.key}
               title={`${lap.label} · ${lap.time}`}
               className={cn(
-                "absolute inset-y-0 flex items-center justify-center gap-2 overflow-hidden px-1 whitespace-nowrap",
-                i % 2 === 0 ? "bg-muted-foreground/20" : "bg-muted",
-                lap.startsInView && "border-l border-foreground",
+                "absolute inset-y-0 overflow-hidden whitespace-nowrap",
+                lap.startsInView && "border-l border-border",
               )}
               style={{
                 left: `${lap.from * 100}%`,
                 width: `${(lap.to - lap.from) * 100}%`,
               }}
             >
-              <span className="font-medium">{lap.label}</span>
-              <span className="tabular-nums">{lap.time}</span>
+              {/* At the lap's own middle, which a zoom can move out of view:
+                  the label stays put on the lap (by request, 2026-10-31). */}
+              <span
+                className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2"
+                style={{
+                  left: `${((lap.center - lap.from) / (lap.to - lap.from)) * 100}%`,
+                }}
+              >
+                <span className="font-medium">{lap.label}</span>
+                <span className="tabular-nums">{lap.time}</span>
+              </span>
             </div>
           ))}
         </div>
