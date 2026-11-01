@@ -39,12 +39,33 @@ export function LandingPage({ locale }: { locale: LandingLocale }) {
       className={`${landingHeadingFont.variable} ${landingBodyFont.variable} ${landingDisplayFont.variable} min-h-screen overflow-x-clip bg-white font-[family-name:var(--font-landing-body)]`}
     >
       <section
-        className="relative flex min-h-[640px] flex-col items-center justify-center overflow-hidden bg-[#101014] bg-cover bg-center px-5 pt-24 pb-14 text-center lg:h-[876px]"
+        className="relative isolate flex min-h-[640px] flex-col items-center justify-center overflow-hidden bg-[#101014] bg-cover bg-center px-5 pt-24 pb-14 text-center lg:h-[876px]"
         style={{
-          backgroundImage:
-            "linear-gradient(to bottom, transparent 71%, rgb(77 79 74 / 0.73)), linear-gradient(rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.7)), url(/landing/images/home-hero.webp)",
+          backgroundImage: "url(/landing/images/home-hero.webp)",
         }}
       >
+        {/* The film over the still (by request, 2026-11-01): the still stays
+            under it for a browser that cannot play it, and the veil over
+            both keeps the words legible. */}
+        <video
+          src="/landing/video/hero.webm"
+          poster="/landing/images/home-hero.webp"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          aria-hidden
+          className="absolute inset-0 -z-10 size-full object-cover"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(to bottom, transparent 71%, rgb(77 79 74 / 0.73)), linear-gradient(rgb(0 0 0 / 0.7), rgb(0 0 0 / 0.7))",
+          }}
+        />
         <LandingHeader nav={dict.nav} locale={locale} onDark />
 
         <img src="/landing/icons/logo-white.svg" alt="Bikit" className="size-16 sm:size-[92px]" />

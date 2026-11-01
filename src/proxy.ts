@@ -29,6 +29,7 @@ export const config = {
     //
     // `bin` is the landing's 3D model (public/landing/models): answered with
     // the login page's HTML, its bytes read as a nonsense vertex count.
-    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|bin)$).*)",
+    // `webm` is the landing hero's film, for the same reason.
+    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|bin|webm)$).*)",
   ],
 };
