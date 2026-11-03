@@ -29,6 +29,19 @@ export function LandingFooter({
               </span>
             </div>
             <p className="text-sm leading-relaxed text-[#8A8D93]">{dict.tagline}</p>
+            <a
+              href="https://www.instagram.com/bikit.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              className="mt-2 inline-flex size-9 items-center justify-center rounded-full bg-[#101014] text-white transition-colors hover:bg-[#35363C]"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-[18px]" aria-hidden>
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4" />
+                <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" />
+              </svg>
+            </a>
           </div>
 
           {/* Wraps because the third column does not fit beside the other two at 375px. */}
