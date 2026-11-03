@@ -48,7 +48,7 @@ export function LandingPage({ locale }: { locale: LandingLocale }) {
             under it for a browser that cannot play it, and the veil over
             both keeps the words legible. */}
         <video
-          src="/landing/video/hero.webm"
+          src="/landing/video/hero-v2.webm"
           poster="/landing/images/home-hero.webp"
           autoPlay
           muted
