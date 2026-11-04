@@ -11,6 +11,7 @@ import {
   loadDevicePin,
   saveDevicePin,
 } from "@/lib/bikit-ble/pin-store";
+import { throttleBleProgress } from "@/lib/bikit-ble/progress";
 import {
   AUTH_REQUIRED,
   BikitDevice,
@@ -394,10 +395,11 @@ export function BikitDeviceImport({
     try {
       const { bytes, diagnostics: diag } = await device.download(entry.id, {
         signal: controller.signal,
-        onProgress: ({ uniqueBytes, totalBytes }) =>
+        onProgress: throttleBleProgress(({ uniqueBytes, totalBytes }) =>
           setPhase((p) =>
             p.kind === "transferring" ? { ...p, uniqueBytes, totalBytes } : p,
           ),
+        ),
       });
       setDiagnostics(diag);
 

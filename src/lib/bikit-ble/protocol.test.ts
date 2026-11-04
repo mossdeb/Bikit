@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { throttleBleProgress } from "./progress";
 import {
   BikitDevice,
   BikitDeviceError,
@@ -208,6 +209,20 @@ function makeFile(size: number) {
 }
 
 describe("BikitDevice", () => {
+  it("keeps bytes, ACKs and final progress exact with a throttled UI", async () => {
+    const logger = new FakeLogger();
+    logger.file = makeFile(1440 * 3 + 317);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    const device = await BikitDevice.connect(logger);
+    const seen: number[] = [];
+    const result = await device.download(7, {
+      onProgress: throttleBleProgress((p) => seen.push(p.uniqueBytes), () => 0),
+    });
+    expect(new Uint8Array(result.bytes)).toEqual(logger.file);
+    expect(result.diagnostics.acks).toBe(4);
+    expect(seen).toEqual([0, logger.file.length]);
+  });
+
   it.each([1440, 4800])("accepts the next %i-byte window before the previous ACK write resolves", async (window) => {
     const logger = new FakeLogger();
     logger.window = window;
