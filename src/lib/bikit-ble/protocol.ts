@@ -628,6 +628,8 @@ export class BikitDevice {
       let windowEnd = 0;
       let windowReceived = 0;
       let ackInFlight = false;
+      let pendingAckWrites = 0;
+      let ackWrites: Promise<void> = Promise.resolve();
       let lastReAckAt = 0;
       const startedAt = Date.now();
       const diagnostics: TransferDiagnostics = {
@@ -687,26 +689,29 @@ export class BikitDevice {
       };
 
       const sendAck = async (offset: number, advance: boolean) => {
-        // Counted when sent, not when the write resolves: the device can
-        // answer the final ACK with TRANSFER_END before the write's promise
-        // settles, and the transfer would close with one ACK unaccounted.
-        if (advance) diagnostics.acks++;
-        else diagnostics.reAcks++;
-        try {
+        pendingAckWrites++;
+        // The device can act on the ACK before the browser resolves the
+        // write promise. Prepare reception first; never reset this window
+        // from an older write's completion handler.
+        if (advance && offset < size) setWindow(offset);
+        const operation = ackWrites.then(async () => {
+          if (settled) return;
+          if (advance) diagnostics.acks++;
+          else diagnostics.reAcks++;
           await this.write(`ACK ${offset}`, "no-response");
-        } catch (error) {
+        });
+        // Serialize GATT writes even when several windows arrive while a
+        // previous write is still pending. A failure closes the transfer
+        // before any queued write is allowed to run.
+        ackWrites = operation.catch((error: unknown) => {
           fail(
             new Error(
               `Falhou o ACK em ${offset}: ${error instanceof Error ? error.message : String(error)}`,
             ),
           );
-          return;
-        }
-        if (settled) return;
-        // Advance exactly one window. On the final ACK there is nothing to
-        // advance to — the device answers TRANSFER_END — and ackInFlight
-        // stays up so no second ACK goes out.
-        if (advance && offset < size) setWindow(offset);
+        });
+        await ackWrites;
+        pendingAckWrites--;
       };
 
       // ---- handlers --------------------------------------------------------
@@ -786,7 +791,10 @@ export class BikitDevice {
         // Bytes from BELOW the current window: the device is retransmitting
         // a window we already completed, so it never saw our ACK. Say it
         // again, but not more than once per 80 ms and not while one is out.
-        if (offset < windowStart && windowStart > 0 && !ackInFlight) {
+        if (
+          offset < windowStart && windowStart > 0 && !ackInFlight &&
+          pendingAckWrites === 0
+        ) {
           const now = Date.now();
           if (now - lastReAckAt >= REACK_MIN_INTERVAL_MS) {
             lastReAckAt = now;

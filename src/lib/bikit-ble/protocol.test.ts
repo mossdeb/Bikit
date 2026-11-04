@@ -24,6 +24,10 @@ class FakeLogger implements BikitTransport {
   sessions: { id: number; size: number }[] = [];
   payload = 240;
   window = 1440;
+  ackWriteDelayMs = 0;
+  ackWriteFailure = false;
+  activeAckWrites = 0;
+  maxConcurrentAckWrites = 0;
   busy: string | null = null;
   /** Packet indexes (within the whole transfer) to send twice. */
   duplicateEvery = 0;
@@ -84,6 +88,21 @@ class FakeLogger implements BikitTransport {
   }
 
   async writeControl(command: string, mode: ControlWriteMode) {
+    if (!command.startsWith("ACK ")) return this.applyControl(command, mode);
+    this.activeAckWrites++;
+    this.maxConcurrentAckWrites = Math.max(this.maxConcurrentAckWrites, this.activeAckWrites);
+    try {
+      if (this.ackWriteFailure) throw new Error("simulated ACK write failure");
+      await this.applyControl(command, mode);
+      // The device can deliver its next window before the browser resolves
+      // writeValueWithoutResponse(). These are independent events.
+      if (this.ackWriteDelayMs) await new Promise((resolve) => setTimeout(resolve, this.ackWriteDelayMs));
+    } finally {
+      this.activeAckWrites--;
+    }
+  }
+
+  private async applyControl(command: string, mode: ControlWriteMode) {
     this.written.push({ command, mode });
     const [head, arg] = command.split(" ");
     if (head === "PING") this.notify("PONG");
@@ -141,6 +160,12 @@ class FakeLogger implements BikitTransport {
         // "Never saw it": retransmit the same window after a pause.
         this.lostOnce.add(this.ackOffset);
         setTimeout(() => this.sendWindow(), 5);
+        if (this.ackWriteDelayMs) {
+          const start = this.ackOffset;
+          setTimeout(() => {
+            if (this.active && this.ackOffset === start) this.sendWindow();
+          }, this.ackWriteDelayMs + 10);
+        }
         return;
       }
       this.ackOffset = off;
@@ -183,6 +208,76 @@ function makeFile(size: number) {
 }
 
 describe("BikitDevice", () => {
+  it.each([1440, 4800])("accepts the next %i-byte window before the previous ACK write resolves", async (window) => {
+    const logger = new FakeLogger();
+    logger.window = window;
+    logger.ackWriteDelayMs = 20;
+    logger.file = makeFile(window * 3 + 317);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    const device = await BikitDevice.connect(logger);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        device.download(7, { signal: controller.signal }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("next window was not acknowledged")), 1000);
+        }),
+      ]);
+      expect(new Uint8Array(result.bytes)).toEqual(logger.file);
+      expect(result.diagnostics.acks).toBe(4);
+      expect(result.diagnostics.windows).toBe(4);
+      expect(result.diagnostics.reAcks).toBe(0);
+      expect(logger.maxConcurrentAckWrites).toBe(1);
+    } finally {
+      if (timer) clearTimeout(timer);
+      controller.abort();
+    }
+  });
+
+  it("recovers a lost ACK with delayed writes and duplicate DATA", async () => {
+    const logger = new FakeLogger();
+    logger.window = 4800;
+    logger.ackWriteDelayMs = 20;
+    logger.duplicateEvery = 3;
+    logger.loseAckForWindowStarts.add(0);
+    logger.file = makeFile(4800 * 2 + 301);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    const device = await BikitDevice.connect(logger);
+    const result = await device.download(7);
+    expect(new Uint8Array(result.bytes)).toEqual(logger.file);
+    expect(result.diagnostics.reAcks).toBeGreaterThan(0);
+    expect(result.diagnostics.duplicates).toBeGreaterThan(0);
+    expect(logger.maxConcurrentAckWrites).toBe(1);
+  });
+
+  it("does not send queued ACKs after cancellation", async () => {
+    const logger = new FakeLogger();
+    logger.ackWriteDelayMs = 20;
+    logger.file = makeFile(1440 * 4);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    const device = await BikitDevice.connect(logger);
+    const controller = new AbortController();
+    await expect(device.download(7, {
+      signal: controller.signal,
+      onProgress: ({ uniqueBytes }) => {
+        if (uniqueBytes >= 2880) controller.abort();
+      },
+    })).rejects.toMatchObject({ raw: "ABORTED" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(logger.written.filter((w) => w.command.startsWith("ACK ")).map((w) => w.command))
+      .toEqual(["ACK 1440"]);
+  });
+
+  it("reports an ACK write failure instead of accepting a transfer", async () => {
+    const logger = new FakeLogger();
+    logger.file = makeFile(4000);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    logger.ackWriteFailure = true;
+    const device = await BikitDevice.connect(logger);
+    await expect(device.download(7)).rejects.toThrow("simulated ACK write failure");
+  });
+
   it("pings, reads info and lists sessions newest first", async () => {
     const logger = new FakeLogger();
     logger.sessions = [
