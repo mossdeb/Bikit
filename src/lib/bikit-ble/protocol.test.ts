@@ -229,6 +229,11 @@ describe("BikitDevice", () => {
       expect(result.diagnostics.windows).toBe(4);
       expect(result.diagnostics.reAcks).toBe(0);
       expect(logger.maxConcurrentAckWrites).toBe(1);
+      const timing = device.log.filter((entry) => entry.text.startsWith("CLIENT_TIMING"));
+      expect(timing.some((entry) => entry.text.includes("CLIENT_TIMING END"))).toBe(true);
+      expect(timing.some((entry) => entry.text.includes("WINDOW end="))).toBe(true);
+      expect(timing.length).toBeLessThanOrEqual(25);
+      expect(timing.map((entry) => entry.text).join(" ")).not.toMatch(/NaN|Infinity/);
     } finally {
       if (timer) clearTimeout(timer);
       controller.abort();
@@ -267,6 +272,18 @@ describe("BikitDevice", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(logger.written.filter((w) => w.command.startsWith("ACK ")).map((w) => w.command))
       .toEqual(["ACK 1440"]);
+  });
+
+  it("keeps timing logs bounded across many windows", async () => {
+    const logger = new FakeLogger();
+    logger.file = makeFile(1440 * 60 + 31);
+    logger.sessions = [{ id: 7, size: logger.file.length }];
+    const device = await BikitDevice.connect(logger);
+    const result = await device.download(7);
+    expect(new Uint8Array(result.bytes)).toEqual(logger.file);
+    const events = device.log.filter((entry) => entry.text.startsWith("CLIENT_TIMING"));
+    expect(events.some((entry) => entry.text.includes("CLIENT_TIMING END"))).toBe(true);
+    expect(events.length).toBeLessThanOrEqual(25);
   });
 
   it("reports an ACK write failure instead of accepting a transfer", async () => {

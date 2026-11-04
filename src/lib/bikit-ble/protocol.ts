@@ -632,6 +632,29 @@ export class BikitDevice {
       let ackWrites: Promise<void> = Promise.resolve();
       let lastReAckAt = 0;
       const startedAt = Date.now();
+      // Bounded diagnostics use monotonic time; no per-packet log/UI updates.
+      const timingStart = performance.now();
+      const timingEvents: string[] = [];
+      let windowOpenedAt = timingStart;
+      let windowFirstDataAt: number | null = null;
+      let lastDataAt: number | null = null;
+      let windowMaxGapMs = 0;
+      let maxDataGapMs = 0;
+      let ackSamples = 0;
+      let ackWriteTotalMs = 0;
+      let ackWriteMaxMs = 0;
+      let ackQueueMaxMs = 0;
+      let timingReported = false;
+      const rememberTiming = (message: string) => {
+        timingEvents.push(message);
+        if (timingEvents.length > 24) timingEvents.shift();
+      };
+      const reportTiming = (outcome: string) => {
+        if (timingReported) return;
+        timingReported = true;
+        this.record("in", `CLIENT_TIMING ${outcome} ack_writes_completed=${ackSamples} ack_pending=${pendingAckWrites} ack_write_avg_ms=${(ackSamples ? ackWriteTotalMs / ackSamples : 0).toFixed(1)} ack_write_max_ms=${ackWriteMaxMs.toFixed(1)} ack_queue_max_ms=${ackQueueMaxMs.toFixed(1)} data_gap_max_ms=${maxDataGapMs.toFixed(1)}`);
+        for (const event of timingEvents) this.record("in", `CLIENT_TIMING ${event}`);
+      };
       const diagnostics: TransferDiagnostics = {
         packets: 0,
         duplicates: 0,
@@ -657,6 +680,7 @@ export class BikitDevice {
         if (settled) return;
         settled = true;
         cleanup();
+        reportTiming("FAILED");
         reject(error);
       };
       const succeed = () => {
@@ -664,6 +688,7 @@ export class BikitDevice {
         settled = true;
         cleanup();
         diagnostics.elapsedMs = Date.now() - startedAt;
+        reportTiming("END");
         // A fresh ArrayBuffer of exactly `size` bytes, owned by the caller.
         const out = buffer.slice().buffer as ArrayBuffer;
         resolve({ bytes: out, diagnostics });
@@ -686,9 +711,18 @@ export class BikitDevice {
         windowReceived = 0;
         ackInFlight = false;
         diagnostics.windows++;
+        windowOpenedAt = performance.now();
+        windowFirstDataAt = null;
+        windowMaxGapMs = 0;
       };
 
       const sendAck = async (offset: number, advance: boolean) => {
+        const queuedAt = performance.now();
+        if (advance && (diagnostics.windows <= 3 || diagnostics.windows % 256 === 0 || queuedAt - windowOpenedAt > 250)) {
+          rememberTiming(`WINDOW end=${offset} t_ms=${(queuedAt - timingStart).toFixed(1)} ready_ms=${(queuedAt - windowOpenedAt).toFixed(1)} receive_ms=${(queuedAt - (windowFirstDataAt ?? queuedAt)).toFixed(1)} gap_max_ms=${windowMaxGapMs.toFixed(1)}`);
+        } else if (!advance) {
+          rememberTiming(`REACK end=${offset} t_ms=${(queuedAt - timingStart).toFixed(1)}`);
+        }
         pendingAckWrites++;
         // The device can act on the ACK before the browser resolves the
         // write promise. Prepare reception first; never reset this window
@@ -698,7 +732,20 @@ export class BikitDevice {
           if (settled) return;
           if (advance) diagnostics.acks++;
           else diagnostics.reAcks++;
+          const writeAt = performance.now();
+          const queueMs = writeAt - queuedAt;
+          ackQueueMaxMs = Math.max(ackQueueMaxMs, queueMs);
           await this.write(`ACK ${offset}`, "no-response");
+          const writeMs = performance.now() - writeAt;
+          // END may arrive before the last write resolves. Its summary
+          // explicitly reports pending writes; never mutate that report later.
+          if (!timingReported) {
+            ackSamples++;
+            ackWriteTotalMs += writeMs;
+            ackWriteMaxMs = Math.max(ackWriteMaxMs, writeMs);
+            if (queueMs > 50 || writeMs > 50)
+              rememberTiming(`ACK end=${offset} queue_ms=${queueMs.toFixed(1)} write_ms=${writeMs.toFixed(1)}`);
+          }
         });
         // Serialize GATT writes even when several windows arrive while a
         // previous write is still pending. A failure closes the transfer
@@ -771,6 +818,17 @@ export class BikitDevice {
         if (offset >= size) return;
         const end = Math.min(offset + packet.length - 4, size);
         diagnostics.packets++;
+        const receivedAt = performance.now();
+        if (lastDataAt !== null) {
+          const gap = receivedAt - lastDataAt;
+          maxDataGapMs = Math.max(maxDataGapMs, gap);
+          windowMaxGapMs = Math.max(windowMaxGapMs, gap);
+          if (gap > 250)
+            rememberTiming(`GAP offset=${offset} t_ms=${(receivedAt - timingStart).toFixed(1)} gap_ms=${gap.toFixed(1)} window=${windowStart}:${windowEnd} missing_before=${windowEnd - windowStart - windowReceived}`);
+        }
+        lastDataAt = receivedAt;
+        if (offset >= windowStart && offset < windowEnd && windowFirstDataAt === null)
+          windowFirstDataAt = receivedAt;
 
         // Land the bytes where they belong, whatever window they came from.
         let fresh = 0;
