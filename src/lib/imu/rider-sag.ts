@@ -174,6 +174,28 @@ export function rearMinusFrontDropMm(
   return wheelbaseMm * Math.tan((pitchDeg * Math.PI) / 180);
 }
 
+/** From this far apart, mm, the sensor's rear drop and the shock's disagree
+ * by more than the average leverage and the tyre can be asked to cover: about
+ * half a degree of pitch at a usual wheelbase. */
+export const REAR_DROP_DIVERGENCE_MM = 10;
+
+/**
+ * The rear wheel's drop as the shock's O-ring says it (by request,
+ * 2026-10-31), to set beside the sensor's: the shock's sag times the bike's
+ * leverage, wheel travel over stroke. An average leverage, not the frame's
+ * curve, so an estimate too. Null without all three numbers.
+ */
+export function shockRearDropMm(input: {
+  shockSagMm: number | null;
+  strokeMm: number | null;
+  rearTravelMm: number | null;
+}): number | null {
+  const { shockSagMm, strokeMm, rearTravelMm } = input;
+  if (shockSagMm == null || strokeMm == null || rearTravelMm == null)
+    return null;
+  return strokeMm > 0 ? (shockSagMm * rearTravelMm) / strokeMm : null;
+}
+
 /**
  * Each end's drop, mm, vertical (by request, 2026-10-27): the one measured
  * — the fork's sag off its O-ring, along the leg — stood up by the head

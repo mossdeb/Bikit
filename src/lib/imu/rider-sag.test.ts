@@ -5,6 +5,7 @@ import {
   riderAttitude,
   riderSagDropsMm,
   riderSagHistory,
+  shockRearDropMm,
   storedRiderSag,
 } from "./rider-sag";
 
@@ -136,5 +137,22 @@ describe("riderSagHistory", () => {
     expect(history[1].sessionNames).toEqual(["R0126", "R0135"]);
     expect(history[1].setup).toBe("A");
     expect(history[1].firstAt).toBe("2026-10-27T08:00:00Z");
+  });
+});
+
+describe("shockRearDropMm", () => {
+  it("is the shock's sag times the average leverage", () => {
+    expect(
+      shockRearDropMm({ shockSagMm: 24.7, strokeMm: 75, rearTravelMm: 200 }),
+    ).toBeCloseTo(65.9, 1);
+  });
+
+  it("needs all three numbers", () => {
+    expect(
+      shockRearDropMm({ shockSagMm: 24.7, strokeMm: null, rearTravelMm: 200 }),
+    ).toBeNull();
+    expect(
+      shockRearDropMm({ shockSagMm: 24.7, strokeMm: 75, rearTravelMm: null }),
+    ).toBeNull();
   });
 });

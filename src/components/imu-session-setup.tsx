@@ -30,8 +30,10 @@ import { useLoadedSession } from "@/components/imu-session-data";
 import { BikeBalanceArt, SAG_MINT } from "@/components/bike-balance-art";
 import {
   isStoredRiderSag,
+  REAR_DROP_DIVERGENCE_MM,
   rearMinusFrontDropMm,
   RIDER_ATTITUDE_TIE_DEG,
+  shockRearDropMm,
   riderAttitude,
   riderSagDropsMm,
   sameRiderSag,
@@ -971,6 +973,12 @@ function RiderSagReading({
   const wheelbaseMm = positive(WHEELBASE_KEY);
   const headAngleDeg = positive(HEAD_ANGLE_KEY);
   const forkSagMm = positive(damperKey("fork", "sagMm"));
+  const rearTravelMm = positive(REAR_TRAVEL_KEY);
+  const shockDrop = shockRearDropMm({
+    shockSagMm: positive(damperKey("shock", "sagMm")),
+    strokeMm: positive(damperKey("shock", "travelMm")),
+    rearTravelMm,
+  });
   const mm = (n: number) => `${proNumber(Math.abs(n), locale, 0)} mm`;
 
   const pitch = withRider ? attitude.pitchDeg : 0;
@@ -1074,6 +1082,45 @@ function RiderSagReading({
       </div>
       {!drops && (
         <p className="text-xs text-muted-foreground">{t.needsForkSag}</p>
+      )}
+      {/* The rear twice, by two roads (by request, 2026-10-31): the sensor's
+          leans on the pitch and the fork's sag, the shock's on its O-ring and
+          an average leverage. Neither is the truth; apart, one is wrong. */}
+      {withRider && drops && shockDrop != null && rearTravelMm != null && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <p className="text-sm font-semibold">{t.rearCompare}</p>
+          <div className="grid grid-cols-2 gap-3">
+            {(
+              [
+                [t.bySensor, drops.rearMm],
+                [t.byShock, shockDrop],
+              ] as const
+            ).map(([name, value]) => (
+              <div
+                key={name}
+                className="min-w-0 rounded-[10px] bg-muted/60 px-3 py-4"
+              >
+                <p className="text-sm">{name}</p>
+                <p className="text-xl font-semibold whitespace-nowrap tabular-nums">
+                  {mm(value)}
+                </p>
+                <p className="text-xs tabular-nums">
+                  {t.ofWheelTravel(
+                    proPercent(Math.round((value * 100) / rearTravelMm), locale),
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+          {Math.abs(drops.rearMm - shockDrop) >= REAR_DROP_DIVERGENCE_MM && (
+            <p
+              role="status"
+              className="rounded-[10px] bg-[#F5B82E]/15 px-3 py-2 text-xs leading-snug"
+            >
+              {t.rearDiverges(mm(drops.rearMm - shockDrop))}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

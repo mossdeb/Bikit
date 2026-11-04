@@ -286,6 +286,12 @@ const en = {
        * Its card is "Bike Balance" (by request, 2026-10-28; was "IMU SAG"). */
       riderSag: {
         title: "Bike Balance",
+        rearCompare: "Rear drop, two ways",
+        bySensor: "Sensor",
+        byShock: "Shock",
+        ofWheelTravel: (percent: string): string => `${percent} of wheel travel`,
+        rearDiverges: (mm: string): string =>
+          `These differ by ${mm}, so check them before relying on either: measure the sag again and repeat the calibration with the rider in the same position.`,
         importLabel: "Import rider SAG",
         importHint: "Pick BIKIT.SAG and BIKIT.CAL from the logger's card.",
         importReplace: "Replace",
@@ -635,6 +641,12 @@ const pt: typeof en = {
         `As sessões que a usaram (${sessions}) ficam, sem afinação. Não dá para desfazer.`,
       riderSag: {
         title: "Bike Balance",
+        rearCompare: "Descida de trás, duas medidas",
+        bySensor: "Sensor",
+        byShock: "Amortecedor",
+        ofWheelTravel: (percent) => `${percent} do curso da roda`,
+        rearDiverges: (mm) =>
+          `Diferem ${mm}, por isso confirma-as antes de confiar em qualquer uma: volta a medir o SAG e repete a calibração com o piloto na mesma posição.`,
         importLabel: "Importar Rider SAG",
         importHint: "Escolhe o BIKIT.SAG e o BIKIT.CAL do cartão do logger.",
         importReplace: "Substituir",
