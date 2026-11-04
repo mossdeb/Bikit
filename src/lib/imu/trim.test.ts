@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GpsChannels, ImuSessionData } from "./format";
-import { parseSessionTime, suggestTrim, trimOf, trimSession } from "./trim";
+import {
+  parseSessionTime,
+  suggestTrim,
+  trimOf,
+  trimSession,
+  wasRidden,
+} from "./trim";
 
 /**
  * A 60 s recording at 100 Hz with a fix a second: the bike stands for 5 s,
@@ -165,6 +171,25 @@ describe("suggestTrim", () => {
     const still = recording();
     still.gps!.speedMps.fill(0);
     expect(suggestTrim(still)).toBeNull();
+  });
+});
+
+describe("wasRidden", () => {
+  it("reads a ride as ridden", () => {
+    expect(wasRidden(recording())).toBe(true);
+  });
+
+  it("reads a walk as not ridden, even with a few stray fast fixes", () => {
+    const walk = recording();
+    walk.gps!.speedMps.fill(4 / 3.6);
+    walk.gps!.speedMps.set([3, 3, 3, 3], 10); // four fixes at 10.8 km/h
+    expect(wasRidden(walk)).toBe(false);
+    walk.gps!.speedMps[30] = 3; // a fifth
+    expect(wasRidden(walk)).toBe(true);
+  });
+
+  it("has no say without GPS", () => {
+    expect(wasRidden({ ...recording(), gps: null })).toBe(true);
   });
 });
 

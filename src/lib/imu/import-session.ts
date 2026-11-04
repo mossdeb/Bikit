@@ -24,7 +24,7 @@ import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
 import { buildTrackIndex, prepareSnapshotSession } from "@/lib/imu/snapshot";
 import { alignSession, sessionSummary } from "@/lib/imu/derive";
 import { withBikeFrameEvents } from "@/lib/imu/events";
-import { suggestTrim, trimSession } from "@/lib/imu/trim";
+import { suggestTrim, trimSession, wasRidden } from "@/lib/imu/trim";
 import {
   createTimedTrack,
   findTimedRuns,
@@ -133,7 +133,11 @@ export async function uploadAndRegisterImuSession(input: {
   let gps = session.gps;
   let newTrack: TimedTrackDefinition | null = null;
   let tracks: ImportTrack[] = [];
-  if (session.gps) {
+  // A recording never ridden faster than walking pace has no run to cut
+  // out (2026-11-04: R0161 kept 59 s of 9 min, R0159 5 s of 6.5): it is
+  // kept whole, with no track drawn from it and none trimming it — the
+  // walk-pace tracks those imports drew would only cut the next walk short.
+  if (session.gps && wasRidden(session)) {
     // As the page reads it: aligned, with the bike-frame events.
     const whole = withBikeFrameEvents(alignSession(session));
     const prepared = prepareSnapshotSession(whole);

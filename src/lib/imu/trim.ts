@@ -195,6 +195,33 @@ export const TRIM_PAUSE_MS = 10_000;
 /** A moving stretch shorter than this is a roll in the car park, ms. */
 export const TRIM_STRETCH_MIN_MS = 20_000;
 
+/** Above this the bike is being ridden, not walked, km/h… */
+export const RIDING_PACE_KMH = 8;
+/** …for at least this many GPS fixes, so one fix thrown off by the GPS
+ * does not count as riding. */
+export const RIDING_PACE_MIN_FIXES = 5;
+
+/**
+ * Whether a recording was ever ridden. A recording that never goes faster
+ * than walking pace has no run in it to cut out (by request, 2026-11-04):
+ * R0161 went at 2–6 km/h for 9 min, its speed kept crossing
+ * TRIM_MOVING_KMH, and the import kept a minute of it. The import keeps
+ * such a recording whole and draws no track. True when there is no GPS to
+ * tell, since the import then has nothing to cut by anyway.
+ */
+export function wasRidden(session: ImuSessionData): boolean {
+  const gps = session.gps;
+  if (!gps || gps.tMs.length < 2) return true;
+  const riding = RIDING_PACE_KMH / 3.6;
+  let fixes = 0;
+  for (let i = 0; i < gps.speedMps.length; i++) {
+    const v = gps.speedMps[i];
+    if (Number.isFinite(v) && v > riding && ++fixes >= RIDING_PACE_MIN_FIXES)
+      return true;
+  }
+  return false;
+}
+
 /**
  * A guess at the run: the longest stretch of GPS speed above walking pace,
  * where a stop shorter than TRIM_PAUSE_MS does not break the stretch (a
