@@ -3,6 +3,7 @@ import {
   crc32,
   isBktFile,
   parseBktFile as parseBktFileIn,
+  recordingStartMs,
   BKT_FORMAT,
 } from "./bkt";
 import { parseImuBytes as parseImuBytesIn } from "./format";
@@ -317,6 +318,20 @@ const gnss = (t: number, over: Partial<GnssSample> = {}): GnssSample => ({
   dist: 12.345,
   flags: 0x1f,
   ...over,
+});
+
+describe("recordingStartMs", () => {
+  const now = Date.UTC(2026, 10, 4, 8);
+
+  it("takes a real date — R0152's start", () => {
+    expect(recordingStartMs(1793775290379, now)).toBe(1793775290379);
+  });
+
+  it("is nothing for a clock never set, or one in the future", () => {
+    expect(recordingStartMs(0, now)).toBeNull();
+    expect(recordingStartMs(5_000_000, now)).toBeNull();
+    expect(recordingStartMs(now + 2 * 24 * 3600 * 1000, now)).toBeNull();
+  });
 });
 
 describe("crc32", () => {

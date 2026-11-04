@@ -12,6 +12,7 @@ import { PLAN_LIMITS } from "@/lib/plans";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { isTrackIndex, type SnapshotTrackIndex } from "@/lib/imu/snapshot";
 import { isStoredRiderSag, type StoredRiderSag } from "@/lib/imu/rider-sag";
+import { recordingStartMs } from "@/lib/imu/bkt";
 import type { Json } from "@/types/database.types";
 
 export type ImuActionResult =
@@ -92,6 +93,10 @@ export interface CreateImuSessionInput {
   /** The file's rider-sag reading (firmware V18's SAG1), for the setup's
    * history. Omitted for none. */
   riderSag?: StoredRiderSag | null;
+  /** When the recording began, Unix ms, from the file's header. Becomes the
+   * row's created_at — the date every page shows and orders by. Omitted
+   * when the file has none: then it is the import's. */
+  startedAtMs?: number | null;
 }
 
 /**
@@ -150,6 +155,10 @@ export async function createImuSession(
   // A malformed reading is dropped, not refused: it is a history line, and
   // the file still has the record.
   const riderSag = isStoredRiderSag(input.riderSag) ? input.riderSag : null;
+  // Checked again here, as the parser does, and dropped rather than refused:
+  // a bad date only costs the session its ride's day, not the import.
+  const startedAtMs =
+    input.startedAtMs != null ? recordingStartMs(input.startedAtMs) : null;
 
   const bike = await resolveBike(supabase, userId, input.bike, t);
   if (bike.status === "error") return bike;
@@ -199,6 +208,9 @@ export async function createImuSession(
     trim_end_ms: trim ? Math.round(trim.endMs) : null,
     trim_by_track: trim != null && input.trimByTrack === true,
     rider_sag: riderSag as unknown as Json,
+    ...(startedAtMs != null && {
+      created_at: new Date(startedAtMs).toISOString(),
+    }),
   })
     .select("id")
     .single();

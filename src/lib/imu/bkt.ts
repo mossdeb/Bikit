@@ -208,6 +208,25 @@ interface SessionHeader {
   storedCrc: number;
 }
 
+/** The earliest start a header may claim: before Bikit recorded anything. */
+const EARLIEST_RECORDING_MS = Date.UTC(2025, 0, 1);
+
+/**
+ * The header's start_unix_ms when it can be a date (R0152, 2026-11-04, is
+ * the first file seen with one), else null. A logger whose clock was never
+ * set counts from boot — a number far below EARLIEST_RECORDING_MS — and one
+ * a day or more ahead of `now` is a clock gone wrong; neither dates a ride.
+ */
+export function recordingStartMs(
+  startUnixMs: number,
+  now = Date.now(),
+): number | null {
+  if (!Number.isSafeInteger(startUnixMs)) return null;
+  if (startUnixMs < EARLIEST_RECORDING_MS) return null;
+  if (startUnixMs > now + 24 * 3600 * 1000) return null;
+  return startUnixMs;
+}
+
 function readHeader(view: DataView): SessionHeader {
   return {
     versionMajor: view.getUint8(4),
@@ -823,6 +842,9 @@ export function parseBktFile(
       sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
       orientation,
       ...(riderSag && { riderSag }),
+      ...(recordingStartMs(h.startUnixMs) != null && {
+        startedAtMs: recordingStartMs(h.startUnixMs)!,
+      }),
       // Present — empty, even — when the file says the sensor was there:
       // header flag bit 2, or a HIGHG block. "No shock crossed the
       // threshold" and "no such sensor" are different recordings.

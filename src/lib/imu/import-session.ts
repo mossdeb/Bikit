@@ -206,6 +206,9 @@ export async function uploadAndRegisterImuSession(input: {
     // The rider-sag step's reading (firmware V18), for the setup's
     // history — in the frame the page reads, so after the alignment.
     riderSag: storedRiderSag(session.riderSag, session.orientation),
+    // When it was ridden, from the file's own clock (2026-11-04) — so the
+    // list's dates and order are the rides', not the imports'.
+    startedAtMs: session.startedAtMs,
   });
   if (result.status === "error") return { ok: false, error: result.message };
   if (!newTrack || !session.gps) return { ok: true, track: null };

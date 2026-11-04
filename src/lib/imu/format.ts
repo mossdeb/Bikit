@@ -184,6 +184,11 @@ export interface ImuSessionData {
   orientation?: ImuMountOrientation;
   /** The rider-sag step's reading, when the file carries one. */
   riderSag?: ImuRiderSag;
+  /** When the recording began, Unix ms (UTC) — the .BKT header's
+   * start_unix_ms, once the logger's clock holds a real date. Absent when
+   * the file gives none that could be one; the session then dates from its
+   * import. */
+  startedAtMs?: number;
   /** The shocks the logger's second accelerometer caught (firmware V15:
    * an ADXL375, ±200 g), each a short window round its trigger — see
    * ImuHighGEvent. Absent on files without the sensor; empty when it was
