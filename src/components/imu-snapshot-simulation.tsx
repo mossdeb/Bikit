@@ -305,7 +305,7 @@ export function ImuSnapshotSimulation({
   ].filter((p) => !hidden.has(p.key));
   // Under the map on the card for a corner (by request, 2026-11-05), so
   // the pills are grey there; on a jump's plate they stay white.
-  const pillBg = kind === "jump" ? "bg-card" : "bg-muted";
+  const pillBg = "bg-muted";
   const readoutPill = (p: SimulationPass) => {
     const gap = gapOf(p);
     const speed = speedAt(p.trace, cursorMs);
@@ -382,6 +382,19 @@ export function ImuSnapshotSimulation({
         </div>
       )}
     </div>
+  );
+
+  // The time at the cursor on the plate, large (by request, 2026-11-05),
+  // as the session page shows its duration — on a corner's map and on a
+  // jump's side view alike.
+  const clock = (
+    <p
+      className="flex items-center gap-2 font-display text-3xl leading-none font-bold tabular-nums"
+      aria-label={`${words.timeline} ${stopwatch(cursorMs)}`}
+    >
+      <StatStopwatchIcon className="size-7 text-foreground [&_path]:[stroke-width:1.4]" />
+      <span aria-hidden="true">{stopwatch(cursorMs)}</span>
+    </p>
   );
 
   return (
@@ -502,7 +515,7 @@ export function ImuSnapshotSimulation({
             followed={followed}
             inkOf={inkOf}
             cursorMs={cursorMs}
-            readout={readout}
+            readout={clock}
             words={words.jump}
             locale={locale}
           />
@@ -548,17 +561,7 @@ export function ImuSnapshotSimulation({
               inkOf={inkOf}
               surroundings={surroundings}
               cursorMs={cursorMs}
-              clock={
-                // The time at the cursor on the plate, large (by request,
-                // 2026-11-05), as the session page shows its duration.
-                <p
-                  className="flex items-center gap-2 font-display text-3xl leading-none font-bold tabular-nums"
-                  aria-label={`${words.timeline} ${stopwatch(cursorMs)}`}
-                >
-                  <StatStopwatchIcon className="size-7 text-foreground [&_path]:[stroke-width:1.4]" />
-                  <span aria-hidden="true">{stopwatch(cursorMs)}</span>
-                </p>
-              }
+              clock={clock}
               views={
                 // The map's two views, small in its corner.
                 <div
@@ -592,9 +595,14 @@ export function ImuSnapshotSimulation({
           </>
         )}
         {kind === "jump" && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {words.jump.estimate}
-          </p>
+          <>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {words.jump.estimate}
+            </p>
+            {/* The passes at the cursor, under the drawing as on a
+                corner (2026-11-05). */}
+            <div className="mt-3">{readout}</div>
+          </>
         )}
 
         {(() => {
@@ -639,7 +647,8 @@ export function ImuSnapshotSimulation({
               locale={locale}
             />
           );
-          if (kind !== "jump")
+          // Corners and jumps alike (2026-11-05).
+          if (kind === "curve" || kind === "jump")
             // A corner's timeline is the gap chart itself (by request,
             // 2026-11-05, from a design): what has played shaded, the
             // cursor a bar to drag, the play button beside it and the
@@ -666,12 +675,6 @@ export function ImuSnapshotSimulation({
               {/* The clock. */}
               <div className="mt-4 flex items-center gap-3 sm:gap-4">
                 {playButton}
-                {/* A corner's time is on its map; a jump's stays here. */}
-                {kind === "jump" && (
-                  <span className="w-[86px] shrink-0 text-sm tabular-nums">
-                    {stopwatch(cursorMs)}
-                  </span>
-                )}
                 <input
                   type="range"
                   min={clipFrom}
