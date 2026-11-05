@@ -96,6 +96,9 @@ const RIDER_WEIGHT_KEY = "rider.weightKg";
  * The readings are still stored (rider_sag) and the history still read;
  * back with true. */
 const SHOW_SAG_HISTORY = false;
+/** Bike Balance's "Rear drop, two ways" (sensor vs shock), hidden for now
+ * (by request, 2026-11-05); back with true. */
+const SHOW_REAR_COMPARE = false;
 
 const WHEELBASE_KEY = "frame.wheelbaseMm";
 const HEAD_ANGLE_KEY = "frame.headAngleDeg";
@@ -1085,8 +1088,9 @@ function RiderSagReading({
       )}
       {/* The rear twice, by two roads (by request, 2026-10-31): the sensor's
           leans on the pitch and the fork's sag, the shock's on its O-ring and
-          an average leverage. Neither is the truth; apart, one is wrong. */}
-      {withRider && drops && shockDrop != null && rearTravelMm != null && (
+          an average leverage. Neither is the truth; apart, one is wrong.
+          Hidden for now (by request, 2026-11-05), kept for later. */}
+      {SHOW_REAR_COMPARE && withRider && drops && shockDrop != null && rearTravelMm != null && (
         <div className="space-y-3 border-t border-border pt-3">
           <p className="text-sm font-semibold">{t.rearCompare}</p>
           <div className="grid grid-cols-2 gap-3">
