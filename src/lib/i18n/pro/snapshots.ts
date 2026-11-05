@@ -83,7 +83,7 @@ const en = {
     },
     deltaAxis: "Δ time (s)",
     /** The corner timeline's label (2026-11-05). */
-    timelineAxis: "Time (s)",
+    timelineAxis: "Time",
     deltaChart:
       "The gap to the reference along the stretch: above the line behind it, below ahead.",
     select: (name: string): string => `Follow ${name}`,
@@ -323,7 +323,7 @@ const pt: typeof en = {
       },
     },
     deltaAxis: "Δ tempo (s)",
-    timelineAxis: "Tempo (s)",
+    timelineAxis: "Tempo",
     deltaChart:
       "A diferença para a referência ao longo do troço: acima da linha atrás dela, abaixo à frente.",
     select: (name) => `Seguir ${name}`,

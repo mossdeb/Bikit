@@ -645,15 +645,18 @@ export function ImuSnapshotSimulation({
             // cursor a bar to drag, the play button beside it and the
             // whole time after it.
             return (
-              <div className="mt-4 flex items-center gap-4 rounded-[16px] border border-border px-4 py-3 sm:gap-6 sm:px-6">
-                <div className="flex shrink-0 flex-col items-center gap-3">
+              // The chart runs the card's whole height between its two
+              // sides (2026-11-05, second design), the whole time set off
+              // by a rule.
+              <div className="mt-4 flex h-[106px] items-stretch rounded-[16px] border border-border">
+                <div className="flex shrink-0 flex-col items-center justify-center gap-2 px-4 sm:px-6">
                   <span className="hidden text-base font-medium whitespace-nowrap sm:block">
                     {words.timelineAxis}
                   </span>
                   {playButton}
                 </div>
                 <div className="min-w-0 flex-1">{chart(true)}</div>
-                <span className="hidden shrink-0 text-xl font-medium tabular-nums sm:block">
+                <span className="hidden shrink-0 items-center border-l border-border px-6 text-base font-semibold tabular-nums sm:flex">
                   {stopwatch(clipTo)}
                 </span>
               </div>
@@ -754,7 +757,7 @@ function SimulationMap({
 }: {
   /** The time at the cursor, in the plate's bottom-left corner. */
   clock?: React.ReactNode;
-  /** The view buttons, in the plate's bottom-right corner. */
+  /** The view buttons, in the plate's top-left corner (2026-11-05). */
   views?: React.ReactNode;
   /** Ghosts: the others are dots on the reference's line, without lines
    * of their own, which would only lie on top of it. */
@@ -1183,7 +1186,7 @@ function SimulationMap({
         </div>
       )}
       {clock && <div className="absolute bottom-4 left-4">{clock}</div>}
-      {views && <div className="absolute right-3 bottom-3">{views}</div>}
+      {views && <div className="absolute top-3 left-3">{views}</div>}
       {/* A soft outline round the plate (by request, 2026-10-28) — over
           the drawing, which would cover a ring of the box itself. */}
       <div
@@ -1256,7 +1259,8 @@ function DeltaChart({
   locale: Locale;
 }) {
   const [ref, W] = useBoxWidth<HTMLDivElement>();
-  const H = scrubber ? 88 : 110;
+  // The scrubber fills its card inside the 1 px border (h-[106px]).
+  const H = scrubber ? 104 : 110;
   const PAD_Y = 10;
   const step = reference.trace.stepMs;
   const steps = Math.floor(reference.trace.durationMs / step);
@@ -1305,10 +1309,7 @@ function DeltaChart({
     const cx = x(cursorMs);
     return (
       <div className="relative">
-        <div
-          ref={ref}
-          className="relative overflow-hidden rounded-[12px] border border-border bg-card"
-        >
+        <div ref={ref} className="relative">
           {W > 0 && (
             <svg
               width={W}
