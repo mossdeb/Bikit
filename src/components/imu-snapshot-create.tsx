@@ -349,7 +349,7 @@ export function ImuSnapshotCreate({
                   </div>
                   <Button type="submit" variant="inverted" disabled={busy}>
                     <ImuSnapshotGlyph className="size-4" sizePx={16} />
-                    {busy ? t.common.saving : "Snapshot"}
+                    {busy ? t.common.saving : t.common.save}
                   </Button>
                 </form>
               )}

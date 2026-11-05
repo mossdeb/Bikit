@@ -48,7 +48,42 @@ const en = {
     play: "Play",
     pause: "Pause",
     timeline: "Time from the entry gate",
+    /** How the map lays the passes out (2026-11-05). */
+    layout: {
+      label: "Drawing",
+      /** The map's two view buttons (2026-11-05). */
+      views: {
+        label: "Map view",
+        alignedTrail: "Lines",
+        ghost: "Ghosts",
+      },
+      names: {
+        lane: "Reference lane",
+        laneSmooth: "Reference lane, smooth",
+        gps: "Raw GPS",
+        aligned: "Aligned (mean offset)",
+        alignedTrail: "Aligned, widened trail",
+        gates: "Pinned to the gates",
+        ghost: "Ghosts",
+      },
+      hints: {
+        lane: "Along the reference's line by share of ground, beside it by the line ridden, within the trail.",
+        laneSmooth:
+          "The reference lane with its direction read over 10 m, each line's offset averaged over 8 m and the trail's edge reached gradually: no steps, no corners.",
+        gps: "Where each run's GPS put it. Runs from different days sit a few metres apart.",
+        aligned:
+          "Each whole line shifted by its mean offset from the reference. In a tight corner it can start before or after the gate.",
+        alignedTrail:
+          "The aligned lines as they are, and the trail opened out where they leave it, up to 5 m either side of the reference.",
+        gates:
+          "Shifted to start and end where the reference crossed the gates, blended between. Lines can leave the trail.",
+        ghost:
+          "Every pass a dot on the reference's line, by share of ground. Who is ahead, not the line ridden.",
+      },
+    },
     deltaAxis: "Δ time (s)",
+    /** The corner timeline's label (2026-11-05). */
+    timelineAxis: "Time (s)",
     deltaChart:
       "The gap to the reference along the stretch: above the line behind it, below ahead.",
     select: (name: string): string => `Follow ${name}`,
@@ -256,7 +291,39 @@ const pt: typeof en = {
     play: "Reproduzir",
     pause: "Pausa",
     timeline: "Tempo desde a porta de entrada",
+    layout: {
+      label: "Desenho",
+      views: {
+        label: "Vista do mapa",
+        alignedTrail: "Linhas",
+        ghost: "Fantasmas",
+      },
+      names: {
+        lane: "Faixa da referência",
+        laneSmooth: "Faixa da referência, suave",
+        gps: "GPS em bruto",
+        aligned: "Alinhado (desvio médio)",
+        alignedTrail: "Alinhado, trilho alargado",
+        gates: "Preso às portas",
+        ghost: "Fantasmas",
+      },
+      hints: {
+        lane: "Ao longo da linha da referência pela fração do troço, ao lado dela pelo traçado, dentro do trilho.",
+        laneSmooth:
+          "A faixa da referência com a direção medida em 10 m, o desvio de cada linha em média de 8 m e a borda do trilho alcançada aos poucos: sem degraus nem esquinas.",
+        gps: "Onde o GPS de cada volta a pôs. Voltas de dias diferentes ficam alguns metros ao lado.",
+        aligned:
+          "Cada linha inteira deslocada pelo seu desvio médio em relação à referência. Numa curva apertada pode começar antes ou depois da porta.",
+        alignedTrail:
+          "As linhas alinhadas tal como estão, e o trilho alargado onde elas saem dele, até 5 m para cada lado da referência.",
+        gates:
+          "Deslocada para começar e acabar onde a referência cruzou as portas, aos poucos pelo meio. As linhas podem sair do trilho.",
+        ghost:
+          "Cada passagem é um ponto sobre a linha da referência, pela fração do troço. Mostra quem vai à frente, não o traçado.",
+      },
+    },
     deltaAxis: "Δ tempo (s)",
+    timelineAxis: "Tempo (s)",
     deltaChart:
       "A diferença para a referência ao longo do troço: acima da linha atrás dela, abaixo à frente.",
     select: (name) => `Seguir ${name}`,

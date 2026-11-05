@@ -7,7 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Check, Pause, Play } from "lucide-react";
+import { Check, ChevronDown, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n";
 import { proNumber } from "@/lib/i18n/pro";
@@ -22,10 +22,17 @@ import type {
   SnapshotPassTrace,
 } from "@/lib/imu/snapshot";
 import { ImuSnapshotJumpProfile } from "@/components/imu-snapshot-jump-profile";
+import { StatStopwatchIcon } from "@/components/imu-stat-icons";
 import {
   gapToReferenceAt,
-  laneTrace,
+  isSimulationLayout,
+  layoutTrace,
+  layoutWidensTrail,
+  SIMULATION_LAYOUTS,
+  widenedStretch,
+  type WidenedStretch,
   traceSampleAt,
+  type SimulationLayout,
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
 
@@ -95,8 +102,41 @@ const PLATE_GREY = "color-mix(in srgb, var(--muted) 60%, var(--card))";
 const TRAIL_WIDTH_M = 2.5;
 const TRAIL_MIN_PX = 12;
 const TRAIL_MAX_PX = 40;
+/** The widened trail's edges are smoothed over this much of the line, m. */
+const WIDEN_EDGE_SMOOTH_M = 6;
+/** Room for the gap chart's scale inside the timeline's frame, px. */
+const SCRUB_LABEL_PX = 44;
+/** The ghosts' trail is this much wider than a trail. */
+const GHOST_TRAIL_FACTOR = 1.5;
 const R = 6_371_000;
 const RAD = Math.PI / 180;
+
+/** Where the viewer's chosen drawing is kept between visits — a
+ * convenience of theirs, so a failed read is the default. */
+const LAYOUT_STORAGE_KEY = "bikit.simulation.layout";
+
+/** The drawings tried on 2026-11-05 stay behind a picker that is hidden
+ * for now (by request: the simulation may need aligning again); true shows
+ * it above the map with all of SIMULATION_LAYOUTS. */
+const SHOW_LAYOUT_PICKER = false;
+/** The two views the map offers, as buttons in its corner (by request,
+ * 2026-11-05) — the first the default: the ghosts, by request. */
+const MAP_VIEWS = [
+  "ghost",
+  "alignedTrail",
+] as const satisfies readonly SimulationLayout[];
+
+function readStoredLayout(): SimulationLayout {
+  const offered = (l: unknown): l is SimulationLayout =>
+    isSimulationLayout(l) &&
+    (SHOW_LAYOUT_PICKER || (MAP_VIEWS as readonly string[]).includes(l));
+  try {
+    const stored = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
+    return offered(stored) ? stored : MAP_VIEWS[0];
+  } catch {
+    return MAP_VIEWS[0];
+  }
+}
 
 /** "00:07.131", the header's stopwatch. */
 const stopwatch = (ms: number) => formatRunTime(ms).padStart(9, "0");
@@ -104,19 +144,20 @@ const stopwatch = (ms: number) => formatRunTime(ms).padStart(9, "0");
 const signedSeconds = (ms: number, locale: Locale) =>
   `${ms > 0 ? "+" : ms < 0 ? "−" : ""}${proNumber(Math.abs(ms) / 1000, locale, 3)} s`;
 
+/** An element's width, kept as it changes. A callback ref, so it follows
+ * the element when a component swaps the one it measures. */
 function useBoxWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
+  const [el, setEl] = useState<T | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const read = () => setWidth(Math.round(el.getBoundingClientRect().width));
     read();
     const observer = new ResizeObserver(read);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-  return [ref, width] as const;
+  }, [el]);
+  return [setEl, width, el] as const;
 }
 
 export function ImuSnapshotSimulation({
@@ -139,9 +180,22 @@ export function ImuSnapshotSimulation({
   const words = t.snapshots.simulation;
   const reference =
     passesAsRecorded.find((p) => p.isReference) ?? passesAsRecorded[0];
-  // Each pass in the reference's lane: along the stretch by its own share
-  // of the ground, to the side by its line less its GPS's steady offset,
-  // within the trail (laneTrace). Once per set of passes, not per frame.
+  // How the map lays the passes out (by request, 2026-11-05: the ways
+  // tried on 2026-10-28, to compare). Corners only — a jump is drawn from
+  // the side. The simulation only ever renders in the browser, once the
+  // files are read, so the stored choice is read straight away.
+  const [layout, setLayout] = useState<SimulationLayout>(readStoredLayout);
+  const chooseLayout = (next: SimulationLayout) => {
+    setLayout(next);
+    try {
+      window.localStorage.setItem(LAYOUT_STORAGE_KEY, next);
+    } catch {
+      // Not kept; the choice still holds for this visit.
+    }
+  };
+  const drawn: SimulationLayout = kind === "jump" ? "gps" : layout;
+  // Each pass as the drawing lays it (layoutTrace). Once per set of passes
+  // and drawing, not per frame.
   const passes = useMemo(
     () =>
       passesAsRecorded.map((p) =>
@@ -149,10 +203,15 @@ export function ImuSnapshotSimulation({
           ? p
           : {
               ...p,
-              trace: laneTrace(p.trace, reference.trace, TRAIL_WIDTH_M / 2),
+              trace: layoutTrace(
+                drawn,
+                p.trace,
+                reference.trace,
+                TRAIL_WIDTH_M / 2,
+              ),
             },
       ),
-    [passesAsRecorded, reference],
+    [passesAsRecorded, reference, drawn],
   );
   const others = passes.filter((p) => p !== reference);
   const inkOf = (p: SimulationPass) =>
@@ -189,6 +248,30 @@ export function ImuSnapshotSimulation({
     });
   const followed =
     passes.find((p) => p.key === followKey) ?? others[0] ?? reference;
+  // The trail opened out to hold the lines on the map (2026-11-05), from
+  // the passes on show — read whole, so it does not move as they play.
+  const widened = useMemo(
+    () =>
+      kind !== "jump" && layoutWidensTrail(layout)
+        ? widenedStretch(
+            // Along the whole trail drawn, not only the stretch (by
+            // request, 2026-11-05): one shape, so it joins the trail
+            // either side of the gates without a seam. Outside the gates
+            // no line asks for more, and it is a trail's width again.
+            surroundings.length >= 2
+              ? (() => {
+                  const line = smoothPolyline(surroundings);
+                  return {
+                    latDeg: line.map((p) => p[0]),
+                    lonDeg: line.map((p) => p[1]),
+                  };
+                })()
+              : reference.trace,
+            passes.filter((p) => !hidden.has(p.key)).map((p) => p.trace),
+          )
+        : null,
+    [kind, layout, passes, reference, hidden, surroundings],
+  );
 
   // Real time, from where the cursor stands — from the start again when
   // it stands at the end.
@@ -220,6 +303,9 @@ export function ImuSnapshotSimulation({
     followed,
     ...passes.filter((p) => p !== followed),
   ].filter((p) => !hidden.has(p.key));
+  // Under the map on the card for a corner (by request, 2026-11-05), so
+  // the pills are grey there; on a jump's plate they stay white.
+  const pillBg = kind === "jump" ? "bg-card" : "bg-muted";
   const readoutPill = (p: SimulationPass) => {
     const gap = gapOf(p);
     const speed = speedAt(p.trace, cursorMs);
@@ -227,7 +313,10 @@ export function ImuSnapshotSimulation({
       <div
         key={p.key}
         aria-label={`${words.atCursor}: ${p.name}`}
-        className="flex h-9 items-center divide-x divide-border rounded-[12px] bg-card pr-1 pl-3 text-sm whitespace-nowrap tabular-nums"
+        className={cn(
+          "flex h-9 items-center divide-x divide-border rounded-[12px] pr-1 pl-3 text-sm whitespace-nowrap tabular-nums",
+          pillBg,
+        )}
       >
         <span className="flex items-center gap-2 pr-3">
           <span
@@ -279,7 +368,12 @@ export function ImuSnapshotSimulation({
           aria-label={words.morePasses(readoutPasses.length - READOUT_PILLS)}
           className="group relative rounded-[12px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <div className="flex h-9 items-center rounded-[12px] bg-card px-3 text-sm font-semibold">
+          <div
+            className={cn(
+              "flex h-9 items-center rounded-[12px] px-3 text-sm font-semibold",
+              pillBg,
+            )}
+          >
             …
           </div>
           <div className="invisible absolute bottom-0 left-full flex flex-col gap-2 pl-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
@@ -413,16 +507,89 @@ export function ImuSnapshotSimulation({
             locale={locale}
           />
         ) : (
-          <SimulationMap
-            passes={passes.filter((p) => !hidden.has(p.key))}
-            framed={passes}
-            reference={reference}
-            followed={followed}
-            inkOf={inkOf}
-            surroundings={surroundings}
-            cursorMs={cursorMs}
-            readout={readout}
-          />
+          <>
+            {SHOW_LAYOUT_PICKER && (
+              <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="relative inline-flex h-10 max-w-full items-center rounded-full bg-muted pl-4 text-sm focus-within:ring-3 focus-within:ring-ring/50">
+                  <span className="shrink-0 text-muted-foreground">
+                    {words.layout.label}:
+                  </span>
+                  <select
+                    value={layout}
+                    onChange={(e) => {
+                      if (isSimulationLayout(e.target.value))
+                        chooseLayout(e.target.value);
+                    }}
+                    className="h-full max-w-64 min-w-0 cursor-pointer appearance-none truncate bg-transparent pr-10 pl-1 font-semibold text-foreground outline-none [field-sizing:content]"
+                  >
+                    {SIMULATION_LAYOUTS.map((l) => (
+                      <option key={l} value={l}>
+                        {words.layout.names[l]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2"
+                    aria-hidden
+                  />
+                </label>
+                <p className="min-w-0 flex-1 basis-64 text-xs text-muted-foreground">
+                  {words.layout.hints[layout]}
+                </p>
+              </div>
+            )}
+            <SimulationMap
+              ghost={layout === "ghost"}
+              widened={widened}
+              passes={passes.filter((p) => !hidden.has(p.key))}
+              framed={passes}
+              reference={reference}
+              followed={followed}
+              inkOf={inkOf}
+              surroundings={surroundings}
+              cursorMs={cursorMs}
+              clock={
+                // The time at the cursor on the plate, large (by request,
+                // 2026-11-05), as the session page shows its duration.
+                <p
+                  className="flex items-center gap-2 font-display text-3xl leading-none font-bold tabular-nums"
+                  aria-label={`${words.timeline} ${stopwatch(cursorMs)}`}
+                >
+                  <StatStopwatchIcon className="size-7 text-foreground [&_path]:[stroke-width:1.4]" />
+                  <span aria-hidden="true">{stopwatch(cursorMs)}</span>
+                </p>
+              }
+              views={
+                // The map's two views, small in its corner.
+                <div
+                  role="radiogroup"
+                  aria-label={words.layout.views.label}
+                  className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
+                >
+                  {MAP_VIEWS.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={layout === v}
+                      onClick={() => chooseLayout(v)}
+                      className={cn(
+                        "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        layout === v
+                          ? "bg-foreground text-background"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {words.layout.views[v]}
+                    </button>
+                  ))}
+                </div>
+              }
+            />
+            {/* The passes at the cursor, under the map (by request,
+                2026-11-05). */}
+            <div className="mt-3">{readout}</div>
+          </>
         )}
         {kind === "jump" && (
           <p className="mt-2 text-xs text-muted-foreground">
@@ -430,70 +597,106 @@ export function ImuSnapshotSimulation({
           </p>
         )}
 
-        {/* The clock. */}
-        <div className="mt-4 flex items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => {
-              if (!playing && cursorMs >= clipTo) {
-                cursorRef.current = clipFrom;
-                setCursorMs(clipFrom);
-              }
-              setPlaying(!playing);
-            }}
-            aria-label={playing ? words.pause : words.play}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted"
-          >
-            {playing ? (
-              <Pause className="size-4 fill-current" aria-hidden />
-            ) : (
-              <Play
-                className="size-4 translate-x-px fill-current"
-                aria-hidden
-              />
-            )}
-          </button>
-          <span className="w-[86px] shrink-0 text-sm tabular-nums">
-            {stopwatch(cursorMs)}
-          </span>
-          <input
-            type="range"
-            min={clipFrom}
-            max={clipTo}
-            step={10}
-            value={cursorMs}
-            aria-label={words.timeline}
-            onChange={(e) => {
-              setPlaying(false);
-              setCursorMs(Number(e.target.value));
-            }}
-            // Drawn by hand, without the browser's outlined track (by
-            // request, 2026-10-28): a plain bar, ink up to the cursor, and no
-            // knob — the thumb is still there to drag, unseen.
-            className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-transparent [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-transparent"
-            style={{
-              background: `linear-gradient(to right, var(--foreground) ${(100 * (cursorMs - clipFrom)) / Math.max(1, clipTo - clipFrom)}%, color-mix(in srgb, var(--foreground) 12%, transparent) 0)`,
-            }}
-          />
-          <span className="hidden w-[86px] shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
-            {stopwatch(clipTo)}
-          </span>
-        </div>
+        {(() => {
+          const playButton = (
+            <button
+              type="button"
+              onClick={() => {
+                if (!playing && cursorMs >= clipTo) {
+                  cursorRef.current = clipFrom;
+                  setCursorMs(clipFrom);
+                }
+                setPlaying(!playing);
+              }}
+              aria-label={playing ? words.pause : words.play}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-muted"
+            >
+              {playing ? (
+                <Pause className="size-4 fill-current" aria-hidden />
+              ) : (
+                <Play
+                  className="size-4 translate-x-px fill-current"
+                  aria-hidden
+                />
+              )}
+            </button>
+          );
+          const chart = (scrubber: boolean) => (
+            <DeltaChart
+              scrubber={scrubber}
+              passes={others.filter((p) => !hidden.has(p.key))}
+              reference={reference}
+              inkOf={inkOf}
+              totalMs={totalMs}
+              cursorMs={cursorMs}
+              onCursor={(ms) => {
+                setPlaying(false);
+                setCursorMs(Math.min(clipTo, Math.max(clipFrom, ms)));
+              }}
+              axisLabel={words.deltaAxis}
+              description={words.deltaChart}
+              timelineLabel={words.timeline}
+              locale={locale}
+            />
+          );
+          if (kind !== "jump")
+            // A corner's timeline is the gap chart itself (by request,
+            // 2026-11-05, from a design): what has played shaded, the
+            // cursor a bar to drag, the play button beside it and the
+            // whole time after it.
+            return (
+              <div className="mt-4 flex items-center gap-4 rounded-[16px] border border-border px-4 py-3 sm:gap-6 sm:px-6">
+                <div className="flex shrink-0 flex-col items-center gap-3">
+                  <span className="hidden text-base font-medium whitespace-nowrap sm:block">
+                    {words.timelineAxis}
+                  </span>
+                  {playButton}
+                </div>
+                <div className="min-w-0 flex-1">{chart(true)}</div>
+                <span className="hidden shrink-0 text-xl font-medium tabular-nums sm:block">
+                  {stopwatch(clipTo)}
+                </span>
+              </div>
+            );
+          return (
+            <>
+              {/* The clock. */}
+              <div className="mt-4 flex items-center gap-3 sm:gap-4">
+                {playButton}
+                {/* A corner's time is on its map; a jump's stays here. */}
+                {kind === "jump" && (
+                  <span className="w-[86px] shrink-0 text-sm tabular-nums">
+                    {stopwatch(cursorMs)}
+                  </span>
+                )}
+                <input
+                  type="range"
+                  min={clipFrom}
+                  max={clipTo}
+                  step={10}
+                  value={cursorMs}
+                  aria-label={words.timeline}
+                  onChange={(e) => {
+                    setPlaying(false);
+                    setCursorMs(Number(e.target.value));
+                  }}
+                  // Drawn by hand, without the browser's outlined track (by
+                  // request, 2026-10-28): a plain bar, ink up to the cursor, and no
+                  // knob — the thumb is still there to drag, unseen.
+                  className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-transparent [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-transparent"
+                  style={{
+                    background: `linear-gradient(to right, var(--foreground) ${(100 * (cursorMs - clipFrom)) / Math.max(1, clipTo - clipFrom)}%, color-mix(in srgb, var(--foreground) 12%, transparent) 0)`,
+                  }}
+                />
+                <span className="hidden w-[86px] shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
+                  {stopwatch(clipTo)}
+                </span>
+              </div>
 
-        <DeltaChart
-          passes={others.filter((p) => !hidden.has(p.key))}
-          reference={reference}
-          inkOf={inkOf}
-          totalMs={totalMs}
-          cursorMs={cursorMs}
-          onCursor={(ms) => {
-            setPlaying(false);
-            setCursorMs(Math.min(clipTo, Math.max(clipFrom, ms)));
-          }}
-          axisLabel={words.deltaAxis}
-          description={words.deltaChart}
-          locale={locale}
-        />
+              {chart(false)}
+            </>
+          );
+        })()}
       </div>
     </section>
   );
@@ -536,6 +739,10 @@ function GapPill({
 }
 
 function SimulationMap({
+  clock,
+  views,
+  ghost,
+  widened,
   passes,
   framed,
   reference,
@@ -545,6 +752,16 @@ function SimulationMap({
   cursorMs,
   readout,
 }: {
+  /** The time at the cursor, in the plate's bottom-left corner. */
+  clock?: React.ReactNode;
+  /** The view buttons, in the plate's bottom-right corner. */
+  views?: React.ReactNode;
+  /** Ghosts: the others are dots on the reference's line, without lines
+   * of their own, which would only lie on top of it. */
+  ghost: boolean;
+  /** The stretch's trail opened out to hold the lines, or null for the
+   * trail as wide as a trail everywhere. */
+  widened: WidenedStretch | null;
   passes: SimulationPass[];
   /** All the passes, shown or not, which the map is fitted to. */
   framed: SimulationPass[];
@@ -553,9 +770,9 @@ function SimulationMap({
   inkOf: (p: SimulationPass) => string;
   surroundings: [number, number][];
   cursorMs: number;
-  readout: React.ReactNode;
+  readout?: React.ReactNode;
 }) {
-  const [ref, W] = useBoxWidth<HTMLDivElement>();
+  const [ref, W, boxEl] = useBoxWidth<HTMLDivElement>();
   // The pass under the mouse and where the mouse is, for its pill.
   const [hover, setHover] = useState<{
     key: string;
@@ -563,7 +780,7 @@ function SimulationMap({
     y: number;
   } | null>(null);
   const readHover = (key: string, e: ReactPointerEvent<SVGPathElement>) => {
-    const box = ref.current?.getBoundingClientRect();
+    const box = boxEl?.getBoundingClientRect();
     if (box) setHover({ key, x: e.clientX - box.left, y: e.clientY - box.top });
   };
   const hovered = hover && passes.find((p) => p.key === hover.key);
@@ -648,6 +865,22 @@ function SimulationMap({
   })();
   const gateTick = (end: "entry" | "exit") => {
     const n = stretch.length;
+    // Across the widened trail where it is wider: its own two edges there,
+    // a little past each.
+    if (widenedEdges) {
+      const k = end === "entry" ? widenedEdges.entryK : widenedEdges.exitK;
+      const [lx, ly] = widenedEdges.left[k];
+      const [rx, ry] = widenedEdges.right[k];
+      const len = Math.hypot(lx - rx, ly - ry) || 1;
+      const ux = (lx - rx) / len;
+      const uy = (ly - ry) / len;
+      return {
+        x1: rx - ux * 6,
+        y1: ry - uy * 6,
+        x2: lx + ux * 6,
+        y2: ly + uy * 6,
+      };
+    }
     const at = end === "entry" ? stretch[0] : stretch[n - 1];
     // The nearest point a pixel or more away, along the line.
     let other = at;
@@ -673,14 +906,88 @@ function SimulationMap({
 
   // The trail as wide as a trail (by request, 2026-10-28): the passes'
   // lines read as places within it, not as roads of their own.
-  const trailPx = Math.min(
-    TRAIL_MAX_PX,
-    Math.max(TRAIL_MIN_PX, TRAIL_WIDTH_M * scale),
-  );
+  // Ghosts ride a wider trail (by request, 2026-11-05): with one line on
+  // it, the dots have room either side.
+  const trailPx =
+    Math.min(TRAIL_MAX_PX, Math.max(TRAIL_MIN_PX, TRAIL_WIDTH_M * scale)) *
+    (ghost ? GHOST_TRAIL_FACTOR : 1);
   const trailPath = line(
     smoothPolyline(surroundings).map(([lat, lon]) => place(lat, lon)),
   );
   const stretchPath = traceLine(reference.trace);
+  // The widened stretch as a shape: its left edge out, its right edge back.
+  const widenedEdges = widened
+    ? (() => {
+        const half = trailPx / 2;
+        const left: [number, number][] = [];
+        const right: [number, number][] = [];
+        widened.latDeg.forEach((lat, k) => {
+          const [x, y] = place(lat, widened.lonDeg[k]);
+          const wl = Math.max(half, widened.leftM[k] * scale);
+          const wr = Math.max(half, widened.rightM[k] * scale);
+          // North is up the screen: y grows down.
+          left.push([x + widened.nx[k] * wl, y - widened.ny[k] * wl]);
+          right.push([x - widened.nx[k] * wr, y + widened.ny[k] * wr]);
+        });
+        // Each edge smoothed along the line over WIDEN_EDGE_SMOOTH_M, its
+        // ends kept on the gates: where the width changes faster than the
+        // line bends, an offset edge folds into a notch (2026-11-05).
+        const smoothEdge = (pts: [number, number][]) =>
+          pts.map((pt, k): [number, number] => {
+            const s = widened.alongM[k];
+            const last = widened.alongM[pts.length - 1];
+            const reach = Math.min(WIDEN_EDGE_SMOOTH_M / 2, s, last - s);
+            let x = 0;
+            let y = 0;
+            let count = 0;
+            for (let j = 0; j < pts.length; j++)
+              if (Math.abs(widened.alongM[j] - s) <= reach) {
+                x += pts[j][0];
+                y += pts[j][1];
+                count++;
+              }
+            return count > 0 ? [x / count, y / count] : pt;
+          });
+        // Where the gates stand on that line: the samples nearest the
+        // reference's two ends.
+        const nearest = (pt: [number, number]) => {
+          let best = 0;
+          let bestD = Infinity;
+          widened.latDeg.forEach((lat, k) => {
+            const [x, y] = place(lat, widened.lonDeg[k]);
+            const d = Math.hypot(x - pt[0], y - pt[1]);
+            if (d < bestD) {
+              bestD = d;
+              best = k;
+            }
+          });
+          return best;
+        };
+        const entryK = nearest(stretch[0]);
+        const exitK = Math.max(entryK, nearest(stretch[stretch.length - 1]));
+        return {
+          left: smoothEdge(left),
+          right: smoothEdge(right),
+          entryK,
+          exitK,
+        };
+      })()
+    : null;
+  const shapeOf = (from: number, to: number) =>
+    widenedEdges
+      ? `${line([
+          ...widenedEdges.left.slice(from, to + 1),
+          ...widenedEdges.right.slice(from, to + 1).reverse(),
+        ])} Z`
+      : null;
+  // The whole trail, and the stretch within it — the same two edges, so the
+  // two greys meet on the gates without a seam.
+  const widenedShape = widenedEdges
+    ? shapeOf(0, widenedEdges.left.length - 1)
+    : null;
+  const widenedStretchShape = widenedEdges
+    ? shapeOf(widenedEdges.entryK, widenedEdges.exitK)
+    : null;
   // Cut once per size, not per frame of the replay.
   const contours = useMemo(() => topoContours(W, H), [W, H]);
   // The followed pass on top, when it is on the map at all.
@@ -721,7 +1028,7 @@ function SimulationMap({
               outside the stretch, so the ground compared stands out. In
               the dark the stretch is darker than the plate, not lighter (by
               request, 2026-10-28); the trail either side stays as it was. */}
-          {[trailPath, stretchPath].map((d, i) => (
+          {(widenedShape ? [] : [trailPath, stretchPath]).map((d, i) => (
             <path
               key={`edge-${i}`}
               d={d}
@@ -733,7 +1040,7 @@ function SimulationMap({
               className="text-foreground/[0.13]"
             />
           ))}
-          {[trailPath, stretchPath].map((d, i) => (
+          {(widenedShape ? [] : [trailPath, stretchPath]).map((d, i) => (
             <path
               key={`ground-${i}`}
               d={d}
@@ -744,24 +1051,56 @@ function SimulationMap({
               strokeLinejoin="round"
             />
           ))}
-          <path
-            d={trailPath}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={trailPx}
-            strokeLinecap="butt"
-            strokeLinejoin="round"
-            className="text-foreground/[0.04]"
-          />
-          <path
-            d={stretchPath}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={trailPx}
-            strokeLinecap="butt"
-            strokeLinejoin="round"
-            className="text-foreground/[0.07] dark:text-black/35"
-          />
+          {/* Widened, the trail either side is drawn by its approaches
+              alone: the plain trail under the stretch would show past the
+              shape's edge wherever it strays from the reference's line. */}
+          {!widenedShape && (
+            <path
+              d={trailPath}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={trailPx}
+              strokeLinecap="butt"
+              strokeLinejoin="round"
+              className="text-foreground/[0.04]"
+            />
+          )}
+          {widenedShape ? (
+            <>
+              {/* The widened stretch, in the same three layers: its
+                  outline, the plate's grey, the stretch's grey. */}
+              <path
+                d={widenedShape}
+                style={{ fill: PLATE_GREY }}
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                className="text-foreground/[0.13]"
+              />
+              <path
+                d={widenedShape}
+                fill="currentColor"
+                className="text-foreground/[0.04]"
+              />
+              {widenedStretchShape && (
+                <path
+                  d={widenedStretchShape}
+                  fill="currentColor"
+                  className="text-foreground/[0.07] dark:text-black/35"
+                />
+              )}
+            </>
+          ) : (
+            <path
+              d={stretchPath}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={trailPx}
+              strokeLinecap="butt"
+              strokeLinejoin="round"
+              className="text-foreground/[0.07] dark:text-black/35"
+            />
+          )}
           {(["entry", "exit"] as const).map((end) => (
             <line
               key={end}
@@ -777,16 +1116,27 @@ function SimulationMap({
           {/* Each pass: the ground it has covered, then its dot. */}
           {order.map((p) => (
             <g key={p.key} className={inkOf(p)}>
-              {fadingLine(p.trace, cursorMs).map((piece, j) => (
+              {(ghost && p !== reference
+                ? []
+                : fadingLine(p.trace, cursorMs)
+              ).map((piece, j) => (
                 <path
                   key={j}
                   d={piece.d}
                   fill="none"
                   stroke="currentColor"
                   strokeOpacity={piece.opacity}
-                  strokeWidth={p === followed ? 3.5 : 2.5}
+                  strokeWidth={
+                    // The ghosts' one line bolder (by request, 2026-11-05).
+                    ghost ? 5 : p === followed ? 4 : 3
+                  }
                   strokeLinecap="butt"
                   strokeLinejoin="round"
+                  // The ghosts' one line in ink, its dot still the
+                  // reference's mint (by request, 2026-11-05).
+                  className={
+                    ghost && p === reference ? "text-foreground" : undefined
+                  }
                 />
               ))}
               {(() => {
@@ -796,7 +1146,16 @@ function SimulationMap({
                     cx={x}
                     cy={y}
                     // Small and without a ring (by request, 2026-10-28).
-                    r={p === followed ? 4.5 : 3.5}
+                    // Bigger as ghosts, the dots being all there is.
+                    r={
+                      ghost
+                        ? p === followed
+                          ? 8
+                          : 7
+                        : p === followed
+                          ? 5.5
+                          : 4.5
+                    }
                     fill="currentColor"
                   />
                 );
@@ -818,9 +1177,13 @@ function SimulationMap({
           ))}
         </svg>
       )}
-      <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
-        {readout}
-      </div>
+      {readout != null && (
+        <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
+          {readout}
+        </div>
+      )}
+      {clock && <div className="absolute bottom-4 left-4">{clock}</div>}
+      {views && <div className="absolute right-3 bottom-3">{views}</div>}
       {/* A soft outline round the plate (by request, 2026-10-28) — over
           the drawing, which would cover a ring of the box itself. */}
       <div
@@ -866,6 +1229,8 @@ function SimulationMap({
 }
 
 function DeltaChart({
+  scrubber = false,
+  timelineLabel,
   passes,
   reference,
   inkOf,
@@ -876,6 +1241,10 @@ function DeltaChart({
   description,
   locale,
 }: {
+  /** The timeline's own look (2026-11-05): framed, what has played
+   * shaded, the cursor a bar to drag, no dots. */
+  scrubber?: boolean;
+  timelineLabel?: string;
   passes: SimulationPass[];
   reference: SimulationPass;
   inkOf: (p: SimulationPass) => string;
@@ -887,7 +1256,7 @@ function DeltaChart({
   locale: Locale;
 }) {
   const [ref, W] = useBoxWidth<HTMLDivElement>();
-  const H = 110;
+  const H = scrubber ? 88 : 110;
   const PAD_Y = 10;
   const step = reference.trace.stepMs;
   const steps = Math.floor(reference.trace.durationMs / step);
@@ -910,20 +1279,132 @@ function DeltaChart({
   const bound =
     [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60].find((s) => s * 1000 >= most) ??
     Math.ceil(most / 1000);
-  const x = (ms: number) => (W * ms) / Math.max(1, totalMs);
+  const x0 = scrubber ? SCRUB_LABEL_PX : 0;
+  const x = (ms: number) => x0 + ((W - x0) * ms) / Math.max(1, totalMs);
   const y = (gapMs: number) =>
     H / 2 - ((H / 2 - PAD_Y) * gapMs) / (bound * 1000);
 
+  // The cursor moves only while held (by request, 2026-11-05): from the
+  // press to the release, captured so it keeps following past the frame.
+  const dragging = useRef(false);
   function read(event: ReactPointerEvent<SVGSVGElement>) {
-    if (
-      event.pointerType === "mouse" &&
-      event.buttons === 0 &&
-      event.type !== "pointerdown"
-    )
-      return;
+    if (event.type === "pointerdown") {
+      dragging.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } else if (!dragging.current) return;
     const box = event.currentTarget.getBoundingClientRect();
-    const f = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+    const f = Math.min(
+      1,
+      Math.max(0, (event.clientX - box.left - x0) / (box.width - x0)),
+    );
     onCursor(Math.round(f * totalMs));
+  }
+
+  const boundText = proNumber(bound, locale, bound < 1 ? 2 : 0);
+  if (scrubber) {
+    const cx = x(cursorMs);
+    return (
+      <div className="relative">
+        <div
+          ref={ref}
+          className="relative overflow-hidden rounded-[12px] border border-border bg-card"
+        >
+          {W > 0 && (
+            <svg
+              width={W}
+              height={H}
+              viewBox={`0 0 ${W} ${H}`}
+              className="block cursor-ew-resize touch-none outline-none select-none"
+              role="slider"
+              aria-label={timelineLabel ?? description}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(totalMs)}
+              aria-valuenow={Math.round(cursorMs)}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                // Arrows step a tenth of a second, shift a second.
+                const step = e.shiftKey ? 1000 : 100;
+                if (e.key === "ArrowRight") onCursor(cursorMs + step);
+                else if (e.key === "ArrowLeft") onCursor(cursorMs - step);
+                else return;
+                e.preventDefault();
+              }}
+              onPointerDown={read}
+              onPointerMove={read}
+              onPointerUp={() => (dragging.current = false)}
+              onPointerCancel={() => (dragging.current = false)}
+            >
+              {/* What has played, shaded. */}
+              <rect
+                x={0}
+                y={0}
+                width={Math.max(0, cx)}
+                height={H}
+                fill="currentColor"
+                className="text-foreground/[0.07]"
+              />
+              {[PAD_Y, H / 2, H - PAD_Y].map((gy) => (
+                <line
+                  key={gy}
+                  x1={SCRUB_LABEL_PX}
+                  x2={W}
+                  y1={gy}
+                  y2={gy}
+                  stroke="currentColor"
+                  strokeWidth={1}
+                  className="text-foreground/[0.08]"
+                />
+              ))}
+              {[
+                [PAD_Y, `+${boundText}`],
+                [H / 2, "0"],
+                [H - PAD_Y, `−${boundText}`],
+              ].map(([gy, label]) => (
+                <text
+                  key={String(gy)}
+                  x={SCRUB_LABEL_PX - 8}
+                  y={Number(gy)}
+                  textAnchor="end"
+                  dominantBaseline="central"
+                  fill="currentColor"
+                  className="text-[11px] text-muted-foreground tabular-nums"
+                >
+                  {label}
+                </text>
+              ))}
+              <line
+                x1={x(0)}
+                x2={x(reference.trace.durationMs)}
+                y1={H / 2}
+                y2={H / 2}
+                stroke="currentColor"
+                strokeWidth={2}
+                className={inkOf(reference)}
+              />
+              {series.map(({ pass, gaps }) => (
+                <path
+                  key={pass.key}
+                  d={`M${gaps.map(([ms, g]) => `${x(ms).toFixed(1)},${y(g).toFixed(1)}`).join(" L")}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  className={inkOf(pass)}
+                />
+              ))}
+            </svg>
+          )}
+        </div>
+        {/* The cursor: a bar past the frame, to grab. */}
+        {W > 0 && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-2 -bottom-2 w-[3px] -translate-x-1/2 rounded-full bg-foreground"
+            style={{ left: cx }}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -950,6 +1431,8 @@ function DeltaChart({
             aria-label={description}
             onPointerDown={read}
             onPointerMove={read}
+            onPointerUp={() => (dragging.current = false)}
+            onPointerCancel={() => (dragging.current = false)}
           >
             {[PAD_Y, H / 2, H - PAD_Y].map((gy) => (
               <line

@@ -715,13 +715,62 @@ export interface SnapshotPassTrace {
 
 export const SNAPSHOT_TRACE_STEP_MS = 50;
 
+/** The replay's line moves on from a fix only once the next is this far
+ * from it, m (by request, 2026-11-05). A fix a second with 1–2 m of noise
+ * moves more than a bike slowing to a stop does: R0167 in the Cabeço hairpin
+ * had a fix 0.3 m BACK up the trail at 2.5 km/h, and the curve through it
+ * drew a curl the bike never rode. Without the fixes closer than the noise,
+ * a stop is the dot slowing between two fixes that are apart, then going on. */
+export const SNAPSHOT_TRACE_MIN_STEP_M = 2;
+
+/** The fixes at least `minStepM` from the last one kept — the first and the
+ * last always, and the ones the curve reads at the gates, so each end of the
+ * line stays where it crossed — for the replay's line alone: the ground
+ * covered, and so the progress, stays read off every fix. */
+function steadyTrack(
+  track: SnapshotTrack,
+  minStepM: number,
+  gatesMs: number[],
+): SnapshotTrack {
+  const n = track.tMs.length;
+  const pinned = new Set<number>();
+  for (const ms of gatesMs) {
+    const k = segmentAt(track, ms);
+    for (let j = k - 1; j <= k + 2; j++) pinned.add(j);
+  }
+  const out: SnapshotTrack = { tMs: [], latDeg: [], lonDeg: [], distM: [] };
+  const keep = (k: number) => {
+    out.tMs.push(track.tMs[k]);
+    out.latDeg.push(track.latDeg[k]);
+    out.lonDeg.push(track.lonDeg[k]);
+    out.distM.push(track.distM[k]);
+  };
+  keep(0);
+  for (let k = 1; k < n - 1; k++) {
+    const j = out.tMs.length - 1;
+    const cos = Math.cos(out.latDeg[j] * RAD);
+    const metres = Math.hypot(
+      (track.lonDeg[k] - out.lonDeg[j]) * RAD * EARTH_R * cos,
+      (track.latDeg[k] - out.latDeg[j]) * RAD * EARTH_R,
+    );
+    if (metres >= minStepM || pinned.has(k)) keep(k);
+  }
+  if (n > 1) keep(n - 1);
+  return out;
+}
+
 export function snapshotPassTrace(
   prepared: SnapshotSession,
   pass: SnapshotPass,
   stepMs = SNAPSHOT_TRACE_STEP_MS,
+  minStepM = SNAPSHOT_TRACE_MIN_STEP_M,
 ): SnapshotPassTrace | null {
   const track = prepared.track;
   if (!track || track.tMs.length < 2) return null;
+  const steady =
+    minStepM > 0
+      ? steadyTrack(track, minStepM, [pass.entryMs, pass.exitMs])
+      : track;
   const durationMs = pass.exitMs - pass.entryMs;
   const d0 = distanceAt(track, pass.entryMs);
   const length = distanceAt(track, pass.exitMs) - d0;
@@ -738,7 +787,7 @@ export function snapshotPassTrace(
   const steps = Math.ceil(durationMs / stepMs);
   for (let k = 0; k <= steps; k++) {
     const at = pass.entryMs + Math.min(k * stepMs, durationMs);
-    const p = curvedPositionAt(track, at);
+    const p = curvedPositionAt(steady, at);
     trace.latDeg.push(p.latDeg);
     trace.lonDeg.push(p.lonDeg);
     trace.progress.push(
