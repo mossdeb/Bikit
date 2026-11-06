@@ -273,7 +273,9 @@ export function ImuSnapshotJumpProfile({
   // The top bike's angle now, in the world and not the drawing (by
   // request, 2026-11-06): the drawing's angle taken back through its
   // taller height scale. Nose up positive.
-  const shownDot = dotOf(shown);
+  // Only while its pass is on show: taken off by its box, the bike goes
+  // and its angle with it (2026-11-06).
+  const shownDot = passes.includes(shown) ? dotOf(shown) : null;
   /** How far above where it stands the bike's highest point is, px
    * (negative) — its box turned with it, so the angle's pill sits just
    * over it (2026-11-06, closer). */
