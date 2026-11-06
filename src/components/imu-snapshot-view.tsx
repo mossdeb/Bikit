@@ -364,6 +364,17 @@ async function downloadSnapshotSession(
     : { data: prepareSnapshotSession(result.data) };
 }
 
+/** A draft's title: the event's kind, and after it the name of the Snapshot
+ * already saved here. A name that already starts with the kind — the one
+ * suggested on saving, "Jump · 02:39" — stands alone, not "Jump · Jump". */
+function draftTitle(kind: string, savedName?: string | null): string {
+  const name = savedName?.trim();
+  if (!name) return kind;
+  return name.toLocaleLowerCase().startsWith(kind.toLocaleLowerCase())
+    ? name
+    : `${kind} · ${name}`;
+}
+
 export function ImuSnapshotView({
   snapshot,
   candidates,
@@ -371,6 +382,7 @@ export function ImuSnapshotView({
   draft = false,
   loadSession,
   closeSlot,
+  savedName,
 }: {
   snapshot: ImuSnapshotRow;
   candidates: ImuSnapshotCandidate[];
@@ -384,6 +396,9 @@ export function ImuSnapshotView({
   loadSession?: ImuSnapshotSessionLoader;
   /** The popup's close, drawn in the head's corner (2026-10-29). */
   closeSlot?: React.ReactNode;
+  /** In a draft, the name of a Snapshot already saved on these gates —
+   * shown after the event's kind, "Jump · Salto da Árvore" (2026-11-06). */
+  savedName?: string | null;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -799,7 +814,10 @@ export function ImuSnapshotView({
               </p>
               <h1 className="font-display text-[32px] leading-9 font-bold tracking-[-0.6px]">
                 {draft
-                  ? snapshotKindLabel(snapshot.definition.kind, locale)
+                  ? draftTitle(
+                      snapshotKindLabel(snapshot.definition.kind, locale),
+                      savedName,
+                    )
                   : snapshot.name}
               </h1>
               <p className="text-sm text-muted-foreground">

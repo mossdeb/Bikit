@@ -247,6 +247,9 @@ export function ImuSnapshotCreate({
               candidates={candidates}
               fromSessionId={sessionId}
               loadSession={loadSession}
+              // The one saved here, by name (2026-11-06) — or the one just
+              // saved from this popup.
+              savedName={twin?.name ?? (savedId ? name || suggested : null)}
             />
           ) : (
             !error && (
