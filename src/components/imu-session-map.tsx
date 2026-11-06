@@ -307,6 +307,7 @@ export function ImuSessionMap({
   speedOn,
   cursorMs,
   onSeek,
+  onEventPick,
   title,
   className,
 }: {
@@ -323,6 +324,9 @@ export function ImuSessionMap({
   speedOn: boolean;
   cursorMs: number | null;
   onSeek: (ms: number) => void;
+  /** A press on an event's mark (2026-11-06): the event itself, for the
+   * page to bring the chart to it. The press is not also a seek. */
+  onEventPick?: (event: ImuEvent) => void;
   /** Names the map over its own corner, when the layout wants it named —
    * overlaid rather than given a header row, so it costs the picture no
    * height. */
@@ -392,6 +396,10 @@ export function ImuSessionMap({
   useEffect(() => {
     onSeekRef.current = onSeek;
   }, [onSeek]);
+  const onEventPickRef = useRef(onEventPick);
+  useEffect(() => {
+    onEventPickRef.current = onEventPick;
+  }, [onEventPick]);
   /** Counts the maps built so far — the needle, mark and track effects run
    * on mount, before the map exists, and need a reason to run again once
    * it does. A counter and not a boolean on purpose: when the track changes
@@ -778,9 +786,11 @@ export function ImuSessionMap({
               iconSize: [size, size],
               iconAnchor: [size / 2, size / 2],
             }),
-            interactive: false,
             keyboard: false,
-          }).addTo(layer);
+            bubblingMouseEvents: false,
+          })
+            .on("click", () => onEventPickRef.current?.(event))
+            .addTo(layer);
           continue;
         }
         // A brake is ranged too, but where it began is the braking point
@@ -809,7 +819,11 @@ export function ImuSessionMap({
                 ? "#FFD466"
                 : "#43F3AF",
           fillOpacity: 1,
-        }).addTo(layer);
+          // Its own press, not the map's seek under it.
+          bubblingMouseEvents: false,
+        })
+          .on("click", () => onEventPickRef.current?.(event))
+          .addTo(layer);
       }
       restack();
     })();

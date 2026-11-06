@@ -1200,6 +1200,21 @@ function describeEvent(
  * cursor. Every readout comes from the raw samples via nearestSampleIndex;
  * downsampling only ever touches what is drawn.
  */
+/** When an event happened, start to end: a point event is an instant. */
+function eventSpanMs(event: ImuEvent): [number, number] {
+  switch (event.kind) {
+    case "jump":
+    case "drop":
+      return [event.takeoffMs, event.landingMs];
+    case "impact":
+      return [event.timeMs, event.timeMs];
+    case "crash":
+      return [event.startMs, event.downMs ?? event.endMs];
+    default:
+      return "startMs" in event ? [event.startMs, event.endMs] : [0, 0];
+  }
+}
+
 export function ImuSessionAnalysis({
   sessionId,
   storagePath,
@@ -2142,6 +2157,22 @@ export function ImuSessionAnalysis({
     }
   }
 
+  /** Slides the chart's window, its width kept, until [from, to] stands
+   * inside it with a margin — centred on it when it was out of view, left
+   * alone when it already showed. Wider than the window, it widens. */
+  function revealSpan(from: number, to: number) {
+    if (!windowMs) return;
+    const [w0, w1] = windowMs;
+    const margin = (w1 - w0) * 0.1;
+    if (from >= w0 + margin && to <= w1 - margin) return;
+    const width = Math.max(w1 - w0, (to - from) * 1.5);
+    const centre = (from + to) / 2;
+    let start = centre - width / 2;
+    start = Math.max(full[0], Math.min(full[1] - width, start));
+    const end = Math.min(full[1], start + width);
+    setWindowMs(end - start >= full[1] - full[0] ? null : [start, end]);
+  }
+
   function zoomAround(factor: number) {
     const center =
       cursorMs != null && cursorMs >= win[0] && cursorMs <= win[1]
@@ -2726,6 +2757,14 @@ export function ImuSessionAnalysis({
                 // it holds is not a seek.
                 onSeek={(ms) => {
                   if (!cursorLocked) setCursorMs(ms);
+                }}
+                // An event's mark brings the chart to it (by request,
+                // 2026-11-06): the window slides, keeping its width, until
+                // the event stands in it, and the cursor goes to the event.
+                onEventPick={(event) => {
+                  const [from, to] = eventSpanMs(event);
+                  setCursorMs(from);
+                  revealSpan(from, to);
                 }}
                 title={t.map.title}
                 // The hairline reaches the map too. Its surface is `--sidebar`
