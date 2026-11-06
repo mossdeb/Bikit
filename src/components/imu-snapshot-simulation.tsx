@@ -763,9 +763,8 @@ export function ImuSnapshotSimulation({
         )}
         {kind === "jump" && (
           <>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {words.jump.estimate}
-            </p>
+            {/* The estimate note under the drawing, hidden by request
+                (2026-11-06); the string stays in the dictionary. */}
             {/* The passes at the cursor, under the drawing as on a
                 corner (2026-11-05). */}
             <div className="mt-3">{readout}</div>
