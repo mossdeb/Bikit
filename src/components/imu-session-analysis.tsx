@@ -62,7 +62,11 @@ import type {
   ImuTimedTrack,
   ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
-import { prepareSnapshotSession, snapshotKindOf } from "@/lib/imu/snapshot";
+import {
+  firstWheelAt,
+  prepareSnapshotSession,
+  snapshotKindOf,
+} from "@/lib/imu/snapshot";
 import {
   ImuSnapshotCreate,
   type ImuSnapshotTwin,
@@ -426,16 +430,6 @@ const LSM_CEILING_G = 15.995;
 /** How long after a jump's landing its exit speed is read — past the
  * landing's own shock, where the speed says what the jump gave back. */
 const JUMP_EXIT_MS = 1500;
-/** The window after touchdown the first wheel is read in, and the pitch
- * rate that counts as the other wheel coming down. Checked on 191 jumps:
- * front first (the nose snapping UP as the rear drops) 100, landing at a
- * median 8.9 G; rear first 29, at 5.6 G; both together 62, at 7.1 G. */
-const FIRST_WHEEL_MS = 150;
-const FIRST_WHEEL_DPS = 80;
-/** The pitch rate smoothed over this, so one sample's chatter on the
- * landing's shock does not decide the wheel. */
-const FIRST_WHEEL_SMOOTH_MS = 50;
-
 /**
  * A jump's pitch: the rotation in the air (takeoff to landing, degrees,
  * nose down positive) and the wheel that met the ground first — read off
@@ -455,26 +449,9 @@ function jumpPitch(
   let rotationDeg = 0;
   for (let i = i0 + 1; i <= i1; i++)
     rotationDeg += (gy[i] * (tMs[i] - tMs[i - 1])) / 1000;
-  // The first swing past the threshold, the rate averaged over
-  // FIRST_WHEEL_SMOOTH_MS around each sample.
-  const half = FIRST_WHEEL_SMOOTH_MS / 2;
-  let firstWheel: "front" | "rear" | "both" = "both";
-  let lo = i1;
-  let hi = i1;
-  let sum = 0;
-  for (let i = i1; i < n && tMs[i] <= event.landingMs + FIRST_WHEEL_MS; i++) {
-    while (hi < n && tMs[hi] <= tMs[i] + half) sum += gy[hi++];
-    while (tMs[lo] < tMs[i] - half) sum -= gy[lo++];
-    const rate = sum / (hi - lo);
-    if (rate <= -FIRST_WHEEL_DPS) {
-      firstWheel = "front";
-      break;
-    }
-    if (rate >= FIRST_WHEEL_DPS) {
-      firstWheel = "rear";
-      break;
-    }
-  }
+  // The first swing past the threshold — the reader the Snapshot's
+  // landing shares (2026-11-06).
+  const firstWheel = firstWheelAt(tMs, gy, i1, event.landingMs);
   return { rotationDeg, firstWheel };
 }
 

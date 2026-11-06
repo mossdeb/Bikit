@@ -193,6 +193,9 @@ export interface Column {
   speed?: boolean;
   value: (m: SnapshotPassMetrics) => number | null;
   digits: number;
+  /** A word under the figure, when the column has one (the landing's
+   * first wheel, 2026-11-06). */
+  note?: (m: SnapshotPassMetrics) => "front" | "rear" | "both" | null;
   /** Which way is better, when there is one. */
   better?: "lower" | "higher";
   tie: number;
@@ -303,6 +306,28 @@ const PEAK_G: Column = {
   digits: 1,
   tie: 0.3,
 };
+/** The landing's impact, as the side view's Landing reads it (by request,
+ * 2026-11-06): a jump's column, where Peak G took the hardest hit
+ * anywhere between the gates. */
+const LANDING_G: Column = {
+  key: "landingG",
+  label: "landingG",
+  unit: "G",
+  value: (m) => m.landingG,
+  note: (m) => m.firstWheel,
+  digits: 1,
+  tie: 0.3,
+};
+/** The compression on the lip, in the half second before the wheels left
+ * (by request, 2026-11-06) — the jump card's Lip. */
+const LIP_G: Column = {
+  key: "lipG",
+  label: "lipG",
+  unit: "G",
+  value: (m) => m.lipG,
+  digits: 1,
+  tie: 0.3,
+};
 const AIRTIME: Column = {
   key: "airtime",
   label: "airtime",
@@ -328,7 +353,7 @@ export const SNAPSHOT_COLUMNS: Record<SnapshotKind, Column[]> = {
   // by what it took off with, how long it flew and how hard it landed; a
   // brake by the speed before and after and what it took off; a rough
   // stretch by the speed through it and how hard it hit.
-  jump: [TIME, TAKEOFF, AIRTIME, PEAK_G, IMPACTS],
+  jump: [TIME, TAKEOFF, LIP_G, AIRTIME, LANDING_G, IMPACTS],
   rough_section: [TIME, ENTRY, EXIT, PEAK_G, IMPACTS],
   braking: [TIME, ENTRY, EXIT, SPEED_LOST, DECEL, IMPACTS],
 };
@@ -1468,6 +1493,11 @@ function PassStat({
           </span>
         )}
       </p>
+      {column.note?.(row.metrics) && (
+        <p className="mt-0.5 text-xs leading-tight whitespace-nowrap text-muted-foreground">
+          {t.snapshots.view.firstWheel[column.note(row.metrics)!]}
+        </p>
+      )}
       {diff != null && tone && (
         <span
           title={tone === "tie" ? t.snapshots.view.tieTitle : undefined}

@@ -203,6 +203,63 @@ export interface SnapshotPassMetrics {
   takeoffKmh: number | null;
   /** The highest G force between the gates. */
   peakG: number | null;
+  /** The first flight's landing: the hardest G in the LANDING_WINDOW_MS
+   * after touching down (by request, 2026-11-06) — the impact a jump's
+   * column is about, where Peak G can be a root or the lip. Null without
+   * a flight. */
+  landingG: number | null;
+  /** The lip: the hardest G in the LIP_WINDOW_MS before the first
+   * take-off — how hard the jump was loaded, as the jump card's Lip reads
+   * it (2026-11-06). Null without a flight. */
+  lipG: number | null;
+  /** Which wheel met the ground first on that landing (firstWheelAt).
+   * Null without a flight, or without the bike's forward known. */
+  firstWheel: FirstWheel | null;
+}
+
+/** How far before take-off the lip's compression is looked for, ms — the
+ * jump card's half second. */
+const LIP_WINDOW_MS = 500;
+
+/** The window after touchdown the first wheel is read in, and the pitch
+ * rate that counts as the other wheel coming down. Checked on 191 jumps:
+ * front first (the nose snapping UP as the rear drops) 100, landing at a
+ * median 8.9 G; rear first 29, at 5.6 G; both together 62, at 7.1 G. */
+const FIRST_WHEEL_MS = 150;
+const FIRST_WHEEL_DPS = 80;
+/** The pitch rate smoothed over this, so one sample's chatter on the
+ * landing's shock does not decide the wheel. */
+const FIRST_WHEEL_SMOOTH_MS = 50;
+
+export type FirstWheel = "front" | "rear" | "both";
+
+/**
+ * The wheel that met the ground first, read off the first pitch swing past
+ * FIRST_WHEEL_DPS after touchdown (sample `i1`). The nose snapping up means
+ * the front was down and the rear fell onto it; the nose slapping down,
+ * the other way round; no swing, both at once. The pitch rate is the bike
+ * frame's gy, positive nose down — only meaningful with its forward known.
+ * Shared by the jump card and the Snapshot's landing (2026-11-06).
+ */
+export function firstWheelAt(
+  tMs: Float64Array,
+  gy: ArrayLike<number>,
+  i1: number,
+  landingMs: number,
+): FirstWheel {
+  const n = tMs.length;
+  const half = FIRST_WHEEL_SMOOTH_MS / 2;
+  let lo = i1;
+  let hi = i1;
+  let sum = 0;
+  for (let i = i1; i < n && tMs[i] <= landingMs + FIRST_WHEEL_MS; i++) {
+    while (hi < n && tMs[hi] <= tMs[i] + half) sum += gy[hi++];
+    while (tMs[lo] < tMs[i] - half) sum -= gy[lo++];
+    const rate = sum / (hi - lo);
+    if (rate <= -FIRST_WHEEL_DPS) return "front";
+    if (rate >= FIRST_WHEEL_DPS) return "rear";
+  }
+  return "both";
 }
 
 /** East and north, m, from the first point to the second. */
@@ -956,6 +1013,7 @@ export function snapshotPassMetrics(
   let impacts = 0;
   let airtimeMs = 0;
   let firstTakeoffMs: number | null = null;
+  let firstLandingMs: number | null = null;
   for (const e of session.events) {
     if (e.kind === "impact" && e.timeMs >= entryMs && e.timeMs <= exitMs)
       impacts++;
@@ -965,8 +1023,10 @@ export function snapshotPassMetrics(
       e.takeoffMs <= exitMs
     ) {
       airtimeMs += e.airtimeMs;
-      if (firstTakeoffMs == null || e.takeoffMs < firstTakeoffMs)
+      if (firstTakeoffMs == null || e.takeoffMs < firstTakeoffMs) {
         firstTakeoffMs = e.takeoffMs;
+        firstLandingMs = e.landingMs;
+      }
     }
   }
   const metrics: SnapshotPassMetrics = {
@@ -987,6 +1047,33 @@ export function snapshotPassMetrics(
     airtimeMs,
     takeoffKmh: null,
     peakG: windowPeak(tMs, gForce, entryMs, exitMs),
+    landingG:
+      firstLandingMs == null
+        ? null
+        : windowPeak(
+            tMs,
+            gForce,
+            firstLandingMs,
+            firstLandingMs + LANDING_WINDOW_MS,
+          ),
+    lipG:
+      firstTakeoffMs == null
+        ? null
+        : windowPeak(
+            tMs,
+            gForce,
+            firstTakeoffMs - LIP_WINDOW_MS,
+            firstTakeoffMs,
+          ),
+    firstWheel:
+      firstLandingMs == null || !session.mounting?.applied
+        ? null
+        : firstWheelAt(
+            tMs,
+            session.channels.gy,
+            Math.min(tMs.length - 1, lowerBoundIndex(tMs, firstLandingMs)),
+            firstLandingMs,
+          ),
   };
   if (!speedKmh || tMs.length === 0) return metrics;
 

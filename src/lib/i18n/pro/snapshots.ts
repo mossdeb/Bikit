@@ -32,6 +32,8 @@ const en = {
     takeoff: "Takeoff",
     impacts: "Impacts",
     peakG: "Peak G",
+    landingG: "Landing G",
+    lipG: "Lip G",
     airtime: "Airtime",
   },
 
@@ -187,6 +189,12 @@ const en = {
     speedSourceGps: "straight-line GPS",
     speedSourceFused: "fused with the accelerometer",
     tieTitle: "Within the gates' precision — counts as a tie",
+    /** Under a jump's Landing G: which wheel touched first (2026-11-06). */
+    firstWheel: {
+      front: "Front first",
+      rear: "Rear first",
+      both: "Both wheels",
+    },
     settings: {
       title: "Snapshot settings",
       description:
@@ -282,6 +290,8 @@ const pt: typeof en = {
     takeoff: "Descolagem",
     impacts: "Impactos",
     peakG: "G máx",
+    landingG: "G aterragem",
+    lipG: "G no lábio",
     airtime: "No ar",
   },
 
@@ -407,6 +417,11 @@ const pt: typeof en = {
     speedSourceGps: "GPS em linha reta",
     speedSourceFused: "fundida com o acelerómetro",
     tieTitle: "Dentro da precisão das portas — conta como empate",
+    firstWheel: {
+      front: "Frente primeiro",
+      rear: "Traseira primeiro",
+      both: "As duas rodas",
+    },
     settings: {
       title: "Definições do Snapshot",
       description:
