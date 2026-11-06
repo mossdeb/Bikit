@@ -270,6 +270,10 @@ export function ImuSnapshotJumpProfile({
   // reference never left the ground.
   const shown = shapeOf(reference) ? reference : followed;
   const shownShape = shapeOf(shown);
+  // Its marks only while its pass is on show (by request, 2026-11-06):
+  // they are its figures, and over the other passes alone they would read
+  // as theirs. The ramps stay, drawn on its run either way.
+  const marked = shownShape != null && passes.includes(shown);
   // The top bike's angle now, in the world and not the drawing (by
   // request, 2026-11-06): the drawing's angle taken back through its
   // taller height scale. Nose up positive.
@@ -341,7 +345,7 @@ export function ImuSnapshotJumpProfile({
           ))}
           {/* The shown pass's marks: the lip, the apex, the landing, and
               the run and the height, ≈. */}
-          {shownShape && (
+          {marked && shownShape && (
             <g
               className="text-foreground/55"
               stroke="currentColor"
@@ -376,7 +380,7 @@ export function ImuSnapshotJumpProfile({
               />
             </g>
           )}
-          {shownShape && (
+          {marked && shownShape && (
             <g className="text-foreground" stroke="currentColor" fill="none">
               {/* The height, from the lip's line to the apex. */}
               <line
@@ -474,7 +478,7 @@ export function ImuSnapshotJumpProfile({
         </div>
       )}
       {/* The marks' words, over the drawing. */}
-      {W > 0 && shownShape && shown.flight && (
+      {W > 0 && marked && shownShape && shown.flight && (
         <>
           <Mark
             x={X(0)}
