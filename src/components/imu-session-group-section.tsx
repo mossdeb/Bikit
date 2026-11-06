@@ -86,7 +86,7 @@ export function ImuSessionGroupSection({
           disabled={count === 0}
           className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 py-2 text-left disabled:cursor-default"
         >
-          <span className="truncate font-display text-xl font-bold">
+          <span className="truncate font-display text-xl font-semibold">
             {title}
           </span>
           {count > 0 && (
