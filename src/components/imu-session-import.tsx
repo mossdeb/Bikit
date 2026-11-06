@@ -248,10 +248,15 @@ export function ImuSessionImport({
         <Plus data-icon="inline-start" />
         {t.importing.dialog.trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t.importing.dialog.title}</DialogTitle>
-          <DialogDescription className="mt-1">
+      {/* The reference layout (2026-11-06): a white header with the title
+          and the tabs, and below it a grey band holding the tab's own card.
+          The dialog's padding and gap are off so the band runs edge to edge. */}
+      <DialogContent className="gap-0 p-0 sm:max-w-[492px]">
+        <DialogHeader className="px-7 pt-8 pb-6 sm:px-10">
+          <DialogTitle className="text-[28px] leading-tight sm:text-[32px]">
+            {t.importing.dialog.title}
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-snug text-foreground">
             {t.importing.dialog.description}
           </DialogDescription>
         </DialogHeader>
@@ -263,137 +268,149 @@ export function ImuSessionImport({
           // item's min-width defaults to its content, and the device tab's
           // log is a <pre> with long lines — without this the log widened
           // the whole dialog past its max-width.
-          className="min-w-0 gap-4"
+          className="min-w-0 gap-0"
         >
-          <TabsList variant="pill" className="w-full border border-border">
-            <TabsTrigger value="device" className="flex-1 px-3 py-1.5">
-              {t.importing.dialog.tabDevice}
-            </TabsTrigger>
-            <TabsTrigger value="file" className="flex-1 px-3 py-1.5">
-              {t.importing.dialog.tabFile}
-            </TabsTrigger>
-          </TabsList>
+          <div className="px-7 pb-4 sm:px-12">
+            <TabsList variant="pill" className="w-full border border-border">
+              <TabsTrigger value="device" className="flex-1 px-3 py-2 text-sm">
+                {t.importing.dialog.tabDevice}
+              </TabsTrigger>
+              <TabsTrigger value="file" className="flex-1 px-3 py-2 text-sm">
+                {t.importing.dialog.tabFile}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent
-            value="device"
-            keepMounted
-            className="min-w-0 data-[hidden]:hidden"
-          >
-            <BikitDeviceImport
-              userId={userId}
-              riderDefault={riderDefault}
-              riders={riders}
-              bikes={bikes}
-              groups={groups}
-              onImported={finish}
-            />
-          </TabsContent>
-
-          <TabsContent value="file">
-            <div className="space-y-4">
-              <input
-                ref={fileRef}
-                type="file"
-                multiple
-                accept=".bkt,.BKT,.json,application/json,application/octet-stream"
-                className="block w-full text-sm text-muted-foreground file:mr-3 file:h-11 file:cursor-pointer file:rounded-full file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium file:text-secondary-foreground"
-                onChange={(event) => void handleFiles(event.target.files)}
+          <div className="min-w-0 bg-muted p-3">
+            <TabsContent
+              value="device"
+              keepMounted
+              className="min-w-0 rounded-[24px] bg-card data-[hidden]:hidden"
+            >
+              <BikitDeviceImport
+                userId={userId}
+                riderDefault={riderDefault}
+                riders={riders}
+                bikes={bikes}
+                groups={groups}
+                onImported={finish}
               />
+            </TabsContent>
 
-              {items.length > 0 && (
-                <>
-                  {items.length === 1 ? (
-                    // One file: its name is the one question asked of it.
-                    <div className="space-y-1.5 rounded-[12px] border border-border px-3 py-2.5">
-                      <Label htmlFor="imu-name-0">
-                        {t.importing.fields.name}
-                      </Label>
-                      <Input
-                        id="imu-name-0"
-                        value={items[0].name}
-                        onChange={(event) =>
-                          setItems((prev) => [
-                            { ...prev[0], name: event.target.value },
-                          ])
-                        }
-                      />
+            <TabsContent
+              value="file"
+              className="min-w-0 rounded-[24px] bg-card p-6 sm:p-7"
+            >
+              <div className="space-y-4">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  multiple
+                  accept=".bkt,.BKT,.json,application/json,application/octet-stream"
+                  className="block w-full text-sm text-muted-foreground file:mr-3 file:h-11 file:cursor-pointer file:rounded-full file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium file:text-secondary-foreground"
+                  onChange={(event) => void handleFiles(event.target.files)}
+                />
+
+                {items.length > 0 && (
+                  <>
+                    {items.length === 1 ? (
+                      // One file: its name is the one question asked of it.
+                      <div className="space-y-1.5 rounded-[12px] border border-border px-3 py-2.5">
+                        <Label htmlFor="imu-name-0">
+                          {t.importing.fields.name}
+                        </Label>
+                        <Input
+                          id="imu-name-0"
+                          value={items[0].name}
+                          onChange={(event) =>
+                            setItems((prev) => [
+                              { ...prev[0], name: event.target.value },
+                            ])
+                          }
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          {item0Meta(items[0])}
+                        </p>
+                      </div>
+                    ) : (
+                      // Several: the names as a list, read-only (by request,
+                      // 2026-10-27) — the dialog stays short, and each name
+                      // can be changed on the session afterwards.
+                      <ul className="divide-y divide-border rounded-[12px] border border-border">
+                        {items.map((item, i) => (
+                          <li
+                            key={`${item.file.name}-${i}`}
+                            className="flex items-baseline justify-between gap-3 px-3 py-2"
+                          >
+                            <span className="min-w-0 truncate text-sm font-medium">
+                              {item.name}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                              {formatSessionTime(item.summary.durationMs)} ·{" "}
+                              {t.importing.dialog.events(
+                                item.summary.eventCount,
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {items.length > 1 && (
                       <p className="text-sm text-muted-foreground">
-                        {item0Meta(items[0])}
+                        {t.importing.dialog.sharedHint}
                       </p>
-                    </div>
-                  ) : (
-                    // Several: the names as a list, read-only (by request,
-                    // 2026-10-27) — the dialog stays short, and each name
-                    // can be changed on the session afterwards.
-                    <ul className="divide-y divide-border rounded-[12px] border border-border">
-                      {items.map((item, i) => (
-                        <li
-                          key={`${item.file.name}-${i}`}
-                          className="flex items-baseline justify-between gap-3 px-3 py-2"
-                        >
-                          <span className="min-w-0 truncate text-sm font-medium">
-                            {item.name}
-                          </span>
-                          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                            {formatSessionTime(item.summary.durationMs)} ·{" "}
-                            {t.importing.dialog.events(item.summary.eventCount)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {items.length > 1 && (
-                    <p className="text-sm text-muted-foreground">
-                      {t.importing.dialog.sharedHint}
-                    </p>
-                  )}
-                  <ImuSessionDetailsFields
-                    idPrefix="imu"
-                    rider={rider}
-                    onRiderChange={setRider}
-                    riderDefault={riderDefault}
-                    riders={riders}
-                    bikeId={bikeId}
-                    onBikeIdChange={setBikeId}
-                    bikes={bikes}
-                    newBikeName={newBikeName}
-                    onNewBikeNameChange={setNewBikeName}
-                    groups={groups}
-                    groupId={groupId}
-                    onGroupIdChange={setGroupId}
-                    newGroupName={newGroupName}
-                    onNewGroupNameChange={setNewGroupName}
-                  />
-                </>
-              )}
+                    )}
+                    <ImuSessionDetailsFields
+                      idPrefix="imu"
+                      rider={rider}
+                      onRiderChange={setRider}
+                      riderDefault={riderDefault}
+                      riders={riders}
+                      bikeId={bikeId}
+                      onBikeIdChange={setBikeId}
+                      bikes={bikes}
+                      newBikeName={newBikeName}
+                      onNewBikeNameChange={setNewBikeName}
+                      groups={groups}
+                      groupId={groupId}
+                      onGroupIdChange={setGroupId}
+                      newGroupName={newGroupName}
+                      onNewGroupNameChange={setNewGroupName}
+                    />
+                  </>
+                )}
 
-              {/* Written on screen, never a toast — the garage rule. */}
-              {error && (
-                <p className="text-sm whitespace-pre-line text-destructive">
-                  {error}
-                </p>
-              )}
+                {/* Written on screen, never a toast — the garage rule. */}
+                {error && (
+                  <p className="text-sm whitespace-pre-line text-destructive">
+                    {error}
+                  </p>
+                )}
 
-              <Button
-                className="w-full"
-                variant="inverted"
-                disabled={
-                  items.length === 0 ||
-                  items.some((item) => !item.name.trim()) ||
-                  !groupFormValid(groupId, newGroupName) ||
-                  !bikeFormValid(bikeId, newBikeName) ||
-                  busy
-                }
-                onClick={handleImport}
-              >
-                {busy
-                  ? items.length > 1 && progress != null
-                    ? t.importing.dialog.importingProgress(progress, items.length)
-                    : t.importing.importingButton
-                  : t.importing.dialog.importMany(items.length)}
-              </Button>
-            </div>
-          </TabsContent>
+                <Button
+                  className="w-full"
+                  variant="inverted"
+                  disabled={
+                    items.length === 0 ||
+                    items.some((item) => !item.name.trim()) ||
+                    !groupFormValid(groupId, newGroupName) ||
+                    !bikeFormValid(bikeId, newBikeName) ||
+                    busy
+                  }
+                  onClick={handleImport}
+                >
+                  {busy
+                    ? items.length > 1 && progress != null
+                      ? t.importing.dialog.importingProgress(
+                          progress,
+                          items.length,
+                        )
+                      : t.importing.importingButton
+                    : t.importing.dialog.importMany(items.length)}
+                </Button>
+              </div>
+            </TabsContent>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>

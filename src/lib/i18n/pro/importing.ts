@@ -17,9 +17,9 @@ const en = {
   /** The import dialog (imu-session-import.tsx). */
   dialog: {
     trigger: "Import session",
-    title: "Import IMU session",
+    title: "Import sessions",
     description:
-      "From the device, over Bluetooth, or from a .BKT or JSON file. It is validated before it leaves here.",
+      "From the device, over Bluetooth, or from a .BKT or JSON file.",
     tabDevice: "Device",
     tabFile: "File",
     events: (n: number): string => (n === 1 ? "1 event" : `${n} events`),
@@ -60,6 +60,10 @@ const en = {
     connecting: "Connecting…",
     connect: "Connect",
     disconnect: "Disconnect",
+    /** The device card's heading and its two identity lines (2026-11-06). */
+    deviceTitle: "Device",
+    serialNumber: "Serial number",
+    firmwareVersion: "Firmware version",
     deviceDisconnected: "The device disconnected.",
     savedPinRefused:
       "The saved PIN is no longer accepted — enter the current one.",
@@ -72,8 +76,15 @@ const en = {
     emptyCard: "The card has no sessions.",
     transfer: "Transfer",
     refreshList: "Refresh list",
+    /** The list's next page, with how many are still hidden (2026-11-06). */
+    showMore: (hidden: number): string => `Show more (${hidden})`,
     manualIdLabel: "Or transfer session no.",
     transferring: (label: string): string => `Transferring ${label}`,
+    /** Several at once (2026-11-06). */
+    transferSelected: (n: number): string =>
+      n === 1 ? "Transfer 1 session" : `Transfer ${n} sessions`,
+    transferringMany: (label: string, i: number, n: number): string =>
+      `Transferring ${label} (${i} of ${n})`,
     validated: (label: string): string => `${label} · validated`,
     backToList: "Back to the list",
     failedValidation: (error: string): string =>
@@ -87,6 +98,8 @@ const en = {
       battery: "Battery",
       noReading: (raw: string): string => `no reading (${raw})`,
       card: "Card",
+      sdCard: "SD card",
+      ok: "OK",
       gpsFix: "Fix",
       gpsNoFix: "No fix",
       gpsNoData: "No data",
@@ -254,9 +267,9 @@ const pt: typeof en = {
 
   dialog: {
     trigger: "Importar sessão",
-    title: "Importar sessão IMU",
+    title: "Importar sessões",
     description:
-      "Do dispositivo, por Bluetooth, ou de um ficheiro .BKT ou JSON. É validada antes de sair daqui.",
+      "Do dispositivo, por Bluetooth, ou de um ficheiro .BKT ou JSON.",
     tabDevice: "Dispositivo",
     tabFile: "Ficheiro",
     events: (n) => `${n} eventos`,
@@ -290,6 +303,9 @@ const pt: typeof en = {
     connecting: "A ligar…",
     connect: "Ligar",
     disconnect: "Desligar",
+    deviceTitle: "Dispositivo",
+    serialNumber: "Número de série",
+    firmwareVersion: "Versão de firmware",
     deviceDisconnected: "O dispositivo desligou-se.",
     savedPinRefused: "O PIN guardado deixou de ser aceite — introduz o atual.",
     wrongPin: "PIN incorreto.",
@@ -301,8 +317,12 @@ const pt: typeof en = {
     emptyCard: "O cartão não tem sessões.",
     transfer: "Transferir",
     refreshList: "Atualizar lista",
+    showMore: (hidden) => `Ver mais (${hidden})`,
     manualIdLabel: "Ou transferir a sessão nº",
     transferring: (label) => `A transferir ${label}`,
+    transferSelected: (n) =>
+      n === 1 ? "Transferir 1 sessão" : `Transferir ${n} sessões`,
+    transferringMany: (label, i, n) => `A transferir ${label} (${i} de ${n})`,
     validated: (label) => `${label} · validada`,
     backToList: "Voltar à lista",
     failedValidation: (error) =>
@@ -315,6 +335,8 @@ const pt: typeof en = {
       battery: "Bateria",
       noReading: (raw) => `sem leitura (${raw})`,
       card: "Cartão",
+      sdCard: "Cartão SD",
+      ok: "OK",
       gpsFix: "Fix",
       gpsNoFix: "Sem fix",
       gpsNoData: "Sem dados",
