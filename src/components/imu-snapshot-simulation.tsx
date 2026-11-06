@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -636,6 +637,9 @@ export function ImuSnapshotSimulation({
               reference={reference}
               inkOf={inkOf}
               totalMs={totalMs}
+              // The jump's own window, as its side view (2026-11-06).
+              fromMs={clipFrom}
+              toMs={clipTo}
               cursorMs={cursorMs}
               onCursor={(ms) => {
                 setPlaying(false);
@@ -1241,6 +1245,8 @@ function DeltaChart({
   reference,
   inkOf,
   totalMs,
+  fromMs = 0,
+  toMs = totalMs,
   cursorMs,
   onCursor,
   axisLabel,
@@ -1255,6 +1261,11 @@ function DeltaChart({
   reference: SimulationPass;
   inkOf: (p: SimulationPass) => string;
   totalMs: number;
+  /** The span drawn, when it is not the whole clock: a jump's flights
+   * (2026-11-06, so the bar runs with the side view and does not start
+   * halfway along). */
+  fromMs?: number;
+  toMs?: number;
   cursorMs: number;
   onCursor: (ms: number) => void;
   axisLabel: string;
@@ -1262,6 +1273,7 @@ function DeltaChart({
   locale: Locale;
 }) {
   const [ref, W] = useBoxWidth<HTMLDivElement>();
+  const clipId = useId();
   // The scrubber fills its card inside the 1 px border (h-[106px]).
   const H = scrubber ? 104 : 110;
   const PAD_Y = 10;
@@ -1278,16 +1290,22 @@ function DeltaChart({
     gaps.push([totalMs, p.trace.durationMs - reference.trace.durationMs]);
     return { pass: p, gaps };
   });
+  const span = Math.max(1, toMs - fromMs);
+  // The scale from what is in the window, not the run-in outside it.
   const most = Math.max(
     200,
-    ...series.flatMap((s) => s.gaps.map(([, g]) => Math.abs(g))),
+    ...series.flatMap((s) =>
+      s.gaps
+        .filter(([ms]) => ms >= fromMs && ms <= toMs)
+        .map(([, g]) => Math.abs(g)),
+    ),
   );
   // A round bound above the largest gap, in seconds.
   const bound =
     [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60].find((s) => s * 1000 >= most) ??
     Math.ceil(most / 1000);
   const x0 = scrubber ? SCRUB_LABEL_PX : 0;
-  const x = (ms: number) => x0 + ((W - x0) * ms) / Math.max(1, totalMs);
+  const x = (ms: number) => x0 + ((W - x0) * (ms - fromMs)) / span;
   const y = (gapMs: number) =>
     H / 2 - ((H / 2 - PAD_Y) * gapMs) / (bound * 1000);
 
@@ -1304,7 +1322,7 @@ function DeltaChart({
       1,
       Math.max(0, (event.clientX - box.left - x0) / (box.width - x0)),
     );
-    onCursor(Math.round(f * totalMs));
+    onCursor(Math.round(fromMs + f * span));
   }
 
   const boundText = proNumber(bound, locale, bound < 1 ? 2 : 0);
@@ -1321,8 +1339,8 @@ function DeltaChart({
               className="block cursor-ew-resize touch-none outline-none select-none"
               role="slider"
               aria-label={timelineLabel ?? description}
-              aria-valuemin={0}
-              aria-valuemax={Math.round(totalMs)}
+              aria-valuemin={Math.round(fromMs)}
+              aria-valuemax={Math.round(toMs)}
               aria-valuenow={Math.round(cursorMs)}
               tabIndex={0}
               onKeyDown={(e) => {
@@ -1376,26 +1394,32 @@ function DeltaChart({
                   {label}
                 </text>
               ))}
-              <line
-                x1={x(0)}
-                x2={x(reference.trace.durationMs)}
-                y1={H / 2}
-                y2={H / 2}
-                stroke="currentColor"
-                strokeWidth={2}
-                className={inkOf(reference)}
-              />
-              {series.map(({ pass, gaps }) => (
-                <path
-                  key={pass.key}
-                  d={`M${gaps.map(([ms, g]) => `${x(ms).toFixed(1)},${y(g).toFixed(1)}`).join(" L")}`}
-                  fill="none"
+              {/* The lines held to the window: past it is the run-in. */}
+              <clipPath id={clipId}>
+                <rect x={x0} y={0} width={Math.max(0, W - x0)} height={H} />
+              </clipPath>
+              <g clipPath={`url(#${clipId})`}>
+                <line
+                  x1={x(0)}
+                  x2={x(reference.trace.durationMs)}
+                  y1={H / 2}
+                  y2={H / 2}
                   stroke="currentColor"
                   strokeWidth={2}
-                  strokeLinejoin="round"
-                  className={inkOf(pass)}
+                  className={inkOf(reference)}
                 />
-              ))}
+                {series.map(({ pass, gaps }) => (
+                  <path
+                    key={pass.key}
+                    d={`M${gaps.map(([ms, g]) => `${x(ms).toFixed(1)},${y(g).toFixed(1)}`).join(" L")}`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                    className={inkOf(pass)}
+                  />
+                ))}
+              </g>
             </svg>
           )}
         </div>
