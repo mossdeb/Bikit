@@ -375,7 +375,12 @@ export function ImuSnapshotJumpProfile({
             </g>
           )}
           {/* Each pass's arc, dashed, and its dot on the clock. */}
-          {order.map((p) => {
+          {order.map((p, i) => {
+            // Drawn last is on top, at full strength; each bike under it
+            // a little fainter (by request, 2026-11-06), so the stack
+            // reads when they fly together.
+            const depth = order.length - 1 - i;
+            const bikeOpacity = Math.max(0.3, 1 - 0.22 * depth);
             const shape = shapeOf(p);
             const dot = dotOf(p);
             return (
@@ -411,6 +416,7 @@ export function ImuSnapshotJumpProfile({
                     y={dot.y}
                     angleDeg={angleOf(p)}
                     widthPx={bikePx}
+                    opacity={bikeOpacity}
                   />
                 )}
               </g>
@@ -513,16 +519,19 @@ function Bike({
   y,
   angleDeg,
   widthPx,
+  opacity = 1,
 }: {
   x: number;
   y: number;
   angleDeg: number;
   widthPx: number;
+  opacity?: number;
 }) {
   const k = widthPx / 101;
   return (
     <g
       transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${angleDeg.toFixed(1)}) scale(${k.toFixed(4)}) translate(-50.44,-60)`}
+      opacity={opacity}
       stroke="currentColor"
       // About 3 px whatever the size (2026-11-06, a little thicker).
       strokeWidth={3 / k}
