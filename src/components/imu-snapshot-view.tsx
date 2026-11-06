@@ -1064,10 +1064,12 @@ export function ImuSnapshotView({
         )}
       </div>
 
-      {/* The replay of the passes on show (by request, 2026-10-28). */}
+      {/* The replay of the passes on show (by request, 2026-10-28) — the
+          reference's alone too, when no other pass is there (2026-11-06):
+          a run is worth seeing replayed on its own. */}
       {pending === 0 &&
         mapData &&
-        simulated.length > 1 &&
+        simulated.length > 0 &&
         SIMULATED_KINDS.has(snapshot.definition.kind) && (
           <ImuSnapshotSimulation
             passes={simulated}

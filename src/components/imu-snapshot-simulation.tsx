@@ -534,7 +534,9 @@ export function ImuSnapshotSimulation({
                   aria-label={words.select(p.name)}
                   onClick={() => setFollowKey(p.key)}
                   className={cn(
-                    "flex min-w-0 flex-1 items-start gap-3 py-3 pr-3 pl-2 text-left",
+                    // Wraps so a jump's figures take a line of their own,
+                    // the whole width (2026-11-06).
+                    "flex min-w-0 flex-1 flex-wrap items-start gap-x-3 py-3 pr-3 pl-2 text-left",
                     hidden.has(p.key) && "opacity-50",
                   )}
                 >
@@ -551,64 +553,6 @@ export function ImuSnapshotSimulation({
                         {stopwatch(p.trace.durationMs)}
                       </span>
                     )}
-                    {/* A jump's flight under its time (by request,
-                        2026-11-06): the airtime, measured, and the
-                        distance it makes — the two that tell one pass's
-                        jump from another, given weight beside the time.
-                        The height, ≈ 0.1 m on nearly every jump, stays
-                        in the side view. */}
-                    {kind === "jump" &&
-                      p.flight &&
-                      (() => {
-                        const shape = flightShape(
-                          p.flight.airtimeMs,
-                          p.flight.takeoffKmh,
-                        );
-                        const num = (v: number, d = 1) =>
-                          proNumber(v, locale, d);
-                        return (
-                          <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 whitespace-nowrap tabular-nums">
-                            {/* The time between the gates first, as one of
-                                the three (by request, 2026-11-06). */}
-                            <span className="block">
-                              <span className="block text-xs text-muted-foreground">
-                                {words.timelineAxis}
-                              </span>
-                              <span className="block text-[15px] font-semibold">
-                                {stopwatch(p.trace.durationMs)}
-                              </span>
-                            </span>
-                            <span className="block">
-                              <span className="block text-xs text-muted-foreground">
-                                {words.jump.airtime}
-                              </span>
-                              <span className="block text-[15px] font-semibold">
-                                {num(p.flight.airtimeMs / 1000, 2)} s
-                              </span>
-                            </span>
-                            {shape && (
-                              <span className="block">
-                                <span className="block text-xs text-muted-foreground">
-                                  {words.jump.distance}
-                                </span>
-                                <span className="block text-[15px] font-semibold">
-                                  ≈ {num(shape.distanceM)} m
-                                </span>
-                              </span>
-                            )}
-                            {shape && (
-                              <span className="block">
-                                <span className="block text-xs text-muted-foreground">
-                                  {words.jump.height}
-                                </span>
-                                <span className="block text-[15px] font-semibold">
-                                  ≈ {num(shape.apexM)} m
-                                </span>
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })()}
                   </span>
                   {tone == null ? (
                     <span className="mt-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
@@ -627,6 +571,63 @@ export function ImuSnapshotSimulation({
                       </span>
                     </span>
                   )}
+                  {/* A jump's flight under its time (by request,
+                      2026-11-06): the airtime, measured, and the
+                      distance it makes — the two that tell one pass's
+                      jump from another, given weight beside the time.
+                      The height, ≈ 0.1 m on nearly every jump, stays
+                      in the side view. */}
+                  {kind === "jump" &&
+                    p.flight &&
+                    (() => {
+                      const shape = flightShape(
+                        p.flight.airtimeMs,
+                        p.flight.takeoffKmh,
+                      );
+                      const num = (v: number, d = 1) => proNumber(v, locale, d);
+                      return (
+                        <span className="mt-2 grid basis-full grid-cols-4 gap-x-2 whitespace-nowrap tabular-nums">
+                          {/* The time between the gates first, as one of
+                              the three (by request, 2026-11-06). */}
+                          <span className="block">
+                            <span className="block text-xs text-muted-foreground">
+                              {words.timelineAxis}
+                            </span>
+                            <span className="block text-[15px] font-semibold">
+                              {stopwatch(p.trace.durationMs)}
+                            </span>
+                          </span>
+                          <span className="block">
+                            <span className="block text-xs text-muted-foreground">
+                              {words.jump.airtime}
+                            </span>
+                            <span className="block text-[15px] font-semibold">
+                              {num(p.flight.airtimeMs / 1000, 2)} s
+                            </span>
+                          </span>
+                          {shape && (
+                            <span className="block">
+                              <span className="block text-xs text-muted-foreground">
+                                {words.jump.distance}
+                              </span>
+                              <span className="block text-[15px] font-semibold">
+                                ≈ {num(shape.distanceM)} m
+                              </span>
+                            </span>
+                          )}
+                          {shape && (
+                            <span className="block">
+                              <span className="block text-xs text-muted-foreground">
+                                {words.jump.height}
+                              </span>
+                              <span className="block text-[15px] font-semibold">
+                                ≈ {num(shape.apexM)} m
+                              </span>
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                 </button>
               </li>
             );
