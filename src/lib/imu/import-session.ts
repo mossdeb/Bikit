@@ -38,8 +38,7 @@ import {
 /** `track` is the track this import drew, when it drew one — for the
  * caller to count the next files of the same trail on it. */
 export type ImportOutcome =
-  | { ok: true; track: ImportTrack | null }
-  | { ok: false; error: string };
+  { ok: true; track: ImportTrack | null } | { ok: false; error: string };
 
 /** One of the account's timed tracks, as an import reads it. */
 export interface ImportTrack {
@@ -64,18 +63,20 @@ export async function loadImportTracks(): Promise<ImportTrack[]> {
 }
 
 /** The first of the tracks a recording passes, or null — the one its trim
- * comes from, and whose name the import gives it (2026-10-27). */
+ * comes from, and whose name the import gives it (2026-10-27). A recording
+ * never ridden faster than walking pace passes none: it is kept whole and
+ * trimmed by no track, so it is named by no track either (2026-11-06,
+ * after R0161, a walk, came in as "R0161 - Faro - New track 19"). */
 export function firstTrackPassed(
   session: ImuSessionData,
   tracks: ImportTrack[],
 ): ImportTrack | null {
-  if (!session.gps || tracks.length === 0) return null;
+  if (!session.gps || tracks.length === 0 || !wasRidden(session)) return null;
   const prepared = prepareSnapshotSession(
     withBikeFrameEvents(alignSession(session)),
   );
   return (
-    tracks.find((t) => findTimedRuns(prepared, t.definition).length > 0) ??
-    null
+    tracks.find((t) => findTimedRuns(prepared, t.definition).length > 0) ?? null
   );
 }
 
