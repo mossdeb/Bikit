@@ -253,7 +253,7 @@ export function ImuSessionImport({
           The dialog's padding and gap are off so the band runs edge to edge. */}
       <DialogContent className="gap-0 p-0 sm:max-w-[492px]">
         <DialogHeader className="px-7 pt-8 pb-6 sm:px-10">
-          <DialogTitle className="text-[28px] leading-tight sm:text-[32px]">
+          <DialogTitle className="text-[24px] leading-tight">
             {t.importing.dialog.title}
           </DialogTitle>
           <DialogDescription className="text-sm leading-snug text-foreground">

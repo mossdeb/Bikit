@@ -763,7 +763,7 @@ export function BikitDeviceImport({
       <div className="space-y-9 p-6 pb-8 sm:p-7 sm:pb-9">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="font-display text-[28px] leading-tight font-semibold">
+            <h3 className="font-display text-[24px] leading-tight font-semibold">
               {t.deviceTitle}
             </h3>
             {connected ? (
