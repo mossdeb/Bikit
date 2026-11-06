@@ -360,14 +360,17 @@ export function ImuSnapshotJumpProfile({
                 x2={X(0)}
                 y1={0}
                 y2={groundY + 6}
-                strokeOpacity={0.3}
+                strokeOpacity={0.15}
+                // Solid and faint (by request, 2026-11-06).
+                strokeDasharray="none"
               />
               <line
                 x1={X(shownShape.distanceM)}
                 x2={X(shownShape.distanceM)}
                 y1={0}
                 y2={groundY + 6}
-                strokeOpacity={0.3}
+                strokeOpacity={0.15}
+                strokeDasharray="none"
               />
               {/* The lip's level, faint — darker than the marks (by
                   request, 2026-10-29). */}
@@ -376,7 +379,8 @@ export function ImuSnapshotJumpProfile({
                 x2={X(shownShape.distanceM)}
                 y1={lipY}
                 y2={lipY}
-                strokeOpacity={0.3}
+                strokeOpacity={0.15}
+                strokeDasharray="none"
               />
             </g>
           )}
