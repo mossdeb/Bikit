@@ -220,35 +220,39 @@ function BatteryReading({
   const p = Math.max(0, Math.min(100, percent));
   const fill = p >= 50 ? "#43F3AF" : p >= 20 ? "#FFC711" : "#E0442F";
   return (
+    // The millivolts on a line of their own, centred under the battery and
+    // its percentage (2026-11-06).
     <div
-      className="flex items-center gap-3.5"
+      className="flex flex-col items-center gap-1.5"
       role="img"
       aria-label={`${label} ${p}% · ${proNumber(millivolts, locale)} mV`}
     >
-      <svg width="42" height="20" viewBox="0 0 50 24" fill="none" aria-hidden>
-        <path
-          d="M4.01286 1H41.9871C43.6511 1 45 2.36352 45 4.04551V19.9545C45 21.6365 43.6511 23 41.9871 23H4.01286C2.3489 23 1 21.6365 1 19.9545V4.04551C1 2.36352 2.3489 1 4.01286 1Z"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <path
-          d="M46.2147 7.88477H45V16.1173H46.2147C47.717 16.1173 48.9461 14.8069 48.9461 13.2052V10.7969C48.9461 9.19521 47.717 7.88477 46.2147 7.88477Z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="2"
-        />
-        <rect
-          x="4"
-          y="4"
-          width={(36 * Math.max(p, 4)) / 100}
-          height="16"
-          fill={fill}
-        />
-      </svg>
-      <span className="font-display text-[22px] leading-none font-bold tabular-nums">
-        {p}%
-      </span>
-      <span className="-ml-2 text-[10px] leading-none text-muted-foreground tabular-nums">
+      <div className="flex items-center gap-3.5">
+        <svg width="42" height="20" viewBox="0 0 50 24" fill="none" aria-hidden>
+          <path
+            d="M4.01286 1H41.9871C43.6511 1 45 2.36352 45 4.04551V19.9545C45 21.6365 43.6511 23 41.9871 23H4.01286C2.3489 23 1 21.6365 1 19.9545V4.04551C1 2.36352 2.3489 1 4.01286 1Z"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path
+            d="M46.2147 7.88477H45V16.1173H46.2147C47.717 16.1173 48.9461 14.8069 48.9461 13.2052V10.7969C48.9461 9.19521 47.717 7.88477 46.2147 7.88477Z"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <rect
+            x="4"
+            y="4"
+            width={(36 * Math.max(p, 4)) / 100}
+            height="16"
+            fill={fill}
+          />
+        </svg>
+        <span className="font-display text-[22px] leading-none font-bold tabular-nums">
+          {p}%
+        </span>
+      </div>
+      <span className="text-[10px] leading-none text-muted-foreground tabular-nums">
         {proNumber(millivolts, locale)} mV
       </span>
     </div>
