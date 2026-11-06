@@ -210,7 +210,7 @@ const en = {
   /** "Compare" on an event's card, and the save at the foot of it
    * (imu-snapshot-create). */
   create: {
-    compare: "Compare",
+    compare: "Analyse & compare",
     compareTitle: "Compare every pass through this stretch",
     dialogTitle: "Compare the passes through this stretch",
     dialogDescription:
@@ -435,7 +435,7 @@ const pt: typeof en = {
   },
 
   create: {
-    compare: "Comparar",
+    compare: "Analisar e comparar",
     compareTitle: "Comparar todas as passagens por este troço",
     dialogTitle: "Comparar as passagens por este troço",
     dialogDescription:
