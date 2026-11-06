@@ -270,6 +270,30 @@ export function ImuSnapshotJumpProfile({
   // reference never left the ground.
   const shown = shapeOf(reference) ? reference : followed;
   const shownShape = shapeOf(shown);
+  // The top bike's angle now, in the world and not the drawing (by
+  // request, 2026-11-06): the drawing's angle taken back through its
+  // taller height scale. Nose up positive.
+  const shownDot = dotOf(shown);
+  /** How far above where it stands the bike's highest point is, px
+   * (negative) — its box turned with it, so the angle's pill sits just
+   * over it (2026-11-06, closer). */
+  const bikeTopPx = (angleDeg: number) => {
+    const k = bikePx / 101;
+    const a = (angleDeg * Math.PI) / 180;
+    return Math.min(
+      ...[
+        [-50.44, -60],
+        [50.56, -60],
+        [-50.44, 0],
+        [50.56, 0],
+      ].map(([x, y]) => k * (x * Math.sin(a) + y * Math.cos(a))),
+    );
+  };
+  const shownPitchDeg = shownDot
+    ? (-Math.atan((Math.tan((angleOf(shown) * Math.PI) / 180) * sx) / sy) *
+        180) /
+      Math.PI
+    : null;
   // The run's arrow, between the take-off's and the landing's words.
   const runFrom = X(0) + 52;
   const runTo = shownShape ? X(shownShape.distanceM) - 52 : runFrom;
@@ -410,6 +434,11 @@ export function ImuSnapshotJumpProfile({
                       strokeLinejoin="round"
                     />
                   ))}
+                {/* The line's tip, a dot in the pass's colour (by
+                    request, 2026-11-06) — where the bike stands. */}
+                {dot && (
+                  <circle cx={dot.x} cy={dot.y} r={4} fill="currentColor" />
+                )}
                 {dot && (
                   <Bike
                     x={dot.x}
@@ -417,12 +446,30 @@ export function ImuSnapshotJumpProfile({
                     angleDeg={angleOf(p)}
                     widthPx={bikePx}
                     opacity={bikeOpacity}
+                    // The reference's bike in the ink of the page —
+                    // white on dark, black on light — its line keeping
+                    // the reference's green (by request, 2026-11-06).
+                    className={p === reference ? "text-foreground" : undefined}
                   />
                 )}
               </g>
             );
           })}
         </svg>
+      )}
+      {/* The top bike's angle, in a small pill over it. */}
+      {W > 0 && shownDot && shownPitchDeg != null && (
+        <div
+          className="pointer-events-none absolute -translate-x-1/2 rounded-[10px] bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums ring-1 ring-foreground/10"
+          style={{
+            left: shownDot.x,
+            top: Math.max(4, shownDot.y + bikeTopPx(angleOf(shown)) - 26),
+          }}
+        >
+          {Math.round(shownPitchDeg) === 0
+            ? "0°"
+            : `${shownPitchDeg > 0 ? "↑" : "↓"} ${n(Math.abs(shownPitchDeg), 0)}°`}
+        </div>
       )}
       {/* The marks' words, over the drawing. */}
       {W > 0 && shownShape && shown.flight && (
@@ -520,18 +567,21 @@ function Bike({
   angleDeg,
   widthPx,
   opacity = 1,
+  className,
 }: {
   x: number;
   y: number;
   angleDeg: number;
   widthPx: number;
   opacity?: number;
+  className?: string;
 }) {
   const k = widthPx / 101;
   return (
     <g
       transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${angleDeg.toFixed(1)}) scale(${k.toFixed(4)}) translate(-50.44,-60)`}
       opacity={opacity}
+      className={className}
       stroke="currentColor"
       // About 3 px whatever the size (2026-11-06, a little thicker).
       strokeWidth={3 / k}

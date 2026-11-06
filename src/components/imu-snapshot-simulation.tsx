@@ -93,6 +93,8 @@ const READOUT_PILLS = 3;
  * the drawn run-in takes to ride — and ends this long after the last
  * landing, ms. */
 const JUMP_LEAD_MS = 300;
+/** A jump's playback speed, a share of real time. */
+const JUMP_PLAY_RATE = 0.5;
 const JUMP_TAIL_MS = 500;
 /** The passes' lines fade in over this many pieces, from this opacity at
  * the entry to full at the dot. */
@@ -297,6 +299,9 @@ export function ImuSnapshotSimulation({
     [kind, layout, passes, reference, hidden, surroundings],
   );
 
+  // A jump plays slower than real time (by request, 2026-11-06): its
+  // flight is a third of a second; corners stay at real time.
+  const playRate = kind === "jump" ? JUMP_PLAY_RATE : 1;
   // Real time, from where the cursor stands — from the start again when
   // it stands at the end.
   const cursorRef = useRef(cursorMs);
@@ -308,7 +313,10 @@ export function ImuSnapshotSimulation({
     let frame = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const next = Math.min(clipTo, cursorRef.current + (now - last));
+      const next = Math.min(
+        clipTo,
+        cursorRef.current + (now - last) * playRate,
+      );
       last = now;
       cursorRef.current = next;
       setCursorMs(next);
@@ -317,7 +325,7 @@ export function ImuSnapshotSimulation({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, clipTo]);
+  }, [playing, clipTo, playRate]);
 
   const gapOf = (p: SimulationPass) =>
     p === reference ? 0 : gapToReferenceAt(p.trace, reference.trace, cursorMs);
