@@ -536,7 +536,7 @@ export function ImuSnapshotSimulation({
                   className={cn(
                     // Wraps so a jump's figures take a line of their own,
                     // the whole width (2026-11-06).
-                    "flex min-w-0 flex-1 flex-wrap items-start gap-x-3 py-3 pr-3 pl-2 text-left",
+                    "flex min-w-0 flex-1 flex-wrap items-start gap-x-3 pt-3 pb-7 pr-3 pl-2 text-left",
                     hidden.has(p.key) && "opacity-50",
                   )}
                 >
@@ -586,41 +586,41 @@ export function ImuSnapshotSimulation({
                       );
                       const num = (v: number, d = 1) => proNumber(v, locale, d);
                       return (
-                        <span className="mt-2 grid basis-full grid-cols-4 gap-x-2 whitespace-nowrap tabular-nums">
+                        <span className="mt-2 grid basis-full grid-cols-[1.4fr_1fr_1fr_1fr] gap-1.5 whitespace-nowrap tabular-nums">
                           {/* The time between the gates first, as one of
                               the three (by request, 2026-11-06). */}
-                          <span className="block">
+                          <span className="block rounded-[10px] px-2 py-1 text-center ring-1 ring-foreground/10">
                             <span className="block text-xs text-muted-foreground">
                               {words.timelineAxis}
                             </span>
-                            <span className="block text-[15px] font-semibold">
+                            <span className="block text-sm font-semibold">
                               {stopwatch(p.trace.durationMs)}
                             </span>
                           </span>
-                          <span className="block">
+                          <span className="block rounded-[10px] px-2 py-1 text-center ring-1 ring-foreground/10">
                             <span className="block text-xs text-muted-foreground">
                               {words.jump.airtime}
                             </span>
-                            <span className="block text-[15px] font-semibold">
+                            <span className="block text-sm font-semibold">
                               {num(p.flight.airtimeMs / 1000, 2)} s
                             </span>
                           </span>
                           {shape && (
-                            <span className="block">
+                            <span className="block rounded-[10px] px-2 py-1 text-center ring-1 ring-foreground/10">
                               <span className="block text-xs text-muted-foreground">
                                 {words.jump.distance}
                               </span>
-                              <span className="block text-[15px] font-semibold">
+                              <span className="block text-sm font-semibold">
                                 ≈ {num(shape.distanceM)} m
                               </span>
                             </span>
                           )}
                           {shape && (
-                            <span className="block">
+                            <span className="block rounded-[10px] px-2 py-1 text-center ring-1 ring-foreground/10">
                               <span className="block text-xs text-muted-foreground">
                                 {words.jump.height}
                               </span>
-                              <span className="block text-[15px] font-semibold">
+                              <span className="block text-sm font-semibold">
                                 ≈ {num(shape.apexM)} m
                               </span>
                             </span>
