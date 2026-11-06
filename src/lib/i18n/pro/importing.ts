@@ -85,6 +85,11 @@ const en = {
       n === 1 ? "Transfer 1 session" : `Transfer ${n} sessions`,
     transferringMany: (label: string, i: number, n: number): string =>
       `Transferring ${label} (${i} of ${n})`,
+    /** A session of the several that did not arrive, and why. */
+    notTransferred: "Not transferred",
+    skippedDisconnected:
+      "The device disconnected before this one. Connect again and transfer it on its own.",
+    skippedCancelled: "The transfer was cancelled before this one.",
     validated: (label: string): string => `${label} · validated`,
     backToList: "Back to the list",
     failedValidation: (error: string): string =>
@@ -323,6 +328,10 @@ const pt: typeof en = {
     transferSelected: (n) =>
       n === 1 ? "Transferir 1 sessão" : `Transferir ${n} sessões`,
     transferringMany: (label, i, n) => `A transferir ${label} (${i} de ${n})`,
+    notTransferred: "Não transferida",
+    skippedDisconnected:
+      "O dispositivo desligou-se antes desta. Volta a ligar e transfere-a sozinha.",
+    skippedCancelled: "A transferência foi cancelada antes desta.",
     validated: (label) => `${label} · validada`,
     backToList: "Voltar à lista",
     failedValidation: (error) =>

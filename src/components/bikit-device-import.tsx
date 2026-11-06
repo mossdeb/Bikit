@@ -118,11 +118,17 @@ type Phase =
     }
   /** The ones that arrived and validated, each named; the rest of the form
    * is shared, as in the file tab. */
-  | { kind: "readyMany"; sessions: BikitSessionEntry[]; items: DeviceItem[] }
+  | {
+      kind: "readyMany";
+      sessions: BikitSessionEntry[];
+      items: DeviceItem[];
+      skipped: SkippedSession[];
+    }
   | {
       kind: "savingMany";
       sessions: BikitSessionEntry[];
       items: DeviceItem[];
+      skipped: SkippedSession[];
       progress: number;
     }
   /** Linked, PING answered, and the device wants its PIN before anything
@@ -140,6 +146,14 @@ interface DeviceItem {
   name: string;
   /** The logger's code the name started from, "R0161". */
   base: string;
+}
+
+/** A session asked for in a several-at-once transfer that did not arrive,
+ * and why — listed beside the ones that did (2026-11-06, after a third of
+ * three dropped out with only "The device disconnected." to say so). */
+interface SkippedSession {
+  sessionId: number;
+  reason: string;
 }
 
 const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -583,11 +597,23 @@ export function BikitDeviceImport({
     const controller = new AbortController();
     abortRef.current = controller;
     const arrived: Omit<DeviceItem, "name">[] = [];
-    const failures: string[] = [];
+    const skipped: SkippedSession[] = [];
+    /** Every session of the queue not reached, under one reason. */
+    const skipRest = (from: number, reason: string) => {
+      for (const entry of queue.slice(from))
+        skipped.push({ sessionId: entry.id, reason });
+    };
     try {
       for (let index = 0; index < queue.length; index++) {
         const entry = queue[index];
-        if (controller.signal.aborted || !deviceRef.current) break;
+        if (controller.signal.aborted) {
+          skipRest(index, t.skippedCancelled);
+          break;
+        }
+        if (!deviceRef.current) {
+          skipRest(index, t.skippedDisconnected);
+          break;
+        }
         setPhase({
           kind: "transferringMany",
           sessions,
@@ -610,9 +636,10 @@ export function BikitDeviceImport({
           setDiagnostics(diag);
           const parsed = parseImuBytes(bytes, locale);
           if (!parsed.ok) {
-            failures.push(
-              `${sessionLabel(entry.id)}: ${t.failedValidation(parsed.error)}`,
-            );
+            skipped.push({
+              sessionId: entry.id,
+              reason: t.failedValidation(parsed.error),
+            });
             continue;
           }
           arrived.push({
@@ -625,20 +652,32 @@ export function BikitDeviceImport({
             base: parsed.session.sessionId ?? sessionLabel(entry.id),
           });
         } catch (e) {
-          if (controller.signal.aborted) break;
+          if (controller.signal.aborted) {
+            skipRest(index, t.skippedCancelled);
+            break;
+          }
           if (e instanceof BikitDeviceError && e.raw === AUTH_REQUIRED) {
             setPhase({ kind: "auth", hadSaved: false });
             return;
           }
-          failures.push(`${sessionLabel(entry.id)}: ${describe(e)}`);
-          if (!deviceRef.current) break;
+          skipped.push({ sessionId: entry.id, reason: describe(e) });
+          if (!deviceRef.current) {
+            skipRest(index + 1, t.skippedDisconnected);
+            break;
+          }
         }
       }
     } finally {
       abortRef.current = null;
     }
-    if (failures.length > 0) setError(failures.join("\n"));
     if (arrived.length === 0) {
+      // Nothing to import: the reasons are the whole outcome.
+      if (skipped.length > 0)
+        setError(
+          skipped
+            .map((x) => `${sessionLabel(x.sessionId)}: ${x.reason}`)
+            .join("\n"),
+        );
       setPhase(
         deviceRef.current
           ? { kind: "connected", sessions, listing: false }
@@ -652,6 +691,7 @@ export function BikitDeviceImport({
     setPhase({
       kind: "readyMany",
       sessions,
+      skipped,
       items: arrived.map((item) => {
         const track = firstTrackPassed(item.session, known);
         return {
@@ -667,11 +707,17 @@ export function BikitDeviceImport({
    * draws names the runs after it. A failure keeps what did not land. */
   async function saveMany() {
     if (phase.kind !== "readyMany") return;
-    const { sessions, items } = phase;
+    const { sessions, items, skipped } = phase;
     setError(null);
     let known = tracksRef.current ?? (await loadImportTracks());
     for (let i = 0; i < items.length; i++) {
-      setPhase({ kind: "savingMany", sessions, items, progress: i + 1 });
+      setPhase({
+        kind: "savingMany",
+        sessions,
+        items,
+        skipped,
+        progress: i + 1,
+      });
       let item = items[i];
       if (item.name === item.base) {
         const track = firstTrackPassed(item.session, known);
@@ -693,7 +739,12 @@ export function BikitDeviceImport({
       tracksRef.current = known;
       if (!outcome.ok) {
         setError(`${item.name}: ${outcome.error}`);
-        setPhase({ kind: "readyMany", sessions, items: items.slice(i) });
+        setPhase({
+          kind: "readyMany",
+          sessions,
+          items: items.slice(i),
+          skipped,
+        });
         return;
       }
     }
@@ -1121,6 +1172,24 @@ export function BikitDeviceImport({
                       {formatSessionTime(item.summary.durationMs)} ·{" "}
                       {dict.importing.dialog.events(item.summary.eventCount)}
                     </span>
+                  </li>
+                ))}
+                {phase.skipped.map((x) => (
+                  <li
+                    key={`skipped-${x.sessionId}`}
+                    className="space-y-0.5 px-3 py-2"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-sm font-medium text-muted-foreground line-through">
+                        {sessionLabel(x.sessionId)}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-destructive">
+                        {t.notTransferred}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-snug text-destructive">
+                      {x.reason}
+                    </p>
                   </li>
                 ))}
               </ul>
