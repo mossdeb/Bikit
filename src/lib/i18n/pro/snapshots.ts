@@ -49,6 +49,13 @@ const en = {
     pause: "Pause",
     timeline: "Time from the entry gate",
     /** How the map lays the passes out (2026-11-05). */
+    /** A jump's two clocks (2026-11-06): every pass leaving the lip
+     * together, or each from the entry gate as it rode. */
+    sync: {
+      label: "Start the passes",
+      takeoff: "At take-off",
+      entry: "From the entry gate",
+    },
     layout: {
       label: "Drawing",
       /** The map's two view buttons (2026-11-05). */
@@ -291,6 +298,11 @@ const pt: typeof en = {
     play: "Reproduzir",
     pause: "Pausa",
     timeline: "Tempo desde a porta de entrada",
+    sync: {
+      label: "Começar as passagens",
+      takeoff: "Na descolagem",
+      entry: "Da porta de entrada",
+    },
     layout: {
       label: "Desenho",
       views: {

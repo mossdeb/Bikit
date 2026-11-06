@@ -25,6 +25,8 @@ import type {
 import { ImuSnapshotJumpProfile } from "@/components/imu-snapshot-jump-profile";
 import { StatStopwatchIcon } from "@/components/imu-stat-icons";
 import {
+  flightPositionAt,
+  flightShape,
   gapToReferenceAt,
   isSimulationLayout,
   layoutTrace,
@@ -225,15 +227,36 @@ export function ImuSnapshotSimulation({
   // before the first take-off to a moment after the last landing.
   const flown =
     kind === "jump" ? passes.flatMap((p) => (p.flight ? [p.flight] : [])) : [];
-  const clipFrom = flown.length
-    ? Math.max(0, Math.min(...flown.map((f) => f.takeoffMs)) - JUMP_LEAD_MS)
-    : 0;
-  const clipTo = flown.length
-    ? Math.min(
+  // A jump's passes leave the lip together by default (by request,
+  // 2026-11-06): the side view compares flights, not the race to the lip.
+  // Each pass's clock is then shifted by how much later than the
+  // reference it took off; the cursor stays the reference's clock. The
+  // other way, every pass from the entry gate as it rode, a switch away.
+  const [syncAt, setSyncAt] = useState<"takeoff" | "entry">("takeoff");
+  const refTakeoff = reference.flight?.takeoffMs ?? null;
+  const aligned = kind === "jump" && syncAt === "takeoff" && refTakeoff != null;
+  const shiftOf = (p: SimulationPass) =>
+    aligned && p.flight ? p.flight.takeoffMs - refTakeoff! : 0;
+  /** A pass's own time at the cursor. */
+  const localMs = (p: SimulationPass, at: number) => at + shiftOf(p);
+  const windowFor = (mode: "takeoff" | "entry"): [number, number] => {
+    if (!flown.length) return [0, totalMs];
+    if (mode === "takeoff" && refTakeoff != null) {
+      const longest = Math.max(...flown.map((f) => f.airtimeMs));
+      return [
+        Math.max(0, refTakeoff - JUMP_LEAD_MS),
+        Math.min(totalMs, refTakeoff + longest + JUMP_TAIL_MS),
+      ];
+    }
+    return [
+      Math.max(0, Math.min(...flown.map((f) => f.takeoffMs)) - JUMP_LEAD_MS),
+      Math.min(
         totalMs,
         Math.max(...flown.map((f) => f.takeoffMs + f.airtimeMs)) + JUMP_TAIL_MS,
-      )
-    : totalMs;
+      ),
+    ];
+  };
+  const [clipFrom, clipTo] = windowFor(aligned ? "takeoff" : "entry");
   const [cursorMs, setCursorMs] = useState(clipFrom);
   const [playing, setPlaying] = useState(false);
   const [followKey, setFollowKey] = useState<string | null>(null);
@@ -309,7 +332,8 @@ export function ImuSnapshotSimulation({
   const pillBg = "bg-muted";
   const readoutPill = (p: SimulationPass) => {
     const gap = gapOf(p);
-    const speed = speedAt(p.trace, cursorMs);
+    const at = localMs(p, cursorMs);
+    const speed = speedAt(p.trace, at);
     return (
       <div
         key={p.key}
@@ -327,13 +351,17 @@ export function ImuSnapshotSimulation({
               inkOf(p),
             )}
           />
-          <span className="font-semibold">
-            {p === reference
-              ? words.reference
-              : gap == null
-                ? "—"
-                : signedSeconds(gap, locale)}
-          </span>
+          {/* Lined up at the lip, a gap since the entry gate would say
+              nothing of the flight: the colour alone names the pass. */}
+          {(p === reference || !aligned) && (
+            <span className="font-semibold">
+              {p === reference
+                ? words.reference
+                : gap == null
+                  ? "—"
+                  : signedSeconds(gap, locale)}
+            </span>
+          )}
         </span>
         <span className="px-3">
           <span className="font-semibold">
@@ -343,14 +371,50 @@ export function ImuSnapshotSimulation({
         </span>
         <span className="px-3">
           <span className="font-semibold">
-            {proNumber(
-              traceValueAt(p.trace, p.trace.gForce, cursorMs),
-              locale,
-              1,
-            )}
+            {proNumber(traceValueAt(p.trace, p.trace.gForce, at), locale, 1)}
           </span>{" "}
           <span className="text-muted-foreground">G</span>
         </span>
+        {/* A jump's flight beside what is read at the cursor (by request,
+            2026-11-06), and read at it too: nothing before the lip, then
+            the time in the air, the ground covered and the height over the
+            lip as the bar moves — where the bike stands on its arc — and
+            the whole flight once landed, the height its apex again. */}
+        {kind === "jump" &&
+          p.flight &&
+          (() => {
+            const f = flightShape(p.flight.airtimeMs, p.flight.takeoffKmh);
+            const num = (v: number, d = 1) => proNumber(v, locale, d);
+            const tS = Math.max(0, (at - p.flight.takeoffMs) / 1000);
+            const landed = !f || tS >= f.airtimeS;
+            const pos = f && !landed ? flightPositionAt(f, tS) : null;
+            const airS = landed ? p.flight.airtimeMs / 1000 : tS;
+            return (
+              <>
+                <span className="px-3">
+                  <span className="text-muted-foreground">
+                    {words.jump.airtime}
+                  </span>{" "}
+                  <span className="font-semibold">{num(airS, 2)} s</span>
+                </span>
+                {f && (
+                  <>
+                    <span className="px-3">
+                      <span className="text-muted-foreground">
+                        {words.jump.distance}
+                      </span>{" "}
+                      <span className="font-semibold">
+                        ≈ {num(pos ? Math.max(0, pos.x) : f.distanceM)} m
+                      </span>
+                    </span>
+                    {/* No height here (by request, 2026-11-06): it reads
+                        ≈ 0.1 m through nearly every jump; the list and the
+                        side view keep it. */}
+                  </>
+                )}
+              </>
+            );
+          })()}
       </div>
     );
   };
@@ -402,7 +466,7 @@ export function ImuSnapshotSimulation({
     <section
       aria-labelledby="snapshot-simulation-title"
       className={cn(
-        "grid gap-8 rounded-lg bg-card px-5 py-6 sm:p-8 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]",
+        "grid gap-8 rounded-lg bg-card px-5 py-6 sm:p-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]",
         DARK_CARD_HAIRLINE,
       )}
     >
@@ -474,9 +538,69 @@ export function ImuSnapshotSimulation({
                         {[p.rider, p.bike].filter(Boolean).join(" · ")}
                       </span>
                     )}
-                    <span className="mt-0.5 block text-xl font-semibold tabular-nums">
-                      {stopwatch(p.trace.durationMs)}
-                    </span>
+                    {!(kind === "jump" && p.flight) && (
+                      <span className="mt-0.5 block text-xl font-semibold tabular-nums">
+                        {stopwatch(p.trace.durationMs)}
+                      </span>
+                    )}
+                    {/* A jump's flight under its time (by request,
+                        2026-11-06): the airtime, measured, and the
+                        distance it makes — the two that tell one pass's
+                        jump from another, given weight beside the time.
+                        The height, ≈ 0.1 m on nearly every jump, stays
+                        in the side view. */}
+                    {kind === "jump" &&
+                      p.flight &&
+                      (() => {
+                        const shape = flightShape(
+                          p.flight.airtimeMs,
+                          p.flight.takeoffKmh,
+                        );
+                        const num = (v: number, d = 1) =>
+                          proNumber(v, locale, d);
+                        return (
+                          <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 whitespace-nowrap tabular-nums">
+                            {/* The time between the gates first, as one of
+                                the three (by request, 2026-11-06). */}
+                            <span className="block">
+                              <span className="block text-xs text-muted-foreground">
+                                {words.timelineAxis}
+                              </span>
+                              <span className="block text-[15px] font-semibold">
+                                {stopwatch(p.trace.durationMs)}
+                              </span>
+                            </span>
+                            <span className="block">
+                              <span className="block text-xs text-muted-foreground">
+                                {words.jump.airtime}
+                              </span>
+                              <span className="block text-[15px] font-semibold">
+                                {num(p.flight.airtimeMs / 1000, 2)} s
+                              </span>
+                            </span>
+                            {shape && (
+                              <span className="block">
+                                <span className="block text-xs text-muted-foreground">
+                                  {words.jump.distance}
+                                </span>
+                                <span className="block text-[15px] font-semibold">
+                                  ≈ {num(shape.distanceM)} m
+                                </span>
+                              </span>
+                            )}
+                            {shape && (
+                              <span className="block">
+                                <span className="block text-xs text-muted-foreground">
+                                  {words.jump.height}
+                                </span>
+                                <span className="block text-[15px] font-semibold">
+                                  ≈ {num(shape.apexM)} m
+                                </span>
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                   </span>
                   {tone == null ? (
                     <span className="mt-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
@@ -516,9 +640,42 @@ export function ImuSnapshotSimulation({
             followed={followed}
             inkOf={inkOf}
             cursorMs={cursorMs}
+            timeOf={(p) => localMs(p, cursorMs)}
             readout={clock}
             words={words.jump}
             locale={locale}
+            corner={
+              <div
+                role="radiogroup"
+                aria-label={words.sync.label}
+                className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
+              >
+                {(["takeoff", "entry"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={syncAt === mode}
+                    onClick={() => {
+                      if (mode === syncAt) return;
+                      setSyncAt(mode);
+                      setPlaying(false);
+                      const [from] = windowFor(mode);
+                      cursorRef.current = from;
+                      setCursorMs(from);
+                    }}
+                    className={cn(
+                      "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      syncAt === mode
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {words.sync[mode]}
+                  </button>
+                ))}
+              </div>
+            }
           />
         ) : (
           <>

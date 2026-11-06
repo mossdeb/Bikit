@@ -829,7 +829,16 @@ export interface SnapshotPassFlight {
   airtimeMs: number;
   takeoffKmh: number | null;
   landingG: number | null;
+  /** How far the bike had turned since the lip, degrees, nose down
+   * positive, every FLIGHT_PITCH_STEP_MS from take-off to landing — the
+   * pitch gyro summed, as the jump card's air rotation (2026-11-06). Null
+   * when the bike's forward is not known: then no axis of the sensor is
+   * the pitch. */
+  pitchDeg: number[] | null;
 }
+
+/** The step of a flight's pitch series, ms. */
+export const FLIGHT_PITCH_STEP_MS = 10;
 
 /** How long after touching down the landing's peak G is looked for, ms —
  * the fork and the tyres take about this to bottom out. */
@@ -866,7 +875,42 @@ export function snapshotPassFlight(
       first.landingMs,
       first.landingMs + LANDING_WINDOW_MS,
     ),
+    pitchDeg: prepared.session.mounting?.applied
+      ? flightPitch(
+          tMs,
+          prepared.session.channels.gy,
+          first.takeoffMs,
+          first.landingMs,
+        )
+      : null,
   };
+}
+
+/** The pitch gyro (deg/s; the bike's frame is X forward, Y left, Z up, so
+ * positive is the nose going down) summed from take-off, read every
+ * FLIGHT_PITCH_STEP_MS to landing. */
+export function flightPitch(
+  tMs: Float64Array,
+  gy: ArrayLike<number>,
+  takeoffMs: number,
+  landingMs: number,
+): number[] {
+  const out: number[] = [0];
+  let i = Math.max(1, lowerBoundIndex(tMs, takeoffMs));
+  let deg = 0;
+  for (
+    let at = takeoffMs + FLIGHT_PITCH_STEP_MS;
+    at <= landingMs + 1e-6;
+    at += FLIGHT_PITCH_STEP_MS
+  ) {
+    while (i < tMs.length && tMs[i] <= at) {
+      const from = Math.max(tMs[i - 1], takeoffMs);
+      if (tMs[i] > from) deg += (gy[i] * (tMs[i] - from)) / 1000;
+      i++;
+    }
+    out.push(deg);
+  }
+  return out;
 }
 
 /** The ground around a pass, `marginM` before its entry and after its

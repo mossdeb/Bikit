@@ -9,6 +9,7 @@ import {
   type FlightShape,
 } from "@/lib/imu/snapshot-simulation";
 import type { SimulationPass } from "@/components/imu-snapshot-simulation";
+import { FLIGHT_PITCH_STEP_MS } from "@/lib/imu/snapshot";
 
 /**
  * A jump's simulation seen from the side (by request, 2026-10-29, from a
@@ -33,6 +34,18 @@ const LANDING_SHARE = 0.38;
  * lip to full at the dot — as the corners' lines do. */
 const FADE_PIECES = 16;
 const FADE_FROM = 0.15;
+/** After touching down the bike settles onto the landing over this, s —
+ * from the angle it flew in at to the ramp's. */
+const SETTLE_S = 0.15;
+
+/** How far the bike had turned since the lip `t` s into the flight,
+ * degrees, nose down positive — between the series' samples. */
+function pitchAt(series: number[], t: number): number {
+  const f = Math.max(0, (t * 1000) / FLIGHT_PITCH_STEP_MS);
+  const i = Math.min(series.length - 1, Math.floor(f));
+  const j = Math.min(series.length - 1, i + 1);
+  return series[i] + (series[j] - series[i]) * (f - i);
+}
 
 function useBoxWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -67,7 +80,9 @@ export function ImuSnapshotJumpProfile({
   followed,
   inkOf,
   cursorMs,
+  timeOf,
   readout,
+  corner,
   words,
   locale,
 }: {
@@ -79,7 +94,12 @@ export function ImuSnapshotJumpProfile({
   followed: SimulationPass;
   inkOf: (p: SimulationPass) => string;
   cursorMs: number;
+  /** A pass's own time at the cursor — shifted when the passes are lined
+   * up at the lip (2026-11-06); the cursor itself otherwise. */
+  timeOf?: (p: SimulationPass) => number;
   readout: React.ReactNode;
+  /** Drawn in the top-left corner: the switch between the two clocks. */
+  corner?: React.ReactNode;
   words: JumpProfileWords;
   locale: Locale;
 }) {
@@ -110,6 +130,7 @@ export function ImuSnapshotJumpProfile({
   const apexRoom = lipY - 70;
   const sy = apexRoom / highest;
   const X = (m: number) => PAD_X + (m - fromM) * sx;
+  const bikePx = Math.max(BIKE_MIN_PX, Math.min(BIKE_MAX_PX, BIKE_ICON_M * sx));
 
   // The ramps as height over the ground, px, at a distance from the lip:
   // the kicker's face rising to the lip, the landing's falling from its
@@ -123,11 +144,12 @@ export function ImuSnapshotJumpProfile({
 
   // A pass's dot: on the kicker before the lip, on its arc in the air, on
   // the landing after; at the speed it left the lip at.
-  const dotOf = (p: SimulationPass) => {
+  const nowOf = (p: SimulationPass) => (timeOf ? timeOf(p) : cursorMs);
+  const dotOf = (p: SimulationPass, atMs = nowOf(p)) => {
     const shape = shapeOf(p);
     if (!shape || !p.flight) return null;
     const v = Math.hypot(shape.vx, shape.vy);
-    const t = (cursorMs - p.flight.takeoffMs) / 1000;
+    const t = (atMs - p.flight.takeoffMs) / 1000;
     if (t < 0) {
       const m = Math.max(fromM, v * t);
       return { x: X(m), y: groundY - kickerAt(m) };
@@ -138,6 +160,39 @@ export function ImuSnapshotJumpProfile({
     }
     const m = Math.min(toM, shape.distanceM + v * (t - shape.airtimeS));
     return { x: X(m), y: groundY - landingAt(m, shape.distanceM) };
+  };
+  // The bike's angle on the drawing, degrees, clockwise from the right
+  // (2026-11-06). On the ramps, the ramp's. In the air, the angle it left
+  // the lip at turned by what the pitch gyro measured — the real angle
+  // taken through the drawing's taller height scale, so a bike that turns
+  // with its arc stays on it and one that turns more is seen to. Without
+  // the bike's forward known, it follows the arc.
+  const tangentAt = (p: SimulationPass, atMs: number) => {
+    const a = dotOf(p, atMs - 10);
+    const b = dotOf(p, atMs + 10);
+    return a && b ? (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI : 0;
+  };
+  const angleOf = (p: SimulationPass) => {
+    const shape = shapeOf(p);
+    const now = nowOf(p);
+    if (!shape || !p.flight?.pitchDeg) return tangentAt(p, now);
+    const series = p.flight.pitchDeg;
+    const flying = (t: number) => {
+      const lipDeg = (Math.atan2(shape.vy, shape.vx) * 180) / Math.PI;
+      const real = Math.max(-80, Math.min(80, lipDeg - pitchAt(series, t)));
+      return (
+        (-Math.atan((Math.tan((real * Math.PI) / 180) * sy) / sx) * 180) /
+        Math.PI
+      );
+    };
+    const t = (now - p.flight.takeoffMs) / 1000;
+    if (t < 0) return tangentAt(p, now);
+    if (t <= shape.airtimeS) return flying(t);
+    const settled = tangentAt(p, now);
+    const f = (t - shape.airtimeS) / SETTLE_S;
+    if (f >= 1) return settled;
+    const from = flying(shape.airtimeS);
+    return from + (settled - from) * f;
   };
   // An arc's points, from the lip to `upToS` into the flight.
   const arcPoints = (shape: FlightShape, upToS = shape.airtimeS) => {
@@ -179,7 +234,7 @@ export function ImuSnapshotJumpProfile({
   };
   const flownPieces = (p: SimulationPass, shape: FlightShape) => {
     if (!p.flight) return [];
-    const t = (cursorMs - p.flight.takeoffMs) / 1000;
+    const t = (nowOf(p) - p.flight.takeoffMs) / 1000;
     const pts = ridePoints(shape, t);
     if (pts.length < 2) return [];
     const n = FADE_PIECES;
@@ -209,7 +264,11 @@ export function ImuSnapshotJumpProfile({
     (m) => landingAt(m, landingTop),
   ).slice(1)} Z`;
 
-  const shown = shapeOf(followed) ? followed : reference;
+  // The marks and the figures are the reference's (by request,
+  // 2026-11-06): the drawing is laid out on its run, and each pass's own
+  // airtime and distance stand in the list. Another pass's only when the
+  // reference never left the ground.
+  const shown = shapeOf(reference) ? reference : followed;
   const shownShape = shapeOf(shown);
   // The run's arrow, between the take-off's and the landing's words.
   const runFrom = X(0) + 52;
@@ -347,11 +406,11 @@ export function ImuSnapshotJumpProfile({
                     />
                   ))}
                 {dot && (
-                  <circle
-                    cx={dot.x}
-                    cy={dot.y}
-                    r={p === shown ? 5 : 4}
-                    fill="currentColor"
+                  <Bike
+                    x={dot.x}
+                    y={dot.y}
+                    angleDeg={angleOf(p)}
+                    widthPx={bikePx}
                   />
                 )}
               </g>
@@ -365,6 +424,7 @@ export function ImuSnapshotJumpProfile({
           <Mark
             x={X(0)}
             y={groundY + 10}
+            pill
             title={words.takeoff}
             value={
               shown.flight.takeoffKmh == null
@@ -381,6 +441,7 @@ export function ImuSnapshotJumpProfile({
           <Mark
             x={X(shownShape.distanceM)}
             y={groundY + 10}
+            pill
             title={words.landing}
             value={
               shown.flight.landingG == null
@@ -410,24 +471,9 @@ export function ImuSnapshotJumpProfile({
           {words.noFlight}
         </p>
       )}
-      {/* The shown pass's flight in words, top left — the bottom holds the
-          pills. */}
-      {shownShape && (
-        <div className="absolute top-3 left-3 flex h-9 items-center divide-x divide-border rounded-[12px] bg-card px-1 text-sm whitespace-nowrap tabular-nums">
-          <span className="px-3">
-            <span className="text-muted-foreground">{words.airtime}</span>{" "}
-            <span className="font-semibold">{n(shownShape.airtimeS, 2)} s</span>
-          </span>
-          <span className="px-3">
-            <span className="text-muted-foreground">{words.distance}</span>{" "}
-            <span className="font-semibold">≈ {n(shownShape.distanceM)} m</span>
-          </span>
-          <span className="px-3">
-            <span className="text-muted-foreground">{words.height}</span>{" "}
-            <span className="font-semibold">≈ {n(shownShape.apexM)} m</span>
-          </span>
-        </div>
-      )}
+      {corner && <div className="absolute top-3 left-3">{corner}</div>}
+      {/* The flight's figures left the top corner (by request, 2026-11-06):
+          each pass's are in its pill under the plate. */}
       <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)]">
         {readout}
       </div>
@@ -439,20 +485,81 @@ export function ImuSnapshotJumpProfile({
   );
 }
 
+/** The app's own bike (bike-type-icon's Downhill, by request,
+ * 2026-11-06), its paths in the icon's 101 × 61 box. */
+const BIKE_PATHS = [
+  "M17.9713 58.6135C26.792 58.6135 33.9426 51.4629 33.9426 42.6422C33.9426 33.8214 26.792 26.6708 17.9713 26.6708C9.1506 26.6708 2 33.8214 2 42.6422C2 51.4629 9.1506 58.6135 17.9713 58.6135Z",
+  "M82.9058 58.6135C91.7265 58.6135 98.8771 51.4629 98.8771 42.6422C98.8771 33.8214 91.7265 26.6708 82.9058 26.6708C74.085 26.6708 66.9344 33.8214 66.9344 42.6422C66.9344 51.4629 74.085 58.6135 82.9058 58.6135Z",
+  "M82.9058 42.9633L67.6755 4.26874L74.4589 2.00055",
+  "M47.0563 42.3951L38.2361 15.3657",
+  "M41.2347 23.4495L69.3416 8.50165L47.0563 42.6422",
+  "M31.3803 13.9799L42.6461 12.5547",
+  "M48.2372 27.8395L53.7221 25.5719",
+  "M47.0562 42.6422L17.7846 42.7117L43.1897 30.5463",
+];
+/** The bike drawn to the run's scale (by request, 2026-11-06): a
+ * wheelbase of about 1.25 m, the icon's axles 65 of its 101 units apart —
+ * so the icon spans ~1.94 m of ground. Held between these, px, so a short
+ * hop still shows a bike and a long one is not covered by it. */
+const BIKE_WHEELBASE_M = 1.25;
+const BIKE_ICON_M = (BIKE_WHEELBASE_M * 101) / 65;
+const BIKE_MIN_PX = 36;
+const BIKE_MAX_PX = 150;
+
+/** A bike seen from the side, its wheels standing on (x, y) — where the
+ * dot was — and turned by `angleDeg`, clockwise, in the pass's colour. */
+function Bike({
+  x,
+  y,
+  angleDeg,
+  widthPx,
+}: {
+  x: number;
+  y: number;
+  angleDeg: number;
+  widthPx: number;
+}) {
+  const k = widthPx / 101;
+  return (
+    <g
+      transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${angleDeg.toFixed(1)}) scale(${k.toFixed(4)}) translate(-50.44,-60)`}
+      stroke="currentColor"
+      // About 3 px whatever the size (2026-11-06, a little thicker).
+      strokeWidth={3 / k}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    >
+      {BIKE_PATHS.map((d) => (
+        <path key={d.slice(0, 16)} d={d} />
+      ))}
+    </g>
+  );
+}
+
 function Mark({
   x,
   y,
   title,
   value,
+  pill = false,
 }: {
   x: number;
   y: number;
   title: string;
   value: string;
+  /** In a small pill of its own (by request, 2026-11-06): the take-off's
+   * and the landing's, under the ground. */
+  pill?: boolean;
 }) {
   return (
     <div
-      className="pointer-events-none absolute -translate-x-1/2 text-center whitespace-nowrap"
+      className={
+        "pointer-events-none absolute -translate-x-1/2 text-center whitespace-nowrap" +
+        (pill
+          ? " rounded-[10px] bg-card px-2.5 py-1 ring-1 ring-foreground/10"
+          : "")
+      }
       style={{ left: x, top: y }}
     >
       <p className="text-sm font-semibold">{title}</p>

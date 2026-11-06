@@ -519,3 +519,17 @@ describe("findSnapshotTwins", () => {
     ).toEqual([]);
   });
 });
+
+describe("flightPitch", () => {
+  it("sums the pitch gyro from the lip, every step to the landing", async () => {
+    const { flightPitch, FLIGHT_PITCH_STEP_MS } = await import("./snapshot");
+    // 400 Hz, a steady 20 °/s nose down.
+    const tMs = Float64Array.from({ length: 2000 }, (_, i) => i * 2.5);
+    const gy = Float32Array.from(tMs, () => 20);
+    const series = flightPitch(tMs, gy, 1000, 1500);
+    expect(series[0]).toBe(0);
+    expect(series.length).toBe(500 / FLIGHT_PITCH_STEP_MS + 1);
+    expect(series.at(-1)).toBeCloseTo(10, 1);
+    expect(series[25]).toBeCloseTo(5, 1);
+  });
+});
