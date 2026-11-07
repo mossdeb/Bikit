@@ -72,6 +72,23 @@ function sameTrim(a: ImuSessionTrim | null, b: ImuSessionTrim): boolean {
   );
 }
 
+/** The rider asked for the whole recording (by request, 2026-11-07): a
+ * trim by hand from the first sample to the last. A track's lines can never
+ * sit there — they keep clear of the stops at either end — so this is the
+ * one hand trim the lines leave alone on a run that passes a track. */
+export function keepsWhole(
+  trim: ImuSessionTrim | null,
+  trimByTrack: boolean,
+  fullMs: number,
+): boolean {
+  return (
+    trim != null &&
+    !trimByTrack &&
+    trim.startMs <= 0 &&
+    trim.endMs >= fullMs - 1
+  );
+}
+
 /** The run read for timing once, for the flag and the ranking alike: the
  * session prepared for the gates, and the tracks it passes — newest track
  * first, each with its runs. */
@@ -140,6 +157,7 @@ export function ImuSessionTrackButton({
     let next: ImuSessionTrim | null;
     if (target) {
       if (sameTrim(trim, target) && trimByTrack) return;
+      if (keepsWhole(trim, trimByTrack, whole.durationMs)) return;
       next = target;
     } else {
       if (!trim || !trimByTrack) return;
@@ -425,6 +443,7 @@ function TrackView({
           p &&
           target &&
           !(sameTrim(c.trim, target) && c.trimByTrack) &&
+          !keepsWhole(c.trim, c.trimByTrack, p.session.durationMs) &&
           !synced.current.has(c.id)
         ) {
           synced.current.add(c.id);
@@ -676,12 +695,15 @@ function TrackForm({
   const fullMs = whole.durationMs;
   // A redraw opens on where this run crosses the lines now; a new track
   // on the trim, where a rider has already marked the run, or else on the
-  // window the plot shows.
-  const initial: [number, number] = editing
-    ? [editing.runs[0].entryMs, editing.runs[0].exitMs]
-    : trim
-      ? [trim.startMs, trim.endMs]
-      : [visibleMs[0], Math.min(visibleMs[1], fullMs)];
+  // window the plot shows. A run kept whole opens on the whole recording,
+  // as it was asked for.
+  const initial: [number, number] = keepsWhole(trim, false, fullMs)
+    ? [0, fullMs]
+    : editing
+      ? [editing.runs[0].entryMs, editing.runs[0].exitMs]
+      : trim
+        ? [trim.startMs, trim.endMs]
+        : [visibleMs[0], Math.min(visibleMs[1], fullMs)];
   // A new track comes named (by request, 2026-10-27): the place the map
   // names, then "Nova pista 03" — the account's next number, past any name
   // already taken. Editable like any name; the place is filled in when the
@@ -761,6 +783,25 @@ function TrackForm({
     }
     setBusy(true);
     setError(null);
+    // "Whole recording" keeps the session whole, though the lines sit
+    // clear of the stops inside it; any other window hands the trim back
+    // to the lines, which the button then sets. Before the track is saved,
+    // so the refresh that saving brings already finds the trim it keeps.
+    const wantsWhole = !circuit && startMs! <= 0 && finishMs! >= fullMs - 1;
+    const wasWhole = keepsWhole(trim, false, fullMs);
+    if (wantsWhole !== wasWhole && !linesUnchanged) {
+      const saved = await saveImuSessionTrim(
+        sessionId,
+        whole,
+        wantsWhole ? { startMs: 0, endMs: Math.round(fullMs) } : null,
+        false,
+      );
+      if (saved.status === "error") {
+        setBusy(false);
+        setError(saved.message);
+        return;
+      }
+    }
     const result = editing
       ? await updateImuTrack({
           trackId: editing.track.id,
