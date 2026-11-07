@@ -30,6 +30,9 @@ export const config = {
     // `bin` is the landing's 3D model (public/landing/models): answered with
     // the login page's HTML, its bytes read as a nonsense vertex count.
     // `webm` is the landing hero's film, for the same reason.
-    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|bin|webm)$).*)",
+    //
+    // /robots.txt and /sitemap.xml (2026-11-07): read by crawlers, which never
+    // have a session — both were answered with a 307 to /login.
+    "/((?!api/|_vercel/|_next/static|_next/image|favicon.ico|robots.txt$|sitemap.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|bin|webm)$).*)",
   ],
 };
