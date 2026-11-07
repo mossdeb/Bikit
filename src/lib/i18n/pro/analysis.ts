@@ -289,6 +289,8 @@ const en = {
     resizeHeight: "Resize the map's height",
     /** Leaflet's credit line takes HTML — the entity stays. */
     namesCredit: "Names &copy; OpenStreetMap",
+    /** Over the map while the cursor sits where the receiver had no fix. */
+    noGps: "No GPS signal",
   },
 
   /** The reading panel under the plot. */
@@ -638,6 +640,7 @@ const pt: typeof en = {
     resizeWidth: "Redimensionar o mapa",
     resizeHeight: "Redimensionar a altura do mapa",
     namesCredit: "Nomes &copy; OpenStreetMap",
+    noGps: "Sem sinal de GPS",
   },
 
   reading: {

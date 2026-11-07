@@ -300,6 +300,27 @@ function markScale(el: HTMLElement | null): number {
  * ranged events stay in the chart, where duration has an axis to be read
  * against.
  */
+/** A silence between fixes longer than this is a lost signal, not a
+ * missed sample — the receiver writes about one fix a second. */
+const NO_FIX_GAP_MS = 5000;
+
+/** The cursor stands where the receiver had no fix: before the first,
+ * after the last, or inside a silence longer than NO_FIX_GAP_MS. */
+function withoutFix(gps: { tMs: ArrayLike<number> }, atMs: number): boolean {
+  const t = gps.tMs;
+  const n = t.length;
+  if (n === 0) return true;
+  if (atMs < t[0] || atMs > t[n - 1]) return true;
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (t[mid] <= atMs) lo = mid;
+    else hi = mid;
+  }
+  return t[hi] - t[lo] > NO_FIX_GAP_MS;
+}
+
 export function ImuSessionMap({
   gps,
   events,
@@ -960,13 +981,19 @@ export function ImuSessionMap({
     };
   }, [windowMs, speedOn, gps, ready]);
 
+  // Where the receiver had no fix (by request, 2026-11-07, after R0174's
+  // first 78 s): before its first fix, after its last, or inside a silence
+  // longer than a few missed seconds. The needle would only sit parked on
+  // the nearest fix there, so it is lifted and the map says why.
+  const noFix = cursorMs != null && withoutFix(gps, cursorMs);
+
   // The needle follows the cursor — interpolated between fixes, so at 100
   // IMU samples per 10 fixes it glides rather than steps.
   useEffect(() => {
     const map = mapRef.current;
     const needle = needleRef.current;
     if (!map || !needle) return;
-    if (cursorMs == null) {
+    if (cursorMs == null || withoutFix(gps, cursorMs)) {
       needle.remove();
       return;
     }
@@ -1047,6 +1074,12 @@ export function ImuSessionMap({
             <Crosshair className="size-4" />
           </button>
         </div>
+      )}
+
+      {ready && noFix && (
+        <span className="pointer-events-none absolute top-3 left-1/2 z-[1100] -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white">
+          {t.noGps}
+        </span>
       )}
 
       {/* Which way north went, since the map no longer promises north-up.
