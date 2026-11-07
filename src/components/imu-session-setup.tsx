@@ -1083,9 +1083,8 @@ function RiderSagReading({
           </div>
         ))}
       </div>
-      {!drops && (
-        <p className="text-xs text-muted-foreground">{t.needsForkSag}</p>
-      )}
+      {/* The "needs the fork's sag" note, hidden by request (2026-11-07);
+          the string stays in the dictionary. */}
       {/* The rear twice, by two roads (by request, 2026-10-31): the sensor's
           leans on the pitch and the fork's sag, the shock's on its O-ring and
           an average leverage. Neither is the truth; apart, one is wrong.
