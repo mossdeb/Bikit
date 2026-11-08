@@ -19,6 +19,7 @@
 // beta account does; foxtrot.mecanicanaval@gmail.com: a beta account
 // (2026-10-30); amandioplasticos@gmail.com: a beta account (2026-11-02);
 // vitorb87@hotmail.com: a beta account (2026-11-07).
+// andre.r.c.guerreiro@gmail.com: a beta account (2026-11-08).
 const LAB_EMAILS = [
   "miguelgomesdzn@gmail.com",
   "wearewildpack@gmail.com",
@@ -26,6 +27,7 @@ const LAB_EMAILS = [
   "foxtrot.mecanicanaval@gmail.com",
   "amandioplasticos@gmail.com",
   "vitorb87@hotmail.com",
+  "andre.r.c.guerreiro@gmail.com",
 ];
 
 /**
