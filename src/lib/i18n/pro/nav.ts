@@ -9,6 +9,7 @@ const en = {
   /** The rail's and the phone bar's entries, in their order. */
   sessions: "Sessions",
   bikes: "Bikes",
+  logger: "Logger",
   settings: "Settings",
   /** The `aria-label` of the phone bar's `<nav>`. */
   primary: "Primary",
@@ -35,6 +36,7 @@ const en = {
 const pt: typeof en = {
   sessions: "Sessões",
   bikes: "Bicicletas",
+  logger: "Logger",
   settings: "Definições",
   primary: "Principal",
   collapse: "Recolher",

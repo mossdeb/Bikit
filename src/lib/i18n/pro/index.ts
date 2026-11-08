@@ -8,6 +8,7 @@ import { snapshots } from "./snapshots";
 import { importing } from "./importing";
 import { report } from "./report";
 import { tracks } from "./tracks";
+import { logger } from "./logger";
 
 /**
  * Bikit Pro's dictionary (2026-09-24), apart from the app's: the Pro
@@ -41,6 +42,7 @@ const pro = {
     importing: importing.en,
     report: report.en,
     tracks: tracks.en,
+    logger: logger.en,
   },
   pt: {
     common: common.pt,
@@ -52,6 +54,7 @@ const pro = {
     importing: importing.pt,
     report: report.pt,
     tracks: tracks.pt,
+    logger: logger.pt,
   },
 };
 

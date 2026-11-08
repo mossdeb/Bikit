@@ -71,6 +71,52 @@ export interface BikitDeviceInfo {
   calibration: { valid: boolean; steps: number | null } | null;
 }
 
+/** The vehicle the logger records on — metadata for the session, never a
+ * filter on the logger (by request, 2026-11-08). */
+export type BikitVehicleType = "BICYCLE" | "MOTORCYCLE";
+
+/** The settings the Logger area edits (`CONFIG`/`SET`). Null where the
+ * firmware did not say. */
+export interface BikitDeviceConfig {
+  autoStop: boolean | null;
+  autoSleep: boolean | null;
+  /** Minutes of inactivity before sleep: 5, 10 or 15. */
+  sleepMinutes: number | null;
+  vehicle: BikitVehicleType | null;
+}
+
+export type BikitConfigKey = "AUTO_STOP" | "AUTO_SLEEP" | "SLEEP_MIN" | "VEHICLE";
+
+export const SLEEP_MINUTES = [5, 10, 15] as const;
+
+/** One `<KEY> <VALUE>` of CONFIG or SET_OK onto the config. Unknown keys and
+ * values out of the contract leave the field as it was. */
+function applyConfigLine(
+  config: BikitDeviceConfig,
+  key: string,
+  value: string,
+): void {
+  const v = value.toUpperCase();
+  switch (key) {
+    case "AUTO_STOP":
+    case "AUTO_SLEEP": {
+      const on = v === "1" || v === "ON" ? true : v === "0" || v === "OFF" ? false : null;
+      if (on === null) return;
+      if (key === "AUTO_STOP") config.autoStop = on;
+      else config.autoSleep = on;
+      return;
+    }
+    case "SLEEP_MIN": {
+      const n = parseInt(v, 10);
+      if ((SLEEP_MINUTES as readonly number[]).includes(n)) config.sleepMinutes = n;
+      return;
+    }
+    case "VEHICLE":
+      if (v === "BICYCLE" || v === "MOTORCYCLE") config.vehicle = v;
+      return;
+  }
+}
+
 export interface BikitSessionEntry {
   id: number;
   sizeBytes: number;
@@ -159,6 +205,8 @@ export function describeDeviceMessage(raw: string): string {
         return "O dispositivo não reconheceu o comando — firmware desatualizado?";
       case "AUTH_REQUIRED":
         return "O dispositivo pede o PIN antes de continuar.";
+      case "INVALID_SETTING":
+        return "O dispositivo recusou esse valor.";
       default:
         return `O dispositivo devolveu um erro (${code || raw}).`;
     }
@@ -600,6 +648,102 @@ export class BikitDevice {
 
   /** Asks the device to drop whatever transfer it has going. Safe to call
    * with none — it answers `CANCELLED NONE`. */
+  /**
+   * `CONFIG` → one `CONFIG <KEY> <VALUE>` line per setting, then
+   * `CONFIG_END` (the Logger area's contract, proposed 2026-11-08; no
+   * firmware sends it yet). Resolves null on firmware that predates it —
+   * `ERROR UNKNOWN_COMMAND` is "this logger has no settings", not a
+   * failure. A key the firmware did not send stays null and its control
+   * is shown disabled rather than with an invented default; a key this
+   * build does not know is ignored.
+   */
+  readConfig(): Promise<BikitDeviceConfig | null> {
+    return new Promise<BikitDeviceConfig | null>((resolve, reject) => {
+      const config: BikitDeviceConfig = {
+        autoStop: null,
+        autoSleep: null,
+        sleepMinutes: null,
+        vehicle: null,
+      };
+      let seen = false;
+      let settled = false;
+      let silence: ReturnType<typeof setTimeout> | null = null;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        if (silence) clearTimeout(silence);
+        this.statusHandlers.delete(onStatus);
+        this.disconnectHandlers.delete(onDisconnect);
+        fn();
+      };
+      const arm = () => {
+        if (silence) clearTimeout(silence);
+        silence = setTimeout(
+          () =>
+            finish(() =>
+              seen
+                ? // The lines came but CONFIG_END did not: use what came.
+                  resolve(config)
+                : reject(new Error("O dispositivo não respondeu a CONFIG.")),
+            ),
+          seen ? INFO_GRACE_MS : COMMAND_TIMEOUT_MS,
+        );
+      };
+      const onStatus = (m: string) => {
+        if (m === "ERROR UNKNOWN_COMMAND") {
+          finish(() => resolve(null));
+          return;
+        }
+        if (m === "CONFIG_END") {
+          finish(() => resolve(config));
+          return;
+        }
+        if (m.startsWith("CONFIG ")) {
+          const [, key = "", value = ""] = m.split(/\s+/);
+          applyConfigLine(config, key.toUpperCase(), value);
+          seen = true;
+          arm();
+          return;
+        }
+        if (isRefusal(m))
+          finish(() => reject(new BikitDeviceError(describeDeviceMessage(m), m)));
+      };
+      const onDisconnect = () =>
+        finish(() => reject(new Error("A ligação ao dispositivo caiu.")));
+      this.statusHandlers.add(onStatus);
+      this.disconnectHandlers.add(onDisconnect);
+      arm();
+      this.write("CONFIG", "response").catch((error: unknown) =>
+        finish(() =>
+          reject(error instanceof Error ? error : new Error(String(error))),
+        ),
+      );
+    });
+  }
+
+  /**
+   * `SET <KEY> <VALUE>` → `SET_OK <KEY> <VALUE>`, the value as the logger
+   * stored it. Refused with `ERROR INVALID_SETTING`, or `BUSY RECORDING` /
+   * `BUSY CALIBRATING` — the device's own reason, as every refusal.
+   */
+  async setConfig(
+    key: BikitConfigKey,
+    value: string,
+  ): Promise<BikitDeviceConfig> {
+    const stored = await this.request(`SET ${key} ${value}`, (m) => {
+      const [head, k, v] = m.split(/\s+/);
+      return head === "SET_OK" && k?.toUpperCase() === key ? (v ?? value) : undefined;
+    });
+    const config: BikitDeviceConfig = {
+      autoStop: null,
+      autoSleep: null,
+      sleepMinutes: null,
+      vehicle: null,
+    };
+    applyConfigLine(config, key, stored);
+    return config;
+  }
+
   async cancel(): Promise<void> {
     await this.write("CANCEL", "response").catch(() => {});
   }

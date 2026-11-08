@@ -6,7 +6,11 @@ import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { BikitLockup, LogoMark } from "@/components/logo";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
-import { MenuBikesIcon, MenuSettingsIcon } from "@/components/menu-icons";
+import {
+  MenuBikesIcon,
+  MenuLoggerIcon,
+  MenuSettingsIcon,
+} from "@/components/menu-icons";
 import { useProDict } from "@/components/pro-locale";
 import type { ProDictionary } from "@/lib/i18n/pro";
 import { cn } from "@/lib/utils";
@@ -42,7 +46,7 @@ function useMounted() {
 interface ProNavItem {
   href: string;
   /** The entry's word, as a key of the `nav` namespace. */
-  label: "sessions" | "bikes" | "settings";
+  label: "sessions" | "bikes" | "logger" | "settings";
   Icon: ComponentType<{ className?: string }>;
   /** Which paths light it: the home also owns the sessions under it. */
   isActive: (pathname: string) => boolean;
@@ -68,6 +72,14 @@ export const PRO_NAV_ITEMS: ProNavItem[] = [
     Icon: MenuBikesIcon,
     isActive: (p) => p.startsWith("/pro/bicicletas"),
     iconClassName: "size-[36.4px]",
+  },
+  {
+    // The connected logger: its state and its settings (2026-11-08).
+    href: "/pro/logger",
+    label: "logger",
+    Icon: MenuLoggerIcon,
+    isActive: (p) => p.startsWith("/pro/logger"),
+    iconClassName: "size-7",
   },
   {
     href: "/pro/definicoes",

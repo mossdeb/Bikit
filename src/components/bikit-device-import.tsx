@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Bluetooth, Loader2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LoggerDeviceCard, MUTED_PILL } from "@/components/logger-device-card";
 import {
   forgetDevicePin,
   loadDevicePin,
@@ -55,7 +56,6 @@ import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
   PRO_NUMBER_LOCALE,
   proNumber,
-  type ProDictionary,
 } from "@/lib/i18n/pro";
 import type { Locale } from "@/lib/i18n";
 
@@ -166,112 +166,10 @@ const formatBytes = (n: number, locale: Locale) =>
       ? `${Math.round(n / 1000)} KB`
       : `${n} B`;
 
-/** The quiet grey pill of the reference layout: Disconnect, Transfer. */
-const MUTED_PILL = "bg-muted text-base text-foreground hover:bg-border";
-
 /** Sessions listed at once, and added by each "Show more". */
 const SESSIONS_PAGE = 15;
 
 const sessionLabel = (id: number) => `S${String(id).padStart(4, "0")}`;
-
-type DeviceInfoWords = ProDictionary["importing"]["device"]["info"];
-
-/** One cell of the device's report: a label, a word, and a line under it. */
-interface StatusCell {
-  label: string;
-  value: string;
-  detail?: string;
-  bad?: boolean;
-}
-
-/**
- * The receiver's snapshot as a cell: its state, and under it only what means
- * something in that state — with a fix, satellites and age; without one, the
- * fields the firmware fills with sentinels (HDOP 9999, signal NONE, 0
- * satellites) are left out, and "No fix · 1.1 s ago" is the whole truth.
- */
-function gpsCell(
-  gps: NonNullable<BikitDeviceInfo["gps"]>,
-  t: DeviceInfoWords,
-  locale: Locale,
-): StatusCell {
-  const value =
-    gps.state === "FIX"
-      ? t.gpsFix
-      : gps.state === "NO_FIX"
-        ? t.gpsNoFix
-        : gps.state === "NO_DATA"
-          ? t.gpsNoData
-          : gps.state;
-  const detail: string[] = [];
-  if (gps.satellites > 0) detail.push(t.satellites(gps.satellites));
-  if (Number.isFinite(gps.ageMs) && gps.state !== "NO_DATA")
-    detail.push(t.ago(proNumber(gps.ageMs / 1000, locale, 1)));
-  return {
-    label: "GPS",
-    value,
-    detail: detail.join(" · ") || undefined,
-    bad: gps.state === "NO_DATA",
-  };
-}
-
-/**
- * The battery as the reference draws it (2026-11-06, Miguel's SVGs): the
- * cell's outline in the ink colour, filled by the charge — green, amber
- * under half, red under a fifth — with the percentage beside it and the
- * millivolts small, still the number to trust while the curve is validated.
- */
-function BatteryReading({
-  percent,
-  millivolts,
-  label,
-}: {
-  percent: number;
-  millivolts: number;
-  label: string;
-}) {
-  const locale = useProLocale();
-  const p = Math.max(0, Math.min(100, percent));
-  const fill = p >= 50 ? "#43F3AF" : p >= 20 ? "#FFC711" : "#E0442F";
-  return (
-    // The millivolts on a line of their own, centred under the battery and
-    // its percentage (2026-11-06).
-    <div
-      className="flex flex-col items-center gap-1.5"
-      role="img"
-      aria-label={`${label} ${p}% · ${proNumber(millivolts, locale)} mV`}
-    >
-      <div className="flex items-center gap-3.5">
-        <svg width="42" height="20" viewBox="0 0 50 24" fill="none" aria-hidden>
-          <path
-            d="M4.01286 1H41.9871C43.6511 1 45 2.36352 45 4.04551V19.9545C45 21.6365 43.6511 23 41.9871 23H4.01286C2.3489 23 1 21.6365 1 19.9545V4.04551C1 2.36352 2.3489 1 4.01286 1Z"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-          <path
-            d="M46.2147 7.88477H45V16.1173H46.2147C47.717 16.1173 48.9461 14.8069 48.9461 13.2052V10.7969C48.9461 9.19521 47.717 7.88477 46.2147 7.88477Z"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="2"
-          />
-          <rect
-            x="4"
-            y="4"
-            width={(36 * Math.max(p, 4)) / 100}
-            height="16"
-            fill={fill}
-          />
-        </svg>
-        <span className="font-display text-[22px] leading-none font-bold tabular-nums">
-          {p}%
-        </span>
-      </div>
-      <span className="text-[10px] leading-none text-muted-foreground tabular-nums">
-        {proNumber(millivolts, locale)} mV
-      </span>
-    </div>
-  );
-}
 
 export function BikitDeviceImport({
   userId,
@@ -776,162 +674,26 @@ export function BikitDeviceImport({
   }
 
   const connected = phase.kind !== "idle" && phase.kind !== "connecting";
-  const battery = connected && info?.battery ? info.battery : null;
-  // The device's report as cells, each only when its firmware sent it — a
-  // line left out is not shown as OK.
-  const cells: StatusCell[] = [];
-  if (connected && info) {
-    if (info.gps) cells.push(gpsCell(info.gps, t.info, locale));
-    if (info.sd)
-      cells.push({
-        label: t.info.sdCard,
-        value: info.sd === "OK" ? t.info.ok : info.sd,
-        bad: info.sd !== "OK",
-      });
-    if (info.imu)
-      cells.push({
-        label: "IMU",
-        value: info.imu === "OK" ? t.info.ok : info.imu,
-        bad: info.imu !== "OK",
-      });
-    // The calibration the logger will record with (by request, 2026-10-27):
-    // its state, and its steps once the firmware sends them.
-    if (info.calibration)
-      cells.push({
-        label: t.info.calibration,
-        value: info.calibration.valid ? t.info.ok : t.info.calInvalid,
-        detail:
-          info.calibration.valid && info.calibration.steps !== null
-            ? t.info.calSteps(info.calibration.steps)
-            : undefined,
-        bad: !info.calibration.valid,
-      });
-  }
   const hasBody =
     connected || error != null || notice != null || logLines.length > 0;
 
   return (
     <div className="min-w-0">
-      {/* The device itself (reference layout, 2026-11-06): who it is on the
-          left, its battery and the link's button on the right, and what it
-          says about its subsystems in a row of cells below. */}
-      <div className="space-y-9 p-6 pb-8 sm:p-7 sm:pb-9">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="font-display text-[24px] leading-tight font-semibold">
-              {t.deviceTitle}
-            </h3>
-            {connected ? (
-              <dl className="mt-1 text-sm leading-snug">
-                <div className="flex gap-1.5">
-                  <dt>{t.serialNumber}:</dt>
-                  <dd className="min-w-0 truncate tabular-nums">
-                    {info?.uid
-                      ? // The serial as the device's own record writes it
-                        // (DEV1, 2026-11-06): "BIKIT-" and the 16 hex digits.
-                        /^BIKIT-/i.test(info.uid)
-                        ? info.uid
-                        : `BIKIT-${info.uid}`
-                      : deviceName || "–"}
-                  </dd>
-                </div>
-                <div className="flex gap-1.5">
-                  <dt>{t.firmwareVersion}:</dt>
-                  <dd className="min-w-0 truncate tabular-nums">
-                    {info?.firmware.split("-")[0] || "–"}
-                  </dd>
-                </div>
-              </dl>
-            ) : (
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                {!supported
-                  ? t.noWebBluetooth
-                  : phase.kind === "connecting"
-                    ? t.connecting
-                    : t.idleHint}
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-7">
-            {battery &&
-              ("unavailable" in battery ? (
-                // The line came but the ADC gave nothing — say so, rather
-                // than leaving it out as if the firmware were old.
-                <p className="text-xs text-muted-foreground">
-                  {t.info.battery}: {t.info.noReading(battery.raw)}
-                </p>
-              ) : (
-                <BatteryReading
-                  percent={battery.percent}
-                  millivolts={battery.millivolts}
-                  label={t.info.battery}
-                />
-              ))}
-            {connected ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(MUTED_PILL, "h-10 px-7 text-[15px]")}
-                onClick={disconnect}
-                disabled={
-                  phase.kind === "saving" || phase.kind === "savingMany"
-                }
-              >
-                {t.disconnect}
-              </Button>
-            ) : (
-              <Button
-                variant="inverted"
-                size="sm"
-                className="px-5 text-base"
-                onClick={connect}
-                disabled={!supported || phase.kind === "connecting"}
-              >
-                {phase.kind === "connecting" ? (
-                  <Loader2
-                    data-icon="inline-start"
-                    className="motion-safe:animate-spin"
-                  />
-                ) : (
-                  <Bluetooth data-icon="inline-start" />
-                )}
-                {t.connect}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {cells.length > 0 && (
-          <dl
-            className="grid gap-px overflow-hidden rounded-[20px] border border-border bg-border"
-            style={{
-              gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`,
-            }}
-          >
-            {cells.map((cell) => (
-              <div
-                key={cell.label}
-                className="flex min-w-0 flex-col items-center justify-center bg-card px-1.5 py-2.5 text-center"
-              >
-                <dt className="text-xs text-muted-foreground">{cell.label}</dt>
-                <dd
-                  className={cn(
-                    "mt-0.5 text-sm leading-tight font-bold sm:text-base",
-                    cell.bad && "text-destructive",
-                  )}
-                >
-                  {cell.value}
-                </dd>
-                {cell.detail && (
-                  <dd className="text-xs text-muted-foreground tabular-nums">
-                    {cell.detail}
-                  </dd>
-                )}
-              </div>
-            ))}
-          </dl>
-        )}
-      </div>
+      {/* The device itself — the same card as the Logger area's header. */}
+      <LoggerDeviceCard
+        className="p-6 pb-8 sm:p-7 sm:pb-9"
+        connected={connected}
+        connecting={phase.kind === "connecting"}
+        supported={supported}
+        info={info}
+        deviceName={deviceName}
+        hint={t.idleHint}
+        onConnect={connect}
+        onDisconnect={disconnect}
+        disconnectDisabled={
+          phase.kind === "saving" || phase.kind === "savingMany"
+        }
+      />
 
       {hasBody && (
         <div className="min-w-0 space-y-5 border-t border-border p-6 sm:p-7">

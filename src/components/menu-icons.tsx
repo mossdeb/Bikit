@@ -24,3 +24,23 @@ export function MenuSettingsIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** The logger (2026-11-08): the box on the frame, with its radio. */
+export function MenuLoggerIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 28 28"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="10" width="17" height="15" rx="4.5" />
+      <circle cx="11.5" cy="17.5" r="2" fill="currentColor" stroke="none" />
+      <path d="M19.5 6.5a5 5 0 0 1 3.5 3.5" />
+      <path d="M19.5 2.2a9.3 9.3 0 0 1 7.8 7.8" />
+    </svg>
+  );
+}
