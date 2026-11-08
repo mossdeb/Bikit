@@ -367,23 +367,34 @@ function LoggerSettings({
             value={config ? config.autoStop : null}
             onSave={(on) => save("AUTO_STOP", on ? "1" : "0")}
           />
-          <ToggleRow
-            label={t.power.autoSleep}
-            hint={t.power.autoSleepHint}
+          {/* Sleep Mode (2026-11-08): AUTO_SLEEP picks HOW the logger sleeps
+              when it is not recording, not WHETHER — it always sleeps, by
+              the timer, and the timer counts in both modes. */}
+          <ChoiceRow
+            label={t.power.sleepMode}
+            hint={t.power.sleepModeHint}
             value={config ? config.autoSleep : null}
-            onSave={(on) => save("AUTO_SLEEP", on ? "1" : "0")}
+            options={[
+              { value: true, label: t.power.timedSleep, hint: t.power.timedSleepHint },
+              { value: false, label: t.power.motionSleep, hint: t.power.motionSleepHint },
+            ]}
+            onSave={(timed) => save("AUTO_SLEEP", timed ? "1" : "0")}
           />
           <SleepSliderRow
             value={config ? config.sleepMinutes : null}
-            // Only meaningful while the logger may sleep by itself.
-            enabled={config?.autoSleep === true}
             onSave={(n) => save("SLEEP_MIN", String(n))}
           />
         </SettingsCard>
         <SettingsCard title={t.vehicle.title} hint={t.vehicle.hint}>
-          <VehicleRow
+          <ChoiceRow
+            label={t.vehicle.title}
+            hideLabel
             value={config ? config.vehicle : null}
-            onSave={(v) => save("VEHICLE", v)}
+            options={[
+              { value: "BICYCLE", label: t.vehicle.bicycle, hint: t.vehicle.bicycleHint },
+              { value: "MOTORCYCLE", label: t.vehicle.motorcycle, hint: t.vehicle.motorcycleHint },
+            ]}
+            onSave={(v: BikitVehicleType) => save("VEHICLE", v)}
           />
         </SettingsCard>
       </div>
@@ -542,11 +553,9 @@ function Switch({
  */
 function SleepSliderRow({
   value,
-  enabled,
   onSave,
 }: {
   value: number | null;
-  enabled: boolean;
   onSave: (minutes: number) => Promise<void>;
 }) {
   const t = useProDict().logger.settings.power;
@@ -554,13 +563,13 @@ function SleepSliderRow({
   const [dragging, setDragging] = useState<number | null>(null);
   const current = dragging ?? shown ?? SLEEP_MINUTES[0];
   const index = Math.max(0, SLEEP_MINUTES.indexOf(current as 5 | 10 | 15));
-  const disabled = value === null || !enabled || saving;
+  const disabled = value === null || saving;
   const finish = () => {
     if (dragging !== null && dragging !== shown) void commit(dragging);
     setDragging(null);
   };
   return (
-    <div className={cn("py-4 first:pt-0 last:pb-0", !enabled && "opacity-50")}>
+    <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-base font-semibold">{t.sleepAfter}</p>
@@ -598,35 +607,48 @@ function SleepSliderRow({
   );
 }
 
-function VehicleRow({
+/** Two or more cards to pick one from — the Sleep Mode and the Vehicle Type. */
+function ChoiceRow<T extends string | boolean>({
+  label,
+  hint,
+  hideLabel = false,
   value,
+  options,
   onSave,
 }: {
-  value: BikitVehicleType | null;
-  onSave: (v: BikitVehicleType) => Promise<void>;
+  label: string;
+  hint?: string;
+  /** The card's own title already says it (Vehicle Type). */
+  hideLabel?: boolean;
+  value: T | null;
+  options: { value: T; label: string; hint: string }[];
+  onSave: (v: T) => Promise<void>;
 }) {
-  const t = useProDict().logger.settings.vehicle;
   const { shown, saving, message, commit } = useSaving(value, onSave);
   const disabled = value === null || saving;
-  const options: { value: BikitVehicleType; label: string; hint: string }[] = [
-    { value: "BICYCLE", label: t.bicycle, hint: t.bicycleHint },
-    { value: "MOTORCYCLE", label: t.motorcycle, hint: t.motorcycleHint },
-  ];
   return (
     <div className="py-4 first:pt-0 last:pb-0">
-      <div role="radiogroup" aria-label={t.title} className="grid gap-3 sm:grid-cols-2">
+      {!hideLabel && (
+        <div className="mb-3">
+          <p className="text-base font-semibold">{label}</p>
+          {hint && <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>}
+        </div>
+      )}
+      <div role="radiogroup" aria-label={label} className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => {
           const active = shown === o.value;
           return (
             <button
-              key={o.value}
+              key={String(o.value)}
               type="button"
               role="radio"
               aria-checked={active}
               disabled={disabled}
               onClick={() => !active && void commit(o.value)}
               className={cn(
-                "rounded-[20px] border p-4 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                // Top-aligned: a button centres its content, which sank the
+                // title of the card with the shorter line.
+                "flex flex-col justify-start rounded-[20px] border p-4 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
                 active
                   ? "border-foreground bg-muted"
                   : "border-border hover:border-muted-foreground/40",

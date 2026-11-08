@@ -30,10 +30,17 @@ const en = {
         "The logger ends the recording once it confirms you have been still for long enough.",
       autoStopOff:
         "The recording carries on until you press the STOP button, even with the bike standing still.",
-      autoSleep: "Auto Sleep",
-      autoSleepHint: "Lets the logger go into low-power mode by itself.",
-      sleepAfter: "Sleep on Inactivity",
-      sleepAfterHint: "Time without movement before the logger sleeps.",
+      /** AUTO_SLEEP: 1 = Timed, 0 = Motion-Aware (2026-11-08). */
+      sleepMode: "Sleep Mode",
+      sleepModeHint: "How the logger goes to sleep when it is not recording.",
+      timedSleep: "Timed Sleep",
+      timedSleepHint:
+        "Sleeps once the Sleep Timer runs out, even while it detects movement.",
+      motionSleep: "Motion-Aware Sleep",
+      motionSleepHint:
+        "Stays awake while it detects movement, even when not recording. The Sleep Timer starts once movement stops.",
+      sleepAfter: "Sleep Timer",
+      sleepAfterHint: "Time before the logger goes to sleep.",
       minutes: (n: number): string => `${n} min`,
     },
     vehicle: {
@@ -71,10 +78,16 @@ const pt: typeof en = {
         "O logger termina a gravação quando confirma que estás parado durante o período necessário.",
       autoStopOff:
         "A gravação continua até carregares no botão STOP, mesmo que a bicicleta esteja parada.",
-      autoSleep: "Suspensão automática",
-      autoSleepHint: "Deixa o logger entrar sozinho em modo de baixo consumo.",
-      sleepAfter: "Suspender após inatividade",
-      sleepAfterHint: "Tempo sem movimento antes de o logger suspender.",
+      sleepMode: "Sleep Mode",
+      sleepModeHint: "Como o logger entra em suspensão quando não está a gravar.",
+      timedSleep: "Timed Sleep",
+      timedSleepHint:
+        "Entra em suspensão quando acaba o Sleep Timer, mesmo que esteja a detetar movimento.",
+      motionSleep: "Motion-Aware Sleep",
+      motionSleepHint:
+        "Mantém-se acordado enquanto detetar movimento, mesmo sem gravar. Quando o movimento para, começa a contagem do Sleep Timer.",
+      sleepAfter: "Sleep Timer",
+      sleepAfterHint: "Tempo até o logger entrar em suspensão.",
       minutes: (n: number): string => `${n} min`,
     },
     vehicle: {

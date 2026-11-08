@@ -79,8 +79,11 @@ export type BikitVehicleType = "BICYCLE" | "MOTORCYCLE";
  * firmware did not say. */
 export interface BikitDeviceConfig {
   autoStop: boolean | null;
+  /** Sleep Mode, AUTO_SLEEP: true = Timed (sleeps when the timer runs out,
+   * moving or not), false = Motion-Aware (awake while moving; the timer
+   * starts when movement stops). The logger sleeps in both. */
   autoSleep: boolean | null;
-  /** Minutes of inactivity before sleep: 5, 10 or 15. */
+  /** The Sleep Timer, minutes: 5, 10 or 15. */
   sleepMinutes: number | null;
   vehicle: BikitVehicleType | null;
 }
@@ -182,6 +185,9 @@ export function describeDeviceMessage(raw: string): string {
       return "O dispositivo está a gravar. Pára a gravação para transferir sessões.";
     if (code === "CALIBRATING")
       return "O dispositivo está a calibrar. Espera que termine.";
+    // V18.9: a SET while a GET is streaming — a flash write would stall it.
+    if (code === "TRANSFER")
+      return "O dispositivo está a transferir uma sessão. Espera que termine.";
     return "O dispositivo está ocupado. Tenta outra vez daqui a pouco.";
   }
   if (head === "ERROR") {
@@ -207,6 +213,8 @@ export function describeDeviceMessage(raw: string): string {
         return "O dispositivo pede o PIN antes de continuar.";
       case "INVALID_SETTING":
         return "O dispositivo recusou esse valor.";
+      case "STORAGE_FAILED":
+        return "O dispositivo não conseguiu guardar a definição na memória.";
       default:
         return `O dispositivo devolveu um erro (${code || raw}).`;
     }
