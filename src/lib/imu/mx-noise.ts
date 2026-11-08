@@ -219,8 +219,9 @@ export function eventSignal(
 
 /**
  * The session with the filter applied to its acceleration, for a session whose
- * rider chose it (engine_filter, off by default: it never runs by itself, so
- * no bicycle's reading can change). The file is untouched; the events keep what
+ * rider chose it (engine_filter, off by default; on from the import only for a
+ * file the logger marked as a motorbike's — VEH1, 2026-11-08 — so no
+ * bicycle's reading can change). The file is untouched; the events keep what
  * the original found, and the warning keeps the original's vibration.
  */
 export function withEngineFilter(session: ImuSessionData): ImuSessionData {

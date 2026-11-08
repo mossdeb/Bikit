@@ -92,6 +92,9 @@ function buildBkt(
     breakSagCrc?: boolean;
     /** The firmware's own: a record with its CRC never stamped. */
     zeroSagCrc?: boolean;
+    /** Write firmware V18.9's VEH1 record at 424: 0 bicycle, 1 motorbike. */
+    vehicle?: number;
+    breakVehicleCrc?: boolean;
     breakHeaderCrc?: boolean;
     breakBlockCrc?: number;
     breakSequence?: number;
@@ -204,6 +207,15 @@ function buildBkt(
       overrides.zeroSagCrc ? 0 : overrides.breakSagCrc ? sagCrc ^ 1 : sagCrc,
       true,
     );
+  }
+
+  if (overrides.vehicle !== undefined) {
+    put(424, "VEH1");
+    view.setUint16(428, 1, true);
+    view.setUint16(430, 16, true);
+    view.setUint8(432, overrides.vehicle);
+    const vehCrc = crc32(u8.subarray(424, 440));
+    view.setUint32(436, overrides.breakVehicleCrc ? vehCrc ^ 1 : vehCrc, true);
   }
 
   let imuIndex = 0;
@@ -482,6 +494,24 @@ describe("parseBktFile", () => {
     // The ride still imports, without the sag.
     expect(broken.ok).toBe(true);
     if (broken.ok) expect(broken.session.riderSag).toBeUndefined();
+  });
+
+  it("reads firmware V18.9's VEH1 vehicle at byte 424", () => {
+    const parse = (o: Parameters<typeof buildBkt>[1]) =>
+      parseBktFile(buildBkt([imuBlock(10)], { magic: "BKT1", ...o }));
+    const moto = parse({ vehicle: 1 });
+    expect(moto.ok && moto.session.vehicle).toBe("motorcycle");
+    const bike = parse({ vehicle: 0 });
+    expect(bike.ok && bike.session.vehicle).toBe("bicycle");
+    // Before the record, none.
+    const before = parse({});
+    expect(before.ok && before.session.vehicle).toBeUndefined();
+    // Damaged or unknown: the ride imports, without a vehicle.
+    const broken = parse({ vehicle: 1, breakVehicleCrc: true });
+    expect(broken.ok).toBe(true);
+    expect(broken.ok && broken.session.vehicle).toBeUndefined();
+    const unknown = parse({ vehicle: 7 });
+    expect(unknown.ok && unknown.session.vehicle).toBeUndefined();
   });
 
   it("reads a SAG1 whose CRC the firmware never stamped, when it reads as gravity", () => {

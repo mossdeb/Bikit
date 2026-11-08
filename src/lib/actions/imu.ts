@@ -93,6 +93,10 @@ export interface CreateImuSessionInput {
   /** The file's rider-sag reading (firmware V18's SAG1), for the setup's
    * history. Omitted for none. */
   riderSag?: StoredRiderSag | null;
+  /** Start with the engine-noise filter on (2026-11-08): the file says it
+   * was recorded on a motorbike. Never set for a bicycle's — those stay as
+   * they always were. Omitted: off. */
+  engineFilter?: boolean;
   /** When the recording began, Unix ms, from the file's header. Becomes the
    * row's created_at — the date every page shows and orders by. Omitted
    * when the file has none: then it is the import's. */
@@ -208,6 +212,7 @@ export async function createImuSession(
     trim_end_ms: trim ? Math.round(trim.endMs) : null,
     trim_by_track: trim != null && input.trimByTrack === true,
     rider_sag: riderSag as unknown as Json,
+    ...(input.engineFilter === true && { engine_filter: true }),
     ...(startedAtMs != null && {
       created_at: new Date(startedAtMs).toISOString(),
     }),

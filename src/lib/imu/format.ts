@@ -184,6 +184,10 @@ export interface ImuSessionData {
   orientation?: ImuMountOrientation;
   /** The rider-sag step's reading, when the file carries one. */
   riderSag?: ImuRiderSag;
+  /** The vehicle the logger was set to when the ride began (firmware
+   * V18.9's VEH1). Absent on older files. A motorbike's turns the engine
+   * filter on at import; a bicycle's changes nothing. */
+  vehicle?: ImuVehicle;
   /** When the recording began, Unix ms (UTC) — the .BKT header's
    * start_unix_ms, once the logger's clock holds a real date. Absent when
    * the file gives none that could be one; the session then dates from its
@@ -238,6 +242,9 @@ export interface ImuHighGEvent {
  * 256 of the .BKT header page, written only when it belongs to the same
  * calibration as CAL1 — first seen in R0135, a bench test, 2026-10-27.
  */
+/** The logger's vehicle setting, as the file records it. */
+export type ImuVehicle = "bicycle" | "motorcycle";
+
 export interface ImuRiderSag {
   /** Mean specific force with the rider on, in the SENSOR's frame, G. */
   gravityG: [number, number, number];

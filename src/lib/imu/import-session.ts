@@ -214,6 +214,11 @@ export async function uploadAndRegisterImuSession(input: {
     // When it was ridden, from the file's own clock (2026-11-04) — so the
     // list's dates and order are the rides', not the imports'.
     startedAtMs: session.startedAtMs,
+    // Recorded with the logger set to motorbike (VEH1, firmware V18.9): the
+    // engine filter starts on, as if the rider had ticked it. Its own
+    // switch in the session's settings still turns it off. A bicycle's
+    // file, or one without the record, imports exactly as before.
+    engineFilter: session.vehicle === "motorcycle",
   });
   if (result.status === "error") return { ok: false, error: result.message };
   if (!newTrack || !session.gps) return { ok: true, track: null };

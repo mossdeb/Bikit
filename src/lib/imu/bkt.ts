@@ -23,6 +23,7 @@
  *                                V13.5+: the bike's up/front/left in the
  *                                sensor's frame (the two-step calibration)
  *   [192, 210)   high-g metadata "HGM1"  — firmware V16.1+; not read
+ *   [424, 440)   vehicle         "VEH1"  — firmware V18.9: bicycle or motorbike
  *   [256, 296)   rider sag       "SAG1"  — firmware V18: gravity with the
  *                                rider on (the three-step calibration)
  *   [4096, …)    blocks of 4096 bytes, each: 32-byte header "BLK1" + payload
@@ -66,6 +67,7 @@ import type {
   ImuMountOrientation,
   ImuParseResult,
   ImuRiderSag,
+  ImuVehicle,
   ImuTimelineGap,
 } from "./format";
 
@@ -140,6 +142,15 @@ const SAG_OFFSET = 256;
 const SAG_SIZE = 40;
 const SAG_VERSION = 1;
 const SAG_UNSTAMPED_G_TOLERANCE = 0.1;
+/** Firmware V18.9's vehicle record (`BikitVehicleMetadataV1`, `<4sHHB3xI>`):
+ * magic, version 1, size 16, vehicle (0 bicycle, 1 motorbike), three zero
+ * bytes, crc32 over all 16 with the field zero. Straight after DEV1. A
+ * snapshot of the logger's setting when the ride began — metadata only, the
+ * logger filters nothing by it. */
+const VEH_MAGIC = "VEH1";
+const VEH_OFFSET = 424;
+const VEH_SIZE = 16;
+const VEH_VERSION = 1;
 /** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
  * clock stamps before they wrap. */
 const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
@@ -557,6 +568,25 @@ export function parseBktFile(
       };
   }
 
+  // The vehicle the logger was set to (firmware V18.9). Like the sag, an
+  // extra: absent, damaged or unknown, the ride imports without it.
+  let vehicle: ImuVehicle | undefined;
+  if (
+    magic === MAGIC_V1 &&
+    bytes.byteLength >= VEH_OFFSET + VEH_SIZE &&
+    ascii(view, VEH_OFFSET, 4) === VEH_MAGIC &&
+    view.getUint16(VEH_OFFSET + 4, true) === VEH_VERSION &&
+    view.getUint16(VEH_OFFSET + 6, true) === VEH_SIZE
+  ) {
+    const vehCrcOk =
+      recordCrc(u8, VEH_OFFSET, VEH_SIZE, magic) ===
+      view.getUint32(VEH_OFFSET + 12, true);
+    const code = view.getUint8(VEH_OFFSET + 8);
+    if (!vehCrcOk) console.warn("BKT: vehicle CRC does not match; ignored.");
+    else if (code === 0) vehicle = "bicycle";
+    else if (code === 1) vehicle = "motorcycle";
+  }
+
   const expectedSize = BLOCK_SIZE + h.totalBlocks * BLOCK_SIZE;
   if (bytes.byteLength !== expectedSize) {
     const present = Math.max(0, Math.floor(bytes.byteLength / BLOCK_SIZE) - 1);
@@ -842,6 +872,7 @@ export function parseBktFile(
       sensorScales: { accelGPerLsb: accelScale, gyroDpsPerLsb: gyroScale },
       orientation,
       ...(riderSag && { riderSag }),
+      ...(vehicle && { vehicle }),
       ...(recordingStartMs(h.startUnixMs) != null && {
         startedAtMs: recordingStartMs(h.startUnixMs)!,
       }),
