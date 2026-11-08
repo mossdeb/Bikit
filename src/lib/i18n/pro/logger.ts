@@ -24,9 +24,12 @@ const en = {
     notSent: "The logger did not send this setting.",
     power: {
       title: "Power & Recording",
-      autoStop: "Auto Stop Recording",
-      autoStopHint:
-        "Ends a recording when the bike stops moving: after at least 60 s of recording, and 90 s still with GPS or 120 s without. Useful if you forget to stop the recording at the end of a run.",
+      autoStop: "Auto Stop",
+      /** The hint follows the switch: what happens with it on, and off. */
+      autoStopOn:
+        "The logger ends the recording once it confirms you have been still for long enough.",
+      autoStopOff:
+        "The recording carries on until you press the STOP button, even with the bike standing still.",
       autoSleep: "Auto Sleep",
       autoSleepHint: "Lets the logger go into low-power mode by itself.",
       sleepAfter: "Sleep on Inactivity",
@@ -63,9 +66,11 @@ const pt: typeof en = {
     notSent: "O logger não enviou esta definição.",
     power: {
       title: "Energia e gravação",
-      autoStop: "Parar gravação automaticamente",
-      autoStopHint:
-        "Termina a gravação quando a bicicleta deixa de se mexer: com pelo menos 60 s gravados, e 90 s parada com GPS ou 120 s sem. Útil caso te esqueças de parar a gravação no fim da run.",
+      autoStop: "Auto Stop",
+      autoStopOn:
+        "O logger termina a gravação quando confirma que estás parado durante o período necessário.",
+      autoStopOff:
+        "A gravação continua até carregares no botão STOP, mesmo que a bicicleta esteja parada.",
       autoSleep: "Suspensão automática",
       autoSleepHint: "Deixa o logger entrar sozinho em modo de baixo consumo.",
       sleepAfter: "Suspender após inatividade",

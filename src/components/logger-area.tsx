@@ -363,7 +363,7 @@ function LoggerSettings({
         <SettingsCard title={t.power.title}>
           <ToggleRow
             label={t.power.autoStop}
-            hint={t.power.autoStopHint}
+            hint={(on) => (on === false ? t.power.autoStopOff : t.power.autoStopOn)}
             value={config ? config.autoStop : null}
             onSave={(on) => save("AUTO_STOP", on ? "1" : "0")}
           />
@@ -469,18 +469,20 @@ function ToggleRow({
   onSave,
 }: {
   label: string;
-  hint: string;
+  /** A fixed line, or one that follows the switch (null: not read yet). */
+  hint: string | ((on: boolean | null) => string);
   value: boolean | null;
   onSave: (on: boolean) => Promise<void>;
 }) {
   const { shown, saving, message, commit } = useSaving(value, onSave);
+  const hintText = typeof hint === "function" ? hint(shown) : hint;
   const disabled = value === null || saving;
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-base font-semibold">{label}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{hintText}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           {!message?.bad && <RowStatus saving={saving} message={message} />}
