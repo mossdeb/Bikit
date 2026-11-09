@@ -67,6 +67,12 @@ const en = {
     "No lines could be drawn there: the bike has to be moving at both instants, with GPS.",
   noGps: "This recording has no GPS, so no lines can be drawn on it.",
   create: "Create track",
+  /** A new track whose lines lie within 20 m of an existing one's
+   * (2026-11-09): offered that track instead. */
+  sameTrack: (name: string, startM: number, finishM: number): string =>
+    `"${name}" already covers this stretch: its start is ${startM} m and its finish ${finishM} m from these lines. Use it, so the runs are timed between the same lines?`,
+  useSameTrack: (name: string): string => `Use "${name}"`,
+  createAnyway: "Create a new one anyway",
   save: "Save",
   redefine: "Redraw from this run",
   rename: "Rename",
@@ -126,6 +132,10 @@ const pt: typeof en = {
     "Não deu para traçar as linhas aí: a bicicleta tem de estar em andamento nos dois instantes, com GPS.",
   noGps: "Esta gravação não tem GPS, por isso não dá para traçar linhas nela.",
   create: "Criar pista",
+  sameTrack: (name, startM, finishM) =>
+    `A pista "${name}" já cobre este troço: a partida dela fica a ${startM} m e a chegada a ${finishM} m destas linhas. Usar essa, para as runs serem medidas entre as mesmas linhas?`,
+  useSameTrack: (name) => `Usar "${name}"`,
+  createAnyway: "Criar uma nova mesmo assim",
   save: "Guardar",
   redefine: "Redesenhar a partir desta run",
   rename: "Mudar nome",

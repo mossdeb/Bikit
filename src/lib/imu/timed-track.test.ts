@@ -8,7 +8,9 @@ import {
 import {
   createLapTrack,
   createTimedTrack,
+  findSameTrack,
   findTimedRuns,
+  SAME_TRACK_M,
   isClosedStretch,
   lapMarks,
   formatRunGap,
@@ -315,5 +317,68 @@ describe("trackNameOfRun", () => {
   it("has no name for the code alone", () => {
     expect(trackNameOfRun("R0117")).toBeNull();
     expect(trackNameOfRun("  ")).toBeNull();
+  });
+});
+
+describe("findSameTrack", () => {
+  // The real lines (2026-11-09): "Casa DH race" against the account's
+  // other tracks on that trail.
+  const gate = (latDeg: number, lonDeg: number, headingDeg: number) => ({
+    latDeg,
+    lonDeg,
+    headingDeg,
+    halfWidthM: 12,
+  });
+  const casaDh = {
+    entry: gate(37.18259435121465, -7.917891202477836, 297.6),
+    exit: gate(37.18505177505002, -7.9144236563509285, 82.6),
+    referenceDurationMs: 110_343,
+  };
+  const casaVelha = {
+    id: "cv",
+    definition: {
+      entry: gate(37.18259671662517, -7.9178679785927715, 296.3),
+      exit: gate(37.18500884814964, -7.914542857925549, 81.7),
+      referenceDurationMs: 106_512,
+    },
+  };
+  const newTrack08 = {
+    id: "n08",
+    definition: {
+      entry: gate(37.182673235883016, -7.9180423856018, 287.9),
+      exit: gate(37.184968693413175, -7.914667992115768, 76.6),
+      referenceDurationMs: 102_211,
+    },
+  };
+  const shortCasaVelha = {
+    id: "short",
+    definition: {
+      entry: gate(37.182624016849964, -7.917897158837927, 298.5),
+      exit: gate(37.18404675382808, -7.917287171111226, 85.8),
+      referenceDurationMs: 71_600,
+    },
+  };
+
+  it("finds the track whose lines are both within 20 m", () => {
+    const found = findSameTrack(casaDh, [shortCasaVelha, newTrack08, casaVelha]);
+    expect(found?.track.id).toBe("cv");
+    expect(found!.startM).toBeLessThan(3);
+    expect(found!.finishM).toBeGreaterThan(10);
+    expect(found!.finishM).toBeLessThan(SAME_TRACK_M);
+  });
+
+  it("leaves a track whose finish is far off, or a line past 20 m", () => {
+    // New track 08: start 16 m, finish 24 m — the finish is past the limit.
+    expect(findSameTrack(casaDh, [newTrack08, shortCasaVelha])).toBeNull();
+  });
+
+  it("does not match the same places ridden the other way, nor a circuit", () => {
+    const reversed = {
+      ...casaDh,
+      entry: { ...casaDh.entry, headingDeg: 117.6 },
+      exit: { ...casaDh.exit, headingDeg: 262.6 },
+    };
+    expect(findSameTrack(reversed, [casaVelha])).toBeNull();
+    expect(findSameTrack({ ...casaDh, laps: true }, [casaVelha])).toBeNull();
   });
 });

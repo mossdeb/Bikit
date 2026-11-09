@@ -25,6 +25,7 @@ import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { saveImuSessionTrim } from "@/components/imu-session-trim";
 import {
   createTimedTrack,
+  findSameTrack,
   createLapTrack,
   findTimedRuns,
   headlineRunMs,
@@ -741,6 +742,11 @@ function TrackForm({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** An existing track on the same stretch, found when a new one was about
+   * to be created (2026-11-09) — the form asks before duplicating it. */
+  const [sameTrack, setSameTrack] = useState<ReturnType<
+    typeof findSameTrack<ImuTimedTrack>
+  > | null>(null);
 
   const startMs = parseSessionTime(startText);
   const finishMs = parseSessionTime(finishText);
@@ -758,9 +764,10 @@ function TrackForm({
     setStartText(formatSessionTime(a, true));
     setFinishText(formatSessionTime(Math.min(b, fullMs), true));
     setError(null);
+    setSameTrack(null);
   }
 
-  async function submit() {
+  async function submit(createAnyway = false) {
     if (busy || !timesValid) return;
     if (!name.trim()) {
       setError(t.errors.nameRequired);
@@ -780,6 +787,14 @@ function TrackForm({
         return;
       }
       redraw = { definition: made.definition, referenceSessionId: sessionId };
+      // A new track on a stretch an existing one already times: ask first.
+      if (!editing && !createAnyway) {
+        const found = findSameTrack(made.definition, tracks);
+        if (found) {
+          setSameTrack(found);
+          return;
+        }
+      }
     }
     setBusy(true);
     setError(null);
@@ -845,6 +860,7 @@ function TrackForm({
           onChange={(e) => {
             setCircuit(e.target.checked);
             setError(null);
+            setSameTrack(null);
           }}
           className="size-4 accent-foreground"
         />
@@ -863,6 +879,7 @@ function TrackForm({
             onChange={(e) => {
               setStartText(e.target.value);
               setError(null);
+              setSameTrack(null);
             }}
             aria-invalid={startMs == null || undefined}
             className="font-mono tabular-nums"
@@ -879,6 +896,7 @@ function TrackForm({
               onChange={(e) => {
                 setFinishText(e.target.value);
                 setError(null);
+                setSameTrack(null);
               }}
               aria-invalid={finishMs == null || undefined}
               className="font-mono tabular-nums"
@@ -903,27 +921,59 @@ function TrackForm({
         <p className="text-sm text-muted-foreground">{t.hintFormat}</p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-col gap-2 sm:flex-row-reverse">
-        <Button
-          type="submit"
-          variant="inverted"
-          className="rounded-full sm:flex-1"
-          disabled={busy || !timesValid}
-        >
-          {busy ? common.saving : editing ? t.save : t.create}
-        </Button>
-        {onCancel && (
+      {sameTrack ? (
+        <div className="space-y-3 rounded-[16px] border border-border bg-muted p-4">
+          <p className="text-sm">
+            {t.sameTrack(
+              sameTrack.track.name,
+              Math.round(sameTrack.startM),
+              Math.round(sameTrack.finishM),
+            )}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button
+              type="button"
+              variant="inverted"
+              className="rounded-full sm:flex-1"
+              disabled={busy}
+              onClick={() => onSaved(sameTrack.track.id)}
+            >
+              {t.useSameTrack(sameTrack.track.name)}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              disabled={busy}
+              onClick={() => void submit(true)}
+            >
+              {busy ? common.saving : t.createAnyway}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2 sm:flex-row-reverse">
           <Button
-            type="button"
-            variant="outline"
-            className="rounded-full"
-            disabled={busy}
-            onClick={onCancel}
+            type="submit"
+            variant="inverted"
+            className="rounded-full sm:flex-1"
+            disabled={busy || !timesValid}
           >
-            {t.cancel}
+            {busy ? common.saving : editing ? t.save : t.create}
           </Button>
-        )}
-      </div>
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              disabled={busy}
+              onClick={onCancel}
+            >
+              {t.cancel}
+            </Button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

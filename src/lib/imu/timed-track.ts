@@ -5,6 +5,7 @@ import {
   isGatePair,
   lineCrossings,
   type GatePair,
+  type SnapshotGate,
   type SnapshotPass,
   type SnapshotSession,
 } from "@/lib/imu/snapshot";
@@ -60,6 +61,60 @@ const MIN_LAP_MS = 15_000;
 /** A stretch closed within this distance, m, is a circuit: two lines drawn
  * on its ends would stand on top of each other. */
 const CLOSED_LOOP_M = 30;
+
+/** Two tracks whose starts and finishes both lie within this, m, are one
+ * stretch of trail (by request, 2026-11-09, after "Casa DH race" was drawn
+ * 2 m and 12 m from "Casa Velha"): a new track there is offered the old one
+ * instead. GPS alone puts two drawings of one line a few metres apart. */
+export const SAME_TRACK_M = 20;
+/** …and ridden the same way: lines facing within this, degrees. A track
+ * down a trail and one up it share their lines' places, not their runs. */
+const SAME_TRACK_HEADING_DEG = 90;
+
+function gateMetres(a: SnapshotGate, b: SnapshotGate): number {
+  const cosLat = Math.cos((((a.latDeg + b.latDeg) / 2) * Math.PI) / 180);
+  const m = (Math.PI / 180) * 6_371_000;
+  return Math.hypot(
+    (b.lonDeg - a.lonDeg) * m * cosLat,
+    (b.latDeg - a.latDeg) * m,
+  );
+}
+
+function headingGapDeg(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/**
+ * The existing track a new one would duplicate: the same kind (a circuit
+ * matches only a circuit), start within SAME_TRACK_M of its start, finish
+ * within SAME_TRACK_M of its finish, both lines facing the same way. The
+ * closest, by the sum of the two distances, with how far each line is.
+ * Null when no track is that close.
+ */
+export function findSameTrack<T extends { definition: TimedTrackDefinition }>(
+  definition: TimedTrackDefinition,
+  tracks: T[],
+): { track: T; startM: number; finishM: number } | null {
+  let best: { track: T; startM: number; finishM: number } | null = null;
+  for (const track of tracks) {
+    const other = track.definition;
+    if (isLapTrack(other) !== isLapTrack(definition)) continue;
+    const startM = gateMetres(definition.entry, other.entry);
+    const finishM = gateMetres(definition.exit, other.exit);
+    if (startM > SAME_TRACK_M || finishM > SAME_TRACK_M) continue;
+    if (
+      headingGapDeg(definition.entry.headingDeg, other.entry.headingDeg) >
+        SAME_TRACK_HEADING_DEG ||
+      headingGapDeg(definition.exit.headingDeg, other.exit.headingDeg) >
+        SAME_TRACK_HEADING_DEG
+    )
+      continue;
+    if (!best || startM + finishM < best.startM + best.finishM)
+      best = { track, startM, finishM };
+  }
+  return best;
+}
 
 export function isLapTrack(definition: TimedTrackDefinition): boolean {
   return definition.laps === true;
