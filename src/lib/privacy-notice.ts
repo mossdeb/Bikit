@@ -20,13 +20,13 @@ export const PRIVACY_NOTICE_TEXT: Record<
 > = {
   pt: {
     title: "Atualizámos a Política de Privacidade",
-    body: "A partir de 9 de novembro de 2026, o Bikit guarda um resumo diário de como usas a app: que páginas abres, o tipo de dispositivo e a cidade aproximada de onde acedes. Não guarda o teu endereço IP nem nada no teu dispositivo, e o resumo é apagado ao fim de 12 meses.",
+    body: "O BIKIT recolhe estatísticas diárias de utilização da app, incluindo as páginas visitadas, o tipo de dispositivo e a localização aproximada. Não são guardados endereços IP, nada fica guardado no teu dispositivo, e os registos são apagados ao fim de 12 meses.",
     read: "Ler a política",
     ok: "Entendi",
   },
   en: {
     title: "We updated the Privacy Policy",
-    body: "From 9 November 2026, Bikit keeps a daily summary of how you use the app: which pages you open, the type of device and the approximate city you access it from. It does not keep your IP address or anything on your device, and the summary is deleted after 12 months.",
+    body: "BIKIT collects daily app usage statistics, including pages visited, device type and approximate location. No IP addresses are stored, nothing is stored on your device, and records are deleted after 12 months.",
     read: "Read the policy",
     ok: "Got it",
   },

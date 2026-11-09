@@ -13,7 +13,7 @@ const en = {
   /** The sessions home (/pro). */
   list: {
     title: "Sessions",
-    subtitle: "Import and analyse sessions recorded by the IMU sensor.",
+    subtitle: "Import and analyse sessions",
     empty:
       "No sessions yet. Connect the device or import a .BKT file to get started.",
     /** A card's first line when the session rode on no registered bike. */
@@ -139,7 +139,7 @@ const en = {
 const pt: typeof en = {
   list: {
     title: "Sessões",
-    subtitle: "Importe e analise sessões gravadas pelo sensor IMU.",
+    subtitle: "Importe e analise sessões",
     empty:
       "Ainda não há sessões. Ligue o dispositivo ou importe um ficheiro .BKT para começar.",
     noBike: "Sem bicicleta",
