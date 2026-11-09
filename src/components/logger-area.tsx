@@ -14,6 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoggerDeviceCard } from "@/components/logger-device-card";
+import { BIKE_ICON_FALLBACK } from "@/components/bike-type-icon";
+import {
+  AutoStopIcon,
+  GpsFixIcon,
+  MotionSleepIcon,
+  MotorbikeIcon,
+  SleepModeIcon,
+  SleepTimerIcon,
+  TimedSleepIcon,
+} from "@/components/menu-icons";
 import { useProDict } from "@/components/pro-locale";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
@@ -553,12 +563,15 @@ function LoggerSettings({
         <SettingsCard title={t.power.title}>
           <ToggleRow
             label={t.power.autoStop}
+            // 28 px, centred on the title and hint together.
+            icon={<AutoStopIcon className="size-7 shrink-0" />}
             hint={(on) => (on === false ? t.power.autoStopOff : t.power.autoStopOn)}
             value={config ? config.autoStop : null}
             onSave={(on) => save("AUTO_STOP", on ? "1" : "0")}
           />
           <ToggleRow
             label={t.power.gpsFix}
+            icon={<GpsFixIcon className="size-7 shrink-0" />}
             hint={(on) => (on === false ? t.power.gpsFixOff : t.power.gpsFixOn)}
             value={config ? config.gpsFixProtection : null}
             onSave={(on) => save("GPS_FIX_PROTECTION", on ? "1" : "0")}
@@ -569,10 +582,21 @@ function LoggerSettings({
           <ChoiceRow
             label={t.power.sleepMode}
             hint={t.power.sleepModeHint}
+            icon={<SleepModeIcon className="size-7 shrink-0" />}
             value={config ? config.autoSleep : null}
             options={[
-              { value: true, label: t.power.timedSleep, hint: t.power.timedSleepHint },
-              { value: false, label: t.power.motionSleep, hint: t.power.motionSleepHint },
+              {
+                value: true,
+                label: t.power.timedSleep,
+                hint: t.power.timedSleepHint,
+                icon: <TimedSleepIcon className="size-6" />,
+              },
+              {
+                value: false,
+                label: t.power.motionSleep,
+                hint: t.power.motionSleepHint,
+                icon: <MotionSleepIcon className="h-6 w-auto" />,
+              },
             ]}
             onSave={(timed) => save("AUTO_SLEEP", timed ? "1" : "0")}
           />
@@ -587,8 +611,18 @@ function LoggerSettings({
             hideLabel
             value={config ? config.vehicle : null}
             options={[
-              { value: "BICYCLE", label: t.vehicle.bicycle, hint: t.vehicle.bicycleHint },
-              { value: "MOTORCYCLE", label: t.vehicle.motorcycle, hint: t.vehicle.motorcycleHint },
+              {
+                value: "BICYCLE",
+                label: t.vehicle.bicycle,
+                hint: t.vehicle.bicycleHint,
+                icon: <BIKE_ICON_FALLBACK className="h-6 w-auto" />,
+              },
+              {
+                value: "MOTORCYCLE",
+                label: t.vehicle.motorcycle,
+                hint: t.vehicle.motorcycleHint,
+                icon: <MotorbikeIcon className="h-6 w-auto" />,
+              },
             ]}
             onSave={(v: BikitVehicleType) => save("VEHICLE", v)}
           />
@@ -671,11 +705,14 @@ function RowStatus({
 
 function ToggleRow({
   label,
+  icon,
   hint,
   value,
   onSave,
 }: {
   label: string;
+  /** Drawn on the title's line, left of it (Auto Stop, 2026-11-09). */
+  icon?: ReactNode;
   /** A fixed line, or one that follows the switch (null: not read yet). */
   hint: string | ((on: boolean | null) => string);
   value: boolean | null;
@@ -687,9 +724,14 @@ function ToggleRow({
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-base font-semibold">{label}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{hintText}</p>
+        {/* The icon has a column of its own, so the hint lines up with the
+            title's text rather than running under the icon. */}
+        <div className="flex min-w-0 items-center gap-3">
+          {icon}
+          <div className="min-w-0">
+            <p className="text-base font-semibold">{label}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{hintText}</p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           {!message?.bad && <RowStatus saving={saving} message={message} />}
@@ -767,9 +809,13 @@ function SleepSliderRow({
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-base font-semibold">{t.sleepAfter}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{t.sleepAfterHint}</p>
+        {/* Laid out as ToggleRow's icon column (2026-11-09). */}
+        <div className="flex min-w-0 items-center gap-3">
+          <SleepTimerIcon className="size-7 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-base font-semibold">{t.sleepAfter}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t.sleepAfterHint}</p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           {!message?.bad && <RowStatus saving={saving} message={message} />}
@@ -807,6 +853,7 @@ function SleepSliderRow({
 function ChoiceRow<T extends string | boolean>({
   label,
   hint,
+  icon,
   hideLabel = false,
   value,
   options,
@@ -814,10 +861,12 @@ function ChoiceRow<T extends string | boolean>({
 }: {
   label: string;
   hint?: string;
+  /** Drawn left of the label and hint (Sleep Mode, 2026-11-09). */
+  icon?: ReactNode;
   /** The card's own title already says it (Vehicle Type). */
   hideLabel?: boolean;
   value: T | null;
-  options: { value: T; label: string; hint: string }[];
+  options: { value: T; label: string; hint: string; icon?: ReactNode }[];
   onSave: (v: T) => Promise<void>;
 }) {
   const { shown, saving, message, commit } = useSaving(value, onSave);
@@ -825,9 +874,13 @@ function ChoiceRow<T extends string | boolean>({
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       {!hideLabel && (
-        <div className="mb-3">
-          <p className="text-base font-semibold">{label}</p>
-          {hint && <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>}
+        // ToggleRow's icon column; the cards below keep the full width.
+        <div className="mb-3 flex min-w-0 items-center gap-3">
+          {icon}
+          <div className="min-w-0">
+            <p className="text-base font-semibold">{label}</p>
+            {hint && <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>}
+          </div>
         </div>
       )}
       <div role="radiogroup" aria-label={label} className="grid gap-3 sm:grid-cols-2">
@@ -852,6 +905,7 @@ function ChoiceRow<T extends string | boolean>({
                 value === null && "opacity-50",
               )}
             >
+              {o.icon && <span className="mb-3 block text-foreground">{o.icon}</span>}
               <span className="flex items-center justify-between gap-2">
                 <span className="text-base font-semibold">{o.label}</span>
                 {active &&
