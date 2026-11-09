@@ -38,6 +38,18 @@ const LAB_EMAILS = [
  */
 const RECORDING_DOWNLOAD_EMAILS = ["miguelgomesdzn@gmail.com"];
 
+/**
+ * Who sees the Perfect Run (by request, 2026-11-09): the owner's account
+ * only, while it is tried on his own tracks. The beta accounts keep the
+ * timed tracks as they were.
+ */
+const PERFECT_RUN_EMAILS = ["miguelgomesdzn@gmail.com"];
+
+export function hasPerfectRun(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return PERFECT_RUN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 export function canDownloadRecordings(email: string | null | undefined): boolean {
   if (!email) return false;
   return RECORDING_DOWNLOAD_EMAILS.includes(email.trim().toLowerCase());

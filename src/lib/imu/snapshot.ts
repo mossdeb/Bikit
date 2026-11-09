@@ -329,7 +329,7 @@ function positionAt(
   };
 }
 
-function distanceAt(track: SnapshotTrack, timeMs: number): number {
+export function distanceAt(track: SnapshotTrack, timeMs: number): number {
   const k = segmentAt(track, timeMs);
   const f = fractionAt(track, k, timeMs);
   return track.distM[k] + f * (track.distM[k + 1] - track.distM[k]);
@@ -337,7 +337,7 @@ function distanceAt(track: SnapshotTrack, timeMs: number): number {
 
 /** When the track had covered a distance — the first time, if it stood
  * still there. Clamped to the track's ends. */
-function timeAtDistance(track: SnapshotTrack, distM: number): number {
+export function timeAtDistance(track: SnapshotTrack, distM: number): number {
   const d = track.distM;
   const t = track.tMs;
   if (distM <= d[0]) return t[0];
@@ -1250,7 +1250,7 @@ export function buildTrackIndex(
   };
 }
 
-function isGate(value: unknown): value is SnapshotGate {
+export function isGate(value: unknown): value is SnapshotGate {
   if (!value || typeof value !== "object") return false;
   const g = value as Record<string, unknown>;
   const finite = (x: unknown) => typeof x === "number" && Number.isFinite(x);

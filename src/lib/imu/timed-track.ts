@@ -2,6 +2,7 @@ import {
   createGatePair,
   createLineAt,
   findSnapshotPasses,
+  isGate,
   isGatePair,
   lineCrossings,
   type GatePair,
@@ -31,6 +32,10 @@ import {
  * laps, and the ride before the first and after the last is no lap. */
 export interface TimedTrackDefinition extends GatePair {
   laps?: true;
+  /** The lines between start and finish that cut the track into sectors,
+   * in the order ridden (Perfect Run, 2026-11-09; src/lib/imu/perfect-run.ts).
+   * Absent on a track never split. */
+  splits?: SnapshotGate[];
 }
 
 export interface TimedRun extends SnapshotPass {
@@ -47,7 +52,7 @@ export const RUN_TIE_MS = 200;
  * m. Measured 2026-10-24 on five runs of one track: lines drawn from the
  * second around the instant faced up to 117° off where the others rode,
  * since the reference was braking into its stop. */
-const LINE_HEADING_SPAN_M = 15;
+export const LINE_HEADING_SPAN_M = 15;
 /** …and stands at least this far, m, from where the reference stood still:
  * a start drawn where R0100 waited was never crossed by R0022 and R0023,
  * which waited a few metres past it. */
@@ -325,7 +330,11 @@ export function trackNameOfRun(runName: string): string | null {
 export function isTimedTrackDefinition(
   value: unknown,
 ): value is TimedTrackDefinition {
-  return isGatePair(value);
+  if (!isGatePair(value)) return false;
+  const splits = (value as { splits?: unknown }).splits;
+  return (
+    splits === undefined || (Array.isArray(splits) && splits.every(isGate))
+  );
 }
 
 /** A run's time to the thousandth, "1:49.167" — a stopwatch's point in
