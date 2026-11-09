@@ -52,7 +52,8 @@ import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionLaps } from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
-import { isLapTrack, lapMarks } from "@/lib/imu/timed-track";
+import { isLapTrack, lapMarks, type TimedRun } from "@/lib/imu/timed-track";
+import { usePerfectRun } from "@/components/imu-perfect-run";
 import {
   ImuSessionTrackButton,
   ImuTrackRanking,
@@ -1192,6 +1193,10 @@ function eventSpanMs(event: ImuEvent): [number, number] {
   }
 }
 
+/** A stable "no runs" for usePerfectRun, so an empty list is not a new
+ * dependency on every render. */
+const NO_RUNS: TimedRun[] = [];
+
 export function ImuSessionAnalysis({
   sessionId,
   storagePath,
@@ -1205,7 +1210,11 @@ export function ImuSessionAnalysis({
   engineFilter = false,
   timedTracks = [],
   trackCandidates = [],
+  perfectRun = false,
 }: {
+  /** The Perfect Run is shown (hasPerfectRun: the owner's account only,
+   * 2026-11-09). */
+  perfectRun?: boolean;
   /** The row already keeps the file's rider-sag reading (migration
    * 00052); when it does not and the file has one, the page hands it over
    * once, for the setup's history. */
@@ -1259,6 +1268,19 @@ export function ImuSessionAnalysis({
   // The run read against the account's tracks once, for the flag on the
   // zoom row and the ranking in the header.
   const timed = useTimedRuns(whole, timedTracks);
+  // The Perfect Run of the first track it passes, for the ranking's line
+  // and the track dialog's tab — read once, here.
+  const perfect = usePerfectRun({
+    enabled: perfectRun,
+    sessionId,
+    riderName,
+    motorbike: engineFilter,
+    prepared: timed?.prepared ?? null,
+    track: timed?.passed[0]?.track ?? null,
+    runs: timed?.passed[0]?.runs ?? NO_RUNS,
+    candidates: trackCandidates,
+    locale,
+  });
   const [trimOpen, setTrimOpen] = useState(false);
 
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
@@ -2316,6 +2338,7 @@ export function ImuSessionAnalysis({
                 tracks={timedTracks}
                 candidates={trackCandidates}
                 timed={timed}
+                perfect={perfect}
               />
             )}
           </div>

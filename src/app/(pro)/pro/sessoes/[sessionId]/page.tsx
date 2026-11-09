@@ -4,7 +4,11 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
-import { canDownloadRecordings, hasLabAccess } from "@/lib/lab-access";
+import {
+  canDownloadRecordings,
+  hasLabAccess,
+  hasPerfectRun,
+} from "@/lib/lab-access";
 import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary, proNumber } from "@/lib/i18n/pro";
 import { formatDate } from "@/lib/format";
@@ -307,6 +311,7 @@ export default async function ImuSessionPage({
         engineFilter={session.engine_filter}
         timedTracks={timedTracks}
         trackCandidates={trackCandidates}
+        perfectRun={hasPerfectRun(email)}
         header={
           // Deep bottom padding on purpose: while the résumé sits underneath,
           // the air below the identity is what stops it reading as one more

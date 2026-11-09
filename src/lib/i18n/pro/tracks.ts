@@ -82,6 +82,42 @@ const en = {
   cancel: "Cancel",
   otherTracks: "Other tracks this run passes",
   newTrack: "New track",
+  /** Perfect Run (2026-11-09): the best sectors of one rider's runs on
+   * the track, added up. */
+  perfect: {
+    tabTimes: "Times",
+    tab: "Perfect Run",
+    /** The line under the ranking: the time, then what it would gain. */
+    line: (time: string): string => `Perfect Run ${time}`,
+    gainShort: (s: string): string => `−${s} s possible`,
+    bestActual: "Best actual run",
+    perfectRun: "Perfect Run",
+    gain: (s: string): string => `${s} s faster in theory`,
+    noGain: "No sector beats the best run by more than the lines measure.",
+    uncertainty: (s: string): string => `± ${s} s from the lines`,
+    sectorsTitle: "Best sectors combined",
+    sector: (n: number): string => `Sector ${n}`,
+    /** What the best actual run loses in a sector. */
+    potential: (s: string): string => `best run +${s} s`,
+    bestRunHere: "from the best run",
+    pool: (rider: string | null, motorbike: boolean): string =>
+      `${rider ? `${rider}'s runs` : "Runs with no rider"} on ${motorbike ? "a dirt bike" : "a bicycle"}`,
+    runs: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
+    excluded: (n: number): string =>
+      n === 1
+        ? "1 sector left out: its GPS or ground did not match the others."
+        : `${n} sectors left out: their GPS or ground did not match the others.`,
+    missed: (n: number): string =>
+      n === 1
+        ? "1 run does not cross every sector line and is not counted."
+        : `${n} runs do not cross every sector line and are not counted.`,
+    theory:
+      "A theoretical time: the best sectors were ridden on different runs, and may not all fit in one.",
+    loading: "Reading the runs…",
+    needsTwo: "The Perfect Run needs at least two runs by this rider on this track.",
+    noSectors: "This track could not be cut into sectors.",
+    circuit: "Circuits are not split into sectors yet.",
+  },
   errors: {
     invalidDefinition: "Invalid start and finish.",
     nameRequired: "The track needs a name.",
@@ -145,6 +181,38 @@ const pt: typeof en = {
   cancel: "Cancelar",
   otherTracks: "Outras pistas por onde esta run passa",
   newTrack: "Nova pista",
+  perfect: {
+    tabTimes: "Tempos",
+    tab: "Perfect Run",
+    line: (time) => `Perfect Run ${time}`,
+    gainShort: (s) => `−${s} s possíveis`,
+    bestActual: "Melhor run real",
+    perfectRun: "Perfect Run",
+    gain: (s) => `${s} s mais rápida, em teoria`,
+    noGain: "Nenhum sector bate a melhor run por mais do que as linhas medem.",
+    uncertainty: (s) => `± ${s} s das linhas`,
+    sectorsTitle: "Melhores sectores combinados",
+    sector: (n) => `Sector ${n}`,
+    potential: (s) => `melhor run +${s} s`,
+    bestRunHere: "da melhor run",
+    pool: (rider, motorbike) =>
+      `${rider ? `Runs de ${rider}` : "Runs sem rider"} de ${motorbike ? "mota de cross" : "bicicleta"}`,
+    runs: (n) => (n === 1 ? "1 run" : `${n} runs`),
+    excluded: (n) =>
+      n === 1
+        ? "1 sector ficou de fora: o GPS ou o percurso não batia com os outros."
+        : `${n} sectores ficaram de fora: o GPS ou o percurso não batia com os outros.`,
+    missed: (n) =>
+      n === 1
+        ? "1 run não cruza todas as linhas dos sectores e não conta."
+        : `${n} runs não cruzam todas as linhas dos sectores e não contam.`,
+    theory:
+      "Um tempo teórico: os melhores sectores foram feitos em runs diferentes e podem não caber todos numa só.",
+    loading: "A ler as runs…",
+    needsTwo: "A Perfect Run precisa de pelo menos duas runs deste rider nesta pista.",
+    noSectors: "Não foi possível dividir esta pista em sectores.",
+    circuit: "Os circuitos ainda não se dividem em sectores.",
+  },
   errors: {
     invalidDefinition: "Partida e chegada inválidas.",
     nameRequired: "A pista precisa de um nome.",

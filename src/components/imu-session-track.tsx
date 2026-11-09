@@ -40,6 +40,11 @@ import type {
   ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
 import {
+  PerfectRunLine,
+  PerfectRunView,
+  type PerfectRunState,
+} from "@/components/imu-perfect-run";
+import {
   createImuTrack,
   deleteImuTrack,
   updateImuTrack,
@@ -237,10 +242,16 @@ function ImuTrackDialog({
   tracks,
   candidates,
   readOnly = false,
+  perfect = null,
+  initialTab = "times",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string;
+  /** The Perfect Run of the first track this run passes (the owner's
+   * account only): a tab beside the times, on that track. */
+  perfect?: PerfectRunState | null;
+  initialTab?: "times" | "perfect";
   /** The times only, without drawing, redrawing or deleting (the ranking's
    * popup, 2026-10-26). */
   readOnly?: boolean;
@@ -266,6 +277,13 @@ function ImuTrackDialog({
   const [mode, setMode] = useState<"view" | "create" | "edit">(
     readOnly ? "view" : current ? "edit" : "create",
   );
+  const [tab, setTab] = useState<"times" | "perfect">(initialTab);
+  const locale = useProLocale();
+  const perfectHere =
+    perfect && current && perfect.trackId === current.track.id
+      ? perfect
+      : null;
+  const showPerfect = mode === "view" && perfectHere != null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,7 +295,34 @@ function ImuTrackDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {mode === "view" && current ? (
+        {showPerfect && (
+          <div className="flex gap-1 rounded-full bg-muted p-1 text-sm">
+            {(["times", "perfect"] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                aria-pressed={tab === key}
+                className={cn(
+                  "flex-1 cursor-pointer rounded-full px-3 py-1.5 font-medium transition-colors",
+                  tab === key
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {key === "times" ? t.perfect.tabTimes : t.perfect.tab}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showPerfect && tab === "perfect" ? (
+          <PerfectRunView
+            state={perfectHere}
+            sessionId={sessionId}
+            locale={locale}
+          />
+        ) : mode === "view" && current ? (
           <TrackView
             key={current.track.id}
             sessionId={sessionId}
@@ -1072,6 +1117,7 @@ export function ImuTrackRanking({
   tracks,
   candidates,
   timed,
+  perfect = null,
 }: {
   sessionId: string;
   whole: ImuSessionData;
@@ -1080,9 +1126,11 @@ export function ImuTrackRanking({
   tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
   timed: TimedRuns;
+  /** usePerfectRun's reading, on the owner's account; null elsewhere. */
+  perfect?: PerfectRunState | null;
 }) {
   const t = useProDict().tracks;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<false | "times" | "perfect">(false);
   const first = timed.passed[0];
   if (!first) return null;
   const circuit = isLapTrack(first.track.definition);
@@ -1097,7 +1145,7 @@ export function ImuTrackRanking({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen("times")}
         className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted"
       >
         <PodiumGlyph className="size-4" />
@@ -1113,10 +1161,13 @@ export function ImuTrackRanking({
           )}
         </span>
       </button>
+      {perfect && (
+        <PerfectRunLine state={perfect} onOpen={() => setOpen("perfect")} />
+      )}
       {open && (
         <ImuTrackDialog
-          open={open}
-          onOpenChange={setOpen}
+          open
+          onOpenChange={(next) => setOpen(next ? open : false)}
           sessionId={sessionId}
           whole={whole}
           prepared={timed.prepared}
@@ -1126,6 +1177,8 @@ export function ImuTrackRanking({
           tracks={tracks}
           candidates={candidates}
           readOnly
+          perfect={perfect}
+          initialTab={open}
         />
       )}
     </>

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { hasLabAccess } from "@/lib/lab-access";
+import { hasLabAccess, hasPerfectRun } from "@/lib/lab-access";
 import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary } from "@/lib/i18n/pro";
 import {
   isTimedTrackDefinition,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
+import { isGate, type SnapshotGate } from "@/lib/imu/snapshot";
 import type { Json } from "@/types/database.types";
 
 /**
@@ -32,6 +33,7 @@ async function caller() {
   return {
     supabase,
     userId: userId && hasLabAccess(email) ? userId : null,
+    email,
     t,
   };
 }
@@ -132,6 +134,45 @@ export async function deleteImuTrack(trackId: string): Promise<ImuTrackResult> {
     .from("imu_tracks")
     .delete()
     .eq("id", trackId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { status: "error", message: error.message };
+  if (!data)
+    return { status: "error", message: t.tracks.errors.trackNotFound };
+  return { status: "ok", id: data.id };
+}
+
+/**
+ * The lines that cut a track into Perfect Run sectors (2026-11-09), drawn
+ * in the browser on the first opening and kept on the track's definition,
+ * so every later opening reads the same sectors. Only the splits change:
+ * the start, the finish and the name are read back from the row as they
+ * are. The owner's account only, as the Perfect Run is.
+ */
+export async function setImuTrackSplits(input: {
+  trackId: string;
+  splits: SnapshotGate[];
+}): Promise<ImuTrackResult> {
+  const { supabase, userId, email, t } = await caller();
+  if (!userId || !hasPerfectRun(email))
+    return { status: "error", message: t.common.noAccess };
+  if (input.splits.length === 0 || !input.splits.every(isGate))
+    return { status: "error", message: t.tracks.errors.invalidDefinition };
+  const { data: row } = await supabase
+    .from("imu_tracks")
+    .select("definition")
+    .eq("id", input.trackId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const stored: unknown = row?.definition;
+  if (!isTimedTrackDefinition(stored))
+    return { status: "error", message: t.tracks.errors.trackNotFound };
+  const definition: TimedTrackDefinition = { ...stored, splits: input.splits };
+  const { data, error } = await supabase
+    .from("imu_tracks")
+    .update({ definition: definition as unknown as Json })
+    .eq("id", input.trackId)
     .eq("user_id", userId)
     .select("id")
     .maybeSingle();
