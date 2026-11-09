@@ -722,7 +722,7 @@ function ToggleRow({
   const hintText = typeof hint === "function" ? hint(shown) : hint;
   const disabled = value === null || saving;
   return (
-    <div className="py-4 first:pt-0 last:pb-0">
+    <div className="py-8 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         {/* The icon has a column of its own, so the hint lines up with the
             title's text rather than running under the icon. */}
@@ -807,7 +807,7 @@ function SleepSliderRow({
     setDragging(null);
   };
   return (
-    <div className="py-4 first:pt-0 last:pb-0">
+    <div className="py-8 first:pt-0 last:pb-0">
       <div className="flex items-start justify-between gap-4">
         {/* Laid out as ToggleRow's icon column (2026-11-09). */}
         <div className="flex min-w-0 items-center gap-3">
@@ -872,7 +872,7 @@ function ChoiceRow<T extends string | boolean>({
   const { shown, saving, message, commit } = useSaving(value, onSave);
   const disabled = value === null || saving;
   return (
-    <div className="py-4 first:pt-0 last:pb-0">
+    <div className="py-8 first:pt-0 last:pb-0">
       {!hideLabel && (
         // ToggleRow's icon column; the cards below keep the full width.
         <div className="mb-3 flex min-w-0 items-center gap-3">
