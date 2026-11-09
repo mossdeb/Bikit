@@ -392,6 +392,37 @@ function SideBikeArt() {
 }
 
 /**
+ * The dirt bike seen from the side (2026-11-09) — the pitch tile's mark on
+ * a session ridden on a motorbike (engine filter on). The same drawing as
+ * MotorbikeIcon (98 × 57), shrunk to the side bike's 28 units of width so
+ * the two share BIKE_ART.side: wheels land within half a unit of the
+ * bicycle's, and the middle within a quarter. The stroke is divided back
+ * out through the shrink, so it paints at the bicycle's 1.5px.
+ */
+const MOTO_SIDE_SCALE = 28 / 98;
+function MotoSideArt() {
+  return (
+    <g
+      transform={`scale(${MOTO_SIDE_SCALE})`}
+      stroke="currentColor"
+      strokeWidth={MARK_STROKE / MOTO_SIDE_SCALE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    >
+      <circle cx="17.39" cy="39.15" r="15.39" />
+      <circle cx="17.39" cy="39.15" r="3.39" />
+      <circle cx="79.95" cy="39.15" r="3.39" />
+      <circle cx="79.95" cy="39.15" r="15.39" />
+      <path d="M79.9512 39.4594L64.5631 2.45038L56.343 2.00006" />
+      <path d="M68.4059 11.6923H54.0936L45.4109 14.9084L11.3512 12.8808L42.9133 28.0229L48.3491 39.4594C48.3491 39.4594 70.1843 18.1987 70.9412 17.7897L68.4059 11.6923Z" />
+      <path d="M17.7299 39.4595L42.9133 28.0229" />
+      <path d="M70.9411 19.7261H43.6243" />
+    </g>
+  );
+}
+
+/**
  * One attitude tile: the dial art fixed, and the bike WITH its horizon line
  * rotated together by the estimated angle — the supplied example art does
  * exactly this, the bike leaning as one piece with its horizon while the
@@ -424,6 +455,7 @@ function AttitudeTile({
   angleDeg,
   subValue,
   bike,
+  motorbike = false,
   unreliable = false,
   unreliableTitle,
   className,
@@ -436,6 +468,8 @@ function AttitudeTile({
   unreliable?: boolean;
   unreliableTitle?: string;
   bike: "rear" | "side";
+  /** Draw the dirt bike for the side view (engine filter on). */
+  motorbike?: boolean;
   className?: string;
 }) {
   const locale = useProLocale();
@@ -494,7 +528,13 @@ function AttitudeTile({
           <g
             transform={`translate(48 27.5) scale(${BIKE_SCALE}) translate(-48 -27.5) translate(${BIKE_ART[bike].offset})`}
           >
-            {bike === "rear" ? <RearBikeArt /> : <SideBikeArt />}
+            {bike === "rear" ? (
+              <RearBikeArt />
+            ) : motorbike ? (
+              <MotoSideArt />
+            ) : (
+              <SideBikeArt />
+            )}
           </g>
         </g>
       </svg>
@@ -529,8 +569,12 @@ export function ImuSessionDashboard({
   leanDeg,
   pitchDeg,
   pitchUnreliable = false,
+  motorbike = false,
   className,
 }: {
+  /** Ridden on a motorbike (engine filter on): the pitch tile draws the
+   * dirt bike (2026-11-09). */
+  motorbike?: boolean;
   /** Whose ride these instruments are showing — the panel's title. Null on
    * sessions imported before the rider was asked for, and then the old
    * "Dashboard" stands: a name is only worth printing when it is recorded,
@@ -643,6 +687,7 @@ export function ImuSessionDashboard({
             angleDeg={pitchDeg}
             subValue={ax}
             bike="side"
+            motorbike={motorbike}
             unreliable={pitchUnreliable}
             unreliableTitle={t.analysis.vibration.pitchTitle}
             className="flex-1"

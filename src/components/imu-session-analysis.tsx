@@ -2643,6 +2643,7 @@ export function ImuSessionAnalysis({
           {dashOn && (
             <ImuSessionDashboard
               riderName={riderName}
+              motorbike={engineFilter}
               progress={dashProgress}
               headline={
                 dashSpeedKmh != null

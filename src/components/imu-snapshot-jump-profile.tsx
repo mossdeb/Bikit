@@ -455,6 +455,7 @@ export function ImuSnapshotJumpProfile({
                     y={dot.y}
                     angleDeg={angleOf(p)}
                     widthPx={bikePx}
+                    motorbike={p.motorbike === true}
                     opacity={bikeOpacity}
                     // The reference's bike in the ink of the page —
                     // white on dark, black on light — its line keeping
@@ -564,6 +565,24 @@ const BIKE_PATHS = [
  * wheelbase of about 1.25 m, the icon's axles 65 of its 101 units apart —
  * so the icon spans ~1.94 m of ground. Held between these, px, so a short
  * hop still shows a bike and a long one is not covered by it. */
+/** The dirt bike (bike-type-icon's MotorbikeIcon, 2026-11-09) in its own
+ * 98 × 57 box, for a pass ridden on a motorbike. */
+const MOTO_PATHS = [
+  "M2 39.15a15.39 15.39 0 1 0 30.78 0a15.39 15.39 0 1 0 -30.78 0Z",
+  "M14 39.15a3.39 3.39 0 1 0 6.78 0a3.39 3.39 0 1 0 -6.78 0Z",
+  "M76.56 39.15a3.39 3.39 0 1 0 6.78 0a3.39 3.39 0 1 0 -6.78 0Z",
+  "M64.56 39.15a15.39 15.39 0 1 0 30.78 0a15.39 15.39 0 1 0 -30.78 0Z",
+  "M79.9512 39.4594L64.5631 2.45038L56.343 2.00006",
+  "M68.4059 11.6923H54.0936L45.4109 14.9084L11.3512 12.8808L42.9133 28.0229L48.3491 39.4594C48.3491 39.4594 70.1843 18.1987 70.9412 17.7897L68.4059 11.6923Z",
+  "M17.7299 39.4595L42.9133 28.0229",
+  "M70.9411 19.7261H43.6243",
+];
+/** Into the bike's box: axles 62.56 units apart scaled to the bike's 65,
+ * the rear axle laid on the bike's (17.97, 42.64) — so both stand on the
+ * same point at the same wheelbase, and the angle pill's box still holds. */
+const MOTO_K = 65 / 62.56;
+const MOTO_FIT = `translate(17.97 42.64) scale(${MOTO_K.toFixed(4)}) translate(-17.39 -39.15)`;
+
 const BIKE_WHEELBASE_M = 1.25;
 const BIKE_ICON_M = (BIKE_WHEELBASE_M * 101) / 65;
 const BIKE_MIN_PX = 36;
@@ -576,6 +595,7 @@ function Bike({
   y,
   angleDeg,
   widthPx,
+  motorbike = false,
   opacity = 1,
   className,
 }: {
@@ -583,6 +603,7 @@ function Bike({
   y: number;
   angleDeg: number;
   widthPx: number;
+  motorbike?: boolean;
   opacity?: number;
   className?: string;
 }) {
@@ -599,9 +620,15 @@ function Bike({
       strokeLinejoin="round"
       fill="none"
     >
-      {BIKE_PATHS.map((d) => (
-        <path key={d.slice(0, 16)} d={d} />
-      ))}
+      {motorbike ? (
+        <g transform={MOTO_FIT} strokeWidth={3 / k / MOTO_K}>
+          {MOTO_PATHS.map((d) => (
+            <path key={d.slice(0, 16)} d={d} />
+          ))}
+        </g>
+      ) : (
+        BIKE_PATHS.map((d) => <path key={d.slice(0, 16)} d={d} />)
+      )}
     </g>
   );
 }

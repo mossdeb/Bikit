@@ -44,7 +44,7 @@ export async function loadSnapshotCandidates(
     supabase
       .from("imu_sessions")
       .select(
-        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms",
+        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms, engine_filter",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
@@ -110,6 +110,7 @@ export async function loadSnapshotCandidates(
       setup: (s.setup_id && setupById.get(s.setup_id)?.values) || null,
       setupNote: (s.setup_id && setupById.get(s.setup_id)?.note) || null,
       trim: trimOf(s.trim_start_ms, s.trim_end_ms),
+      motorbike: s.engine_filter,
       // The tracks this recording comes near both lines of — whether a
       // pass of the stretch was ridden on one is for the file to say. The
       // reference without an index is offered them all.

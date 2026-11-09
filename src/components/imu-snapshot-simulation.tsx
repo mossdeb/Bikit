@@ -60,6 +60,9 @@ export interface SimulationPass {
   rider: string | null;
   /** …and on which bike, null when the session does not say. */
   bike: string | null;
+  /** Ridden on a motorbike (engine filter on): the jump's side view draws
+   * the dirt bike for it (2026-11-09). */
+  motorbike?: boolean;
   isReference: boolean;
   trace: SnapshotPassTrace;
   /** Its first flight, for a jump's side view. */

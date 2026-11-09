@@ -126,6 +126,9 @@ export interface ImuSnapshotCandidate {
   /** The timed tracks the recording comes near (src/lib/imu/timed-track),
    * for the track filter (2026-10-28). Absent where nobody filters. */
   tracks?: { id: string; name: string; definition: GatePair }[];
+  /** Ridden on a motorbike — the engine filter on (2026-11-09): the jump's
+   * side view draws its pass as the dirt bike. Absent elsewhere. */
+  motorbike?: boolean;
 }
 
 export interface ImuSnapshotRow {
@@ -795,6 +798,7 @@ export function ImuSnapshotView({
             name: reference.session.name,
             rider: reference.session.riderName,
             bike: reference.session.bikeName,
+            motorbike: reference.session.motorbike === true,
             isReference: true,
             trace: referenceTrace,
             flight: flights.get(rowKey(reference.session.id, reference.index)),
@@ -804,6 +808,7 @@ export function ImuSnapshotView({
             name: r.session.name,
             rider: r.session.riderName,
             bike: r.session.bikeName,
+            motorbike: r.session.motorbike === true,
             isReference: false,
             trace: traces.get(rowKey(r.session.id, r.index))!,
             flight: flights.get(rowKey(r.session.id, r.index)),
