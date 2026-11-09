@@ -16,6 +16,8 @@ import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 import { ActivityRecorder } from "@/components/activity-recorder";
+import { PrivacyNoticeBanner } from "@/components/privacy-notice-banner";
+import { PRIVACY_NOTICE_ID, PRIVACY_NOTICE_TEXT } from "@/lib/privacy-notice";
 
 export default async function AppLayout({
   children,
@@ -32,7 +34,15 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  const dict = getDictionary(localeFromMetadata(user.user_metadata));
+  const locale = localeFromMetadata(user.user_metadata);
+  const dict = getDictionary(locale);
+  // The privacy update, told once (src/lib/privacy-notice.ts).
+  const { data: privacySeen } = await supabase
+    .from("notice_acceptances")
+    .select("notice")
+    .eq("user_id", user.sub as string)
+    .eq("notice", PRIVACY_NOTICE_ID)
+    .maybeSingle();
   // The door to Bikit Pro, in the account menu, for the accounts that have
   // it — the same gate the Pro area applies (it 404s for anyone else). Not
   // on the navs: the two areas keep their own (2026-09-23).
@@ -42,6 +52,9 @@ export default async function AppLayout({
     <ToastProvider>
       {/* Counts the pages this account opens (2026-11-09). */}
       <ActivityRecorder />
+      {!privacySeen && (
+        <PrivacyNoticeBanner text={PRIVACY_NOTICE_TEXT[locale]} />
+      )}
       {/* `data-app-shell` is a hook, not a style: it is the element that
           paints the page's background, and the IMU lab's dot texture needs
           to reach exactly it (see globals.css). No rule matches it

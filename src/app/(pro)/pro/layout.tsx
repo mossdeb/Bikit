@@ -13,6 +13,8 @@ import { PatentPill } from "@/components/site-footer";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 import { ActivityRecorder } from "@/components/activity-recorder";
+import { PrivacyNoticeBanner } from "@/components/privacy-notice-banner";
+import { PRIVACY_NOTICE_ID, PRIVACY_NOTICE_TEXT } from "@/lib/privacy-notice";
 import { ProLocaleProvider } from "@/components/pro-locale";
 
 /**
@@ -45,12 +47,22 @@ export default async function ProLayout({
 
   const locale = localeFromMetadata(user.user_metadata);
   const dict = getDictionary(locale);
+  // The privacy update, told once (src/lib/privacy-notice.ts).
+  const { data: privacySeen } = await supabase
+    .from("notice_acceptances")
+    .select("notice")
+    .eq("user_id", user.sub as string)
+    .eq("notice", PRIVACY_NOTICE_ID)
+    .maybeSingle();
 
   return (
     <ProLocaleProvider locale={locale}>
       <ToastProvider>
         {/* Counts the pages this account opens (2026-11-09). */}
         <ActivityRecorder />
+        {!privacySeen && (
+          <PrivacyNoticeBanner text={PRIVACY_NOTICE_TEXT[locale]} />
+        )}
         <ImuLabTexture />
         {/* `data-app-shell`: the element that paints the background, which
           the texture's rule in globals.css reaches. */}
