@@ -290,6 +290,10 @@ const RUN_COLORS = [
   "#D886B4",
 ];
 
+/** The gain under the line's time — hidden for now (by request,
+ * 2026-11-09); the tab still says it. */
+const SHOW_LINE_GAIN = false;
+
 /** Under the ranking: the Perfect Run's time and what it would gain. */
 export function PerfectRunLine({
   state,
@@ -313,7 +317,7 @@ export function PerfectRunLine({
         <span className="font-semibold tabular-nums">
           {t.line(formatRunTime(result.perfectMs))}
         </span>
-        {result.gainMs > RUN_TIE_MS && (
+        {SHOW_LINE_GAIN && result.gainMs > RUN_TIE_MS && (
           <span className="text-xs text-muted-foreground tabular-nums">
             {t.gainShort(seconds(result.gainMs))}
           </span>
