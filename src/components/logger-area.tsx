@@ -367,6 +367,12 @@ function LoggerSettings({
             value={config ? config.autoStop : null}
             onSave={(on) => save("AUTO_STOP", on ? "1" : "0")}
           />
+          <ToggleRow
+            label={t.power.gpsFix}
+            hint={(on) => (on === false ? t.power.gpsFixOff : t.power.gpsFixOn)}
+            value={config ? config.gpsFixProtection : null}
+            onSave={(on) => save("GPS_FIX_PROTECTION", on ? "1" : "0")}
+          />
           {/* Sleep Mode (2026-11-08): AUTO_SLEEP picks HOW the logger sleeps
               when it is not recording, not WHETHER — it always sleeps, by
               the timer, and the timer counts in both modes. */}

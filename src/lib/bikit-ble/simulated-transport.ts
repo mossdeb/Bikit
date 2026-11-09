@@ -20,6 +20,7 @@ export class SimulatedLoggerTransport implements BikitTransport {
     AUTO_SLEEP: "1",
     SLEEP_MIN: "5",
     VEHICLE: "BICYCLE",
+    GPS_FIX_PROTECTION: "1",
   };
 
   constructor(private readonly delayMs = 250) {}
@@ -85,7 +86,8 @@ export class SimulatedLoggerTransport implements BikitTransport {
         const k = key.toUpperCase();
         const v = value.toUpperCase();
         const valid =
-          ((k === "AUTO_STOP" || k === "AUTO_SLEEP") && (v === "0" || v === "1")) ||
+          ((k === "AUTO_STOP" || k === "AUTO_SLEEP" || k === "GPS_FIX_PROTECTION") &&
+            (v === "0" || v === "1")) ||
           (k === "SLEEP_MIN" && ["5", "10", "15"].includes(v)) ||
           (k === "VEHICLE" && (v === "BICYCLE" || v === "MOTORCYCLE"));
         if (!valid) return this.send("ERROR INVALID_SETTING");

@@ -85,10 +85,18 @@ export interface BikitDeviceConfig {
   autoSleep: boolean | null;
   /** The Sleep Timer, minutes: 5, 10 or 15. */
   sleepMinutes: number | null;
+  /** GPS Fix Protection (firmware V18.10): START is refused without a
+   * recent, good fix. On by default; off only for bench tests. */
+  gpsFixProtection: boolean | null;
   vehicle: BikitVehicleType | null;
 }
 
-export type BikitConfigKey = "AUTO_STOP" | "AUTO_SLEEP" | "SLEEP_MIN" | "VEHICLE";
+export type BikitConfigKey =
+  | "AUTO_STOP"
+  | "AUTO_SLEEP"
+  | "SLEEP_MIN"
+  | "VEHICLE"
+  | "GPS_FIX_PROTECTION";
 
 export const SLEEP_MINUTES = [5, 10, 15] as const;
 
@@ -102,11 +110,13 @@ function applyConfigLine(
   const v = value.toUpperCase();
   switch (key) {
     case "AUTO_STOP":
-    case "AUTO_SLEEP": {
+    case "AUTO_SLEEP":
+    case "GPS_FIX_PROTECTION": {
       const on = v === "1" || v === "ON" ? true : v === "0" || v === "OFF" ? false : null;
       if (on === null) return;
       if (key === "AUTO_STOP") config.autoStop = on;
-      else config.autoSleep = on;
+      else if (key === "AUTO_SLEEP") config.autoSleep = on;
+      else config.gpsFixProtection = on;
       return;
     }
     case "SLEEP_MIN": {
@@ -672,6 +682,7 @@ export class BikitDevice {
         autoSleep: null,
         sleepMinutes: null,
         vehicle: null,
+        gpsFixProtection: null,
       };
       let seen = false;
       let settled = false;
@@ -747,6 +758,7 @@ export class BikitDevice {
       autoSleep: null,
       sleepMinutes: null,
       vehicle: null,
+      gpsFixProtection: null,
     };
     applyConfigLine(config, key, stored);
     return config;

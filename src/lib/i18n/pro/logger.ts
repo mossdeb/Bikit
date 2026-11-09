@@ -30,6 +30,13 @@ const en = {
         "The logger ends the recording once it confirms you have been still for long enough.",
       autoStopOff:
         "The recording carries on until you press the STOP button, even with the bike standing still.",
+      /** GPS_FIX_PROTECTION (firmware V18.10, 2026-11-09): the hint
+       * follows the switch, as Auto Stop's does. */
+      gpsFix: "GPS Fix Protection",
+      gpsFixOn:
+        "The recording only starts once the GPS has a good fix. Without one, START is refused.",
+      gpsFixOff:
+        "The recording starts with or without a GPS fix. For bench tests.",
       /** AUTO_SLEEP: 1 = Timed, 0 = Motion-Aware (2026-11-08). */
       sleepMode: "Sleep Mode",
       sleepModeHint: "How the logger goes to sleep when it is not recording.",
@@ -78,6 +85,11 @@ const pt: typeof en = {
         "O logger termina a gravação quando confirma que estás parado durante o período necessário.",
       autoStopOff:
         "A gravação continua até carregares no botão STOP, mesmo que a bicicleta esteja parada.",
+      gpsFix: "GPS Fix Protection",
+      gpsFixOn:
+        "A gravação só começa quando o GPS tem um bom fix. Sem ele, o START é recusado.",
+      gpsFixOff:
+        "A gravação começa com ou sem fix de GPS. Para testes de bancada.",
       sleepMode: "Sleep Mode",
       sleepModeHint: "Como o logger entra em suspensão quando não está a gravar.",
       timedSleep: "Timed Sleep",

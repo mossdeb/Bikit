@@ -28,6 +28,7 @@ describe("CONFIG / SET", () => {
       autoSleep: true,
       sleepMinutes: 5,
       vehicle: "BICYCLE",
+      gpsFixProtection: true,
     });
   });
 
@@ -47,6 +48,7 @@ describe("CONFIG / SET", () => {
       autoSleep: null,
       sleepMinutes: null,
       vehicle: null,
+      gpsFixProtection: null,
     });
   });
 
@@ -56,6 +58,8 @@ describe("CONFIG / SET", () => {
     expect(stored.sleepMinutes).toBe(15);
     expect((await device.readConfig())?.sleepMinutes).toBe(15);
     expect((await device.setConfig("VEHICLE", "MOTORCYCLE")).vehicle).toBe("MOTORCYCLE");
+    expect((await device.setConfig("GPS_FIX_PROTECTION", "0")).gpsFixProtection).toBe(false);
+    expect((await device.readConfig())?.gpsFixProtection).toBe(false);
   });
 
   it("rejects with the device's own refusal", async () => {
