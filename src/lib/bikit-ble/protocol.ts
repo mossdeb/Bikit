@@ -57,6 +57,12 @@ export interface BikitDeviceInfo {
     hdop: number;
     signal: "GOOD" | "FAIR" | "WEAK" | "NONE" | string;
     ageMs: number;
+    /** GPS_STATUS said READY (firmware V18.10) — the start criteria met.
+     * Absent when the reading came from INFO_GPS alone. */
+    ready?: boolean;
+    /** The state's name, in the reader's language, when it came from
+     * GPS_STATUS — the cell then says what the GPS detail says. */
+    label?: string;
   } | null;
   /** `INFO_SD <status>` and `INFO_IMU <status>` — "OK", or the firmware's
    * own word for what is wrong. Null when the line was not sent. */
@@ -128,6 +134,41 @@ function applyConfigLine(
       if (v === "BICYCLE" || v === "MOTORCYCLE") config.vehicle = v;
       return;
   }
+}
+
+/** `GPS_STATUS` (firmware V18.10): the receiver's readiness for START, as
+ * GPS Fix Protection judges it. Each number is null where the logger sent
+ * `NA` — its data are older than 5 s, or never came. */
+export interface BikitGpsStatus {
+  /** 2 = 2D, 3 = 3D; anything else is no fix. */
+  fixType: number | null;
+  visible: number | null;
+  used: number | null;
+  /** Estimated horizontal accuracy, mm. */
+  hAccMm: number | null;
+  /** Age of the last navigation solution, ms. */
+  ageMs: number | null;
+  /** NO_DATA, NO_PVT, STALE, NO_FIX, LOW_SATS, HIGH_HACC or READY — kept
+   * as sent, so a new word still shows. */
+  state: string;
+}
+
+/** One `GPS_STATUS …` line, or null when it is not one. */
+export function parseGpsStatus(line: string): BikitGpsStatus | null {
+  const parts = line.trim().split(/\s+/);
+  if (parts[0] !== "GPS_STATUS" || parts.length < 7) return null;
+  const num = (v: string) => {
+    const n = Number(v);
+    return v.toUpperCase() === "NA" || !Number.isFinite(n) ? null : n;
+  };
+  return {
+    fixType: num(parts[1]),
+    visible: num(parts[2]),
+    used: num(parts[3]),
+    hAccMm: num(parts[4]),
+    ageMs: num(parts[5]),
+    state: parts[6].toUpperCase(),
+  };
 }
 
 export interface BikitSessionEntry {
@@ -762,6 +803,19 @@ export class BikitDevice {
     };
     applyConfigLine(config, key, stored);
     return config;
+  }
+
+  /**
+   * `GPS_STATUS` → one `GPS_STATUS <fixType> <visible> <used> <hAcc_mm>
+   * <age_ms> <state>` line. Resolves null on firmware that predates it
+   * (`ERROR UNKNOWN_COMMAND`).
+   */
+  gpsStatus(): Promise<BikitGpsStatus | null> {
+    return this.request("GPS_STATUS", (m) => {
+      if (m === "ERROR UNKNOWN_COMMAND") return { unsupported: true } as const;
+      const status = parseGpsStatus(m);
+      return status ?? undefined;
+    }).then((r) => ("unsupported" in r ? null : r));
   }
 
   async cancel(): Promise<void> {

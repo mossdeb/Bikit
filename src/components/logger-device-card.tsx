@@ -27,6 +27,9 @@ interface StatusCell {
   value: string;
   detail?: string;
   bad?: boolean;
+  /** A status dot before the value (2026-11-09): green when fine, amber
+   * while the GPS is not ready yet, red when something is wrong. */
+  dot?: "ok" | "wait" | "bad";
 }
 
 /**
@@ -40,8 +43,9 @@ function gpsCell(
   t: DeviceInfoWords,
   locale: Locale,
 ): StatusCell {
-  const value =
-    gps.state === "FIX"
+  const value = gps.label
+    ? gps.label
+    : gps.state === "FIX"
       ? t.gpsFix
       : gps.state === "NO_FIX"
         ? t.gpsNoFix
@@ -57,6 +61,9 @@ function gpsCell(
     value,
     detail: detail.join(" · ") || undefined,
     bad: gps.state === "NO_DATA",
+    // Ready by GPS_STATUS where the logger said; by INFO_GPS's fix where
+    // that is all there is.
+    dot: (gps.ready ?? gps.state === "FIX") ? "ok" : "wait",
   };
 }
 
@@ -74,12 +81,14 @@ function statusCells(
       label: t.sdCard,
       value: info.sd === "OK" ? t.ok : info.sd,
       bad: info.sd !== "OK",
+      dot: info.sd === "OK" ? "ok" : "bad",
     });
   if (info.imu)
     cells.push({
       label: "IMU",
       value: info.imu === "OK" ? t.ok : info.imu,
       bad: info.imu !== "OK",
+      dot: info.imu === "OK" ? "ok" : "bad",
     });
   // The calibration the logger will record with (by request, 2026-10-27):
   // its state, and its steps once the firmware sends them.
@@ -92,6 +101,7 @@ function statusCells(
           ? t.calSteps(info.calibration.steps)
           : undefined,
       bad: !info.calibration.valid,
+      dot: info.calibration.valid ? "ok" : "bad",
     });
   return cells;
 }
@@ -287,7 +297,22 @@ export function LoggerDeviceCard({
                   cell.bad && "text-destructive",
                 )}
               >
-                {cell.value}
+                <span className="inline-flex items-center gap-1.5">
+                  {cell.dot && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        cell.dot === "ok"
+                          ? "bg-[#43F3AF]"
+                          : cell.dot === "wait"
+                            ? "bg-[#FFC711]"
+                            : "bg-[#E0442F]",
+                      )}
+                    />
+                  )}
+                  {cell.value}
+                </span>
               </dd>
               {cell.detail && (
                 <dd className="text-xs text-muted-foreground tabular-nums">

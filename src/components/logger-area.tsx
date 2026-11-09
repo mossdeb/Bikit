@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import {
   type BikitConfigKey,
   type BikitDeviceConfig,
   type BikitDeviceInfo,
+  type BikitGpsStatus,
   type BikitVehicleType,
 } from "@/lib/bikit-ble/protocol";
 import {
@@ -92,6 +93,15 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
   const [pin, setPin] = useState("");
   const [rememberPin, setRememberPin] = useState(true);
   const deviceRef = useRef<BikitDevice | null>(null);
+  /** One command on the air at a time: Web Bluetooth refuses a write while
+   * another is in flight, and the GPS detail polls beside the settings'
+   * SETs (2026-11-09). Each command waits for the one before it. */
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  function serial<T>(fn: () => Promise<T>): Promise<T> {
+    const next = queueRef.current.then(fn, fn);
+    queueRef.current = next.catch(() => undefined);
+    return next;
+  }
 
   useEffect(() => () => deviceRef.current?.disconnect(), []);
 
@@ -210,7 +220,7 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
   async function save(key: BikitConfigKey, value: string) {
     const device = deviceRef.current;
     if (!device) throw new Error(td.deviceDisconnected);
-    const stored = await device.setConfig(key, value);
+    const stored = await serial(() => device.setConfig(key, value));
     setConfig((c) => {
       if (c.kind !== "ready") return c;
       const next = { ...c.config };
@@ -222,6 +232,52 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
 
   const connected = phase.kind !== "idle" && phase.kind !== "connecting";
 
+  // The GPS, asked every two seconds while connected (GPS_STATUS), for the
+  // header's cell and the folded detail alike. A firmware without the
+  // command is asked once; its cell keeps INFO's reading.
+  const [gps, setGps] = useState<GpsReading>({ kind: "reading" });
+  const isConnected = phase.kind === "connected";
+  useEffect(() => {
+    if (!isConnected) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      const device = deviceRef.current;
+      if (!device) return;
+      try {
+        const value = await serial(() => device.gpsStatus());
+        if (stopped) return;
+        if (!value) {
+          setGps({ kind: "unsupported" });
+          return;
+        }
+        setGps({ kind: "ok", value });
+      } catch (e) {
+        if (stopped) return;
+        setGps({ kind: "error", message: describe(e) });
+      }
+      if (!stopped) timer = setTimeout(poll, GPS_POLL_MS);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      setGps({ kind: "reading" });
+    };
+  }, [isConnected]);
+  // The cell names the state as the GPS detail does (by request,
+  // 2026-11-09): "Ready", not "Fix".
+  const shownInfo =
+    info && gps.kind === "ok"
+      ? {
+          ...info,
+          gps: {
+            ...gpsCellFrom(gps.value),
+            label: t.gps.states[gps.value.state] ?? gps.value.state,
+          },
+        }
+      : info;
+
   return (
     <div className="pt-4 sm:pt-8">
       <div className={cn("mb-6 rounded-lg bg-card", DARK_CARD_HAIRLINE)}>
@@ -230,12 +286,15 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
           connected={connected}
           connecting={phase.kind === "connecting"}
           supported={supported}
-          info={info}
+          info={shownInfo}
           deviceName={deviceName}
           hint={t.idleHint}
           onConnect={connect}
           onDisconnect={disconnect}
         />
+        {phase.kind === "connected" && (
+          <GpsDetails status={gps} />
+        )}
         {(phase.kind === "auth" ||
           phase.kind === "authenticating" ||
           error ||
@@ -313,6 +372,137 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ───────────────────────── GPS details ───────────────────────── */
+
+/** How often the open panel asks the logger again, ms. */
+const GPS_POLL_MS = 2000;
+
+/**
+ * The receiver in detail (GPS_STATUS, firmware V18.10), folded under the
+ * header's cells behind "GPS details" so the page stays quiet (by request,
+ * 2026-11-09): the state GPS Fix Protection judges START by, the fix, the
+ * satellites, the accuracy and the reading's age. The page asks every two
+ * seconds while connected; the header's GPS cell reads the same answer.
+ */
+type GpsReading =
+  | { kind: "reading" }
+  | { kind: "unsupported" }
+  | { kind: "error"; message: string }
+  | { kind: "ok"; value: BikitGpsStatus };
+
+/** The INFO_GPS shape the header's cell draws, from a GPS_STATUS reading —
+ * so the cell and the detail say the same thing (2026-11-09). */
+function gpsCellFrom(v: BikitGpsStatus): NonNullable<BikitDeviceInfo["gps"]> {
+  const fix = v.fixType === 2 || v.fixType === 3;
+  return {
+    state:
+      v.state === "NO_DATA" ? "NO_DATA" : fix && v.state !== "STALE" ? "FIX" : "NO_FIX",
+    satellites: v.used ?? 0,
+    hdop: NaN,
+    signal: "NONE",
+    ageMs: v.ageMs ?? NaN,
+    ready: v.state === "READY",
+  };
+}
+
+function GpsDetails({ status }: { status: GpsReading }) {
+  const t = useProDict().logger.gps;
+  const [open, setOpen] = useState(false);
+
+  const v = status.kind === "ok" ? status.value : null;
+  const ready = v?.state === "READY";
+  const n = (x: number | null) => (x == null ? t.na : String(x));
+  return (
+    <div className="-mt-4 px-6 pb-6 sm:px-7">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+      >
+        {open ? t.hide : t.show}
+        <ChevronDown
+          className={cn("size-4 transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div className="mt-3 rounded-[20px] border border-border p-4">
+          {status.kind === "reading" && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />
+              {t.reading}
+            </p>
+          )}
+          {status.kind === "unsupported" && (
+            <p className="text-sm text-muted-foreground">{t.unsupported}</p>
+          )}
+          {status.kind === "error" && (
+            <p className="text-sm text-destructive">{status.message}</p>
+          )}
+          {v && (
+            <>
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-1.5 size-2.5 shrink-0 rounded-full",
+                    ready ? "bg-[#43F3AF]" : "bg-[#FFC711]",
+                  )}
+                />
+                <div className="min-w-0">
+                  <p className="text-base font-semibold">
+                    {t.states[v.state] ?? v.state}
+                  </p>
+                  {t.explain[v.state] && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {t.explain[v.state]}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.fix}</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {v.fixType === 2 || v.fixType === 3
+                      ? `${v.fixType}D`
+                      : v.fixType == null
+                        ? t.na
+                        : t.fixNone}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">
+                    {t.satellites}
+                  </dt>
+                  <dd className="font-semibold tabular-nums">
+                    {t.satellitesValue(n(v.used), n(v.visible))}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.accuracy}</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {v.hAccMm == null ? t.na : `± ${Math.round(v.hAccMm / 1000)} m`}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t.age}</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {v.ageMs == null
+                      ? t.na
+                      : t.ageValue((v.ageMs / 1000).toFixed(1))}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

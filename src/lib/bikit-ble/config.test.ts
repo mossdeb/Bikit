@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BikitDevice, BikitDeviceError } from "./protocol";
+import { BikitDevice, BikitDeviceError, parseGpsStatus } from "./protocol";
 import { SimulatedLoggerTransport } from "./simulated-transport";
 import type { BikitTransport } from "./transport";
 
@@ -69,5 +69,36 @@ describe("CONFIG / SET", () => {
     await expect(busy.setConfig("AUTO_STOP", "0")).rejects.toMatchObject({
       raw: "BUSY RECORDING",
     });
+  });
+});
+
+describe("GPS_STATUS", () => {
+  it("reads every field, NA as null", () => {
+    expect(parseGpsStatus("GPS_STATUS 3 12 4 28000 1000 READY")).toEqual({
+      fixType: 3,
+      visible: 12,
+      used: 4,
+      hAccMm: 28000,
+      ageMs: 1000,
+      state: "READY",
+    });
+    expect(parseGpsStatus("GPS_STATUS NA 7 NA NA NA NO_PVT")).toEqual({
+      fixType: null,
+      visible: 7,
+      used: null,
+      hAccMm: null,
+      ageMs: null,
+      state: "NO_PVT",
+    });
+    expect(parseGpsStatus("INFO_GPS FIX 9 90 GOOD 100")).toBeNull();
+  });
+
+  it("asks the logger, and is null on a firmware without it", async () => {
+    const device = await BikitDevice.connect(
+      scripted({ GPS_STATUS: ["GPS_STATUS 2 8 5 12000 400 READY"] }),
+    );
+    expect((await device.gpsStatus())?.fixType).toBe(2);
+    const old = await BikitDevice.connect(scripted({}));
+    expect(await old.gpsStatus()).toBeNull();
   });
 });

@@ -12,6 +12,43 @@ const en = {
   tabs: {
     settings: "Settings",
   },
+  /** The GPS detail under the header, behind "Show more" (GPS_STATUS,
+   * firmware V18.10, 2026-11-09). */
+  gps: {
+    show: "GPS details",
+    hide: "Hide GPS details",
+    unsupported: "This logger's firmware does not report GPS details yet.",
+    reading: "Reading the GPS…",
+    status: "Status",
+    fix: "Fix",
+    fixNone: "None",
+    satellites: "Satellites",
+    satellitesValue: (used: string, visible: string): string =>
+      `${used} used · ${visible} visible`,
+    accuracy: "Accuracy",
+    age: "Last reading",
+    ageValue: (seconds: string): string => `${seconds} s ago`,
+    na: "–",
+    states: {
+      READY: "Ready",
+      NO_DATA: "No data",
+      NO_PVT: "No position",
+      STALE: "Stale",
+      NO_FIX: "No fix",
+      LOW_SATS: "Few satellites",
+      HIGH_HACC: "Low accuracy",
+    } as Record<string, string>,
+    explain: {
+      READY: "The GPS meets the criteria to start recording.",
+      NO_DATA: "No recent messages from the GPS.",
+      NO_PVT: "Messages arrive, but no position solution has come yet.",
+      STALE: "The position data expired or reception was poor.",
+      NO_FIX: "No valid 2D or 3D fix.",
+      LOW_SATS: "Fewer than 4 satellites in use.",
+      HIGH_HACC: "Estimated accuracy worse than 30 m.",
+    } as Record<string, string>,
+  },
+
   settings: {
     /** Shown before connecting. */
     disconnected: "Connect to the logger to read its settings.",
@@ -70,6 +107,40 @@ const pt: typeof en = {
   tabs: {
     settings: "Definições",
   },
+  gps: {
+    show: "Detalhes do GPS",
+    hide: "Esconder detalhes do GPS",
+    unsupported: "O firmware deste logger ainda não envia os detalhes do GPS.",
+    reading: "A ler o GPS…",
+    status: "Estado",
+    fix: "Fix",
+    fixNone: "Nenhum",
+    satellites: "Satélites",
+    satellitesValue: (used, visible) => `${used} usados · ${visible} visíveis`,
+    accuracy: "Precisão",
+    age: "Última leitura",
+    ageValue: (seconds) => `há ${seconds} s`,
+    na: "–",
+    states: {
+      READY: "Pronto",
+      NO_DATA: "Sem dados",
+      NO_PVT: "Sem posição",
+      STALE: "Desatualizado",
+      NO_FIX: "Sem fix",
+      LOW_SATS: "Poucos satélites",
+      HIGH_HACC: "Pouca precisão",
+    },
+    explain: {
+      READY: "O GPS cumpre os critérios para começar a gravar.",
+      NO_DATA: "Sem mensagens recentes do GPS.",
+      NO_PVT: "Chegam mensagens, mas ainda nenhuma solução de posição.",
+      STALE: "Os dados de posição expiraram ou a receção foi fraca.",
+      NO_FIX: "Sem fix 2D ou 3D válido.",
+      LOW_SATS: "Menos de 4 satélites em uso.",
+      HIGH_HACC: "Precisão estimada pior que 30 m.",
+    },
+  },
+
   settings: {
     disconnected: "Liga ao logger para ler as definições.",
     loading: "A ler as definições do logger…",

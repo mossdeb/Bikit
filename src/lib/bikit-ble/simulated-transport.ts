@@ -23,6 +23,8 @@ export class SimulatedLoggerTransport implements BikitTransport {
     GPS_FIX_PROTECTION: "1",
   };
 
+  private readonly bornAt = Date.now();
+
   constructor(private readonly delayMs = 250) {}
 
   connect() {
@@ -75,6 +77,15 @@ export class SimulatedLoggerTransport implements BikitTransport {
           "INFO_CAL VALID 3",
           "INFO_END",
         );
+      case "GPS_STATUS": {
+        // A receiver warming up: no fix for the first 6 s, then 3D with a
+        // few satellites, so every state the panel draws can be seen.
+        const s = (Date.now() - this.bornAt) / 1000;
+        if (s < 3) return this.send("GPS_STATUS NA NA NA NA NA NO_DATA");
+        if (s < 6) return this.send("GPS_STATUS 0 5 0 NA 900 NO_FIX");
+        if (s < 9) return this.send("GPS_STATUS 3 9 3 41000 800 LOW_SATS");
+        return this.send("GPS_STATUS 3 12 9 4200 600 READY");
+      }
       case "SESSIONS":
         return this.send("LIST_BEGIN 0", "LIST_END");
       case "CONFIG":
