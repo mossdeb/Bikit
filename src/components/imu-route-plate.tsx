@@ -31,12 +31,27 @@ const PAD = 14;
 const R = 6_371_000;
 const RAD = Math.PI / 180;
 
+/** A stretch of the route in its own colour — a Perfect Run sector. */
+export interface RoutePlateSegment {
+  points: LatLon[];
+  color: string;
+  opacity: number;
+  /** A dash pattern, for a stretch the figures leave out. */
+  dashed?: boolean;
+}
+
 export function ImuRoutePlate({
   section,
   track,
   ends = true,
+  segments,
   className,
 }: {
+  /** The stretch cut into pieces drawn each in its own colour, in place of
+   * the one mint line (the Perfect Run's sectors, 2026-11-09); `section`
+   * still frames the plate and places the ends. A white tick marks where
+   * one piece meets the next. */
+  segments?: RoutePlateSegment[];
   /** The stretch drawn bright and framed, first point first. */
   section: LatLon[];
   /** The whole ride, faint, behind it — omitted when the stretch is the
@@ -152,14 +167,50 @@ export function ImuRoutePlate({
               strokeLinejoin="round"
             />
           )}
-          <path
-            d={path(bright)}
-            fill="none"
-            stroke={MINT}
-            strokeWidth={ROUTE_WIDTH}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          {segments ? (
+            <>
+              {segments.map(
+                (seg, i) =>
+                  seg.points.length > 1 && (
+                    <path
+                      key={i}
+                      d={path(seg.points.map(toXY).map(place))}
+                      fill="none"
+                      stroke={seg.color}
+                      strokeOpacity={seg.opacity}
+                      strokeWidth={ROUTE_WIDTH + 1}
+                      strokeDasharray={seg.dashed ? "4 4" : undefined}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ),
+              )}
+              {segments.slice(1).map((seg, i) => {
+                if (seg.points.length === 0) return null;
+                const [x, y] = place(toXY(seg.points[0])).map(tenth);
+                return (
+                  <circle
+                    key={i}
+                    cx={x}
+                    cy={y}
+                    r={2.5}
+                    fill="#ffffff"
+                    stroke={PLATE}
+                    strokeWidth={1}
+                  />
+                );
+              })}
+            </>
+          ) : (
+            <path
+              d={path(bright)}
+              fill="none"
+              stroke={MINT}
+              strokeWidth={ROUTE_WIDTH}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
           {/* The session map's own marks: a mint dot where the stretch
               begins, the checkered disc where it ends. */}
           {ends && (

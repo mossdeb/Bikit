@@ -287,7 +287,9 @@ function ImuTrackDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Wider with the Perfect Run's tab (by request, 2026-11-09), on both
+          tabs, so switching does not jump. */}
+      <DialogContent className={showPerfect ? "sm:max-w-2xl" : "sm:max-w-lg"}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FinishFlag className="size-5" />

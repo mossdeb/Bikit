@@ -96,6 +96,9 @@ const en = {
     noGain: "No sector beats the best run by more than the lines measure.",
     uncertainty: (s: string): string => `± ${s} s from the lines`,
     sectorsTitle: "Best sectors combined",
+    /** Under the map: where the best run loses the most. */
+    mostToGain: (n: number, s: string): string =>
+      `Most to gain in sector ${n}: the best run is ${s} s off its best.`,
     sector: (n: number): string => `Sector ${n}`,
     /** What the best actual run loses in a sector. */
     potential: (s: string): string => `best run +${s} s`,
@@ -111,8 +114,6 @@ const en = {
       n === 1
         ? "1 run does not cross every sector line and is not counted."
         : `${n} runs do not cross every sector line and are not counted.`,
-    theory:
-      "A theoretical time: the best sectors were ridden on different runs, and may not all fit in one.",
     loading: "Reading the runs…",
     needsTwo: "The Perfect Run needs at least two runs by this rider on this track.",
     noSectors: "This track could not be cut into sectors.",
@@ -192,6 +193,8 @@ const pt: typeof en = {
     noGain: "Nenhum sector bate a melhor run por mais do que as linhas medem.",
     uncertainty: (s) => `± ${s} s das linhas`,
     sectorsTitle: "Melhores sectores combinados",
+    mostToGain: (n, s) =>
+      `Mais a ganhar no sector ${n}: a melhor run fica ${s} s atrás do melhor.`,
     sector: (n) => `Sector ${n}`,
     potential: (s) => `melhor run +${s} s`,
     bestRunHere: "da melhor run",
@@ -206,8 +209,6 @@ const pt: typeof en = {
       n === 1
         ? "1 run não cruza todas as linhas dos sectores e não conta."
         : `${n} runs não cruzam todas as linhas dos sectores e não contam.`,
-    theory:
-      "Um tempo teórico: os melhores sectores foram feitos em runs diferentes e podem não caber todos numa só.",
     loading: "A ler as runs…",
     needsTwo: "A Perfect Run precisa de pelo menos duas runs deste rider nesta pista.",
     noSectors: "Não foi possível dividir esta pista em sectores.",
