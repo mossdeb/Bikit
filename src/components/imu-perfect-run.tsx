@@ -305,11 +305,11 @@ export function PerfectRunLine({
     <button
       type="button"
       onClick={onOpen}
-      className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-end"
+      className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-center"
     >
       {/* The gain on a line of its own, under the time (by request,
           2026-11-09), aligned as the header aligns the ranking. */}
-      <span className="flex flex-col items-start lg:items-end">
+      <span className="flex flex-col items-start lg:items-center">
         <span className="font-semibold tabular-nums">
           {t.line(formatRunTime(result.perfectMs))}
         </span>

@@ -319,7 +319,7 @@ export default async function ImuSessionPage({
           // and the padding evens out. A `//` comment and not `{/* */}`: this
           // is the value of a prop, so the braces are already a JS expression
           // and a JSX comment here breaks the parse.
-          <div className="relative px-5 pt-5 pb-12 sm:px-6 2xl:py-6 2xl:pr-0">
+          <div className="relative px-5 pt-5 pb-12 sm:px-6 lg:pt-6 lg:pb-8">
             {/* The identity and, under it, the doors: the run's setup, the
                 report and the comparison of setups. They stood beside the
                 words from `sm` (2026-09-10, on the provenance line's foot);

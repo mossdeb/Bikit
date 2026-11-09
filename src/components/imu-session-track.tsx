@@ -1150,7 +1150,7 @@ export function ImuTrackRanking({
       <button
         type="button"
         onClick={() => setOpen("times")}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-end"
+        className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-center"
       >
         <PodiumGlyph className="size-4" />
         <span>

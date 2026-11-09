@@ -2315,7 +2315,7 @@ export function ImuSessionAnalysis({
           // 2026-10-26, from a mockup): with the trim set by a track's
           // lines it is the figure a rider looks for first — and under it,
           // where the run stands on its track, opening the track's times.
-          <div className="flex flex-col items-start gap-2 lg:items-end">
+          <div className="flex flex-col items-start gap-2 lg:items-center lg:gap-5">
             <p
               className="flex items-center gap-2 font-display text-4xl leading-tight font-bold tabular-nums"
               aria-label={`${t.resume.duration} ${durationText}`}
@@ -2357,7 +2357,7 @@ export function ImuSessionAnalysis({
           // the figure under them, six in a ruled box. Distance and top
           // speed went with the redesign; "Acidentado", the time spent in
           // rough sections, came in. The phone keeps three loose columns.
-          <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 2xl:p-0">
+          <div className="border-t border-border px-5 pt-5 pb-5 sm:border-0 sm:px-6 sm:pt-0 lg:pb-6">
             <div className="sm:overflow-hidden sm:rounded-[14px] sm:border sm:border-border sm:bg-card">
               <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-6 sm:gap-px sm:bg-border">
                 {/* "High G" (by request, 2026-10-26): the high-g sensor's
@@ -3484,8 +3484,9 @@ function SessionCards({
   header: ReactNode;
   /** The résumé figures, once the file has been parsed. */
   resume?: ReactNode;
-  /** The duration, big in the identity card's top-right corner from `lg`
-   * — left of the settings button, which keeps the very corner. */
+  /** The duration and the track's buttons: from `lg` a column of their
+   * own on the card's right, behind a rule; on a phone, between the
+   * identity and the figures. */
   corner?: ReactNode;
   children: ReactNode;
 }) {
@@ -3512,24 +3513,22 @@ function SessionCards({
           // request, 2026-09-27), 24px in from both edges: down there they
           // are clear of that button, which keeps the top-right, so they no
           // longer need the lane they kept for it when centred.
-          "relative rounded-lg bg-card 2xl:flex 2xl:items-stretch 2xl:justify-between 2xl:gap-6",
+          // From `lg` (by request, 2026-11-09, from a mockup): two columns —
+          // the identity over its figures on the left, and on the right,
+          // behind a rule, the duration and the track's buttons, centred
+          // top to bottom. On a phone the corner stands between the
+          // identity and the figures, as before.
+          "relative rounded-lg bg-card lg:grid lg:grid-cols-[minmax(0,1fr)_auto]",
           DARK_CARD_HAIRLINE,
         )}
       >
-        {header}
-        {/* The right-hand column (2026-10-26, from a mockup): the duration
-            and the ranking on top, the figures under them. Side by side
-            with the identity from `2xl`; below it the corner floats in the
-            card's top-right from `lg`, and on
-            a phone it stands between the identity and the figures. */}
-        <div className="2xl:flex 2xl:shrink-0 2xl:flex-col 2xl:items-end 2xl:justify-between 2xl:gap-[30px] 2xl:py-6 2xl:pr-6">
-          {corner && (
-            <div className="px-5 pb-5 sm:px-6 lg:absolute lg:top-[63px] lg:right-6 lg:p-0 2xl:static 2xl:mt-[43px]">
-              {corner}
-            </div>
-          )}
-          {resume}
-        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">{header}</div>
+        {corner && (
+          <div className="px-5 pb-5 sm:px-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:flex lg:items-center lg:justify-center lg:border-l lg:border-border lg:px-14 lg:py-6">
+            {corner}
+          </div>
+        )}
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2">{resume}</div>
       </div>
       {/* `mt-5` — 20px above this block, half the 40 it carried. The 40 was
           there to make the recording's identity and its reading read as two
