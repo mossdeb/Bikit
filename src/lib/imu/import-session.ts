@@ -27,6 +27,7 @@ import { withBikeFrameEvents } from "@/lib/imu/events";
 import { suggestTrim, trimSession, wasRidden } from "@/lib/imu/trim";
 import {
   createTimedTrack,
+  findSameTrack,
   findTimedRuns,
   isTimedTrackDefinition,
   runTrimOf,
@@ -167,7 +168,13 @@ export async function uploadAndRegisterImuSession(input: {
             suggested?.startMs ?? 0,
             suggested?.endMs ?? whole.durationMs,
           );
-      if (made) {
+      // …unless the lines it would draw stand within SAME_TRACK_M of a
+      // track the account has (by request, 2026-11-09): that is the same
+      // trail, ridden from a little below its start or stopped short of
+      // its finish — how R0179 drew a third "Cabeço". No new track then;
+      // the run keeps the suggested trim, untimed, rather than splitting
+      // the trail's runs across two tracks.
+      if (made && !findSameTrack(made.definition, tracks)) {
         newTrack = made.definition;
         trim = {
           startMs: Math.round(made.reference.entryMs),

@@ -359,7 +359,7 @@ describe("findSameTrack", () => {
     },
   };
 
-  it("finds the track whose lines are both within 20 m", () => {
+  it("finds the closest track whose lines are both within 25 m", () => {
     const found = findSameTrack(casaDh, [shortCasaVelha, newTrack08, casaVelha]);
     expect(found?.track.id).toBe("cv");
     expect(found!.startM).toBeLessThan(3);
@@ -367,9 +367,16 @@ describe("findSameTrack", () => {
     expect(found!.finishM).toBeLessThan(SAME_TRACK_M);
   });
 
-  it("leaves a track whose finish is far off, or a line past 20 m", () => {
-    // New track 08: start 16 m, finish 24 m — the finish is past the limit.
-    expect(findSameTrack(casaDh, [newTrack08, shortCasaVelha])).toBeNull();
+  it("takes a line 24 m off as the same trail", () => {
+    // New track 08: start 16 m, finish 24 m — under 25 m, like the
+    // account's "Cabeço" drawings 23–25 m apart.
+    const found = findSameTrack(casaDh, [newTrack08, shortCasaVelha]);
+    expect(found?.track.id).toBe("n08");
+    expect(found!.finishM).toBeGreaterThan(20);
+  });
+
+  it("leaves a track whose finish is far off", () => {
+    expect(findSameTrack(casaDh, [shortCasaVelha])).toBeNull();
   });
 
   it("does not match the same places ridden the other way, nor a circuit", () => {

@@ -67,7 +67,7 @@ const en = {
     "No lines could be drawn there: the bike has to be moving at both instants, with GPS.",
   noGps: "This recording has no GPS, so no lines can be drawn on it.",
   create: "Create track",
-  /** A new track whose lines lie within 20 m of an existing one's
+  /** A new track whose lines lie within 25 m of an existing one's
    * (2026-11-09): offered that track instead. */
   sameTrack: (name: string, startM: number, finishM: number): string =>
     `"${name}" already covers this stretch: its start is ${startM} m and its finish ${finishM} m from these lines. Use it, so the runs are timed between the same lines?`,

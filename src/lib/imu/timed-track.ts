@@ -65,8 +65,10 @@ const CLOSED_LOOP_M = 30;
 /** Two tracks whose starts and finishes both lie within this, m, are one
  * stretch of trail (by request, 2026-11-09, after "Casa DH race" was drawn
  * 2 m and 12 m from "Casa Velha"): a new track there is offered the old one
- * instead. GPS alone puts two drawings of one line a few metres apart. */
-export const SAME_TRACK_M = 20;
+ * instead. GPS alone puts two drawings of one line a few metres apart.
+ * Raised from 20 m the same day (by request), after the account's three
+ * "Cabeço" were found 23–25 m apart — and the import now keeps to it too. */
+export const SAME_TRACK_M = 25;
 /** …and ridden the same way: lines facing within this, degrees. A track
  * down a trail and one up it share their lines' places, not their runs. */
 const SAME_TRACK_HEADING_DEG = 90;
