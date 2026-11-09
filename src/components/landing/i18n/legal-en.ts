@@ -38,7 +38,7 @@ export type LegalDocument = {
 };
 
 const en = {
-  updated: "30 October 2026",
+  updated: "9 November 2026",
   updatedLabel: "Last updated",
   backToHome: "Back to home",
 
@@ -131,6 +131,14 @@ const en = {
               "Bikit stores a history of maintenance notifications that have already been sent so the same notification is not delivered multiple times.",
             ],
           },
+          {
+            kind: "term",
+            title: "Use of the app",
+            paragraphs: [
+              "When you use the app signed in, Bikit keeps a summary per day: when you came and went, how many pages you opened and which ones (not their content), the type of device (phone, tablet or computer), and the approximate country and city you accessed it from.",
+              "The location is inferred from your IP address by Vercel at the moment of access; the IP address is not stored. None of this is stored on your device.",
+            ],
+          },
         ],
       },
       {
@@ -149,6 +157,7 @@ const en = {
               "sending maintenance reminders you requested;",
               "sending the waitlist thank-you email and updates about BIKIT and early access (if you joined the waitlist);",
               "processing subscriptions (if applicable);",
+              "understanding how the app is used, to improve it;",
               "keeping the service secure and reliable.",
             ],
           },
@@ -192,7 +201,10 @@ const en = {
           {
             kind: "term",
             title: "Legitimate interest",
-            paragraphs: ["Protecting the service, preventing abuse and maintaining security."],
+            paragraphs: [
+              "Protecting the service, preventing abuse and maintaining security.",
+              "Understanding how the app is used — which parts, how often and from where — to improve it. This record is limited to a daily summary, with no precise location and no IP address, and you can object to it by writing to the contact above.",
+            ],
           },
         ],
       },
@@ -207,7 +219,7 @@ const en = {
             kind: "ul",
             items: [
               "Supabase — authentication and database hosting.",
-              "Vercel — website and application hosting, and cookieless audience measurement on the public pages.",
+              "Vercel — website and application hosting, cookieless audience measurement on the public pages, and the approximate location (country and city) of each access.",
               "Stripe — subscription and payment processing.",
               "Resend — sending emails.",
               "Google — Sign in with Google (only if you choose it).",
@@ -236,6 +248,10 @@ const en = {
           {
             kind: "p",
             text: "Waitlist entries are kept until you ask to be removed or until the waitlist ends, whichever comes first.",
+          },
+          {
+            kind: "p",
+            text: "The daily summary of app use is kept for 12 months and deleted automatically after that.",
           },
           {
             kind: "p",
@@ -314,7 +330,7 @@ const en = {
           },
           {
             kind: "p",
-            text: "On the public pages — the home page, these documents and the sign-in and sign-up screens — Vercel, which hosts Bikit, carries out cookieless audience measurement. It records the page visited, where the visit came from and the type of device, in aggregate, without storing anything on your device and without identifying you. Once you are signed in there is no measurement at all: what you do with your bikes and components is not observed.",
+            text: "On the public pages — the home page, these documents and the sign-in and sign-up screens — Vercel, which hosts Bikit, carries out cookieless audience measurement. It records the page visited, where the visit came from and the type of device, in aggregate, without storing anything on your device and without identifying you. Inside the app, Bikit records the daily summary of use described above, on the server and without cookies.",
           },
         ],
       },

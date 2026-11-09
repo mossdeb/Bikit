@@ -12,6 +12,7 @@ import { AppMain } from "@/components/app-main";
 import { PatentPill } from "@/components/site-footer";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
+import { ActivityRecorder } from "@/components/activity-recorder";
 import { ProLocaleProvider } from "@/components/pro-locale";
 
 /**
@@ -48,6 +49,8 @@ export default async function ProLayout({
   return (
     <ProLocaleProvider locale={locale}>
       <ToastProvider>
+        {/* Counts the pages this account opens (2026-11-09). */}
+        <ActivityRecorder />
         <ImuLabTexture />
         {/* `data-app-shell`: the element that paints the background, which
           the texture's rule in globals.css reaches. */}

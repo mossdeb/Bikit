@@ -15,6 +15,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { AppMain } from "@/components/app-main";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
+import { ActivityRecorder } from "@/components/activity-recorder";
 
 export default async function AppLayout({
   children,
@@ -39,6 +40,8 @@ export default async function AppLayout({
 
   return (
     <ToastProvider>
+      {/* Counts the pages this account opens (2026-11-09). */}
+      <ActivityRecorder />
       {/* `data-app-shell` is a hook, not a style: it is the element that
           paints the page's background, and the IMU lab's dot texture needs
           to reach exactly it (see globals.css). No rule matches it

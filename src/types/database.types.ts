@@ -488,6 +488,42 @@ export type Database = {
           },
         ];
       };
+      user_activity_days: {
+        Row: {
+          user_id: string;
+          day: string;
+          first_seen_at: string;
+          last_seen_at: string;
+          page_views: number;
+          areas: string[];
+          devices: string[];
+          country: string | null;
+          city: string | null;
+        };
+        Insert: {
+          user_id: string;
+          day: string;
+          first_seen_at?: string;
+          last_seen_at?: string;
+          page_views?: number;
+          areas?: string[];
+          devices?: string[];
+          country?: string | null;
+          city?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          day?: string;
+          first_seen_at?: string;
+          last_seen_at?: string;
+          page_views?: number;
+          areas?: string[];
+          devices?: string[];
+          country?: string | null;
+          city?: string | null;
+        };
+        Relationships: [];
+      };
       active_sessions: {
         Row: {
           session_id: string;
@@ -1128,6 +1164,15 @@ export type Database = {
       };
     };
     Functions: {
+      record_user_activity: {
+        Args: {
+          p_area: string;
+          p_device: string;
+          p_country: string;
+          p_city: string;
+        };
+        Returns: undefined;
+      };
       claim_interval_notification: {
         Args: {
           p_channel: string;

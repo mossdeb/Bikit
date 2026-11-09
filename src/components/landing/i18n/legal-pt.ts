@@ -1,7 +1,7 @@
 import type { LegalDictionary } from "./legal-en";
 
 const pt: LegalDictionary = {
-  updated: "30 de outubro de 2026",
+  updated: "9 de novembro de 2026",
   updatedLabel: "Última atualização",
   backToHome: "Voltar ao início",
 
@@ -94,6 +94,14 @@ const pt: LegalDictionary = {
               "O Bikit guarda um registo das notificações de manutenção já enviadas, para a mesma notificação não ser entregue várias vezes.",
             ],
           },
+          {
+            kind: "term",
+            title: "Utilização da aplicação",
+            paragraphs: [
+              "Quando usas a aplicação com sessão iniciada, o Bikit guarda um resumo por dia: a hora a que entraste e saíste, quantas páginas abriste e quais (sem o conteúdo delas), o tipo de dispositivo (telemóvel, tablet ou computador) e o país e a cidade aproximados de onde acedeste.",
+              "A localização é deduzida do endereço IP pela Vercel, no momento do acesso; o endereço IP não é guardado. Nada disto fica guardado no teu dispositivo.",
+            ],
+          },
         ],
       },
       {
@@ -112,6 +120,7 @@ const pt: LegalDictionary = {
               "enviar os lembretes de manutenção que pediste;",
               "enviar o email de agradecimento da lista de espera e novidades sobre o BIKIT e o acesso antecipado (se entraste na lista de espera);",
               "processar subscrições (quando aplicável);",
+              "perceber como a aplicação é usada, para a melhorar;",
               "manter o serviço seguro e fiável.",
             ],
           },
@@ -155,7 +164,10 @@ const pt: LegalDictionary = {
           {
             kind: "term",
             title: "Interesse legítimo",
-            paragraphs: ["Proteger o serviço, prevenir abusos e manter a segurança."],
+            paragraphs: [
+              "Proteger o serviço, prevenir abusos e manter a segurança.",
+              "Perceber como a aplicação é usada — que partes são usadas, com que frequência e de onde — para a melhorar. Este registo limita-se a um resumo diário, sem localização precisa nem endereço IP, e podes opor-te a ele escrevendo para o contacto indicado acima.",
+            ],
           },
         ],
       },
@@ -170,7 +182,7 @@ const pt: LegalDictionary = {
             kind: "ul",
             items: [
               "Supabase — autenticação e alojamento da base de dados.",
-              "Vercel — alojamento do site e da aplicação, e medição de audiência sem cookies nas páginas públicas.",
+              "Vercel — alojamento do site e da aplicação, medição de audiência sem cookies nas páginas públicas, e a localização aproximada (país e cidade) de cada acesso.",
               "Stripe — processamento de subscrições e pagamentos.",
               "Resend — envio de emails.",
               "Google — entrar com a Google (apenas se o escolheres).",
@@ -199,6 +211,10 @@ const pt: LegalDictionary = {
           {
             kind: "p",
             text: "As inscrições na lista de espera são conservadas até pedires para ser removido ou até a lista terminar, consoante o que acontecer primeiro.",
+          },
+          {
+            kind: "p",
+            text: "O resumo diário da utilização da aplicação é conservado durante 12 meses e apagado automaticamente depois disso.",
           },
           {
             kind: "p",
@@ -277,7 +293,7 @@ const pt: LegalDictionary = {
           },
           {
             kind: "p",
-            text: "Nas páginas públicas — a página inicial, estes documentos e os ecrãs de entrada e de registo — é feita uma medição de audiência sem cookies, pela Vercel, que aloja o Bikit. Regista de forma agregada a página visitada, a origem da visita e o tipo de dispositivo, sem guardar nada no teu dispositivo e sem te identificar. Depois de entrares na aplicação não há medição nenhuma: o que fazes com as tuas bicicletas e componentes não é observado.",
+            text: "Nas páginas públicas — a página inicial, estes documentos e os ecrãs de entrada e de registo — é feita uma medição de audiência sem cookies, pela Vercel, que aloja o Bikit. Regista de forma agregada a página visitada, a origem da visita e o tipo de dispositivo, sem guardar nada no teu dispositivo e sem te identificar. Dentro da aplicação, o Bikit regista o resumo diário de utilização descrito acima, no servidor e sem cookies.",
           },
         ],
       },
