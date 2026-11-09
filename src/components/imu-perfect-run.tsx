@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, Sparkles } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProDict } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
@@ -305,16 +305,16 @@ export function PerfectRunLine({
     <button
       type="button"
       onClick={onOpen}
-      className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted"
+      className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-end"
     >
-      <Sparkles className="size-4" />
-      <span>
+      {/* The gain on a line of its own, under the time (by request,
+          2026-11-09), aligned as the header aligns the ranking. */}
+      <span className="flex flex-col items-start lg:items-end">
         <span className="font-semibold tabular-nums">
           {t.line(formatRunTime(result.perfectMs))}
         </span>
         {result.gainMs > RUN_TIE_MS && (
-          <span className="text-muted-foreground tabular-nums">
-            {" · "}
+          <span className="text-xs text-muted-foreground tabular-nums">
             {t.gainShort(seconds(result.gainMs))}
           </span>
         )}
@@ -527,7 +527,6 @@ export function PerfectRunView({
       </div>
 
       <div className="space-y-1 text-xs text-muted-foreground">
-        <p>{t.pool(state.riderName, state.motorbike)}</p>
         {result.excluded.length > 0 && <p>{t.excluded(result.excluded.length)}</p>}
         {state.missed > 0 && <p>{t.missed(state.missed)}</p>}
       </div>

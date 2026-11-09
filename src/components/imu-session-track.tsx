@@ -1144,11 +1144,13 @@ export function ImuTrackRanking({
     if (c.trim.endMs - c.trim.startMs < mine) rank++;
   }
   return (
-    <>
+    // One column for the ranking and the Perfect Run's line, as wide as the
+    // wider of them (by request, 2026-11-09): the two buttons match.
+    <div className="grid gap-2">
       <button
         type="button"
         onClick={() => setOpen("times")}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted"
+        className="inline-flex cursor-pointer items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted lg:justify-end"
       >
         <PodiumGlyph className="size-4" />
         <span>
@@ -1183,7 +1185,7 @@ export function ImuTrackRanking({
           initialTab={open}
         />
       )}
-    </>
+    </div>
   );
 }
 

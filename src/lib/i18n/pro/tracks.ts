@@ -103,8 +103,6 @@ const en = {
     /** What the best actual run loses in a sector. */
     potential: (s: string): string => `best run +${s} s`,
     bestRunHere: "from the best run",
-    pool: (rider: string | null, motorbike: boolean): string =>
-      `${rider ? `${rider}'s runs` : "Runs with no rider"} on ${motorbike ? "a dirt bike" : "a bicycle"}`,
     runs: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
     excluded: (n: number): string =>
       n === 1
@@ -198,8 +196,6 @@ const pt: typeof en = {
     sector: (n) => `Sector ${n}`,
     potential: (s) => `melhor run +${s} s`,
     bestRunHere: "da melhor run",
-    pool: (rider, motorbike) =>
-      `${rider ? `Runs de ${rider}` : "Runs sem rider"} de ${motorbike ? "mota de cross" : "bicicleta"}`,
     runs: (n) => (n === 1 ? "1 run" : `${n} runs`),
     excluded: (n) =>
       n === 1
