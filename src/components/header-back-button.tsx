@@ -57,6 +57,13 @@ const MOBILE_BACK_ROUTES: {
     alsoDesktop: true,
     fromHistory: true,
   },
+  // Administration (2026-11-09): back to Pro's home.
+  {
+    re: /^\/pro\/admin$/,
+    backHref: () => "/pro",
+    alsoDesktop: true,
+    fromHistory: true,
+  },
   // The track editor (2026-11-09): back to the session it draws on.
   {
     re: /^\/pro\/sessoes\/([^/]+)\/pista$/,

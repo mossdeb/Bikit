@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
-import { hasLabAccess } from "@/lib/lab-access";
+import { hasLabAccess, isAdmin } from "@/lib/lab-access";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 import { HeaderLogo } from "@/components/header-logo";
@@ -66,6 +66,7 @@ export default async function AppLayout({
                 email={user.email as string}
                 common={dict.common}
                 showPro={showPro}
+                showAdmin={isAdmin(user.email as string | undefined)}
               />
             </div>
           </AppHeader>

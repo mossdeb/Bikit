@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
-import { hasLabAccess } from "@/lib/lab-access";
+import { hasLabAccess, isAdmin } from "@/lib/lab-access";
 import { ProSidebar, ProMobileNav } from "@/components/pro-nav";
 import { BikitLockup } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -68,6 +68,7 @@ export default async function ProLayout({
                   email={user.email as string}
                   common={dict.common}
                   settingsHref="/pro/definicoes"
+                  showAdmin={isAdmin(user.email as string | undefined)}
                 />
               </div>
             </AppHeader>

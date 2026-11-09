@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, LogOut } from "lucide-react";
+import { Settings, LogOut, ShieldCheck } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -17,8 +17,11 @@ export function UserMenu({
   email,
   common,
   showPro = false,
+  showAdmin = false,
   settingsHref = "/settings",
 }: {
+  /** The administration page (/pro/admin, 2026-11-09), for the owner. */
+  showAdmin?: boolean;
   name?: string | null;
   email: string;
   common: Dictionary["common"];
@@ -66,6 +69,15 @@ export function UserMenu({
           >
             <ImuChartGlyph className="size-4 text-muted-foreground" />
             Bikit Pro
+          </Link>
+        )}
+        {showAdmin && (
+          <Link
+            href="/pro/admin"
+            className="flex items-center gap-2.5 rounded-sm px-2 py-2 text-sm hover:bg-muted"
+          >
+            <ShieldCheck className="size-4 text-muted-foreground" />
+            Administração
           </Link>
         )}
         <form action={logout}>

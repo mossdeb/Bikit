@@ -45,6 +45,17 @@ const RECORDING_DOWNLOAD_EMAILS = ["miguelgomesdzn@gmail.com"];
  */
 const PERFECT_RUN_EMAILS = ["miguelgomesdzn@gmail.com"];
 
+/**
+ * Who sees the administration page (/pro/admin, 2026-11-09): how every
+ * account uses the app. The owner only — it reads every account's rows.
+ */
+const ADMIN_EMAILS = ["miguelgomesdzn@gmail.com"];
+
+export function isAdmin(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 export function hasPerfectRun(email: string | null | undefined): boolean {
   if (!email) return false;
   return PERFECT_RUN_EMAILS.includes(email.trim().toLowerCase());
