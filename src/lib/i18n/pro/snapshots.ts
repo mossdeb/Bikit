@@ -150,6 +150,12 @@ const en = {
       setup: "Setup",
       allSetups: "All",
       noSetup: "No setup",
+      /** A multi-select pill with several ticked (2026-11-09). */
+      selected: (n: number): string => `${n} selected`,
+      /** How many passes are listed (2026-11-09). */
+      show: "Show",
+      top: (n: number): string => `Top ${n}`,
+      showAll: "All",
       order: "Order",
       newestFirst: "Newest first",
       fastestFirst: "Fastest first",
@@ -388,6 +394,10 @@ const pt: typeof en = {
       setup: "Afinação",
       allSetups: "Todas",
       noSetup: "Sem afinação",
+      selected: (n) => `${n} selecionados`,
+      show: "Mostrar",
+      top: (n) => `Top ${n}`,
+      showAll: "Todas",
       order: "Ordem",
       newestFirst: "Mais recentes primeiro",
       fastestFirst: "Mais rápidas primeiro",

@@ -12,7 +12,14 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronDown, Ellipsis, Timer, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Ellipsis,
+  Timer,
+  Trash2,
+} from "lucide-react";
 import { SnapshotKindMark } from "@/components/imu-event-icons";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -437,12 +444,16 @@ export function ImuSnapshotView({
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(
     () => new Map(candidates.map((c) => [c.id, { status: "loading" }])),
   );
-  const [trackFilter, setTrackFilter] = useState("");
-  const [groupFilter, setGroupFilter] = useState("");
-  const [bikeFilter, setBikeFilter] = useState("");
-  const [riderFilter, setRiderFilter] = useState("");
-  const [setupFilter, setSetupFilter] = useState("");
+  // Several values each (by request, 2026-11-09); empty is "All".
+  const [trackFilter, setTrackFilter] = useState<string[]>([]);
+  const [groupFilter, setGroupFilter] = useState<string[]>([]);
+  const [bikeFilter, setBikeFilter] = useState<string[]>([]);
+  const [riderFilter, setRiderFilter] = useState<string[]>([]);
+  const [setupFilter, setSetupFilter] = useState<string[]>([]);
   const [sort, setSort] = useState<"date" | "time" | "setup">("date");
+  /** How many passes besides the reference (by request, 2026-11-09): the
+   * first 10 in the list's order by default, then 20, or all. */
+  const [limit, setLimit] = useState<"10" | "20" | "all">("10");
 
   /** The column the mouse is over, for the hover isolation (by request,
    * 2026-09-14): that column across every pass gets a tinted band and
@@ -635,19 +646,21 @@ export function ImuSnapshotView({
   }));
   const unsetCount = rows.filter((r) => !r.session.setup).length;
 
-  const others = rows
-    .filter((r) => r !== reference)
-    .filter((r) => !trackFilter || (r.trackIds ?? []).includes(trackFilter))
-    .filter((r) => !groupFilter || r.session.groupLabel === groupFilter)
-    .filter((r) => !bikeFilter || r.session.bikeId === bikeFilter)
-    .filter((r) => !riderFilter || r.session.riderName === riderFilter)
-    .filter(
-      (r) =>
-        !setupFilter ||
-        (setupFilter === "none"
-          ? !r.session.setup
-          : (letterOf(r) ?? "") === setupFilter),
-    )
+  // The filters, as one test, so the reference answers to them too (by
+  // request, 2026-11-09): on show only when it passes, and then first.
+  const passesFilters = (r: SnapshotPassRow) =>
+    (trackFilter.length === 0 ||
+      (r.trackIds ?? []).some((id) => trackFilter.includes(id))) &&
+    (groupFilter.length === 0 ||
+      groupFilter.includes(r.session.groupLabel ?? "")) &&
+    (bikeFilter.length === 0 || bikeFilter.includes(r.session.bikeId ?? "")) &&
+    (riderFilter.length === 0 ||
+      riderFilter.includes(r.session.riderName ?? "")) &&
+    (setupFilter.length === 0 ||
+      setupFilter.includes(r.session.setup ? (letterOf(r) ?? "") : "none"));
+  const referenceShown = reference != null && passesFilters(reference);
+  const matching = rows
+    .filter((r) => r !== reference && passesFilters(r))
     .toSorted((a, b) => {
       if (sort === "time") return a.metrics.durationMs - b.metrics.durationMs;
       const byDate =
@@ -660,8 +673,17 @@ export function ImuSnapshotView({
       const lb = letterOf(b) ?? "~";
       return la.localeCompare(lb) || byDate;
     });
+  // Top N counts the reference as the first of the N when it is on show.
+  const others =
+    limit === "all"
+      ? matching
+      : matching.slice(0, Number(limit) - (referenceShown ? 1 : 0));
 
   const f = t.snapshots.view.filters;
+  // Only when there are more than the default to cut — or a wider choice
+  // was made and should stay visible to be undone.
+  const showLimit =
+    matching.length + (referenceShown ? 1 : 0) > 10 || limit !== "10";
   const showSetup = !draft && setupGroups.length + (unsetCount > 0 ? 1 : 0) > 1;
   const showOrder = !draft && rows.length > 2;
   const anyFilter =
@@ -670,7 +692,8 @@ export function ImuSnapshotView({
     riders.length > 0 ||
     bikes.length > 0 ||
     showSetup ||
-    showOrder;
+    showOrder ||
+    showLimit;
 
   const columns = SNAPSHOT_COLUMNS[snapshot.definition.kind];
 
@@ -901,83 +924,85 @@ export function ImuSnapshotView({
         </div>
       </div>
 
-      {/* The filters, as pills on the right under the head (by request,
-          2026-10-28, from a sketch) — in the comparison opened from an
+      {/* The filters, as pills centred under the head (by request,
+          2026-10-28, from a sketch; centred since 2026-11-09) — in the comparison opened from an
           event's card too, which went without them since 2026-09-20. Each
           only when it has something to choose; the saved Snapshot's page
           keeps its setup and its order besides. */}
       {anyFilter && (
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {tracks.length > 0 && (
-            <FilterPill
+            <MultiFilterPill
               label={f.track}
+              allLabel={f.allTracks}
+              selectedLabel={f.selected}
               value={trackFilter}
               onChange={setTrackFilter}
-            >
-              <option value="">{f.allTracks}</option>
-              {tracks.map((track) => (
-                <option key={track.id} value={track.id}>
-                  {track.name}
-                </option>
-              ))}
-            </FilterPill>
+              options={tracks.map((track) => ({
+                value: track.id,
+                label: track.name,
+              }))}
+            />
           )}
           {groups.length > 0 && (
-            <FilterPill
+            <MultiFilterPill
               label={f.group}
+              allLabel={f.allGroups}
+              selectedLabel={f.selected}
               value={groupFilter}
               onChange={setGroupFilter}
-            >
-              <option value="">{f.allGroups}</option>
-              {groups.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </FilterPill>
+              options={groups.map((g) => ({ value: g, label: g }))}
+            />
           )}
           {riders.length > 0 && (
-            <FilterPill
+            <MultiFilterPill
               label={f.rider}
+              allLabel={f.allRiders}
+              selectedLabel={f.selected}
               value={riderFilter}
               onChange={setRiderFilter}
-            >
-              <option value="">{f.allRiders}</option>
-              {riders.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </FilterPill>
+              options={riders.map((r) => ({ value: r, label: r }))}
+            />
           )}
           {bikes.length > 0 && (
-            <FilterPill
+            <MultiFilterPill
               label={f.bike}
+              allLabel={f.allBikes}
+              selectedLabel={f.selected}
               value={bikeFilter}
               onChange={setBikeFilter}
-            >
-              <option value="">{f.allBikes}</option>
-              {bikes.map((b) => (
-                <option key={b.bikeId!} value={b.bikeId!}>
-                  {b.bikeName}
-                </option>
-              ))}
-            </FilterPill>
+              options={bikes.map((b) => ({
+                value: b.bikeId!,
+                label: b.bikeName!,
+              }))}
+            />
           )}
           {showSetup && (
-            <FilterPill
+            <MultiFilterPill
               label={f.setup}
+              allLabel={f.allSetups}
+              selectedLabel={f.selected}
               value={setupFilter}
               onChange={setSetupFilter}
+              options={[
+                ...setupGroups.map((g) => ({
+                  value: g.letter,
+                  label: t.snapshots.view.setupLetter(g.letter),
+                  detail: g.summary || undefined,
+                })),
+                ...(unsetCount > 0 ? [{ value: "none", label: f.noSetup }] : []),
+              ]}
+            />
+          )}
+          {showLimit && (
+            <FilterPill
+              label={f.show}
+              value={limit}
+              onChange={(v) => setLimit(v as "10" | "20" | "all")}
             >
-              <option value="">{f.allSetups}</option>
-              {setupGroups.map((g) => (
-                <option key={g.letter} value={g.letter}>
-                  {t.snapshots.view.setupLetter(g.letter)}
-                  {g.summary && ` · ${g.summary}`}
-                </option>
-              ))}
-              {unsetCount > 0 && <option value="none">{f.noSetup}</option>}
+              <option value="10">{f.top(10)}</option>
+              <option value="20">{f.top(20)}</option>
+              <option value="all">{f.showAll}</option>
             </FilterPill>
           )}
           {showOrder && (
@@ -1024,7 +1049,7 @@ export function ImuSnapshotView({
           DARK_CARD_HAIRLINE,
         )}
       >
-        {reference && (
+        {referenceShown && (
           <SnapshotPassLine
             row={reference}
             reference={null}
@@ -1117,6 +1142,117 @@ function FilterPill({
         aria-hidden
       />
     </label>
+  );
+}
+
+/**
+ * A filter pill that takes several values (by request, 2026-11-09): the same
+ * pill as FilterPill — "Rider: All" — opening a list of checkboxes instead
+ * of a native select, which can only hold one. Nothing ticked is "All", and
+ * "All" in the list clears the ticks. The pill names the one value ticked,
+ * or how many.
+ */
+function MultiFilterPill({
+  label,
+  allLabel,
+  selectedLabel,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  allLabel: string;
+  selectedLabel: (n: number) => string;
+  value: string[];
+  onChange: (value: string[]) => void;
+  options: { value: string; label: string; detail?: string }[];
+}) {
+  // A value no longer on offer (its pass went away) does not count.
+  const chosen = value.filter((v) => options.some((o) => o.value === v));
+  const shown =
+    chosen.length === 0
+      ? allLabel
+      : chosen.length === 1
+        ? options.find((o) => o.value === chosen[0])!.label
+        : selectedLabel(chosen.length);
+  const toggle = (v: string) =>
+    onChange(chosen.includes(v) ? chosen.filter((x) => x !== v) : [...chosen, v]);
+  return (
+    <Popover>
+      <PopoverTrigger
+        className="relative inline-flex h-12 max-w-full cursor-pointer items-center rounded-full bg-card pr-12 pl-5 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <span className="shrink-0 text-muted-foreground">{label}:</span>
+        <span className="ml-1 max-w-56 min-w-0 truncate text-foreground">
+          {shown}
+        </span>
+        <ChevronDown
+          className="pointer-events-none absolute top-1/2 right-5 size-4 -translate-y-1/2"
+          aria-hidden
+        />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-auto max-w-80 min-w-56 p-2">
+        <div role="group" aria-label={label} className="flex flex-col">
+          <MultiFilterOption
+            checked={chosen.length === 0}
+            label={allLabel}
+            onToggle={() => onChange([])}
+          />
+          <div className="my-1 h-px bg-border" />
+          {options.map((o) => (
+            <MultiFilterOption
+              key={o.value}
+              checked={chosen.includes(o.value)}
+              label={o.label}
+              detail={o.detail}
+              onToggle={() => toggle(o.value)}
+            />
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MultiFilterOption({
+  checked,
+  label,
+  detail,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  detail?: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex w-full cursor-pointer items-start gap-3 rounded-[10px] px-3 py-2 text-left text-sm hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
+          checked
+            ? "border-foreground bg-foreground text-background"
+            : "border-input",
+        )}
+      >
+        {checked && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate">{label}</span>
+        {detail && (
+          <span className="block truncate text-xs text-muted-foreground">
+            {detail}
+          </span>
+        )}
+      </span>
+    </button>
   );
 }
 

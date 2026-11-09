@@ -29,7 +29,10 @@ export function MenuSettingsIcon({ className }: { className?: string }) {
 export function MenuLoggerIcon({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 28 28"
+      // Framed on the drawing's own box (x 2–28.3, y 1.2–26 with the
+      // stroke), so the glyph sits centred in the rail (2026-11-09) — the
+      // antenna had pulled it up and right.
+      viewBox="1.15 -0.4 28 28"
       className={className}
       fill="none"
       stroke="currentColor"
