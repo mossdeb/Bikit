@@ -1,20 +1,51 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useProDict } from "@/components/pro-locale";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { ImuMountOrientation, ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { formatSessionTime } from "@/lib/imu/derive";
-import { createLineAt } from "@/lib/imu/snapshot";
-import { useImuSession } from "@/lib/imu/use-imu-session";
-import { LINE_HEADING_SPAN_M } from "@/lib/imu/timed-track";
-import type { ImuTimedTrack } from "@/lib/imu/track-candidates";
+import {
+  createLineAt,
+  distanceAt,
+  lineCrossings,
+  prepareSnapshotSession,
+  timeAtDistance,
+  type SnapshotGate,
+  type SnapshotSession,
+} from "@/lib/imu/snapshot";
+import {
+  loadWholeImuSession,
+  useImuSession,
+} from "@/lib/imu/use-imu-session";
+import {
+  createTimedTrack,
+  findTimedRuns,
+  LINE_HEADING_SPAN_M,
+  type TimedRun,
+} from "@/lib/imu/timed-track";
+import {
+  PERFECT_RUN_SECTORS,
+  sectorBoundaries,
+} from "@/lib/imu/perfect-run";
+import type {
+  ImuTimedTrack,
+  ImuTrackCandidate,
+} from "@/lib/imu/track-candidates";
+import { setImuTrackSplits } from "@/lib/actions/imu-tracks";
 import { ImuSessionMap, type ImuMapLine } from "@/components/imu-session-map";
 import { ImuTrackBar } from "@/components/imu-track-bar";
 import {
@@ -35,6 +66,92 @@ import {
  * track drawn here is drawn and saved by the popup's rules. For now only
  * on the owner's account (hasPerfectRun), the sector lines' next home.
  */
+/** Sector lines a track may have, as sectors: from two to twelve. */
+const MIN_SECTORS = 2;
+const MAX_SECTORS = 12;
+/** A sector line keeps this far from its neighbours and the start and
+ * finish, m — the bar's own gap. */
+const SECTOR_GAP_M = 30;
+
+/** `count` sectors of equal length between two distances: the lines. */
+function evenSectors(fromM: number, toM: number, count: number): number[] {
+  const out: number[] = [];
+  for (let k = 1; k < count; k++) out.push(fromM + ((toM - fromM) * k) / count);
+  return out;
+}
+
+type TrackRuns = { prepared: SnapshotSession; runs: TimedRun[] }[];
+
+/** The account's other recordings on a track, read once, with their runs
+ * on it — what the sector lines are counted against. Every rider's: the
+ * lines are the track's, and each rider's Perfect Run is cut by them.
+ * Null while they download. */
+function useTrackRuns({
+  track,
+  sessionId,
+  candidates,
+}: {
+  track: ImuTimedTrack | null;
+  sessionId: string;
+  candidates: ImuTrackCandidate[];
+}): TrackRuns | null {
+  const locale = useProLocale();
+  const [state, setState] = useState<{ id: string; runs: TrackRuns } | null>(
+    null,
+  );
+  const trackId = track?.id ?? null;
+  useEffect(() => {
+    if (!track) return;
+    let live = true;
+    const others = candidates.filter(
+      (c) => c.id !== sessionId && track.candidateIds.includes(c.id),
+    );
+    void (async () => {
+      const loaded = await Promise.all(
+        others.map(async (c) => {
+          const r = await loadWholeImuSession(
+            c.storagePath,
+            c.mountOrientation,
+            locale,
+          );
+          if (!r.data) return null;
+          const prepared = prepareSnapshotSession(r.data);
+          const runs = findTimedRuns(prepared, track.definition);
+          return runs.length > 0 ? { prepared, runs } : null;
+        }),
+      );
+      if (live)
+        setState({
+          id: track.id,
+          runs: loaded.filter((x): x is TrackRuns[number] => x != null),
+        });
+    })();
+    return () => {
+      live = false;
+    };
+    // Read through the track's id: a refresh hands a new object for the
+    // same track, and every file must not be read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId, sessionId, candidates, locale]);
+  if (!track) return [];
+  return state?.id === track.id ? state.runs : null;
+}
+
+/** How many of the runs cross a line once inside their run. */
+function crossingCount(
+  gate: SnapshotGate,
+  reads: { prepared: SnapshotSession; run: TimedRun }[],
+): number {
+  let n = 0;
+  for (const { prepared, run } of reads) {
+    const crossed = lineCrossings(prepared, gate).filter(
+      (t) => t > run.entryMs && t < run.exitMs,
+    );
+    if (crossed.length === 1) n++;
+  }
+  return n;
+}
+
 export function ImuTrackEditor({
   sessionId,
   storagePath,
@@ -42,6 +159,7 @@ export function ImuTrackEditor({
   trim,
   tracks,
   trackId,
+  candidates,
 }: {
   sessionId: string;
   storagePath: string;
@@ -50,6 +168,7 @@ export function ImuTrackEditor({
   tracks: ImuTimedTrack[];
   /** The track to edit; null draws a new one. */
   trackId: string | null;
+  candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
   const { whole, error } = useImuSession(storagePath, mountOrientation);
@@ -73,6 +192,7 @@ export function ImuTrackEditor({
       trim={trim}
       tracks={tracks}
       editing={editing}
+      candidates={candidates}
     />
   );
 }
@@ -85,6 +205,7 @@ function Editor({
   trim,
   tracks,
   editing,
+  candidates,
 }: {
   sessionId: string;
   whole: ImuSessionData;
@@ -93,11 +214,18 @@ function Editor({
   trim: ImuSessionTrim | null;
   tracks: ImuTimedTrack[];
   editing: Passed[number] | null;
+  candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
   const common = useProDict().common;
   const router = useRouter();
   const sessionHref = `/pro/sessoes/${sessionId}`;
+  const route = prepared.track;
+  const [splitsError, setSplitsError] = useState<string | null>(null);
+  const [savingSplits, setSavingSplits] = useState(false);
+  // The sector lines to keep, set below once they are known and read when
+  // the track has saved.
+  const gatesRef = useRef<SnapshotGate[]>([]);
   const draft = useTrackDraft({
     sessionId,
     whole,
@@ -106,7 +234,23 @@ function Editor({
     visibleMs: trim ? [trim.startMs, trim.endMs] : [0, whole.durationMs],
     editing,
     tracks,
-    onSaved: () => router.push(sessionHref),
+    onSaved: (id) => {
+      const splits = gatesRef.current;
+      // A circuit, or no line could be drawn: no sectors to keep.
+      if (splits.length === 0) {
+        router.push(sessionHref);
+        return;
+      }
+      setSavingSplits(true);
+      void setImuTrackSplits({ trackId: id, splits }).then((result) => {
+        setSavingSplits(false);
+        if (result.status === "error") {
+          setSplitsError(t.editor.sectorsNotSaved(result.message));
+          return;
+        }
+        router.push(sessionHref);
+      });
+    },
   });
   const {
     fullMs,
@@ -121,8 +265,109 @@ function Editor({
   const [hoverMs, setHoverMs] = useState<number | null>(null);
   const [cursorMs, setCursorMs] = useState<number | null>(null);
 
+  // The sector lines (by request, 2026-11-09), as distances along this
+  // recording: the track's own where this run crosses them, or else six
+  // equal sectors between the start and the finish.
+  const startM =
+    route && startMs != null ? distanceAt(route, startMs) : null;
+  const finishM =
+    route && !circuit && finishMs != null && finishMs > (startMs ?? 0)
+      ? distanceAt(route, finishMs)
+      : null;
+  const storedSplits = editing?.track.definition.splits ?? null;
+  const [sectorM, setSectorMState] = useState<number[]>(() => {
+    if (!route || startM == null || finishM == null) return [];
+    const run = editing?.runs[0];
+    if (storedSplits && storedSplits.length > 0 && run) {
+      const bounds = sectorBoundaries(prepared, storedSplits, run);
+      if (bounds) return bounds.slice(1, -1).map((ms) => distanceAt(route, ms));
+    }
+    return evenSectors(startM, finishM, PERFECT_RUN_SECTORS);
+  });
+  // Until a line is moved or the count changed, the track's own lines are
+  // kept as they were stored — redrawn from this run they would land a
+  // metre or two off, and move every sector's time for nothing.
+  const [touched, setTouched] = useState(false);
+  const setSectorM = (next: number[]) => {
+    setTouched(true);
+    setSectorMState(next);
+  };
+  // The lines between the start and the finish as they stand now: one
+  // that a moved start or finish has passed is left out.
+  const inside = useMemo(
+    () =>
+      startM != null && finishM != null
+        ? sectorM.filter(
+            (m) => m >= startM + SECTOR_GAP_M && m <= finishM - SECTOR_GAP_M,
+          )
+        : [],
+    [sectorM, startM, finishM],
+  );
+  const sectorsOn = !circuit && route != null && startM != null && finishM != null;
+  const setCount = (count: number) => {
+    if (startM == null || finishM == null) return;
+    const n = Math.min(MAX_SECTORS, Math.max(MIN_SECTORS, count));
+    setSectorM(evenSectors(startM, finishM, n));
+  };
+
+  // Each line as it would be drawn.
+  const sectorGates = useMemo(
+    () =>
+      route
+        ? inside.map((m) =>
+            createLineAt(
+              prepared,
+              timeAtDistance(route, m),
+              LINE_HEADING_SPAN_M,
+            ),
+          )
+        : [],
+    [prepared, route, inside],
+  );
+  const keepStored =
+    !touched &&
+    storedSplits != null &&
+    storedSplits.length > 0 &&
+    inside.length === sectorM.length;
+  useEffect(() => {
+    gatesRef.current = !sectorsOn
+      ? []
+      : keepStored
+        ? storedSplits!
+        : sectorGates.filter((g): g is SnapshotGate => g != null);
+  }, [sectorGates, sectorsOn, keepStored, storedSplits]);
+
+  // How many of the track's runs cross each line: this run as drawn now,
+  // and the account's others on it as it is saved. Counted on the
+  // deferred lines, so a drag stays smooth while the count catches up.
+  const riderRuns = useTrackRuns({
+    track: editing?.track ?? null,
+    sessionId,
+    candidates,
+  });
+  const selfRun = useMemo(() => {
+    if (startMs == null || finishMs == null || circuit) return null;
+    return createTimedTrack(prepared, startMs, finishMs)?.reference ?? null;
+  }, [prepared, startMs, finishMs, circuit]);
+  const deferredGates = useDeferredValue(sectorGates);
+  const labels = useMemo(() => {
+    if (!sectorsOn || riderRuns == null) return deferredGates.map(() => null);
+    const reads = [
+      ...(selfRun ? [{ prepared, run: selfRun }] : []),
+      ...riderRuns.flatMap((r) =>
+        r.runs.map((run) => ({ prepared: r.prepared, run })),
+      ),
+    ];
+    if (reads.length === 0) return deferredGates.map(() => null);
+    return deferredGates.map((gate) => {
+      if (!gate) return { text: t.editor.crossing(0, reads.length), warn: true };
+      const n = crossingCount(gate, reads);
+      return { text: t.editor.crossing(n, reads.length), warn: n < reads.length };
+    });
+  }, [deferredGates, riderRuns, selfRun, prepared, sectorsOn, t.editor]);
+
   // The lines where they would be drawn now, for the map: the start (or a
-  // circuit's one line) and the finish.
+  // circuit's one line), the sector lines and the finish.
   const lines = useMemo(() => {
     const out: ImuMapLine[] = [];
     const add = (ms: number | null, kind: ImuMapLine["kind"]) => {
@@ -134,9 +379,11 @@ function Editor({
     else {
       add(startMs, "start");
       add(finishMs, "finish");
+      for (const gate of sectorGates)
+        if (gate) out.push({ ...gate, kind: "sector" });
     }
     return out;
-  }, [prepared, circuit, startMs, finishMs]);
+  }, [prepared, circuit, startMs, finishMs, sectorGates]);
 
   const windowMs: [number, number] =
     !circuit && startMs != null && finishMs != null && finishMs > startMs
@@ -165,10 +412,10 @@ function Editor({
           <Button
             variant="inverted"
             className="rounded-full px-8"
-            disabled={busy || !timesValid || sameTrack != null}
+            disabled={busy || savingSplits || !timesValid || sameTrack != null}
             onClick={() => void draft.submit()}
           >
-            {busy ? common.saving : editing ? t.save : t.create}
+            {busy || savingSplits ? common.saving : editing ? t.save : t.create}
           </Button>
         </div>
       </div>
@@ -205,9 +452,58 @@ function Editor({
                 }
                 cursorMs={cursorMs}
                 onHover={setHoverMs}
+                sectors={
+                  sectorsOn
+                    ? {
+                        positionsM: inside,
+                        labels,
+                        onChange: (i, m) =>
+                          setSectorM(inside.map((x, k) => (k === i ? m : x))),
+                      }
+                    : null
+                }
               />
+              {sectorsOn && (
+                <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+                  <span className="text-sm font-semibold">
+                    {t.editor.sectors}
+                  </span>
+                  <div className="flex items-center rounded-full border border-border">
+                    <button
+                      type="button"
+                      aria-label={t.editor.fewerSectors}
+                      disabled={inside.length + 1 <= MIN_SECTORS}
+                      onClick={() => setCount(inside.length)}
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                    >
+                      <Minus className="size-3.5" />
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                      {inside.length + 1}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t.editor.moreSectors}
+                      disabled={inside.length + 1 >= MAX_SECTORS}
+                      onClick={() => setCount(inside.length + 2)}
+                      className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  </div>
+                  <Chip onClick={() => setCount(inside.length + 1)}>
+                    {t.editor.evenOut}
+                  </Chip>
+                  {riderRuns == null && (
+                    <span className="text-xs text-muted-foreground">
+                      {t.editor.counting}
+                    </span>
+                  )}
+                </div>
+              )}
               <p className="mt-3 text-xs text-muted-foreground">
                 {t.editor.hint}
+                {sectorsOn && ` ${t.editor.sectorsHint}`}
               </p>
             </div>
           )}
@@ -286,6 +582,9 @@ function Editor({
             <p className="text-sm text-muted-foreground">{t.hintFormat}</p>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {splitsError && (
+            <p className="text-sm text-destructive">{splitsError}</p>
+          )}
           {sameTrack && (
             <div className="space-y-3 rounded-[16px] border border-border bg-muted p-4">
               <p className="text-sm">

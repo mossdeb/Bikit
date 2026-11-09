@@ -93,6 +93,18 @@ const en = {
     dragFinish: "Drag the finish",
     hint: "Drag the flags along the bar, or press the bar where a line should go.",
     loading: "Reading the recording…",
+    dragSector: (n: number): string => `Drag sector line ${n}`,
+    sectors: "Sectors",
+    fewerSectors: "One sector fewer",
+    moreSectors: "One sector more",
+    evenOut: "Spread evenly",
+    /** Under a sector line: how many of the track's runs cross it. */
+    crossing: (n: number, total: number): string => `${n}/${total} runs`,
+    counting: "Counting the runs that cross each line…",
+    sectorsHint:
+      "The numbered lines cut the track into sectors for the Perfect Run. Under each, how many of the track's runs cross it: a run that misses one is left out of its rider's Perfect Run.",
+    sectorsNotSaved: (message: string): string =>
+      `The track was saved, but not its sectors: ${message}`,
   },
   /** Perfect Run (2026-11-09): the best sectors of one rider's runs on
    * the track, added up. */
@@ -201,6 +213,17 @@ const pt: typeof en = {
     dragFinish: "Arrastar a chegada",
     hint: "Arrasta as bandeiras ao longo da barra, ou carrega na barra onde deve ficar uma linha.",
     loading: "A ler a gravação…",
+    dragSector: (n) => `Arrastar a linha do sector ${n}`,
+    sectors: "Sectores",
+    fewerSectors: "Menos um sector",
+    moreSectors: "Mais um sector",
+    evenOut: "Distribuir por igual",
+    crossing: (n, total) => `${n}/${total} runs`,
+    counting: "A contar as runs que cruzam cada linha…",
+    sectorsHint:
+      "As linhas numeradas dividem a pista em sectores para a Perfect Run. Por baixo de cada uma, quantas runs da pista a cruzam: uma run que falhe uma fica de fora da Perfect Run do seu rider.",
+    sectorsNotSaved: (message) =>
+      `A pista ficou guardada, mas os sectores não: ${message}`,
   },
   perfect: {
     tabTimes: "Tempos",

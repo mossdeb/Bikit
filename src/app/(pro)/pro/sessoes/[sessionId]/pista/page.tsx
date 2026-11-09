@@ -35,7 +35,7 @@ export default async function ImuTrackEditorPage({
     .eq("user_id", userId)
     .single();
   if (!session) notFound();
-  const { tracks } = await loadTimedTracks(supabase, userId);
+  const { tracks, candidates } = await loadTimedTracks(supabase, userId);
 
   return (
     <ImuTrackEditor
@@ -47,6 +47,7 @@ export default async function ImuTrackEditorPage({
       trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
       tracks={tracks}
       trackId={pista ?? null}
+      candidates={candidates}
     />
   );
 }

@@ -136,7 +136,18 @@ function formatDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(m >= 10_000 ? 0 : 1)} km` : `${Math.round(m)} m`;
 }
 
-type Handle = "start" | "finish";
+/** A needle: the start, the finish, or a sector line by its index. */
+type Handle = "start" | "finish" | number;
+
+/** The sector lines on the bar (the owner's account, 2026-11-09). */
+export type TrackBarSectors = {
+  /** Each line's distance along this recording, m, in order, all between
+   * the start and the finish. */
+  positionsM: number[];
+  /** Under each line: how many runs cross it, and whether one is lost. */
+  labels: ({ text: string; warn: boolean } | null)[];
+  onChange: (index: number, m: number) => void;
+};
 
 export function ImuTrackBar({
   track,
@@ -148,8 +159,10 @@ export function ImuTrackBar({
   onFinish,
   cursorMs,
   onHover,
+  sectors,
   className,
 }: {
+  sectors?: TrackBarSectors | null;
   track: SnapshotTrack;
   gps: GpsChannels;
   startMs: number | null;
@@ -188,6 +201,16 @@ export function ImuTrackBar({
 
   /** Moves a needle to a distance, kept clear of the other one. */
   const moveTo = (handle: Handle, m: number) => {
+    if (typeof handle === "number") {
+      if (!sectors || startM == null || finishM == null) return;
+      const at = sectors.positionsM;
+      const lo = (handle > 0 ? at[handle - 1] : startM) + MIN_GAP_M;
+      const hi =
+        (handle < at.length - 1 ? at[handle + 1] : finishM) - MIN_GAP_M;
+      if (hi < lo) return;
+      sectors.onChange(handle, Math.min(hi, Math.max(lo, m)));
+      return;
+    }
     if (handle === "start") {
       const limit = finishM != null ? finishM - MIN_GAP_M : totalM;
       onStart(timeAtDistance(track, Math.max(0, Math.min(m, limit))));
@@ -266,6 +289,50 @@ export function ImuTrackBar({
     </div>
   );
 
+  /** A sector line: thin, its number in a disc at the foot of the bar and,
+   * under it, how many runs cross it. */
+  const sectorNeedle = (i: number, m: number) => {
+    const label = sectors?.labels[i] ?? null;
+    return (
+      <div
+        key={`sector-${i}`}
+        className="absolute inset-y-0 z-10"
+        style={{ left: pct(m) }}
+      >
+        <span
+          aria-hidden
+          className="absolute inset-y-0 -ml-px w-0.5 bg-foreground/55"
+        />
+        <button
+          type="button"
+          aria-label={t.dragSector(i + 1)}
+          onPointerDown={(event) => {
+            if (event.pointerType === "mouse" && event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            beginDrag(i, event);
+          }}
+          className={cn(
+            "absolute -bottom-3 flex size-6 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border-2 border-card bg-foreground text-[11px] font-semibold text-background tabular-nums shadow-sm",
+            dragging === i && "ring-2 ring-ring/50",
+          )}
+        >
+          {i + 1}
+        </button>
+        {label && (
+          <span
+            className={cn(
+              "absolute top-full mt-4 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap tabular-nums",
+              label.warn ? "text-orange-600" : "text-muted-foreground",
+            )}
+          >
+            {label.text}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const hoverMs = hoverM != null ? timeAtDistance(track, hoverM) : null;
 
   return (
@@ -306,13 +373,16 @@ export function ImuTrackBar({
           const m = distAtClient(event.clientX);
           if (m == null) return;
           event.preventDefault();
-          // A press on the bar brings the nearer needle there, and the
+          // A press on the bar brings the nearest needle there, and the
           // drag carries on from it.
-          const handle: Handle =
-            finishM == null ||
-            (startM != null && Math.abs(m - startM) <= Math.abs(m - finishM))
-              ? "start"
-              : "finish";
+          const candidates: [Handle, number][] = [];
+          if (startM != null) candidates.push(["start", startM]);
+          if (finishM != null) candidates.push(["finish", finishM]);
+          sectors?.positionsM.forEach((at, i) => candidates.push([i, at]));
+          if (candidates.length === 0) return;
+          const handle = candidates.reduce((a, b) =>
+            Math.abs(m - b[1]) < Math.abs(m - a[1]) ? b : a,
+          )[0];
           moveTo(handle, m);
           beginDrag(handle, event);
         }}
@@ -362,6 +432,23 @@ export function ImuTrackBar({
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+        {/* Every other sector a shade darker, so the pieces read apart. */}
+        {sectors &&
+          startM != null &&
+          finishM != null &&
+          [startM, ...sectors.positionsM, finishM].map((from, i, all) =>
+            i % 2 === 1 && i < all.length - 1 ? (
+              <span
+                key={`band-${i}`}
+                aria-hidden
+                className="absolute inset-y-0 bg-foreground/[0.05]"
+                style={{
+                  left: pct(from),
+                  width: `${(((all[i + 1] - from) / totalM) * 100).toFixed(3)}%`,
+                }}
+              />
+            ) : null,
+          )}
         {/* Outside the lines, dimmed: what the track leaves out. */}
         {!circuit && startM != null && finishM != null && (
           <>
@@ -386,8 +473,14 @@ export function ImuTrackBar({
         )}
         {startM != null && startMs != null && needle("start", startM, startMs)}
         {finishM != null && finishMs != null && needle("finish", finishM, finishMs)}
+        {sectors?.positionsM.map((at, i) => sectorNeedle(i, at))}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground tabular-nums">
+      <div
+        className={cn(
+          "flex justify-between text-[11px] text-muted-foreground tabular-nums",
+          sectors ? "mt-9" : "mt-1.5",
+        )}
+      >
         <span>0 m</span>
         <span>{formatDistance(totalM / 2)}</span>
         <span>{formatDistance(totalM)}</span>
