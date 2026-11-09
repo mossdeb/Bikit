@@ -12,6 +12,7 @@ import type { BikeType } from "@/lib/constants";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
+  MotorbikeIcon,
 } from "@/components/bike-type-icon";
 import { BikeBalanceArt } from "@/components/bike-balance-art";
 import type { StoredRiderSag } from "@/lib/imu/rider-sag";
@@ -77,8 +78,12 @@ export function ImuSetupBalance({
   setups,
   metrics,
   bikeType = null,
+  motorbike = false,
 }: {
   bikeType?: BikeType | null;
+  /** Ridden on a motorbike (engine filter on): the dirt bike is drawn
+   * in place of the bike's type (2026-11-09). */
+  motorbike?: boolean;
   setups: BalanceSetup[];
   /** The figures the effect can be read on, in the table's order. */
   metrics: BalanceMetric[];
@@ -99,7 +104,9 @@ export function ImuSetupBalance({
     ),
   }));
 
-  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
+  const BikeMark = motorbike
+    ? MotorbikeIcon
+    : (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
   // A line per setup with a reading, in its colour, letter and real angle
   // on the pill; it sinks by the mean drop where the setup gives the
   // wheelbase, the head angle and the fork's sag.

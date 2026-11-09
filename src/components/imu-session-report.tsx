@@ -18,6 +18,7 @@ import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
+  MotorbikeIcon,
 } from "@/components/bike-type-icon";
 import { ImuRiderGlyph } from "@/components/imu-pro-logo";
 import { TrailPeaksIcon } from "@/components/imu-report-icons";
@@ -52,6 +53,7 @@ export function ImuSessionReport({
   snapshots,
   referenceSessions,
   bikeType = null,
+  motorbike = false,
   setup = null,
 }: {
   storagePath: string;
@@ -65,6 +67,9 @@ export function ImuSessionReport({
   referenceSessions: Record<string, ImuSnapshotCandidate>;
   /** The bike's type, for the Bike card's mark; null draws a generic one. */
   bikeType?: BikeType | null;
+  /** Ridden on a motorbike (engine filter on): the dirt bike is drawn
+   * in place of the bike's type (2026-11-09). */
+  motorbike?: boolean;
   /** What the setup form opens on, null without a bike. */
   setup?: {
     values: ImuSetupValues;
@@ -83,8 +88,9 @@ export function ImuSessionReport({
     () => (data ? buildSessionReport(data, locale) : null),
     [data, locale],
   );
-  const BikeGlyph =
-    (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
+  const BikeGlyph = motorbike
+    ? MotorbikeIcon
+    : (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
 
   return (
     // The pages' rhythm (2026-09-25, the setups page's): 28 px between
@@ -117,6 +123,7 @@ export function ImuSessionReport({
                       note={setup.note}
                       labels={setup.labels}
                       bikeType={bikeType}
+                      motorbike={motorbike}
                       triggerLabel={t.setupTrigger}
                       triggerIcon={
                         <FileText

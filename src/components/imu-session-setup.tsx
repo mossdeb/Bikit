@@ -6,6 +6,7 @@ import { SlidersHorizontal, Upload } from "lucide-react";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
+  MotorbikeIcon,
 } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -293,6 +294,7 @@ export function ImuSessionSetup({
   note,
   labels,
   bikeType,
+  motorbike = false,
   triggerLabel,
   triggerClassName,
   triggerIcon,
@@ -332,6 +334,9 @@ export function ImuSessionSetup({
   /** The bike's type, for the mark between the two dampers (the supplied
    * layout); null draws a generic bike. */
   bikeType: BikeType | null;
+  /** Ridden on a motorbike (engine filter on): the dirt bike is drawn
+   * in place of the bike's type (2026-11-09). */
+  motorbike?: boolean;
   /** The trigger's word, icon and dress, when not the analysis page's
    * "Afinação" pill. */
   triggerLabel?: string;
@@ -449,7 +454,9 @@ export function ImuSessionSetup({
   const choose = (key: string, value: string) =>
     setDraft((d) => ({ ...d, [key]: value }));
 
-  const BikeMark = (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
+  const BikeMark = motorbike
+    ? MotorbikeIcon
+    : (bikeType && BIKE_TYPE_ICON[bikeType]) || BIKE_ICON_FALLBACK;
 
   return (
     <Dialog

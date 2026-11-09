@@ -205,6 +205,7 @@ export function ImuSetupCompareView({
   runs,
   labels,
   bikeType = null,
+  motorbike = false,
 }: {
   /** The session this page was reached from: the row every other is
    * read against. */
@@ -215,6 +216,9 @@ export function ImuSetupCompareView({
   labels: ImuSetupCompareLabels;
   /** The bike's kind, for its drawing in the Balance. */
   bikeType?: BikeType | null;
+  /** The reference ran on a motorbike (engine filter on): the Balance
+   * draws the dirt bike (2026-11-09). */
+  motorbike?: boolean;
 }) {
   const t = useProDict();
   const locale = useProLocale();
@@ -940,6 +944,7 @@ export function ImuSetupCompareView({
       {groups.length > 0 && (
         <ImuSetupBalance
           bikeType={bikeType}
+          motorbike={motorbike}
           setups={groups.map((g) => ({
             letter: g.letter,
             setup: g.setup,

@@ -37,7 +37,7 @@ export default async function ImuSetupComparePage({
   if (!userId || !hasLabAccess(email)) notFound();
 
   const sessionColumns =
-    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms, rider_sag";
+    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms, rider_sag, engine_filter";
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(sessionColumns)
@@ -149,6 +149,7 @@ export default async function ImuSetupComparePage({
           ((bikes ?? []).find((b) => b.id === session.bike_id)?.type as
             BikeType | undefined) ?? null
         }
+        motorbike={session.engine_filter}
       />
     </div>
   );

@@ -55,7 +55,7 @@ export default async function ImuSessionReportPage({
   const t = getProDictionary(locale);
 
   const sessionColumns =
-    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index, trim_start_ms, trim_end_ms";
+    "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, sample_rate_hz, sample_count, storage_path, track_index, trim_start_ms, trim_end_ms, engine_filter";
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(sessionColumns)
@@ -210,6 +210,7 @@ export default async function ImuSessionReportPage({
         snapshots={snapshots}
         referenceSessions={referenceSessions}
         bikeType={bikeType}
+        motorbike={session.engine_filter}
         // The setup form the Bike card opens — only with a bike: a setup
         // belongs to one.
         setup={

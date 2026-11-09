@@ -128,7 +128,39 @@ function OtherBikeIcon(props: IconProps) {
   );
 }
 
-export const BIKE_TYPE_ICON: Partial<Record<BikeType, ComponentType<IconProps>>> = {
+/**
+ * A dirt bike (2026-11-09), from assets/icons/dirtbike — the same 4-unit
+ * line as the bikes above. Drawn for the Logger's Motorcycle card and, in
+ * Pro, for every session ridden on a motorbike — one with the engine
+ * filter on, which a VEH1 = motorcycle file turns on at import — in place
+ * of its bike's drawing.
+ */
+export function MotorbikeIcon(props: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 98 57"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMax meet"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="17.39" cy="39.15" r="15.39" strokeMiterlimit="10" />
+      <circle cx="17.39" cy="39.15" r="3.39" />
+      <circle cx="79.95" cy="39.15" r="3.39" />
+      <circle cx="79.95" cy="39.15" r="15.39" strokeMiterlimit="10" />
+      <path d="M79.9512 39.4594L64.5631 2.45038L56.343 2.00006" />
+      <path d="M68.4059 11.6923H54.0936L45.4109 14.9084L11.3512 12.8808L42.9133 28.0229L48.3491 39.4594C48.3491 39.4594 70.1843 18.1987 70.9412 17.7897L68.4059 11.6923Z" />
+      <path d="M17.7299 39.4595L42.9133 28.0229" />
+      <path d="M70.9411 19.7261H43.6243" />
+    </svg>
+  );
+}
+
+export const BIKE_TYPE_ICON:Partial<Record<BikeType, ComponentType<IconProps>>> = {
   Road: RoadIcon,
   Gravel: GravelIcon,
   "Endurance road": EnduranceRoadIcon,

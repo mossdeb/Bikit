@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
+  MotorbikeIcon,
 } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuSessionImport } from "@/components/imu-session-import";
@@ -60,7 +61,7 @@ export default async function ImuLabPage() {
         .select(
           // No counts: the card stopped printing them, and a column selected
           // for nobody is a query that grows without a reader.
-          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track, track_index",
+          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track, track_index, engine_filter",
         )
         .eq("user_id", userId)
         .order("created_at", { ascending: false }),
@@ -114,9 +115,13 @@ export default async function ImuLabPage() {
   function SessionCard({ session }: { session: SessionRow }) {
     const outline = thumbOutline(session.track_index);
     const bike = session.bike_id ? bikeById.get(session.bike_id) : undefined;
-    const BikeGlyph = bike
-      ? (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK)
-      : undefined;
+    // A session ridden on a motorbike (engine filter on) draws the dirt
+    // bike, whatever its bike's type (2026-11-09).
+    const BikeGlyph = !bike
+      ? undefined
+      : session.engine_filter
+        ? MotorbikeIcon
+        : (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK);
     return (
       <div
         className={cn(

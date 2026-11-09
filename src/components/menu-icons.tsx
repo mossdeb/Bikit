@@ -25,32 +25,6 @@ export function MenuSettingsIcon({ className }: { className?: string }) {
   );
 }
 
-/** A dirt bike (2026-11-09), from assets/icons/dirtbike — the Logger's
- *  Vehicle Type card for motorcycles, beside the app's Enduro drawing
- *  (BIKE_ICON_FALLBACK) for bicycles — the same 4-unit line. */
-export function MotorbikeIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 98 57"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="17.39" cy="39.15" r="15.39" />
-      <circle cx="17.39" cy="39.15" r="3.39" />
-      <circle cx="79.95" cy="39.15" r="3.39" />
-      <circle cx="79.95" cy="39.15" r="15.39" />
-      <path d="M79.9512 39.4594L64.5631 2.45038L56.343 2.00006" />
-      <path d="M68.4059 11.6923H54.0936L45.4109 14.9084L11.3512 12.8808L42.9133 28.0229L48.3491 39.4594C48.3491 39.4594 70.1843 18.1987 70.9412 17.7897L68.4059 11.6923Z" />
-      <path d="M17.7299 39.4595L42.9133 28.0229" />
-      <path d="M70.9411 19.7261H43.6243" />
-    </svg>
-  );
-}
 
 /** Auto Stop (2026-11-09), from assets/icons/settings/auto stop.svg: a
  *  power button inside a cycle — the Logger's Auto Stop row. */

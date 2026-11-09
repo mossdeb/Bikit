@@ -14,12 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoggerDeviceCard } from "@/components/logger-device-card";
-import { BIKE_ICON_FALLBACK } from "@/components/bike-type-icon";
+import { BIKE_ICON_FALLBACK, MotorbikeIcon } from "@/components/bike-type-icon";
 import {
   AutoStopIcon,
   GpsFixIcon,
   MotionSleepIcon,
-  MotorbikeIcon,
   SleepModeIcon,
   SleepTimerIcon,
   TimedSleepIcon,

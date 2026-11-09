@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import {
   BIKE_ICON_FALLBACK,
   BIKE_TYPE_ICON,
+  MotorbikeIcon,
 } from "@/components/bike-type-icon";
 import type { BikeType } from "@/lib/constants";
 import { ImuDocGlyph } from "@/components/imu-pro-logo";
@@ -258,9 +259,13 @@ export default async function ImuSessionPage({
   }
   const setupNote = setupRow?.note ?? null;
   const setupLabels: ImuSetupLabels = setupLabelsOf(dampers);
-  const BikeGlyph = bike
-    ? (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK)
-    : undefined;
+  // A session ridden on a motorbike (engine filter on) draws the dirt bike
+  // here and in the Bike card, whatever its bike's type (2026-11-09).
+  const BikeGlyph = !bike
+    ? undefined
+    : session.engine_filter
+      ? MotorbikeIcon
+      : (BIKE_TYPE_ICON[bike.type as BikeType] ?? BIKE_ICON_FALLBACK);
   // What a blank rider becomes on save — the same fallback the import and
   // the update action use, so the dialog's placeholder tells the truth.
   const metadata = userData?.claims?.user_metadata as
@@ -403,6 +408,7 @@ export default async function ImuSessionPage({
                   note={setupNote}
                   labels={setupLabels}
                   bikeType={(bike?.type as BikeType | undefined) ?? null}
+                  motorbike={session.engine_filter}
                   sagHistory={sagHistory}
                   presets={setupPresets}
                 />
