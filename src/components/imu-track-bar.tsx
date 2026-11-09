@@ -313,7 +313,7 @@ export function ImuTrackBar({
             beginDrag(i, event);
           }}
           className={cn(
-            "absolute -bottom-3 flex size-6 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border-2 border-card bg-foreground text-[11px] font-semibold text-background tabular-nums shadow-sm",
+            "absolute -bottom-3 flex size-6 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums shadow-sm",
             dragging === i && "ring-2 ring-ring/50",
           )}
         >

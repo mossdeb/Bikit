@@ -1,7 +1,11 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { ImuMountOrientation } from "@/lib/imu/format";
 import { trimOf, type ImuSessionTrim } from "@/lib/imu/trim";
-import { isTrackIndex, trackIndexMayPass } from "@/lib/imu/snapshot";
+import {
+  isTrackIndex,
+  trackIndexMayPass,
+  trackIndexNearGate,
+} from "@/lib/imu/snapshot";
 import {
   isTimedTrackDefinition,
   type TimedTrackDefinition,
@@ -44,6 +48,13 @@ export interface ImuTrackCandidate {
 export async function loadTimedTracks(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
+  options: {
+    /** A track being edited (the track editor, 2026-11-09): its candidates
+     * are the recordings near EITHER line, not both — a finish moved past
+     * where the others ended has them miss it, and the editor must still
+     * read them to say a redraw lost them, or brings them back. */
+    nearEitherGateOf?: string | null;
+  } = {},
 ): Promise<{ tracks: ImuTimedTrack[]; candidates: ImuTrackCandidate[] }> {
   const { data: trackRows } = await supabase
     .from("imu_tracks")
@@ -66,12 +77,16 @@ export async function loadTimedTracks(
   const used = new Set<string>();
   const tracks = rows.map((row) => {
     const definition = row.definition as unknown as TimedTrackDefinition;
+    const wide = row.id === options.nearEitherGateOf;
     const candidateIds = (sessions ?? [])
       .filter(
         (s) =>
           s.id === row.reference_session_id ||
           (isTrackIndex(s.track_index) &&
-            trackIndexMayPass(s.track_index, definition)),
+            (wide
+              ? trackIndexNearGate(s.track_index, definition.entry) ||
+                trackIndexNearGate(s.track_index, definition.exit)
+              : trackIndexMayPass(s.track_index, definition))),
       )
       .map((s) => s.id);
     for (const id of candidateIds) used.add(id);

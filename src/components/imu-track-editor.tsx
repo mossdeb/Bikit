@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Minus, Plus } from "lucide-react";
@@ -27,20 +21,14 @@ import {
   type SnapshotGate,
   type SnapshotSession,
 } from "@/lib/imu/snapshot";
-import {
-  loadWholeImuSession,
-  useImuSession,
-} from "@/lib/imu/use-imu-session";
+import { loadWholeImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import {
   createTimedTrack,
   findTimedRuns,
   LINE_HEADING_SPAN_M,
   type TimedRun,
 } from "@/lib/imu/timed-track";
-import {
-  PERFECT_RUN_SECTORS,
-  sectorBoundaries,
-} from "@/lib/imu/perfect-run";
+import { PERFECT_RUN_SECTORS, sectorBoundaries } from "@/lib/imu/perfect-run";
 import type {
   ImuTimedTrack,
   ImuTrackCandidate,
@@ -80,12 +68,19 @@ function evenSectors(fromM: number, toM: number, count: number): number[] {
   return out;
 }
 
-type TrackRuns = { prepared: SnapshotSession; runs: TimedRun[] }[];
+/** A recording that may pass the track, with its runs on the track as it
+ * is saved (possibly none). */
+type TrackRuns = {
+  name: string;
+  prepared: SnapshotSession;
+  runs: TimedRun[];
+}[];
 
-/** The account's other recordings on a track, read once, with their runs
- * on it — what the sector lines are counted against. Every rider's: the
- * lines are the track's, and each rider's Perfect Run is cut by them.
- * Null while they download. */
+/** The account's other recordings near a track (its candidates), read
+ * once, each with its runs on the track as saved — what the sector lines
+ * are counted against, and what a redraw is checked against. Every
+ * rider's: the lines are the track's, and each rider's Perfect Run is cut
+ * by them. Null while they download. */
 function useTrackRuns({
   track,
   sessionId,
@@ -116,8 +111,12 @@ function useTrackRuns({
           );
           if (!r.data) return null;
           const prepared = prepareSnapshotSession(r.data);
-          const runs = findTimedRuns(prepared, track.definition);
-          return runs.length > 0 ? { prepared, runs } : null;
+          // Kept with no run too: the lines being drawn may bring it back.
+          return {
+            name: c.name,
+            prepared,
+            runs: findTimedRuns(prepared, track.definition),
+          };
         }),
       );
       if (live)
@@ -268,8 +267,7 @@ function Editor({
   // The sector lines (by request, 2026-11-09), as distances along this
   // recording: the track's own where this run crosses them, or else six
   // equal sectors between the start and the finish.
-  const startM =
-    route && startMs != null ? distanceAt(route, startMs) : null;
+  const startM = route && startMs != null ? distanceAt(route, startMs) : null;
   const finishM =
     route && !circuit && finishMs != null && finishMs > (startMs ?? 0)
       ? distanceAt(route, finishMs)
@@ -303,7 +301,8 @@ function Editor({
         : [],
     [sectorM, startM, finishM],
   );
-  const sectorsOn = !circuit && route != null && startM != null && finishM != null;
+  const sectorsOn =
+    !circuit && route != null && startM != null && finishM != null;
   const setCount = (count: number) => {
     if (startM == null || finishM == null) return;
     const n = Math.min(MAX_SECTORS, Math.max(MIN_SECTORS, count));
@@ -337,34 +336,62 @@ function Editor({
         : sectorGates.filter((g): g is SnapshotGate => g != null);
   }, [sectorGates, sectorsOn, keepStored, storedSplits]);
 
-  // How many of the track's runs cross each line: this run as drawn now,
-  // and the account's others on it as it is saved. Counted on the
-  // deferred lines, so a drag stays smooth while the count catches up.
-  const riderRuns = useTrackRuns({
+  // The account's other recordings near the track, as it is saved.
+  const trackRuns = useTrackRuns({
     track: editing?.track ?? null,
     sessionId,
     candidates,
   });
-  const selfRun = useMemo(() => {
+  // The track as the lines stand now, and this run on it.
+  const drawn = useMemo(() => {
     if (startMs == null || finishMs == null || circuit) return null;
-    return createTimedTrack(prepared, startMs, finishMs)?.reference ?? null;
+    return createTimedTrack(prepared, startMs, finishMs);
   }, [prepared, startMs, finishMs, circuit]);
+  const selfRun = drawn?.reference ?? null;
+  // The others timed between the lines as they stand now — deferred, so a
+  // drag stays smooth while the reading catches up. Where the lines are
+  // the saved ones, their saved runs.
+  const deferredDrawn = useDeferredValue(drawn);
+  const othersNow = useMemo(() => {
+    if (trackRuns == null) return null;
+    if (!deferredDrawn) return trackRuns;
+    return trackRuns.map((r) => ({
+      ...r,
+      runs: findTimedRuns(r.prepared, deferredDrawn.definition),
+    }));
+  }, [trackRuns, deferredDrawn]);
+  // A redraw that takes recordings off the track, or brings some back (by
+  // request, 2026-11-09: the Cabeço lost three runs to a finish moved
+  // past where they ended, and nothing said so).
+  const lost = (othersNow ?? [])
+    .filter((r, i) => trackRuns![i].runs.length > 0 && r.runs.length === 0)
+    .map((r) => r.name);
+  const gained = (othersNow ?? [])
+    .filter((r, i) => trackRuns![i].runs.length === 0 && r.runs.length > 0)
+    .map((r) => r.name);
+
+  // How many of the track's runs cross each sector line: this run and the
+  // others, between the lines as they stand now.
   const deferredGates = useDeferredValue(sectorGates);
   const labels = useMemo(() => {
-    if (!sectorsOn || riderRuns == null) return deferredGates.map(() => null);
+    if (!sectorsOn || othersNow == null) return deferredGates.map(() => null);
     const reads = [
       ...(selfRun ? [{ prepared, run: selfRun }] : []),
-      ...riderRuns.flatMap((r) =>
+      ...othersNow.flatMap((r) =>
         r.runs.map((run) => ({ prepared: r.prepared, run })),
       ),
     ];
     if (reads.length === 0) return deferredGates.map(() => null);
     return deferredGates.map((gate) => {
-      if (!gate) return { text: t.editor.crossing(0, reads.length), warn: true };
+      if (!gate)
+        return { text: t.editor.crossing(0, reads.length), warn: true };
       const n = crossingCount(gate, reads);
-      return { text: t.editor.crossing(n, reads.length), warn: n < reads.length };
+      return {
+        text: t.editor.crossing(n, reads.length),
+        warn: n < reads.length,
+      };
     });
-  }, [deferredGates, riderRuns, selfRun, prepared, sectorsOn, t.editor]);
+  }, [deferredGates, othersNow, selfRun, prepared, sectorsOn, t.editor]);
 
   // The lines where they would be drawn now, for the map: the start (or a
   // circuit's one line), the sector lines and the finish.
@@ -399,114 +426,120 @@ function Editor({
           <FinishFlag className="size-6" />
           {editing ? t.editor.editTitle : t.editor.newTitle}
         </h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="rounded-full px-5"
-            disabled={busy}
-            render={<Link href={sessionHref} />}
-            nativeButton={false}
-          >
-            {t.cancel}
-          </Button>
-          <Button
-            variant="inverted"
-            className="rounded-full px-8"
-            disabled={busy || savingSplits || !timesValid || sameTrack != null}
-            onClick={() => void draft.submit()}
-          >
-            {busy || savingSplits ? common.saving : editing ? t.save : t.create}
-          </Button>
-        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-4">
-          {gps ? (
-            <ImuSessionMap
-              gps={gps}
-              events={[]}
-              windowMs={windowMs}
-              speedOn={false}
-              cursorMs={hoverMs ?? cursorMs}
-              onSeek={setCursorMs}
-              lines={lines}
-              className="h-[min(58vh,640px)] rounded-lg"
-            />
-          ) : (
-            <p className="rounded-lg bg-card p-5 text-sm text-muted-foreground">
-              {t.noGps}
-            </p>
-          )}
-          {gps && prepared.track && (
-            <div className="rounded-lg bg-card px-5 pt-5 pb-4 sm:px-6">
-              <ImuTrackBar
-                track={prepared.track}
-                gps={gps}
-                startMs={startMs}
-                finishMs={finishMs}
-                circuit={circuit}
-                onStart={(ms) => draft.setStartText(formatSessionTime(ms, true))}
-                onFinish={(ms) =>
-                  draft.setFinishText(formatSessionTime(ms, true))
-                }
-                cursorMs={cursorMs}
-                onHover={setHoverMs}
-                sectors={
-                  sectorsOn
-                    ? {
-                        positionsM: inside,
-                        labels,
-                        onChange: (i, m) =>
-                          setSectorM(inside.map((x, k) => (k === i ? m : x))),
-                      }
-                    : null
-                }
+          {/* The name, the map and the bar, one card (by request,
+              2026-11-09). */}
+          <div className="overflow-hidden rounded-lg bg-card">
+            <div className="space-y-1.5 p-5">
+              <Label htmlFor="track-name">{t.name}</Label>
+              <Input
+                id="track-name"
+                value={draft.name}
+                placeholder={t.namePlaceholder}
+                onChange={(e) => draft.setName(e.target.value)}
               />
-              {sectorsOn && (
-                <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-                  <span className="text-sm font-semibold">
-                    {t.editor.sectors}
-                  </span>
-                  <div className="flex items-center rounded-full border border-border">
-                    <button
-                      type="button"
-                      aria-label={t.editor.fewerSectors}
-                      disabled={inside.length + 1 <= MIN_SECTORS}
-                      onClick={() => setCount(inside.length)}
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
-                    >
-                      <Minus className="size-3.5" />
-                    </button>
-                    <span className="w-6 text-center text-sm font-semibold tabular-nums">
-                      {inside.length + 1}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={t.editor.moreSectors}
-                      disabled={inside.length + 1 >= MAX_SECTORS}
-                      onClick={() => setCount(inside.length + 2)}
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
-                    >
-                      <Plus className="size-3.5" />
-                    </button>
-                  </div>
-                  <Chip onClick={() => setCount(inside.length + 1)}>
-                    {t.editor.evenOut}
-                  </Chip>
-                  {riderRuns == null && (
-                    <span className="text-xs text-muted-foreground">
-                      {t.editor.counting}
-                    </span>
-                  )}
-                </div>
-              )}
-              <p className="mt-3 text-xs text-muted-foreground">
-                {t.editor.hint}
-                {sectorsOn && ` ${t.editor.sectorsHint}`}
-              </p>
             </div>
-          )}
+            {gps ? (
+              <ImuSessionMap
+                gps={gps}
+                events={[]}
+                windowMs={windowMs}
+                speedOn={false}
+                cursorMs={hoverMs ?? cursorMs}
+                onSeek={setCursorMs}
+                lines={lines}
+                className="h-[min(58vh,640px)]"
+              />
+            ) : (
+              <p className="px-5 pb-5 text-sm text-muted-foreground">
+                {t.noGps}
+              </p>
+            )}
+            {gps && prepared.track && (
+              <div className="px-5 pt-6 pb-4 sm:px-6">
+                <ImuTrackBar
+                  track={prepared.track}
+                  gps={gps}
+                  startMs={startMs}
+                  finishMs={finishMs}
+                  circuit={circuit}
+                  onStart={(ms) =>
+                    draft.setStartText(formatSessionTime(ms, true))
+                  }
+                  onFinish={(ms) =>
+                    draft.setFinishText(formatSessionTime(ms, true))
+                  }
+                  cursorMs={cursorMs}
+                  onHover={setHoverMs}
+                  sectors={
+                    sectorsOn
+                      ? {
+                          positionsM: inside,
+                          labels,
+                          onChange: (i, m) =>
+                            setSectorM(inside.map((x, k) => (k === i ? m : x))),
+                        }
+                      : null
+                  }
+                />
+                {sectorsOn && (
+                  <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+                    <span className="text-sm font-semibold">
+                      {t.editor.sectors}
+                    </span>
+                    <div className="flex items-center rounded-full border border-border">
+                      <button
+                        type="button"
+                        aria-label={t.editor.fewerSectors}
+                        disabled={inside.length + 1 <= MIN_SECTORS}
+                        onClick={() => setCount(inside.length)}
+                        className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                        {inside.length + 1}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={t.editor.moreSectors}
+                        disabled={inside.length + 1 >= MAX_SECTORS}
+                        onClick={() => setCount(inside.length + 2)}
+                        className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                    <Chip onClick={() => setCount(inside.length + 1)}>
+                      {t.editor.evenOut}
+                    </Chip>
+                    {trackRuns == null && (
+                      <span className="text-xs text-muted-foreground">
+                        {t.editor.counting}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {lost.length > 0 && (
+                  <p className="mt-4 rounded-[14px] border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200">
+                    {t.editor.runsLost(lost)}
+                  </p>
+                )}
+                {gained.length > 0 && (
+                  <p className="mt-4 rounded-[14px] bg-muted px-4 py-3 text-sm">
+                    {t.editor.runsGained(gained)}
+                  </p>
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {t.editor.hint}
+                  {sectorsOn && ` ${t.editor.sectorsHint}`}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <form
@@ -516,15 +549,6 @@ function Editor({
             void draft.submit();
           }}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="track-name">{t.name}</Label>
-            <Input
-              id="track-name"
-              value={draft.name}
-              placeholder={t.namePlaceholder}
-              onChange={(e) => draft.setName(e.target.value)}
-            />
-          </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -640,6 +664,33 @@ function Editor({
               onDeleted={() => router.push(sessionHref)}
             />
           )}
+          {/* Save and cancel at the card's foot (by request, 2026-11-09),
+              the popup's pair: cancel beside, save the wider. */}
+          <div className="flex gap-2 border-t border-border pt-4">
+            <Button
+              variant="outline"
+              className="rounded-full px-5"
+              disabled={busy}
+              render={<Link href={sessionHref} />}
+              nativeButton={false}
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              type="submit"
+              variant="inverted"
+              className="flex-1 rounded-full"
+              disabled={
+                busy || savingSplits || !timesValid || sameTrack != null
+              }
+            >
+              {busy || savingSplits
+                ? common.saving
+                : editing
+                  ? t.save
+                  : t.create}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

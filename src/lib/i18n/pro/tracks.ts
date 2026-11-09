@@ -105,6 +105,12 @@ const en = {
       "The numbered lines cut the track into sectors for the Perfect Run. Under each, how many of the track's runs cross it: a run that misses one is left out of its rider's Perfect Run.",
     sectorsNotSaved: (message: string): string =>
       `The track was saved, but not its sectors: ${message}`,
+    /** A redraw that takes recordings off the track, or brings some back
+     * (2026-11-09). */
+    runsLost: (names: string[]): string =>
+      `With these lines, ${names.length === 1 ? "1 recording no longer passes" : `${names.length} recordings no longer pass`} the track and ${names.length === 1 ? "leaves" : "leave"} its times: ${names.join(", ")}.`,
+    runsGained: (names: string[]): string =>
+      `With these lines, ${names.length === 1 ? "1 more recording passes" : `${names.length} more recordings pass`} the track: ${names.join(", ")}.`,
   },
   /** Perfect Run (2026-11-09): the best sectors of one rider's runs on
    * the track, added up. */
@@ -224,6 +230,10 @@ const pt: typeof en = {
       "As linhas numeradas dividem a pista em sectores para a Perfect Run. Por baixo de cada uma, quantas runs da pista a cruzam: uma run que falhe uma fica de fora da Perfect Run do seu rider.",
     sectorsNotSaved: (message) =>
       `A pista ficou guardada, mas os sectores não: ${message}`,
+    runsLost: (names) =>
+      `Com estas linhas, ${names.length === 1 ? "1 gravação deixa" : `${names.length} gravações deixam`} de passar na pista e ${names.length === 1 ? "sai" : "saem"} dos tempos: ${names.join(", ")}.`,
+    runsGained: (names) =>
+      `Com estas linhas, ${names.length === 1 ? "mais 1 gravação passa" : `mais ${names.length} gravações passam`} na pista: ${names.join(", ")}.`,
   },
   perfect: {
     tabTimes: "Tempos",
