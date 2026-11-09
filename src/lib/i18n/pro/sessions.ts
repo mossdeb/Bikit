@@ -51,7 +51,7 @@ const en = {
    * in both languages. */
   dashboard: {
     rider: "Rider",
-    accelerateBrake: "Accelerate and brake",
+    accelerateBrake: "Acceleration and Braking",
     lateral: "Lateral movement",
     pitch: "Nose up and dive",
   },

@@ -15,7 +15,7 @@ import type { Locale } from "@/lib/i18n";
  *   with GPS, elapsed time without), the mint arc growing clockwise from
  *   the bottom-left the way the supplied art draws it. Inside, the figure
  *   and the current G force.
- * - **Accelerate and brake** — the band under the ring: longitudinal
+ * - **Acceleration and Braking** — the band under the ring: longitudinal
  *   acceleration as a needle-and-fill gauge, blue to the right when
  *   accelerating, to the left when braking, scaled to the session's own
  *   peak like every gauge in the lab.
