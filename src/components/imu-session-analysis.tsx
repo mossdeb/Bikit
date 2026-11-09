@@ -2641,6 +2641,7 @@ export function ImuSessionAnalysis({
                     tracks={timedTracks}
                     candidates={trackCandidates}
                     timed={timed}
+                    editorPage={perfectRun}
                   />
                 )}
               </div>

@@ -22,6 +22,38 @@ import {
   splinePositionAt,
 } from "@/lib/imu/track-spline";
 
+/** A line across the trail drawn over the map — a track's start, finish or
+ * a sector line, in the track editor (2026-11-09). */
+export interface ImuMapLine {
+  latDeg: number;
+  lonDeg: number;
+  /** Direction of travel through it, degrees true. */
+  headingDeg: number;
+  halfWidthM: number;
+  kind: "start" | "finish" | "sector";
+}
+
+const MAP_LINE_COLOR: Record<ImuMapLine["kind"], string> = {
+  start: "#43F3AF",
+  finish: "#ffffff",
+  sector: "#ffffff",
+};
+
+/** The line's two ends, [lat, lon]: across the heading, half a width each
+ * side of the centre. */
+function mapLineEnds(line: ImuMapLine): [number, number][] {
+  const h = (line.headingDeg * Math.PI) / 180;
+  // Across the heading: east = cos h, north = −sin h.
+  const east = Math.cos(h) * line.halfWidthM;
+  const north = -Math.sin(h) * line.halfWidthM;
+  const mPerDegLat = 111_320;
+  const mPerDegLon = mPerDegLat * Math.cos((line.latDeg * Math.PI) / 180);
+  return [
+    [line.latDeg + north / mPerDegLat, line.lonDeg + east / mPerDegLon],
+    [line.latDeg - north / mPerDegLat, line.lonDeg - east / mPerDegLon],
+  ];
+}
+
 /**
  * The compass bearing of the ride's overall direction — first fix to last,
  * degrees clockwise from north. Equirectangular: at track scale the
@@ -331,7 +363,10 @@ export function ImuSessionMap({
   onEventPick,
   title,
   className,
+  lines,
 }: {
+  /** Lines across the trail to draw over the track (the track editor). */
+  lines?: ImuMapLine[];
   gps: GpsChannels;
   /** Already filtered by the page's event switches — the filter rule holds
    * everywhere, the map included. */
@@ -365,6 +400,8 @@ export function ImuSessionMap({
   /** Its parts, held so a change of scale can re-radius each one. */
   const needlePartsRef = useRef<CircleMarker[]>([]);
   const eventLayerRef = useRef<LayerGroup | null>(null);
+  /** The lines across the trail (the `lines` prop), redrawn as they move. */
+  const linesLayerRef = useRef<LayerGroup | null>(null);
   /** The dimmed whole-track context, repainted when the colour mode flips. */
   const baseTrackRef = useRef<LayerGroup | null>(null);
   /** The full-strength stretch mirroring the chart's window — repainted as
@@ -402,6 +439,7 @@ export function ImuSessionMap({
     const raise = (l: unknown) => (l as Path).bringToFront?.();
     sliceTrackRef.current?.eachLayer(raise);
     eventLayerRef.current?.eachLayer(raise);
+    linesLayerRef.current?.eachLayer(raise);
     if (startRef.current) raise(startRef.current);
     const map = mapRef.current;
     const needle = needleRef.current;
@@ -557,6 +595,7 @@ export function ImuSessionMap({
       // Marker layers live in a group of their own so the filter effect can
       // rebuild them without touching the route or the needle.
       eventLayerRef.current = L.layerGroup().addTo(map);
+      linesLayerRef.current = L.layerGroup().addTo(map);
 
       // The needle: halo, disc, pupil, built back to front so insertion
       // order is already the paint order. Added last of everything so it
@@ -771,6 +810,7 @@ export function ImuSessionMap({
       needleRef.current = null;
       needlePartsRef.current = [];
       eventLayerRef.current = null;
+      linesLayerRef.current = null;
       baseTrackRef.current = null;
       sliceTrackRef.current = null;
       startRef.current = null;
@@ -780,6 +820,41 @@ export function ImuSessionMap({
       mapRef.current = null;
     };
   }, [gps]);
+
+  // The lines across the trail, redrawn whenever one moves: a dark casing
+  // under a bright stroke, so a white line still reads on pale ground.
+  useEffect(() => {
+    const layer = linesLayerRef.current;
+    if (!layer) return;
+    let cancelled = false;
+    (async () => {
+      const L = await import("leaflet");
+      if (cancelled || !linesLayerRef.current) return;
+      layer.clearLayers();
+      for (const line of lines ?? []) {
+        const ends = mapLineEnds(line);
+        const sector = line.kind === "sector";
+        L.polyline(ends, {
+          color: "#101014",
+          weight: (sector ? 5 : 8) * markS,
+          opacity: 0.85,
+          lineCap: "round",
+          interactive: false,
+        }).addTo(layer);
+        L.polyline(ends, {
+          color: MAP_LINE_COLOR[line.kind],
+          weight: (sector ? 2.5 : 4) * markS,
+          opacity: 1,
+          lineCap: "round",
+          interactive: false,
+        }).addTo(layer);
+      }
+      layer.eachLayer((l) => (l as Path).bringToFront?.());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lines, markS, ready]);
 
   // The point events' marks, rebuilt when a filter flips. Ranged events are
   // not marked: a stretch of track says nothing about when it happened, and

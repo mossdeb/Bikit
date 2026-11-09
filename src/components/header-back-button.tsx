@@ -57,6 +57,13 @@ const MOBILE_BACK_ROUTES: {
     alsoDesktop: true,
     fromHistory: true,
   },
+  // The track editor (2026-11-09): back to the session it draws on.
+  {
+    re: /^\/pro\/sessoes\/([^/]+)\/pista$/,
+    backHref: (m) => `/pro/sessoes/${m[1]}`,
+    alsoDesktop: true,
+    fromHistory: true,
+  },
   // A Snapshot lives under the session it was made from, and back is that
   // session's report — where the Snapshot is listed (by request).
   {

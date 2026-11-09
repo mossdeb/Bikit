@@ -126,7 +126,11 @@ export function ImuSessionTrackButton({
   tracks,
   candidates,
   timed,
+  editorPage = false,
 }: {
+  /** The flag opens the track editor's page instead of the popup (the
+   * owner's account, 2026-11-09). */
+  editorPage?: boolean;
   sessionId: string;
   /** The recording before the trim, aligned. */
   whole: ImuSessionData;
@@ -186,7 +190,15 @@ export function ImuSessionTrackButton({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (!editorPage) {
+            setOpen(true);
+            return;
+          }
+          router.push(
+            `/pro/sessoes/${sessionId}/pista${first ? `?pista=${first.track.id}` : ""}`,
+          );
+        }}
         aria-label={label}
         title={label}
         className={cn(
@@ -227,8 +239,8 @@ export function ImuSessionTrackButton({
   );
 }
 
-type Prepared = ReturnType<typeof prepareSnapshotSession>;
-type Passed = { track: ImuTimedTrack; runs: TimedRun[] }[];
+export type Prepared = ReturnType<typeof prepareSnapshotSession>;
+export type Passed = { track: ImuTimedTrack; runs: TimedRun[] }[];
 
 function ImuTrackDialog({
   open,
@@ -713,17 +725,7 @@ function TrackView({
   );
 }
 
-function TrackForm({
-  sessionId,
-  whole,
-  prepared,
-  trim,
-  visibleMs,
-  editing,
-  tracks,
-  onCancel,
-  onSaved,
-}: {
+export type TrackDraftOptions = {
   sessionId: string;
   whole: ImuSessionData;
   prepared: Prepared;
@@ -734,11 +736,25 @@ function TrackForm({
   editing: Passed[number] | null;
   /** The account's tracks, to number a new one past them. */
   tracks: ImuTimedTrack[];
-  onCancel?: () => void;
   onSaved: (trackId: string) => void;
-}) {
+};
+
+/**
+ * A track's lines and name as they are being drawn, and the save — the
+ * popup's form and the track editor's page (2026-11-09) share it, so both
+ * draw and save a track by the same rules.
+ */
+export function useTrackDraft({
+  sessionId,
+  whole,
+  prepared,
+  trim,
+  visibleMs,
+  editing,
+  tracks,
+  onSaved,
+}: TrackDraftOptions) {
   const t = useProDict().tracks;
-  const common = useProDict().common;
   const router = useRouter();
   const fullMs = whole.durationMs;
   // A redraw opens on where this run crosses the lines now; a new track
@@ -880,6 +896,69 @@ function TrackForm({
     onSaved(result.id);
   }
 
+  return {
+    fullMs,
+    name,
+    setName: (value: string) => {
+      nameTouched.current = true;
+      setName(value);
+    },
+    circuit,
+    setCircuit: (value: boolean) => {
+      setCircuit(value);
+      setError(null);
+      setSameTrack(null);
+    },
+    startText,
+    setStartText: (value: string) => {
+      setStartText(value);
+      setError(null);
+      setSameTrack(null);
+    },
+    finishText,
+    setFinishText: (value: string) => {
+      setFinishText(value);
+      setError(null);
+      setSameTrack(null);
+    },
+    startMs,
+    finishMs,
+    timesValid,
+    setWindow,
+    busy,
+    error,
+    sameTrack,
+    submit,
+  };
+}
+
+function TrackForm({
+  onCancel,
+  ...options
+}: TrackDraftOptions & { onCancel?: () => void }) {
+  const t = useProDict().tracks;
+  const common = useProDict().common;
+  const { trim, visibleMs, editing, onSaved } = options;
+  const {
+    fullMs,
+    name,
+    setName,
+    circuit,
+    setCircuit,
+    startText,
+    setStartText,
+    finishText,
+    setFinishText,
+    startMs,
+    finishMs,
+    timesValid,
+    setWindow,
+    busy,
+    error,
+    sameTrack,
+    submit,
+  } = useTrackDraft(options);
+
   return (
     <form
       className="space-y-4"
@@ -894,21 +973,14 @@ function TrackForm({
           id="track-name"
           value={name}
           placeholder={t.namePlaceholder}
-          onChange={(e) => {
-            nameTouched.current = true;
-            setName(e.target.value);
-          }}
+          onChange={(e) => setName(e.target.value)}
         />
       </div>
       <label className="flex cursor-pointer items-center gap-2 text-sm">
         <input
           type="checkbox"
           checked={circuit}
-          onChange={(e) => {
-            setCircuit(e.target.checked);
-            setError(null);
-            setSameTrack(null);
-          }}
+          onChange={(e) => setCircuit(e.target.checked)}
           className="size-4 accent-foreground"
         />
         {t.circuit}
@@ -923,11 +995,7 @@ function TrackForm({
             inputMode="numeric"
             placeholder="mm:ss"
             value={startText}
-            onChange={(e) => {
-              setStartText(e.target.value);
-              setError(null);
-              setSameTrack(null);
-            }}
+            onChange={(e) => setStartText(e.target.value)}
             aria-invalid={startMs == null || undefined}
             className="font-mono tabular-nums"
           />
@@ -940,11 +1008,7 @@ function TrackForm({
               inputMode="numeric"
               placeholder="mm:ss"
               value={finishText}
-              onChange={(e) => {
-                setFinishText(e.target.value);
-                setError(null);
-                setSameTrack(null);
-              }}
+              onChange={(e) => setFinishText(e.target.value)}
               aria-invalid={finishMs == null || undefined}
               className="font-mono tabular-nums"
             />
@@ -1027,7 +1091,7 @@ function TrackForm({
 
 /** Under the track's form: draw another track from this run, or delete
  * this one — with its own confirmation (2026-10-26). */
-function TrackEditActions({
+export function TrackEditActions({
   trackId,
   onNew,
   onDeleted,
@@ -1207,7 +1271,7 @@ function PodiumGlyph({ className }: { className?: string }) {
   );
 }
 
-function Chip({
+export function Chip({
   onClick,
   className,
   children,

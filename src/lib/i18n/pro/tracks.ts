@@ -82,6 +82,18 @@ const en = {
   cancel: "Cancel",
   otherTracks: "Other tracks this run passes",
   newTrack: "New track",
+  /** The track editor's page (2026-11-09): the map, and the bar under it
+   * with the start and finish to drag. */
+  editor: {
+    newTitle: "New track",
+    editTitle: "Edit track",
+    altitude: "Altitude",
+    speed: "Speed",
+    dragStart: "Drag the start",
+    dragFinish: "Drag the finish",
+    hint: "Drag the flags along the bar, or press the bar where a line should go.",
+    loading: "Reading the recording…",
+  },
   /** Perfect Run (2026-11-09): the best sectors of one rider's runs on
    * the track, added up. */
   perfect: {
@@ -180,6 +192,16 @@ const pt: typeof en = {
   cancel: "Cancelar",
   otherTracks: "Outras pistas por onde esta run passa",
   newTrack: "Nova pista",
+  editor: {
+    newTitle: "Nova pista",
+    editTitle: "Editar pista",
+    altitude: "Altitude",
+    speed: "Velocidade",
+    dragStart: "Arrastar a partida",
+    dragFinish: "Arrastar a chegada",
+    hint: "Arrasta as bandeiras ao longo da barra, ou carrega na barra onde deve ficar uma linha.",
+    loading: "A ler a gravação…",
+  },
   perfect: {
     tabTimes: "Tempos",
     tab: "Perfect Run",
