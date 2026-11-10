@@ -14,7 +14,7 @@ import { FinishFlag } from "@/components/imu-session-track";
 
 /**
  * The track editor's bar (by request, 2026-11-09): the whole recording
- * laid out by distance, with its altitude and its speed, and a needle for
+ * laid out by distance, with its altitude, and a needle for
  * the start and one for the finish to drag along it — the telemetry's
  * cursor, made a handle.
  *
@@ -30,11 +30,9 @@ const PROFILE_POINTS = 480;
 /** GPS altitude wanders by metres from fix to fix; averaged over this much
  * ground the profile shows the terrain, not the receiver. */
 const ALTITUDE_SMOOTH_M = 40;
-const SPEED_SMOOTH_M = 12;
 /** The start and finish never come closer than this along the trail. */
 const MIN_GAP_M = 30;
 
-const SPEED_COLOR = "#65A30D";
 const ALTITUDE_COLOR = "#92400E";
 
 /** A GPS channel's value at an instant, linear between the fixes. */
@@ -84,7 +82,6 @@ type Profile = {
   totalM: number;
   /** SVG path data on a 1000 × 100 box. */
   altitudeArea: string;
-  speedLine: string;
   altitudeMin: number;
   altitudeMax: number;
 };
@@ -94,39 +91,30 @@ function buildProfile(track: SnapshotTrack, gps: GpsChannels): Profile | null {
   if (!(totalM > 0)) return null;
   const step = totalM / (PROFILE_POINTS - 1);
   const alt: number[] = [];
-  const speed: number[] = [];
   for (let i = 0; i < PROFILE_POINTS; i++) {
     const atMs = timeAtDistance(track, i * step);
     alt.push(valueAt(gps.tMs, gps.altitudeM, atMs));
-    speed.push(valueAt(gps.tMs, gps.speedMps, atMs));
   }
   const altS = smooth(alt, Math.round(ALTITUDE_SMOOTH_M / step / 2));
-  const speedS = smooth(speed, Math.round(SPEED_SMOOTH_M / step / 2));
   const finite = altS.filter(Number.isFinite);
   if (finite.length === 0) return null;
   const altitudeMin = Math.min(...finite);
   const altitudeMax = Math.max(...finite);
   const altSpan = Math.max(altitudeMax - altitudeMin, 10);
-  const speedMax = Math.max(...speedS.filter(Number.isFinite), 1);
   const x = (i: number) => ((i / (PROFILE_POINTS - 1)) * 1000).toFixed(1);
-  // Altitude in the lower 85 % of the box, speed under the same roof: two
-  // shapes, one axis each, never a second scale printed on the bar.
+  // The altitude in the lower 80 % of the box. The speed line it had
+  // beside it went by request, 2026-11-10.
   const yAlt = (v: number) =>
     (100 - 6 - ((v - altitudeMin) / altSpan) * 80).toFixed(1);
-  const ySpeed = (v: number) => (100 - 4 - (v / speedMax) * 84).toFixed(1);
   let area = `M0,100`;
-  let line = "";
   for (let i = 0; i < PROFILE_POINTS; i++) {
     const a = Number.isFinite(altS[i]) ? altS[i] : altitudeMin;
     area += ` L${x(i)},${yAlt(a)}`;
-    const s = Number.isFinite(speedS[i]) ? speedS[i] : 0;
-    line += `${i === 0 ? "M" : " L"}${x(i)},${ySpeed(s)}`;
   }
   area += " L1000,100 Z";
   return {
     totalM,
     altitudeArea: area,
-    speedLine: line,
     altitudeMin,
     altitudeMax,
   };
@@ -247,10 +235,9 @@ export function ImuTrackBar({
     >
       <span
         aria-hidden
-        className={cn(
-          "absolute inset-y-0 -ml-px w-0.5",
-          handle === "start" ? "bg-[#1fb980]" : "bg-foreground",
-        )}
+        // Both lines green, the start's and the finish's (by request,
+        // 2026-11-10); the pills still tell them apart.
+        className="absolute inset-y-0 -ml-px w-0.5 bg-[#1fb980]"
       />
       <button
         type="button"
@@ -273,9 +260,9 @@ export function ImuTrackBar({
         }}
         className={cn(
           "absolute -top-3 flex cursor-ew-resize touch-none items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums shadow-sm",
-          handle === "start"
-            ? "bg-[#43F3AF] text-[#101014]"
-            : "bg-foreground text-background",
+          // Both pills green (by request, 2026-11-10): the flag tells the
+          // finish from the start's dot.
+          "bg-[#43F3AF] text-[#101014]",
           dragging === handle && "ring-2 ring-ring/50",
         )}
       >
@@ -347,13 +334,6 @@ export function ImuTrackBar({
             {t.altitude} {Math.round(profile.altitudeMin)}–
             {Math.round(profile.altitudeMax)} m
           </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="size-2 rounded-full"
-              style={{ background: SPEED_COLOR }}
-            />
-            {t.speed}
-          </span>
         </span>
         {hoverM != null && hoverMs != null && (
           <span className="tabular-nums">
@@ -421,13 +401,6 @@ export function ImuTrackBar({
             fillOpacity={0.18}
             stroke={ALTITUDE_COLOR}
             strokeOpacity={0.7}
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-          />
-          <path
-            d={profile.speedLine}
-            fill="none"
-            stroke={SPEED_COLOR}
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />

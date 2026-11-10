@@ -451,6 +451,8 @@ function Editor({
                 cursorMs={hoverMs ?? cursorMs}
                 onSeek={setCursorMs}
                 lines={lines}
+              endMarkPx={10}
+              fadeEnds
                 className="h-[min(58vh,640px)]"
               />
             ) : (
@@ -533,10 +535,6 @@ function Editor({
                     {t.editor.runsGained(gained)}
                   </p>
                 )}
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {t.editor.hint}
-                  {sectorsOn && ` ${t.editor.sectorsHint}`}
-                </p>
               </div>
             )}
           </div>

@@ -34,8 +34,10 @@ export interface ImuMapLine {
 }
 
 const MAP_LINE_COLOR: Record<ImuMapLine["kind"], string> = {
+  // The start and finish in the brand's green, the sector lines white (by
+  // request, 2026-11-10).
   start: "#43F3AF",
-  finish: "#ffffff",
+  finish: "#43F3AF",
   sector: "#ffffff",
 };
 
@@ -214,6 +216,9 @@ function paintTrack(
  * for a divIcon — the start is a plain mint dot and the needle a black one,
  * so the finish is the only mark that needs to say "finish" by itself. */
 const FINISH_ICON_SIZE = 18;
+/** How much of the recording's own end marks shows when the track's lines
+ * carry copies of them (`fadeEnds`). */
+const FADED_END_OPACITY = 0.35;
 
 /** Breathing room around the fitted route, in pixels a side.
  *
@@ -364,7 +369,16 @@ export function ImuSessionMap({
   title,
   className,
   lines,
+  endMarkPx,
+  fadeEnds = false,
 }: {
+  /** The recording's own start dot and finish disc faded, with a copy of
+   * each drawn at the end of the track's start and finish lines (the
+   * track editor, by request, 2026-11-10). */
+  fadeEnds?: boolean;
+  /** The start dot and the finish disc at one diameter, px (the track
+   * editor, 2026-11-10); unset keeps the session page's 12 and 18. */
+  endMarkPx?: number;
   /** Lines across the trail to draw over the track (the track editor). */
   lines?: ImuMapLine[];
   gps: GpsChannels;
@@ -574,13 +588,13 @@ export function ImuSessionMap({
       // recording began, the checkered disc where it ended. Not interactive
       // — a press on either is a press on the map, which is a seek.
       startRef.current = L.circleMarker(track[0], {
-        radius: 6 * s0,
+        radius: (endMarkPx != null ? endMarkPx / 2 : 6) * s0,
         stroke: false,
         fillColor: "#43F3AF",
-        fillOpacity: 1,
+        fillOpacity: fadeEnds ? FADED_END_OPACITY : 1,
         interactive: false,
       }).addTo(map);
-      const finishSize = FINISH_ICON_SIZE * s0;
+      const finishSize = (endMarkPx ?? FINISH_ICON_SIZE) * s0;
       finishRef.current = L.marker(track[track.length - 1], {
         icon: L.divIcon({
           html: finishIconSvg(finishSize),
@@ -588,6 +602,7 @@ export function ImuSessionMap({
           iconSize: [finishSize, finishSize],
           iconAnchor: [finishSize / 2, finishSize / 2],
         }),
+        opacity: fadeEnds ? FADED_END_OPACITY : 1,
         interactive: false,
         keyboard: false,
       }).addTo(map);
@@ -819,10 +834,12 @@ export function ImuSessionMap({
       mapRef.current?.remove();
       mapRef.current = null;
     };
+    // Built once per track: `endMarkPx` is only the first size here, and
+    // the rescale effect below follows it after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gps]);
 
-  // The lines across the trail, redrawn whenever one moves: a dark casing
-  // under a bright stroke, so a white line still reads on pale ground.
+  // The lines across the trail, redrawn whenever one moves.
   useEffect(() => {
     const layer = linesLayerRef.current;
     if (!layer) return;
@@ -834,13 +851,7 @@ export function ImuSessionMap({
       for (const line of lines ?? []) {
         const ends = mapLineEnds(line);
         const sector = line.kind === "sector";
-        L.polyline(ends, {
-          color: "#101014",
-          weight: (sector ? 5 : 8) * markS,
-          opacity: 0.85,
-          lineCap: "round",
-          interactive: false,
-        }).addTo(layer);
+        // No dark casing (removed by request, 2026-11-10): the bare stroke.
         L.polyline(ends, {
           color: MAP_LINE_COLOR[line.kind],
           weight: (sector ? 2.5 : 4) * markS,
@@ -848,13 +859,38 @@ export function ImuSessionMap({
           lineCap: "round",
           interactive: false,
         }).addTo(layer);
+        // The recording's start dot or finish disc, where the line crosses
+        // the trail (by request, 2026-11-10).
+        const centre: [number, number] = [line.latDeg, line.lonDeg];
+        if (fadeEnds && !sector) {
+          const px = (endMarkPx ?? FINISH_ICON_SIZE) * markS;
+          if (line.kind === "start")
+            L.circleMarker(centre, {
+              radius: px / 2,
+              stroke: false,
+              fillColor: "#43F3AF",
+              fillOpacity: 1,
+              interactive: false,
+            }).addTo(layer);
+          else
+            L.marker(centre, {
+              icon: L.divIcon({
+                html: finishIconSvg(px),
+                className: "",
+                iconSize: [px, px],
+                iconAnchor: [px / 2, px / 2],
+              }),
+              interactive: false,
+              keyboard: false,
+            }).addTo(layer);
+        }
       }
       layer.eachLayer((l) => (l as Path).bringToFront?.());
     })();
     return () => {
       cancelled = true;
     };
-  }, [lines, markS, ready]);
+  }, [lines, markS, ready, fadeEnds, endMarkPx]);
 
   // The point events' marks, rebuilt when a filter flips. Ranged events are
   // not marked: a stretch of track says nothing about when it happened, and
@@ -934,12 +970,14 @@ export function ImuSessionMap({
    * divIcon's size lives in the html it was given. */
   useEffect(() => {
     if (!ready) return;
-    startRef.current?.setRadius(6 * markS);
+    startRef.current?.setRadius(
+      (endMarkPx != null ? endMarkPx / 2 : 6) * markS,
+    );
     const [halo, disc, pupil] = needlePartsRef.current;
     halo?.setRadius(NEEDLE_HALO_R * markS);
     disc?.setRadius(NEEDLE_DISC_R * markS);
     pupil?.setRadius(NEEDLE_PUPIL_R * markS);
-    const size = FINISH_ICON_SIZE * markS;
+    const size = (endMarkPx ?? FINISH_ICON_SIZE) * markS;
     let cancelled = false;
     (async () => {
       const L = await import("leaflet");
@@ -956,7 +994,7 @@ export function ImuSessionMap({
     return () => {
       cancelled = true;
     };
-  }, [markS, ready]);
+  }, [markS, ready, endMarkPx]);
 
   /**
    * The ride's place name, reverse-geocoded from OpenStreetMap's Nominatim

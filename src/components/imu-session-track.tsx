@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { ImuSessionData } from "@/lib/imu/format";
@@ -309,25 +310,22 @@ function ImuTrackDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {/* The import dialog's pill tabs (by request, 2026-11-10). */}
         {showPerfect && (
-          <div className="flex gap-1 rounded-full bg-muted p-1 text-sm">
-            {(["times", "perfect"] as const).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                aria-pressed={tab === key}
-                className={cn(
-                  "flex-1 cursor-pointer rounded-full px-3 py-1.5 font-medium transition-colors",
-                  tab === key
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {key === "times" ? t.perfect.tabTimes : t.perfect.tab}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as "times" | "perfect")}
+            className="gap-0"
+          >
+            <TabsList variant="pill" className="w-full border border-border">
+              <TabsTrigger value="times" className="flex-1 px-3 py-2 text-sm">
+                {t.perfect.tabTimes}
+              </TabsTrigger>
+              <TabsTrigger value="perfect" className="flex-1 px-3 py-2 text-sm">
+                {t.perfect.tab}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         )}
 
         {showPerfect && tab === "perfect" ? (
