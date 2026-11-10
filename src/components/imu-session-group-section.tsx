@@ -133,7 +133,7 @@ export function ImuSessionGroupSection({
         </p>
       ) : (
         <Collapsible show={open}>
-          <div className="space-y-4 pt-2 pb-2">{children}</div>
+          <div className="space-y-[22px] pt-2 pb-2">{children}</div>
         </Collapsible>
       )}
     </section>

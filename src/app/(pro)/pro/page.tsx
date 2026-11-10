@@ -125,7 +125,7 @@ export default async function ImuLabPage() {
     return (
       <div
         className={cn(
-          "relative flex min-h-[140px] gap-5 rounded-lg bg-card p-5",
+          "relative flex min-h-[160px] gap-5 rounded-lg bg-card p-5",
           DARK_CARD_HAIRLINE,
           CLICKABLE_CARD_HOVER,
         )}
@@ -207,7 +207,7 @@ export default async function ImuLabPage() {
         {outline && (
           <ImuSessionThumb
             outline={outline}
-            className="pointer-events-none -my-2.5 -mr-2.5 hidden h-[120px] w-[177px] shrink-0 self-center sm:block"
+            className="pointer-events-none -my-2.5 -mr-2.5 hidden h-[140px] w-[207px] shrink-0 self-center sm:block"
           />
         )}
       </div>
@@ -247,7 +247,7 @@ export default async function ImuLabPage() {
         />
       </div>
 
-      <div className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-4")}>
+      <div className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-[22px]")}>
         {(sessions ?? []).length === 0 && !hasGroups && (
           <p className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
             {t.sessions.list.empty}
