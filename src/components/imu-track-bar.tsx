@@ -315,7 +315,7 @@ export function ImuTrackBar({
                   : "translateX(-50%)",
           }}
           className={cn(
-            "absolute -top-3 flex touch-none items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums shadow-sm",
+            "absolute -top-3 flex touch-none items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums",
             // Both pills green (by request, 2026-11-10): the flag tells the
             // finish from the start's dot.
             // The lap's first needle in grey: it does not move (by request,
@@ -361,7 +361,7 @@ export function ImuTrackBar({
             beginDrag(i, event);
           }}
           className={cn(
-            "absolute -bottom-3 flex size-6 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums shadow-sm",
+            "absolute -bottom-3 flex size-6 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums",
             dragging === i && "ring-2 ring-ring/50",
           )}
         >
