@@ -29,7 +29,7 @@ export function LandingLocaleSwitcher({
           aria-pressed={option === locale}
           className={`cursor-pointer rounded-full px-2 py-1 text-[11px] leading-[17px] font-medium uppercase ${
             option === locale
-              ? "bg-[#101014] text-[#43F3AF]"
+              ? "bg-[#101014] text-[#D9FF00]"
               : onDark
                 ? "text-white"
                 : "text-[#101014]"

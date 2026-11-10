@@ -31,7 +31,7 @@ import type { Locale } from "@/lib/i18n";
  * survives both themes; the mint and the blue are fixed, the lab's way.
  */
 
-const MINT = "#43F3AF";
+const MINT = "#D9FF00";
 const BLUE = "#43BBF3";
 /** The braking half of the accelerate/brake band. The two sides of that
  * band are opposite signs of one channel, and one ink for both left the

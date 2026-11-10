@@ -102,7 +102,7 @@ export function LandingWave() {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <circle ref={dot} cx={DOT_X} cy={START_Y.toFixed(2)} r="7.5" fill="#43F3AF" />
+        <circle ref={dot} cx={DOT_X} cy={START_Y.toFixed(2)} r="7.5" fill="#D9FF00" />
       </svg>
       <p
         ref={reading}

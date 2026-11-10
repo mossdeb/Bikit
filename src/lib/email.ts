@@ -48,7 +48,7 @@ function wrapEmail(heading: string, bodyHtml: string, ctaLabel: string, ctaHref:
            style="display:block;width:40px;height:40px;border:0;border-radius:10px;margin:0 0 20px;" />
       <h1 style="font-size:20px;margin:0 0 16px;">${heading}</h1>
       ${bodyHtml}
-      <a href="${ctaHref}" style="display:inline-block;margin-top:24px;padding:10px 22px;background:#43f3af;color:#062a20;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;">${ctaLabel}</a>
+      <a href="${ctaHref}" style="display:inline-block;margin-top:24px;padding:10px 22px;background:#D9FF00;color:#101014;border-radius:999px;text-decoration:none;font-weight:600;font-size:14px;">${ctaLabel}</a>
       <p style="margin-top:32px;font-size:12px;color:#8a8d93;">${footer}</p>
     </div>
   </body>

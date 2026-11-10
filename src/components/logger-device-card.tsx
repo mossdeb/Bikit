@@ -123,7 +123,7 @@ function BatteryReading({
 }) {
   const locale = useProLocale();
   const p = Math.max(0, Math.min(100, percent));
-  const fill = p >= 50 ? "#43F3AF" : p >= 20 ? "#FFC711" : "#E0442F";
+  const fill = p >= 50 ? "#D9FF00" : p >= 20 ? "#FFC711" : "#E0442F";
   return (
     // The millivolts on a line of their own, centred under the battery and
     // its percentage (2026-11-06).
@@ -304,7 +304,7 @@ export function LoggerDeviceCard({
                       className={cn(
                         "size-2 shrink-0 rounded-full",
                         cell.dot === "ok"
-                          ? "bg-[#43F3AF]"
+                          ? "bg-[#D9FF00]"
                           : cell.dot === "wait"
                             ? "bg-[#FFC711]"
                             : "bg-[#E0442F]",

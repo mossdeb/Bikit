@@ -60,7 +60,7 @@ export function LandingHeader({
           {SHOW_LOGIN && (
             <Link
               href="/login"
-              className="rounded-full bg-[#43F3AF] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90"
+              className="rounded-full bg-[#D9FF00] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90"
             >
               {nav.login}
             </Link>

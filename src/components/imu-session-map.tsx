@@ -36,8 +36,8 @@ export interface ImuMapLine {
 const MAP_LINE_COLOR: Record<ImuMapLine["kind"], string> = {
   // The start and finish in the brand's green, the sector lines white (by
   // request, 2026-11-10).
-  start: "#43F3AF",
-  finish: "#43F3AF",
+  start: "#D9FF00",
+  finish: "#D9FF00",
   sector: "#ffffff",
 };
 
@@ -191,7 +191,7 @@ function paintTrack(
     // A curve through the fixes, not chords between them (2026-10-26):
     // zoomed in, every fix showed as a corner. See track-spline.ts.
     L.polyline(smoothPolyline(pts), {
-      color: "#43F3AF",
+      color: "#D9FF00",
       weight,
       opacity,
       className,
@@ -590,7 +590,7 @@ export function ImuSessionMap({
       startRef.current = L.circleMarker(track[0], {
         radius: (endMarkPx != null ? endMarkPx / 2 : 6) * s0,
         stroke: false,
-        fillColor: "#43F3AF",
+        fillColor: "#D9FF00",
         fillOpacity: fadeEnds ? FADED_END_OPACITY : 1,
         interactive: false,
       }).addTo(map);
@@ -624,9 +624,9 @@ export function ImuSessionMap({
           interactive: false,
         });
       needlePartsRef.current = [
-        needleCircle(NEEDLE_HALO_R, "#43F3AF", 0.25),
+        needleCircle(NEEDLE_HALO_R, "#D9FF00", 0.25),
         needleCircle(NEEDLE_DISC_R, "#1c1c1c", 1),
-        needleCircle(NEEDLE_PUPIL_R, "#43F3AF", 1),
+        needleCircle(NEEDLE_PUPIL_R, "#D9FF00", 1),
       ];
       needleRef.current = L.layerGroup(needlePartsRef.current);
 
@@ -868,7 +868,7 @@ export function ImuSessionMap({
             L.circleMarker(centre, {
               radius: px / 2,
               stroke: false,
-              fillColor: "#43F3AF",
+              fillColor: "#D9FF00",
               fillOpacity: 1,
               interactive: false,
             }).addTo(layer);
@@ -949,7 +949,7 @@ export function ImuSessionMap({
               ? "#F5533D"
               : event.kind === "braking"
                 ? "#FFD466"
-                : "#43F3AF",
+                : "#D9FF00",
           fillOpacity: 1,
           // Its own press, not the map's seek under it.
           bubblingMouseEvents: false,

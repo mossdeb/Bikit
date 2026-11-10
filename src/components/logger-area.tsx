@@ -460,7 +460,7 @@ function GpsDetails({ status }: { status: GpsReading }) {
                   aria-hidden
                   className={cn(
                     "mt-1.5 size-2.5 shrink-0 rounded-full",
-                    ready ? "bg-[#43F3AF]" : "bg-[#FFC711]",
+                    ready ? "bg-[#D9FF00]" : "bg-[#FFC711]",
                   )}
                 />
                 <div className="min-w-0">

@@ -31,7 +31,7 @@ export function LandingWaitlistForm({
 
   if (status === "sent") {
     return (
-      <p role="status" className="text-center text-base font-bold text-[#43F3AF]">
+      <p role="status" className="text-center text-base font-bold text-[#D9FF00]">
         {dict.success}
       </p>
     );
@@ -47,7 +47,7 @@ export function LandingWaitlistForm({
           autoComplete="email"
           placeholder={dict.emailPlaceholder}
           aria-label={dict.emailLabel}
-          className="h-[52px] w-full min-w-0 rounded-[12px] border border-white bg-transparent px-6 text-[14.7px] font-bold text-white outline-none placeholder:text-white focus-visible:ring-2 focus-visible:ring-[#43F3AF] sm:flex-1"
+          className="h-[52px] w-full min-w-0 rounded-[12px] border border-white bg-transparent px-6 text-[14.7px] font-bold text-white outline-none placeholder:text-white focus-visible:ring-2 focus-visible:ring-[#D9FF00] sm:flex-1"
         />
         <input
           type="text"
@@ -60,7 +60,7 @@ export function LandingWaitlistForm({
         <button
           type="submit"
           disabled={pending}
-          className="flex h-[52px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#43F3AF] px-[35px] text-[14.7px] font-bold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90 disabled:opacity-70"
+          className="flex h-[52px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#D9FF00] px-[35px] text-[14.7px] font-bold whitespace-nowrap text-[#101014] transition-opacity hover:opacity-90 disabled:opacity-70"
         >
           {pending ? dict.sending : dict.submit}
           <svg viewBox="0 0 15 15" fill="none" className="size-[15px]" aria-hidden="true">

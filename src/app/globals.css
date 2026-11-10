@@ -104,8 +104,8 @@
   --popover: #ffffff;
   --popover-foreground: #101014;
 
-  --primary: #43f3af;
-  --primary-foreground: #062a20;
+  --primary: #D9FF00;
+  --primary-foreground: #101014;
   --secondary: #f1f1f1;
   --secondary-foreground: #101014;
   --muted: #f1f1f1;
@@ -144,16 +144,16 @@
      shared near-black, so a chip reads as one colour and not as a sticker. */
   --intensity-light: #c9e5ff;
   --intensity-light-foreground: #0d2b45;
-  --intensity-moderate: #43f3af;
-  --intensity-moderate-foreground: #062a20;
+  --intensity-moderate: #D9FF00;
+  --intensity-moderate-foreground: #101014;
   --intensity-high: #ffdea4;
   --intensity-high-foreground: #402d00;
   --intensity-extreme: #ff5a39;
   --intensity-extreme-foreground: #3d0f05;
 
   /* Bike Health classification — fixed brand colors, identical in light/dark */
-  --health-positive: #43f3af;
-  --health-positive-foreground: #062a20;
+  --health-positive: #D9FF00;
+  --health-positive-foreground: #101014;
   --health-attention: #ffc161;
   --health-attention-foreground: #402d00;
   --health-critical: #f5533d;
@@ -161,9 +161,9 @@
 
   --border: rgba(16, 16, 20, 0.09);
   --input: rgba(16, 16, 20, 0.14);
-  --ring: #43f3af;
+  --ring: #D9FF00;
 
-  --chart-1: #43f3af;
+  --chart-1: #D9FF00;
   --chart-2: #6c5ce0;
   --chart-3: #d2860f;
   --chart-4: #e0442f;
@@ -185,12 +185,12 @@
      to regular cards and needs contrast against them specifically. */
   --sidebar: #1c1c1c;
   --sidebar-foreground: #f5f3ee;
-  --sidebar-primary: #43f3af;
-  --sidebar-primary-foreground: #062a20;
+  --sidebar-primary: #D9FF00;
+  --sidebar-primary-foreground: #101014;
   --sidebar-accent: rgba(245, 243, 238, 0.08);
   --sidebar-accent-foreground: #f5f3ee;
   --sidebar-border: rgba(245, 243, 238, 0.08);
-  --sidebar-ring: #43f3af;
+  --sidebar-ring: #D9FF00;
   --emphasis: #101014;
   --emphasis-foreground: #f5f3ee;
 }
@@ -203,8 +203,8 @@
   --popover: #1d1f23;
   --popover-foreground: #f2f1ec;
 
-  --primary: #43f3af;
-  --primary-foreground: #062a20;
+  --primary: #D9FF00;
+  --primary-foreground: #101014;
   --secondary: #24262b;
   --secondary-foreground: #f2f1ec;
   --muted: #24262b;
@@ -235,9 +235,9 @@
 
   --border: rgba(242, 241, 236, 0.08);
   --input: rgba(242, 241, 236, 0.15);
-  --ring: #43f3af;
+  --ring: #D9FF00;
 
-  --chart-1: #43f3af;
+  --chart-1: #D9FF00;
   --chart-2: #8879f5;
   --chart-3: #edaa4e;
   --chart-4: #ec8271;
@@ -251,12 +251,12 @@
 
   --sidebar: #1c1c1c;
   --sidebar-foreground: #f5f3ee;
-  --sidebar-primary: #43f3af;
-  --sidebar-primary-foreground: #062a20;
+  --sidebar-primary: #D9FF00;
+  --sidebar-primary-foreground: #101014;
   --sidebar-accent: rgba(245, 243, 238, 0.08);
   --sidebar-accent-foreground: #f5f3ee;
   --sidebar-border: rgba(245, 243, 238, 0.08);
-  --sidebar-ring: #43f3af;
+  --sidebar-ring: #D9FF00;
   --emphasis: #2b2d32; /* lighter than --card so it still reads as the highlighted tile in dark mode */
   --emphasis-foreground: #f5f3ee;
 }

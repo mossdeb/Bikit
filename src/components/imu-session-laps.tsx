@@ -58,7 +58,7 @@ export function ImuSessionLaps({
                 onClick={() => onPick([from, to])}
                 className={cn(
                   "w-full cursor-pointer px-5 py-4 text-left transition-colors hover:bg-muted",
-                  best && "shadow-[inset_3px_0_0_#43F3AF]",
+                  best && "shadow-[inset_3px_0_0_#D9FF00]",
                 )}
               >
                 <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

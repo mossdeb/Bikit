@@ -343,7 +343,7 @@ export function ImuTrackBar({
             // 2026-11-10).
             fixed
               ? "cursor-default bg-muted text-muted-foreground"
-              : "cursor-ew-resize bg-[#43F3AF] text-[#101014]",
+              : "cursor-ew-resize bg-[#D9FF00] text-[#101014]",
             dragging === handle && "ring-2 ring-ring/50",
           )}
         >

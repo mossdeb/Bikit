@@ -22,7 +22,7 @@ import { topoContours } from "@/lib/topo-contours";
 type LatLon = [number, number];
 
 const PLATE = "#101412";
-const MINT = "#43F3AF";
+const MINT = "#D9FF00";
 const RADIUS = 12;
 /** The route's line, px (3 since 2026-10-27, by request: 2 read thin). */
 const ROUTE_WIDTH = 3;

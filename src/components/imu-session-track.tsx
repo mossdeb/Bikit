@@ -216,7 +216,7 @@ export function ImuSessionTrackButton({
         {time && (
           <span
             aria-hidden
-            className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#43F3AF] text-[#101014] ring-2 ring-background"
+            className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#D9FF00] text-[#101014] ring-2 ring-background"
           >
             <Check className="size-2.5" strokeWidth={3.5} />
           </span>

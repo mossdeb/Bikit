@@ -403,7 +403,7 @@ export function PerfectRunView({
 
       <div className="text-center">
         {gains ? (
-          <p className="flex items-center justify-center gap-1.5 font-display text-2xl font-bold tabular-nums text-[#1f8a4c] dark:text-[#43F3AF]">
+          <p className="flex items-center justify-center gap-1.5 font-display text-2xl font-bold tabular-nums text-[#5f7300] dark:text-[#D9FF00]">
             <ArrowDown className="size-5" strokeWidth={2.5} />
             {t.gain(seconds(result.gainMs))}
           </p>
