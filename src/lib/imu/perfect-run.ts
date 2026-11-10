@@ -8,7 +8,7 @@ import {
   type SnapshotSession,
 } from "@/lib/imu/snapshot";
 import {
-  isLapTrack,
+
   LINE_HEADING_SPAN_M,
   type TimedRun,
   type TimedTrackDefinition,
@@ -36,7 +36,8 @@ import {
  *
  * One rider, one kind of vehicle (decided 2026-11-09): the pool is the
  * caller's, filtered by perfectRunPool. Pure: nothing here downloads,
- * stores or draws. Circuits (`laps`) are not split yet.
+ * stores or draws. A circuit's laps are its runs, each cut by the same
+ * lines (since 2026-11-10).
  */
 
 /** Sectors a new split cuts a track into (decided 2026-11-09; the rider
@@ -180,7 +181,9 @@ function singleCrossing(
  * lines drawn on one run alone were missed by half the others, who rode
  * another line through one bend.
  *
- * Null on a circuit, without GPS, or when no place near a share gives a
+ * On a circuit the run is one lap, and the lines cut that lap (since
+ * 2026-11-10): a lap is a run like any other, between two crossings of
+ * the one line. Null without GPS, or when no place near a share gives a
  * line the run crosses once.
  */
 export function createSplits(
@@ -191,7 +194,7 @@ export function createSplits(
   others: { prepared: SnapshotSession; run: SnapshotPass }[] = [],
 ): SnapshotGate[] | null {
   const track = prepared.track;
-  if (!track || isLapTrack(definition) || count < 2) return null;
+  if (!track || count < 2) return null;
   const fromM = distanceAt(track, run.entryMs);
   const toM = distanceAt(track, run.exitMs);
   if (!(toM > fromM)) return null;
@@ -265,7 +268,7 @@ export function readSectorRun(
   },
 ): SectorRun | null {
   const splits = definition.splits;
-  if (!splits || splits.length === 0 || isLapTrack(definition)) return null;
+  if (!splits || splits.length === 0) return null;
   const bounds = sectorBoundaries(prepared, splits, run);
   if (!bounds) return null;
   const sectorsMs: number[] = [];

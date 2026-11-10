@@ -23,6 +23,7 @@ import {
 } from "@/lib/imu/snapshot";
 import { loadWholeImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import {
+  createLapTrack,
   createTimedTrack,
   findTimedRuns,
   LINE_HEADING_SPAN_M,
@@ -267,42 +268,104 @@ function Editor({
   // The sector lines (by request, 2026-11-09), as distances along this
   // recording: the track's own where this run crosses them, or else six
   // equal sectors between the start and the finish.
-  const startM = route && startMs != null ? distanceAt(route, startMs) : null;
-  const finishM =
-    route && !circuit && finishMs != null && finishMs > (startMs ?? 0)
-      ? distanceAt(route, finishMs)
-      : null;
+  // The track as the lines stand now, and this run on it: on a circuit,
+  // the first lap from the line — the one lap the bar shows and the
+  // sectors are drawn on (by request, 2026-11-10).
+  const drawn = useMemo(() => {
+    if (startMs == null) return null;
+    if (circuit) return createLapTrack(prepared, startMs);
+    if (finishMs == null) return null;
+    return createTimedTrack(prepared, startMs, finishMs);
+  }, [prepared, startMs, finishMs, circuit]);
+  const lap = circuit ? (drawn?.reference ?? null) : null;
+  // The stretch the sectors cut: the start to the finish, or the lap.
+  const startM = !route
+    ? null
+    : circuit
+      ? lap
+        ? distanceAt(route, lap.entryMs)
+        : null
+      : startMs != null
+        ? distanceAt(route, startMs)
+        : null;
+  const finishM = !route
+    ? null
+    : circuit
+      ? lap
+        ? distanceAt(route, lap.exitMs)
+        : null
+      : finishMs != null && finishMs > (startMs ?? 0)
+        ? distanceAt(route, finishMs)
+        : null;
   const storedSplits = editing?.track.definition.splits ?? null;
-  const [sectorM, setSectorMState] = useState<number[]>(() => {
-    if (!route || startM == null || finishM == null) return [];
+  // The positions, and on a circuit the lap they were placed on.
+  const [sectorState, setSectorState] = useState<{
+    m: number[];
+    lapEntryMs: number | null;
+  }>(() => {
+    const none = { m: [], lapEntryMs: null };
+    if (!route || startM == null || finishM == null) return none;
     const run = editing?.runs[0];
     if (storedSplits && storedSplits.length > 0 && run) {
       const bounds = sectorBoundaries(prepared, storedSplits, run);
-      if (bounds) return bounds.slice(1, -1).map((ms) => distanceAt(route, ms));
+      if (bounds)
+        return {
+          m: bounds.slice(1, -1).map((ms) => distanceAt(route, ms)),
+          lapEntryMs: circuit ? run.entryMs : null,
+        };
     }
-    return evenSectors(startM, finishM, PERFECT_RUN_SECTORS);
+    return {
+      m: evenSectors(startM, finishM, PERFECT_RUN_SECTORS),
+      lapEntryMs: lap?.entryMs ?? null,
+    };
   });
+  // On a circuit whose line has moved, the lap is another stretch of the
+  // recording; each sector line is found again in it where the bike
+  // crossed that same place (by request, 2026-11-10), not left at a
+  // distance that now means somewhere else.
+  const sectorM = useMemo(() => {
+    const { m, lapEntryMs } = sectorState;
+    if (!route || !lap || lapEntryMs == null || lapEntryMs === lap.entryMs)
+      return m;
+    return m
+      .map((at) => {
+        const gate = createLineAt(
+          prepared,
+          timeAtDistance(route, at),
+          LINE_HEADING_SPAN_M,
+        );
+        const crossing = gate
+          ? lineCrossings(prepared, gate).find(
+              (t) => t > lap.entryMs && t < lap.exitMs,
+            )
+          : undefined;
+        return crossing != null ? distanceAt(route, crossing) : null;
+      })
+      .filter((at): at is number => at != null)
+      .sort((a, b) => a - b);
+  }, [sectorState, route, lap, prepared]);
   // Until a line is moved or the count changed, the track's own lines are
   // kept as they were stored — redrawn from this run they would land a
   // metre or two off, and move every sector's time for nothing.
   const [touched, setTouched] = useState(false);
   const setSectorM = (next: number[]) => {
     setTouched(true);
-    setSectorMState(next);
+    setSectorState({ m: next, lapEntryMs: lap?.entryMs ?? null });
   };
   // The lines between the start and the finish as they stand now: one
   // that a moved start or finish has passed is left out.
-  const inside = useMemo(
-    () =>
-      startM != null && finishM != null
-        ? sectorM.filter(
-            (m) => m >= startM + SECTOR_GAP_M && m <= finishM - SECTOR_GAP_M,
-          )
-        : [],
-    [sectorM, startM, finishM],
-  );
-  const sectorsOn =
-    !circuit && route != null && startM != null && finishM != null;
+  // With none left there (a circuit switched on, the lap elsewhere), six
+  // equal sectors of the stretch as it stands.
+  const inside = useMemo(() => {
+    if (startM == null || finishM == null) return [];
+    const kept = sectorM.filter(
+      (m) => m >= startM + SECTOR_GAP_M && m <= finishM - SECTOR_GAP_M,
+    );
+    return kept.length > 0
+      ? kept
+      : evenSectors(startM, finishM, PERFECT_RUN_SECTORS);
+  }, [sectorM, startM, finishM]);
+  const sectorsOn = route != null && startM != null && finishM != null;
   const setCount = (count: number) => {
     if (startM == null || finishM == null) return;
     const n = Math.min(MAX_SECTORS, Math.max(MIN_SECTORS, count));
@@ -342,11 +405,6 @@ function Editor({
     sessionId,
     candidates,
   });
-  // The track as the lines stand now, and this run on it.
-  const drawn = useMemo(() => {
-    if (startMs == null || finishMs == null || circuit) return null;
-    return createTimedTrack(prepared, startMs, finishMs);
-  }, [prepared, startMs, finishMs, circuit]);
   const selfRun = drawn?.reference ?? null;
   // The others timed between the lines as they stand now — deferred, so a
   // drag stays smooth while the reading catches up. Where the lines are
@@ -406,14 +464,15 @@ function Editor({
     else {
       add(startMs, "start");
       add(finishMs, "finish");
-      for (const gate of sectorGates)
-        if (gate) out.push({ ...gate, kind: "sector" });
     }
+    for (const gate of sectorGates)
+      if (gate) out.push({ ...gate, kind: "sector" });
     return out;
   }, [prepared, circuit, startMs, finishMs, sectorGates]);
 
-  const windowMs: [number, number] =
-    !circuit && startMs != null && finishMs != null && finishMs > startMs
+  const windowMs: [number, number] = lap
+    ? [lap.entryMs, lap.exitMs]
+    : !circuit && startMs != null && finishMs != null && finishMs > startMs
       ? [startMs, finishMs]
       : [0, fullMs];
   const others = passed.filter((m) => m !== editing);
@@ -483,8 +542,15 @@ function Editor({
                 <ImuTrackBar
                   track={prepared.track}
                   gps={gps}
-                  startMs={startMs}
-                  finishMs={finishMs}
+                  // A circuit's bar is one lap, its two ends the one line
+                  // (by request, 2026-11-10): the line moves by its time.
+                  startMs={lap ? lap.entryMs : startMs}
+                  finishMs={lap ? lap.exitMs : circuit ? null : finishMs}
+                  windowM={
+                    lap && startM != null && finishM != null
+                      ? [startM, finishM]
+                      : null
+                  }
                   circuit={circuit}
                   onStart={(ms) =>
                     draft.setStartText(formatSessionTime(ms, true))

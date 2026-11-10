@@ -79,20 +79,28 @@ function smooth(values: number[], radius: number): number[] {
 }
 
 type Profile = {
-  totalM: number;
+  /** The stretch drawn, m along the recording. */
+  fromM: number;
+  toM: number;
   /** SVG path data on a 1000 × 100 box. */
   altitudeArea: string;
   altitudeMin: number;
   altitudeMax: number;
 };
 
-function buildProfile(track: SnapshotTrack, gps: GpsChannels): Profile | null {
+function buildProfile(
+  track: SnapshotTrack,
+  gps: GpsChannels,
+  window: [number, number] | null,
+): Profile | null {
   const totalM = track.distM[track.distM.length - 1];
-  if (!(totalM > 0)) return null;
-  const step = totalM / (PROFILE_POINTS - 1);
+  const fromM = window ? Math.max(0, window[0]) : 0;
+  const toM = window ? Math.min(totalM, window[1]) : totalM;
+  if (!(toM > fromM)) return null;
+  const step = (toM - fromM) / (PROFILE_POINTS - 1);
   const alt: number[] = [];
   for (let i = 0; i < PROFILE_POINTS; i++) {
-    const atMs = timeAtDistance(track, i * step);
+    const atMs = timeAtDistance(track, fromM + i * step);
     alt.push(valueAt(gps.tMs, gps.altitudeM, atMs));
   }
   const altS = smooth(alt, Math.round(ALTITUDE_SMOOTH_M / step / 2));
@@ -113,7 +121,8 @@ function buildProfile(track: SnapshotTrack, gps: GpsChannels): Profile | null {
   }
   area += " L1000,100 Z";
   return {
-    totalM,
+    fromM,
+    toM,
     altitudeArea: area,
     altitudeMin,
     altitudeMax,
@@ -121,7 +130,9 @@ function buildProfile(track: SnapshotTrack, gps: GpsChannels): Profile | null {
 }
 
 function formatDistance(m: number): string {
-  return m >= 1000 ? `${(m / 1000).toFixed(m >= 10_000 ? 0 : 1)} km` : `${Math.round(m)} m`;
+  return m >= 1000
+    ? `${(m / 1000).toFixed(m >= 10_000 ? 0 : 1)} km`
+    : `${Math.round(m)} m`;
 }
 
 /** A needle: the start, the finish, or a sector line by its index. */
@@ -148,13 +159,18 @@ export function ImuTrackBar({
   cursorMs,
   onHover,
   sectors,
+  windowM = null,
   className,
 }: {
   sectors?: TrackBarSectors | null;
+  /** The stretch the bar shows, m along the recording; null for all of it.
+   * Given, it is a circuit's one lap (2026-11-10): both ends are the one
+   * line, and dragging the last moves it (`onStart`). */
+  windowM?: [number, number] | null;
   track: SnapshotTrack;
   gps: GpsChannels;
   startMs: number | null;
-  /** Ignored on a circuit, which has one line. */
+  /** On a circuit, the end of the lap the bar shows (with `windowM`). */
   finishMs: number | null;
   circuit: boolean;
   onStart: (ms: number) => void;
@@ -166,25 +182,44 @@ export function ImuTrackBar({
   className?: string;
 }) {
   const t = useProDict().tracks.editor;
-  const profile = useMemo(() => buildProfile(track, gps), [track, gps]);
+  // A circuit's line dragged by one of the lap's ends (by request,
+  // 2026-11-10): the bar holds the lap it showed while the needle moves,
+  // and the lap is read again from the new line on release.
+  const [frozen, setFrozen] = useState<[number, number] | null>(null);
+  const [lineDragM, setLineDragM] = useState<number | null>(null);
+  const shown = frozen ?? windowM;
+  const windowFrom = shown?.[0] ?? null;
+  const windowTo = shown?.[1] ?? null;
+  const profile = useMemo(
+    () =>
+      buildProfile(
+        track,
+        gps,
+        windowFrom != null && windowTo != null ? [windowFrom, windowTo] : null,
+      ),
+    [track, gps, windowFrom, windowTo],
+  );
+  const lockEnds = windowM != null;
   const barRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ handle: Handle; pointerId: number } | null>(null);
   const [dragging, setDragging] = useState<Handle | null>(null);
   const [hoverM, setHoverM] = useState<number | null>(null);
 
   if (!profile) return null;
-  const { totalM } = profile;
-  const pct = (m: number) => `${(Math.min(Math.max(m / totalM, 0), 1) * 100).toFixed(3)}%`;
+  const { fromM, toM } = profile;
+  const spanM = toM - fromM;
+  /** Where a distance stands across the bar, 0 to 1. */
+  const frac = (m: number) => Math.min(Math.max((m - fromM) / spanM, 0), 1);
+  const pct = (m: number) => `${(frac(m) * 100).toFixed(3)}%`;
   const startM = startMs != null ? distanceAt(track, startMs) : null;
-  const finishM =
-    !circuit && finishMs != null ? distanceAt(track, finishMs) : null;
+  const finishM = finishMs != null ? distanceAt(track, finishMs) : null;
   const cursorM = cursorMs != null ? distanceAt(track, cursorMs) : null;
 
   const distAtClient = (clientX: number): number | null => {
     const rect = barRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0) return null;
     const f = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    return f * totalM;
+    return fromM + f * spanM;
   };
 
   /** Moves a needle to a distance, kept clear of the other one. */
@@ -199,12 +234,19 @@ export function ImuTrackBar({
       sectors.onChange(handle, Math.min(hi, Math.max(lo, m)));
       return;
     }
+    if (lockEnds) {
+      // Either end is the circuit's one line: it goes where the needle is.
+      const at = Math.min(toM, Math.max(fromM, m));
+      setLineDragM(at);
+      onStart(timeAtDistance(track, at));
+      return;
+    }
     if (handle === "start") {
-      const limit = finishM != null ? finishM - MIN_GAP_M : totalM;
-      onStart(timeAtDistance(track, Math.max(0, Math.min(m, limit))));
+      const limit = finishM != null ? finishM - MIN_GAP_M : toM;
+      onStart(timeAtDistance(track, Math.max(fromM, Math.min(m, limit))));
     } else {
-      const limit = startM != null ? startM + MIN_GAP_M : 0;
-      onFinish(timeAtDistance(track, Math.min(totalM, Math.max(m, limit))));
+      const limit = startM != null ? startM + MIN_GAP_M : fromM;
+      onFinish(timeAtDistance(track, Math.min(toM, Math.max(m, limit))));
     }
   };
 
@@ -214,6 +256,10 @@ export function ImuTrackBar({
   ) => {
     dragRef.current = { handle, pointerId: event.pointerId };
     setDragging(handle);
+    if (lockEnds && typeof handle !== "number") {
+      setFrozen([fromM, toM]);
+      setLineDragM(handle === "start" ? startM : finishM);
+    }
     try {
       barRef.current?.setPointerCapture(event.pointerId);
     } catch {
@@ -225,56 +271,71 @@ export function ImuTrackBar({
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
     setDragging(null);
+    setFrozen(null);
+    setLineDragM(null);
   };
 
-  const needle = (handle: Handle, m: number, ms: number) => (
-    <div
-      key={handle}
-      className="absolute inset-y-0 z-10"
-      style={{ left: pct(m) }}
-    >
-      <span
-        aria-hidden
-        // Both lines green, the start's and the finish's (by request,
-        // 2026-11-10); the pills still tell them apart.
-        className="absolute inset-y-0 -ml-px w-0.5 bg-[#1fb980]"
-      />
-      <button
-        type="button"
-        aria-label={handle === "start" ? t.dragStart : t.dragFinish}
-        onPointerDown={(event) => {
-          if (event.pointerType === "mouse" && event.button !== 0) return;
-          event.preventDefault();
-          event.stopPropagation();
-          beginDrag(handle, event);
-        }}
-        // Centred on the needle, and tucked against the side it is nearest
-        // at the bar's ends — the telemetry cursor's pill trick.
-        style={{
-          transform:
-            m / totalM < 0.06
-              ? "translateX(-10px)"
-              : m / totalM > 0.94
-                ? "translateX(calc(-100% + 10px))"
-                : "translateX(-50%)",
-        }}
-        className={cn(
-          "absolute -top-3 flex cursor-ew-resize touch-none items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums shadow-sm",
-          // Both pills green (by request, 2026-11-10): the flag tells the
-          // finish from the start's dot.
-          "bg-[#43F3AF] text-[#101014]",
-          dragging === handle && "ring-2 ring-ring/50",
-        )}
+  const needle = (handle: Handle, m: number, ms: number) => {
+    const fixed = lockEnds && handle === "start";
+    return (
+      <div
+        key={handle}
+        className="absolute inset-y-0 z-10"
+        style={{ left: pct(m) }}
       >
-        {handle === "finish" || circuit ? (
-          <FinishFlag className="size-2.5" />
-        ) : (
-          <span className="size-2 rounded-full bg-[#101014]" />
-        )}
-        {formatSessionTime(ms, true)}
-      </button>
-    </div>
-  );
+        <span
+          aria-hidden
+          // Both lines green, the start's and the finish's (by request,
+          // 2026-11-10); the pills still tell them apart.
+          className={cn(
+            "absolute inset-y-0 -ml-px w-0.5",
+            fixed ? "bg-muted-foreground/50" : "bg-[#1fb980]",
+          )}
+        />
+        <button
+          type="button"
+          aria-label={handle === "start" ? t.dragStart : t.dragFinish}
+          onPointerDown={(event) => {
+            // On a lap only the last needle moves the line (by request,
+            // 2026-11-10); a press on the first falls to the bar.
+            if (lockEnds && handle === "start") return;
+            if (event.pointerType === "mouse" && event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            beginDrag(handle, event);
+          }}
+          // Centred on the needle, and tucked against the side it is nearest
+          // at the bar's ends — the telemetry cursor's pill trick.
+          style={{
+            transform:
+              frac(m) < 0.06
+                ? "translateX(-10px)"
+                : frac(m) > 0.94
+                  ? "translateX(calc(-100% + 10px))"
+                  : "translateX(-50%)",
+          }}
+          className={cn(
+            "absolute -top-3 flex touch-none items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums shadow-sm",
+            // Both pills green (by request, 2026-11-10): the flag tells the
+            // finish from the start's dot.
+            // The lap's first needle in grey: it does not move (by request,
+            // 2026-11-10).
+            fixed
+              ? "cursor-default bg-muted text-muted-foreground"
+              : "cursor-ew-resize bg-[#43F3AF] text-[#101014]",
+            dragging === handle && "ring-2 ring-ring/50",
+          )}
+        >
+          {handle === "finish" || circuit ? (
+            <FinishFlag className="size-2.5" />
+          ) : (
+            <span className="size-2 rounded-full bg-[#101014]" />
+          )}
+          {formatSessionTime(ms, true)}
+        </button>
+      </div>
+    );
+  };
 
   /** A sector line: thin, its number in a disc at the foot of the bar and,
    * under it, how many runs cross it. */
@@ -356,8 +417,10 @@ export function ImuTrackBar({
           // A press on the bar brings the nearest needle there, and the
           // drag carries on from it.
           const candidates: [Handle, number][] = [];
-          if (startM != null) candidates.push(["start", startM]);
-          if (finishM != null) candidates.push(["finish", finishM]);
+          if (!lockEnds) {
+            if (startM != null) candidates.push(["start", startM]);
+            if (finishM != null) candidates.push(["finish", finishM]);
+          }
           sectors?.positionsM.forEach((at, i) => candidates.push([i, at]));
           if (candidates.length === 0) return;
           const handle = candidates.reduce((a, b) =>
@@ -374,6 +437,8 @@ export function ImuTrackBar({
             if (event.pointerType === "mouse" && event.buttons === 0) {
               dragRef.current = null;
               setDragging(null);
+              setFrozen(null);
+              setLineDragM(null);
             } else {
               moveTo(drag.handle, m);
             }
@@ -417,7 +482,7 @@ export function ImuTrackBar({
                 className="absolute inset-y-0 bg-foreground/[0.05]"
                 style={{
                   left: pct(from),
-                  width: `${(((all[i + 1] - from) / totalM) * 100).toFixed(3)}%`,
+                  width: `${(((all[i + 1] - from) / spanM) * 100).toFixed(3)}%`,
                 }}
               />
             ) : null,
@@ -444,8 +509,19 @@ export function ImuTrackBar({
             style={{ left: pct((hoverM ?? cursorM)!) }}
           />
         )}
-        {startM != null && startMs != null && needle("start", startM, startMs)}
-        {finishM != null && finishMs != null && needle("finish", finishM, finishMs)}
+        {lineDragM != null && typeof dragging === "string" ? (
+          // The circuit's line on the move: one needle, where it is going.
+          needle(dragging, lineDragM, timeAtDistance(track, lineDragM))
+        ) : (
+          <>
+            {startM != null &&
+              startMs != null &&
+              needle("start", startM, startMs)}
+            {finishM != null &&
+              finishMs != null &&
+              needle("finish", finishM, finishMs)}
+          </>
+        )}
         {sectors?.positionsM.map((at, i) => sectorNeedle(i, at))}
       </div>
       <div
@@ -455,8 +531,8 @@ export function ImuTrackBar({
         )}
       >
         <span>0 m</span>
-        <span>{formatDistance(totalM / 2)}</span>
-        <span>{formatDistance(totalM)}</span>
+        <span>{formatDistance(spanM / 2)}</span>
+        <span>{formatDistance(spanM)}</span>
       </div>
     </div>
   );

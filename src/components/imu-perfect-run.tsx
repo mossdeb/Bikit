@@ -16,7 +16,6 @@ import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import {
   findTimedRuns,
   formatRunTime,
-  isLapTrack,
   RUN_TIE_MS,
   type TimedRun,
 } from "@/lib/imu/timed-track";
@@ -117,10 +116,8 @@ export function usePerfectRun({
     const done = (next: PerfectRunState) => {
       if (live) setState(next);
     };
-    if (isLapTrack(definition)) {
-      done({ status: "unavailable", trackId: track.id, reason: "circuit" });
-      return;
-    }
+    // A circuit's laps are its runs, each cut by the same lines (since
+    // 2026-11-10).
     const self = candidates.find((c) => c.id === sessionId);
     const selfLabel: RunLabel = {
       sessionId,
@@ -533,7 +530,9 @@ export function PerfectRunView({
       </div>
 
       <div className="space-y-1 text-xs text-muted-foreground">
-        {result.excluded.length > 0 && <p>{t.excluded(result.excluded.length)}</p>}
+        {result.excluded.length > 0 && (
+          <p>{t.excluded(result.excluded.length)}</p>
+        )}
         {state.missed > 0 && <p>{t.missed(state.missed)}</p>}
       </div>
     </div>
