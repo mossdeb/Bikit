@@ -421,26 +421,44 @@ function Editor({
 
   return (
     <div className="space-y-4 pt-4 pb-10 sm:pt-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="flex items-center gap-2.5 font-display text-2xl font-semibold">
-          <FinishFlag className="size-6" />
-          {editing ? t.editor.editTitle : t.editor.newTitle}
-        </h1>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 space-y-4">
+      {/* One card (by request, 2026-11-10): the name, the map and the bar,
+          then the form, parted by a hairline — under them on a narrow
+          screen, beside them from `lg`. */}
+      <div className="overflow-hidden rounded-lg bg-card lg:grid lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
           {/* The name, the map and the bar, one card (by request,
               2026-11-09). */}
-          <div className="overflow-hidden rounded-lg bg-card">
+          <div>
+            {/* The name, with New track and Delete track to its right (by
+                request, 2026-11-10). */}
+            {/* The label over the row, so the buttons centre on the field
+                itself (by request, 2026-11-10). */}
             <div className="space-y-1.5 p-5">
+              {/* The title at the top of the card (by request,
+                  2026-11-10). */}
+              <h1 className="mb-4 flex items-center gap-2.5 font-display text-2xl font-semibold">
+                <FinishFlag className="size-6" />
+                {editing ? t.editor.editTitle : t.editor.newTitle}
+              </h1>
               <Label htmlFor="track-name">{t.name}</Label>
-              <Input
-                id="track-name"
-                value={draft.name}
-                placeholder={t.namePlaceholder}
-                onChange={(e) => draft.setName(e.target.value)}
-              />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-48 flex-1">
+                  <Input
+                    id="track-name"
+                    value={draft.name}
+                    placeholder={t.namePlaceholder}
+                    onChange={(e) => draft.setName(e.target.value)}
+                  />
+                </div>
+                {editing && (
+                  <TrackEditActions
+                    inline
+                    trackId={editing.track.id}
+                    onNew={() => router.push(`/pro/sessoes/${sessionId}/pista`)}
+                    onDeleted={() => router.push(sessionHref)}
+                  />
+                )}
+              </div>
             </div>
             {gps ? (
               <ImuSessionMap
@@ -451,8 +469,8 @@ function Editor({
                 cursorMs={hoverMs ?? cursorMs}
                 onSeek={setCursorMs}
                 lines={lines}
-              endMarkPx={10}
-              fadeEnds
+                endMarkPx={10}
+                fadeEnds
                 className="h-[min(58vh,640px)]"
               />
             ) : (
@@ -487,44 +505,58 @@ function Editor({
                       : null
                   }
                 />
-                {sectorsOn && (
-                  <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-                    <span className="text-sm font-semibold">
-                      {t.editor.sectors}
-                    </span>
-                    <div className="flex items-center rounded-full border border-border">
-                      <button
-                        type="button"
-                        aria-label={t.editor.fewerSectors}
-                        disabled={inside.length + 1 <= MIN_SECTORS}
-                        onClick={() => setCount(inside.length)}
-                        className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
-                      >
-                        <Minus className="size-3.5" />
-                      </button>
-                      <span className="w-6 text-center text-sm font-semibold tabular-nums">
-                        {inside.length + 1}
+                {/* The sectors' controls, and the circuit switch at the
+                    row's right (moved here by request, 2026-11-10) — the
+                    row stays for it when a circuit hides the sectors. */}
+                <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+                  {sectorsOn && (
+                    <>
+                      <span className="text-sm font-semibold">
+                        {t.editor.sectors}
                       </span>
-                      <button
-                        type="button"
-                        aria-label={t.editor.moreSectors}
-                        disabled={inside.length + 1 >= MAX_SECTORS}
-                        onClick={() => setCount(inside.length + 2)}
-                        className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
-                    </div>
-                    <Chip onClick={() => setCount(inside.length + 1)}>
-                      {t.editor.evenOut}
-                    </Chip>
-                    {trackRuns == null && (
-                      <span className="text-xs text-muted-foreground">
-                        {t.editor.counting}
-                      </span>
-                    )}
-                  </div>
-                )}
+                      <div className="flex items-center rounded-full border border-border">
+                        <button
+                          type="button"
+                          aria-label={t.editor.fewerSectors}
+                          disabled={inside.length + 1 <= MIN_SECTORS}
+                          onClick={() => setCount(inside.length)}
+                          className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                        >
+                          <Minus className="size-3.5" />
+                        </button>
+                        <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                          {inside.length + 1}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={t.editor.moreSectors}
+                          disabled={inside.length + 1 >= MAX_SECTORS}
+                          onClick={() => setCount(inside.length + 2)}
+                          className="flex size-8 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-muted disabled:cursor-default disabled:opacity-40"
+                        >
+                          <Plus className="size-3.5" />
+                        </button>
+                      </div>
+                      <Chip onClick={() => setCount(inside.length + 1)}>
+                        {t.editor.evenOut}
+                      </Chip>
+                      {trackRuns == null && (
+                        <span className="text-xs text-muted-foreground">
+                          {t.editor.counting}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={circuit}
+                      onChange={(e) => draft.setCircuit(e.target.checked)}
+                      className="size-4 accent-foreground"
+                    />
+                    {t.circuit}
+                  </label>
+                </div>
                 {lost.length > 0 && (
                   <p className="mt-4 rounded-[14px] border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200">
                     {t.editor.runsLost(lost)}
@@ -541,21 +573,12 @@ function Editor({
         </div>
 
         <form
-          className="space-y-4 self-start rounded-lg bg-card p-5"
+          className="space-y-4 border-t border-border p-5 lg:border-t-0 lg:border-l"
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit();
           }}
         >
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={circuit}
-              onChange={(e) => draft.setCircuit(e.target.checked)}
-              className="size-4 accent-foreground"
-            />
-            {t.circuit}
-          </label>
           <div className={cn("grid gap-3", !circuit && "grid-cols-2")}>
             <div className="space-y-1.5">
               <Label htmlFor="track-start">
@@ -588,13 +611,8 @@ function Editor({
           </div>
           {!circuit && (
             <div className="flex flex-wrap gap-2">
-              {trim && (
-                <Chip
-                  onClick={() => draft.setWindow([trim.startMs, trim.endMs])}
-                >
-                  {t.trimWindow}
-                </Chip>
-              )}
+              {/* "Trim" hidden by request (2026-11-10): the bar's needles
+                  are the way to the run here. */}
               <Chip onClick={() => draft.setWindow([0, fullMs])}>
                 {t.wholeRecording}
               </Chip>
@@ -654,13 +672,6 @@ function Editor({
                 ))}
               </div>
             </div>
-          )}
-          {editing && (
-            <TrackEditActions
-              trackId={editing.track.id}
-              onNew={() => router.push(`/pro/sessoes/${sessionId}/pista`)}
-              onDeleted={() => router.push(sessionHref)}
-            />
           )}
           {/* Save and cancel at the card's foot (by request, 2026-11-09),
               the popup's pair: cancel beside, save the wider. */}

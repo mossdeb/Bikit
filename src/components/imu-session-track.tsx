@@ -293,9 +293,7 @@ function ImuTrackDialog({
   const [tab, setTab] = useState<"times" | "perfect">(initialTab);
   const locale = useProLocale();
   const perfectHere =
-    perfect && current && perfect.trackId === current.track.id
-      ? perfect
-      : null;
+    perfect && current && perfect.trackId === current.track.id ? perfect : null;
   const showPerfect = mode === "view" && perfectHere != null;
 
   return (
@@ -1093,7 +1091,11 @@ export function TrackEditActions({
   trackId,
   onNew,
   onDeleted,
+  inline = false,
 }: {
+  /** Beside the track's name on the editor's page (2026-11-10): no rule
+   * above, the buttons to the right. */
+  inline?: boolean;
   trackId: string;
   onNew: () => void;
   onDeleted: () => void;
@@ -1119,7 +1121,9 @@ export function TrackEditActions({
   }
 
   return (
-    <div className="space-y-3 border-t border-border pt-4">
+    <div
+      className={inline ? "space-y-3" : "space-y-3 border-t border-border pt-4"}
+    >
       {error && <p className="text-sm text-destructive">{error}</p>}
       {confirming ? (
         <div className="space-y-3 rounded-md border border-destructive/40 p-3">
@@ -1146,7 +1150,12 @@ export function TrackEditActions({
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap justify-center gap-2">
+        <div
+          className={cn(
+            "flex flex-wrap gap-2",
+            inline ? "justify-end" : "justify-center",
+          )}
+        >
           <Chip onClick={onNew}>
             <Plus className="size-3.5" />
             {t.newTrack}
