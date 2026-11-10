@@ -20,7 +20,9 @@ const REPLY_TO = CONTACT_EMAIL;
 // www because bikit.app 308s to it, and a link that starts one hop late costs
 // nothing to write correctly.
 const SITE_URL = "https://www.bikit.app";
-const LOGO_URL = "https://bikit.app/icons/icon-192.png";
+// `?v=2` since the mark went black and white (2026-11-10): Gmail and
+// Outlook keep images by their URL, and the same address kept the mint one.
+const LOGO_URL = "https://www.bikit.app/icons/icon-192.png?v=2";
 
 // Constructed lazily (and only once RESEND_API_KEY exists) so the app and
 // the cron route still run — just without sending — before it's configured.
