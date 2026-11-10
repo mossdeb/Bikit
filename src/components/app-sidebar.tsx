@@ -72,7 +72,7 @@ export function AppSidebar({ nav }: { nav: Dictionary["nav"] }) {
           // Collapsed the rail is 84px and the lockup wants ~140 at this
           // height, so the mark stands alone — the same mark the lockup
           // carries, lifted out of the same drawing.
-          <LogoMark />
+          <LogoMark onDark />
         )}
       </div>
 

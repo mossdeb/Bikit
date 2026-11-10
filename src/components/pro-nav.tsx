@@ -145,7 +145,7 @@ export function ProSidebar() {
         {expanded ? (
           <BikitLockup onDark pro className="h-10 w-auto" />
         ) : (
-          <LogoMark />
+          <LogoMark onDark />
         )}
       </div>
 
