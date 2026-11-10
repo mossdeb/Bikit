@@ -84,7 +84,7 @@ export default async function SignupPage({
             required
           />
         </div>
-        <Button type="submit" className="w-full" size="lg">
+        <Button type="submit" variant="inverted" className="w-full" size="lg">
           Create account
         </Button>
       </form>

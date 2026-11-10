@@ -46,7 +46,7 @@ export default async function ConfirmEmailPage({
         <input type="hidden" name="token_hash" value={token_hash} />
         <input type="hidden" name="type" value={type} />
         {next && <input type="hidden" name="next" value={next} />}
-        <Button type="submit" className="w-full" size="lg">
+        <Button type="submit" variant="inverted" className="w-full" size="lg">
           {isRecovery ? "Continue" : "Confirm email"}
         </Button>
       </form>

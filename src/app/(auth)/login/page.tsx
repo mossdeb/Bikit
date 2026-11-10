@@ -59,7 +59,7 @@ export default async function LoginPage({
           </div>
           <Input id="password" name="password" type="password" placeholder="••••••••" required />
         </div>
-        <Button type="submit" className="w-full" size="lg">
+        <Button type="submit" variant="inverted" className="w-full" size="lg">
           Sign in
         </Button>
       </form>

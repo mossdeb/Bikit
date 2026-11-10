@@ -40,7 +40,7 @@ export default async function ResetPasswordPage({
             required
           />
         </div>
-        <Button type="submit" className="w-full" size="lg">
+        <Button type="submit" variant="inverted" className="w-full" size="lg">
           Update password
         </Button>
       </form>

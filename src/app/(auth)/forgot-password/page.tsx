@@ -49,7 +49,7 @@ export default async function ForgotPasswordPage({
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" placeholder="you@example.com" required />
         </div>
-        <Button type="submit" className="w-full" size="lg">
+        <Button type="submit" variant="inverted" className="w-full" size="lg">
           Send reset link
         </Button>
       </form>
