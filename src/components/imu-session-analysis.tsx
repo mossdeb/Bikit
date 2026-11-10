@@ -1296,8 +1296,9 @@ export function ImuSessionAnalysis({
     if (!timed || !splitTrack || !splitGates || splitGates.length === 0)
       return [];
     return splitTrack.runs.flatMap((run) => {
+      // The start, each split, the finish: the sectors' edges.
       const bounds = sectorBoundaries(timed.prepared, splitGates, run);
-      return bounds ? [bounds.slice(1, -1)] : [];
+      return bounds ? [bounds] : [];
     });
   }, [timed, splitTrack, splitGates]);
   const splitLines = useMemo<ImuMapLine[]>(
@@ -1781,8 +1782,9 @@ export function ImuSessionAnalysis({
   // The sector lines on the plot's x, numbered as the editor numbers them.
   const splitMarks =
     splitsOn && splitCrossings.length > 0
-      ? splitCrossings.flatMap((crossings, r) =>
-          crossings
+      ? splitCrossings.flatMap((bounds, r) =>
+          bounds
+            .slice(1, -1)
             .map((ms, i) => ({
               key: `${r}-${i}`,
               label: String(i + 1),
@@ -1790,6 +1792,47 @@ export function ImuSessionAnalysis({
             }))
             .filter((mark) => mark.x >= 0 && mark.x <= 1),
         )
+      : undefined;
+  // Each sector's time above the plot, and how far it is off the rider's
+  // best there — the Perfect Run's best sectors (by request, 2026-11-10).
+  const bestSectors =
+    perfect?.status === "ready" ? perfect.result.sectors : null;
+  const sectorBand =
+    splitsOn && splitCrossings.length > 0
+      ? splitCrossings.flatMap((bounds, r) => {
+          const span = win[1] - win[0];
+          const shift = trim?.startMs ?? 0;
+          return bounds.slice(0, -1).flatMap((from, i) => {
+            const to = bounds[i + 1];
+            const a = from - shift;
+            const b = to - shift;
+            if (b <= win[0] || a >= win[1]) return [];
+            const ms = to - from;
+            const best =
+              bestSectors && bestSectors.length === bounds.length - 1
+                ? bestSectors[i].bestMs
+                : null;
+            const delta = best != null ? ms - best : null;
+            return [
+              {
+                key: `${r}-${i}`,
+                label: `S${i + 1}`,
+                time: `${(ms / 1000).toFixed(2)} s`,
+                // Within a millisecond, or faster (a reading the Perfect
+                // Run left out): this run holds the sector's best.
+                best: delta != null && delta < 1,
+                delta:
+                  delta != null && delta >= 1
+                    ? `+${(delta / 1000).toFixed(2)} s`
+                    : null,
+                from: (Math.max(a, win[0]) - win[0]) / span,
+                to: (Math.min(b, win[1]) - win[0]) / span,
+                center: ((a + b) / 2 - win[0]) / span,
+                startsInView: a > win[0],
+              },
+            ];
+          });
+        })
       : undefined;
 
   // The series with their words joined on, in the reader's language — the
@@ -2550,6 +2593,8 @@ export function ImuSessionAnalysis({
                 showValues={valuesOn}
                 lapBand={lapBand}
                 splitMarks={splitMarks}
+                sectorBand={sectorBand}
+                bestLabel={tracksT.best}
               />
               <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
                 <ZoomButton label={t.zoom.in} onClick={() => zoomAround(0.5)}>

@@ -147,7 +147,24 @@ export function ImuChart({
   showValues = true,
   lapBand,
   splitMarks,
+  sectorBand,
+  bestLabel = "Best",
 }: {
+  /** Each sector's time above the plot, with how far it is off the
+   * rider's best there (2026-11-10), on the plot's own x. */
+  sectorBand?: {
+    key: string;
+    label: string;
+    time: string;
+    best: boolean;
+    delta: string | null;
+    from: number;
+    to: number;
+    center: number;
+    startsInView: boolean;
+  }[];
+  /** The word for a sector this run holds the best of. */
+  bestLabel?: string;
   /** A track's sector lines where this run crossed them (the Perfect Run's
    * splits, by request, 2026-11-10): numbered, on the plot's own x as a
    * share of the window, 0 to 1. */
@@ -580,6 +597,61 @@ export function ImuChart({
               >
                 <span className="font-medium">{lap.label}</span>
                 <span className="tabular-nums">{lap.time}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* The sectors' times (2026-11-10), the lap band's idiom: the time,
+          and under it the gap to the rider's best — green where this run
+          holds it. A sector too narrow for its words keeps its number and
+          says the rest on hover. */}
+      {sectorBand && sectorBand.length > 0 && (
+        <div
+          className={cn(
+            "relative mb-1 h-10 overflow-hidden border-b border-border bg-card text-[13px] text-muted-foreground",
+            // Up over the card's padding to its top edge, as the laps' band
+            // is — unless that band is above it.
+            !(lapBand && lapBand.length > 0) && "sm:-mt-5",
+          )}
+        >
+          {sectorBand.map((sector) => (
+            <div
+              key={sector.key}
+              title={`${sector.label} · ${sector.time}${sector.best ? ` · ${bestLabel}` : sector.delta ? ` · ${sector.delta}` : ""}`}
+              className={cn(
+                "absolute inset-y-0 overflow-hidden whitespace-nowrap",
+                sector.startsInView &&
+                  "border-l border-dashed border-foreground/30",
+              )}
+              style={{
+                left: `${sector.from * 100}%`,
+                width: `${(sector.to - sector.from) * 100}%`,
+              }}
+            >
+              <span
+                className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-2"
+                style={{
+                  left: `${((sector.center - sector.from) / (sector.to - sector.from)) * 100}%`,
+                }}
+              >
+                <span>
+                  <span className="font-medium text-foreground">
+                    {sector.label}
+                  </span>{" "}
+                  <span className="font-bold text-foreground tabular-nums">
+                    {sector.time}
+                  </span>
+                </span>
+                {sector.best ? (
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {bestLabel}
+                  </span>
+                ) : (
+                  sector.delta && (
+                    <span className="tabular-nums">{sector.delta}</span>
+                  )
+                )}
               </span>
             </div>
           ))}
