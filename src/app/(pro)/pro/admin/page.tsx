@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdmin } from "@/lib/lab-access";
+import {
+  accessEndsOn,
+  hasLabAccess,
+  isAccessExpired,
+  isAdmin,
+} from "@/lib/lab-access";
+import { AdminAccessEnds } from "@/components/admin-access-ends";
 
 /**
  * Administration (by request, 2026-11-09): how each account uses the app,
@@ -31,6 +37,11 @@ type Account = {
   sessions: number;
   lastSessionAt: string | null;
   bikes: number;
+  /** The Pro's beta closes to it on this day (2026-11-10); null: open. */
+  endsOn: string | null;
+  expired: boolean;
+  /** On the beta's list and not the owner: its end can be set. */
+  canEnd: boolean;
 };
 
 const DAY_MS = 86_400_000;
@@ -130,6 +141,12 @@ export default async function AdminPage() {
       sessions: mySessions.length,
       lastSessionAt,
       bikes: (bikes ?? []).filter((b) => b.user_id === u.id).length,
+      endsOn: accessEndsOn(u.app_metadata),
+      expired: isAccessExpired({
+        email: u.email,
+        app_metadata: u.app_metadata,
+      }),
+      canEnd: hasLabAccess(u.email) && !isAdmin(u.email),
     };
   });
   // The most recently active first; then by the last sign-in.
@@ -193,7 +210,7 @@ export default async function AdminPage() {
 
       <div className="overflow-hidden rounded-lg bg-card">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="px-5 py-3 font-medium">Conta</th>
@@ -211,6 +228,10 @@ export default async function AdminPage() {
                 </th>
                 <th className="px-3 py-3 font-medium">De onde</th>
                 <th className="px-3 py-3 font-medium">Dispositivo</th>
+                <th className="px-3 py-3 font-medium">
+                  Fim do acesso
+                  <span className="block font-normal">beta Pro</span>
+                </th>
                 <th className="px-3 py-3 text-right font-medium">Bicicletas</th>
                 <th className="px-5 py-3 text-right font-medium">
                   Sessões IMU
@@ -250,6 +271,17 @@ export default async function AdminPage() {
                     {a.devices.length > 0
                       ? a.devices.map((d) => DEVICE_LABEL[d] ?? d).join(", ")
                       : "—"}
+                  </td>
+                  <td className="px-3 py-3">
+                    {a.canEnd ? (
+                      <AdminAccessEnds
+                        userId={a.id}
+                        value={a.endsOn}
+                        expired={a.expired}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
                     {a.bikes}

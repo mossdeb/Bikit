@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { signedInRedirect } from "@/lib/areas";
+import { isAccessExpired } from "@/lib/lab-access";
 import type { Database } from "@/types/database.types";
 import {
   isActiveSession,
@@ -120,6 +121,9 @@ export async function updateSession(request: NextRequest) {
     ? signedInRedirect(
         request.nextUrl.pathname,
         user.email as string | undefined,
+        undefined,
+        // An account whose beta has ended is the beta page's too.
+        isAccessExpired(user),
       )
     : null;
   if (target) {

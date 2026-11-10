@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDictionary, localeFromMetadata } from "@/lib/i18n";
-import { hasLabAccess, isAdmin } from "@/lib/lab-access";
+import { hasLabAccess, isAccessExpired, isAdmin } from "@/lib/lab-access";
+import { BETA_PATH } from "@/lib/areas";
 import { ProSidebar, ProMobileNav } from "@/components/pro-nav";
 import { BikitLockup } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -44,6 +45,8 @@ export default async function ProLayout({
   const user = data?.claims;
   if (!user) redirect("/login");
   if (!hasLabAccess(user.email as string | undefined)) notFound();
+  // A beta that has ended (2026-11-10): the beta's page says so.
+  if (isAccessExpired(user)) redirect(BETA_PATH);
 
   const locale = localeFromMetadata(user.user_metadata);
   const dict = getDictionary(locale);

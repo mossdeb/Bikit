@@ -10,7 +10,13 @@ import { hasLabAccess } from "@/lib/lab-access";
 export const MAINTENANCE_HIDDEN = true;
 
 /** The maintenance area's routes — the `(app)` route group. */
-const MAINTENANCE_PREFIXES = ["/dashboard", "/bikes", "/settings", "/help", "/legal"];
+const MAINTENANCE_PREFIXES = [
+  "/dashboard",
+  "/bikes",
+  "/settings",
+  "/help",
+  "/legal",
+];
 
 /** Where an account without access to the Pro waits while it is a closed
  * beta. */
@@ -32,9 +38,12 @@ export function isProPath(pathname: string): boolean {
 export function homePathFor(
   email: string | null | undefined,
   hidden: boolean = MAINTENANCE_HIDDEN,
+  /** The account's beta has ended (isAccessExpired, 2026-11-10): the
+   * beta's page, which then says so, even for an account on the list. */
+  expired: boolean = false,
 ): string {
   if (!hidden) return "/dashboard";
-  return hasLabAccess(email) ? "/pro" : BETA_PATH;
+  return hasLabAccess(email) && !expired ? "/pro" : BETA_PATH;
 }
 
 /**
@@ -47,8 +56,9 @@ export function signedInRedirect(
   pathname: string,
   email: string | null | undefined,
   hidden: boolean = MAINTENANCE_HIDDEN,
+  expired: boolean = false,
 ): string | null {
-  const home = homePathFor(email, hidden);
+  const home = homePathFor(email, hidden, expired);
   const goHome =
     pathname === "/login" ||
     pathname === "/signup" ||

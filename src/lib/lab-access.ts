@@ -56,12 +56,50 @@ export function isAdmin(email: string | null | undefined): boolean {
   return ADMIN_EMAILS.includes(email.trim().toLowerCase());
 }
 
+/**
+ * The beta's end for an account (by request, 2026-11-10): a date, set on
+ * the administration page, from which the Pro is closed to it — the
+ * account lands on the beta's page, told its trial ended. Kept in the
+ * account's `app_metadata` (only the service role writes it), so every
+ * request reads it off the session's claims without a query; a change
+ * reaches an open session when its token next refreshes, within the hour.
+ * The day is Portugal's, and the owner's account never expires.
+ */
+export const ACCESS_ENDS_KEY = "access_ends_on";
+
+/** The account's end date, "YYYY-MM-DD", or null for none. */
+export function accessEndsOn(appMetadata: unknown): string | null {
+  const value = (appMetadata as Record<string, unknown> | null | undefined)?.[
+    ACCESS_ENDS_KEY
+  ];
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : null;
+}
+
+/** Today in Portugal, "YYYY-MM-DD". */
+export function lisbonToday(now: Date = new Date()): string {
+  return now.toLocaleDateString("sv-SE", { timeZone: "Europe/Lisbon" });
+}
+
+/** Whether the account's beta has ended: its end date is today or past. */
+export function isAccessExpired(
+  claims: { email?: unknown; app_metadata?: unknown } | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!claims || isAdmin(claims.email as string | undefined)) return false;
+  const ends = accessEndsOn(claims.app_metadata);
+  return ends != null && lisbonToday(now) >= ends;
+}
+
 export function hasPerfectRun(email: string | null | undefined): boolean {
   if (!email) return false;
   return PERFECT_RUN_EMAILS.includes(email.trim().toLowerCase());
 }
 
-export function canDownloadRecordings(email: string | null | undefined): boolean {
+export function canDownloadRecordings(
+  email: string | null | undefined,
+): boolean {
   if (!email) return false;
   return RECORDING_DOWNLOAD_EMAILS.includes(email.trim().toLowerCase());
 }
