@@ -479,7 +479,7 @@ function Editor({
   const gps = whole.gps;
 
   return (
-    <div className="space-y-4 pt-4 pb-10 sm:pt-8">
+    <div className="mx-auto w-full max-w-[1200px] space-y-4 pt-4 pb-10 sm:pt-8">
       {/* One card (by request, 2026-11-10): the name, the map and the bar,
           then the form, parted by a hairline — always one under the other,
           at every width (by request, 2026-11-10). */}
