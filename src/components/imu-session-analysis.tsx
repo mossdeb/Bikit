@@ -53,6 +53,7 @@ import type { ImuSessionTrim } from "@/lib/imu/trim";
 import { ImuSessionLaps } from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
 import { isLapTrack, lapMarks, type TimedRun } from "@/lib/imu/timed-track";
+import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import { usePerfectRun } from "@/components/imu-perfect-run";
 import {
   ImuSessionTrackButton,
@@ -117,7 +118,7 @@ import {
 } from "@/lib/imu/derive";
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
-import { ImuSessionMap } from "@/components/imu-session-map";
+import { ImuSessionMap, type ImuMapLine } from "@/components/imu-session-map";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, type ProDictionary } from "@/lib/i18n/pro";
@@ -1282,6 +1283,27 @@ export function ImuSessionAnalysis({
     locale,
   });
   const [trimOpen, setTrimOpen] = useState(false);
+  // The first track's sector lines where this run crossed them — the
+  // "Splits" switch beside "Values" (by request, 2026-11-10), on the plot
+  // and on the map. The owner's account only, with the Perfect Run. Each
+  // run's (each lap's) crossings, on the whole recording's clock.
+  const [splitsOn, setSplitsOn] = useState(false);
+  const splitTrack = timed?.passed[0] ?? null;
+  const splitGates = perfectRun
+    ? (splitTrack?.track.definition.splits ?? null)
+    : null;
+  const splitCrossings = useMemo(() => {
+    if (!timed || !splitTrack || !splitGates || splitGates.length === 0)
+      return [];
+    return splitTrack.runs.flatMap((run) => {
+      const bounds = sectorBoundaries(timed.prepared, splitGates, run);
+      return bounds ? [bounds.slice(1, -1)] : [];
+    });
+  }, [timed, splitTrack, splitGates]);
+  const splitLines = useMemo<ImuMapLine[]>(
+    () => (splitGates ?? []).map((gate) => ({ ...gate, kind: "sector" })),
+    [splitGates],
+  );
 
   const [activeSeries, setActiveSeries] = useState<Set<SeriesId>>(
     new Set(["gforce"]),
@@ -1756,6 +1778,19 @@ export function ImuSessionAnalysis({
       }))
     : undefined;
   const zoomed = win[0] > full[0] || win[1] < full[1];
+  // The sector lines on the plot's x, numbered as the editor numbers them.
+  const splitMarks =
+    splitsOn && splitCrossings.length > 0
+      ? splitCrossings.flatMap((crossings, r) =>
+          crossings
+            .map((ms, i) => ({
+              key: `${r}-${i}`,
+              label: String(i + 1),
+              x: (ms - (trim?.startMs ?? 0) - win[0]) / (win[1] - win[0]),
+            }))
+            .filter((mark) => mark.x >= 0 && mark.x <= 1),
+        )
+      : undefined;
 
   // The series with their words joined on, in the reader's language — the
   // list every consumer below reads.
@@ -2514,6 +2549,7 @@ export function ImuSessionAnalysis({
                 }
                 showValues={valuesOn}
                 lapBand={lapBand}
+                splitMarks={splitMarks}
               />
               <div className="mt-2 flex items-center gap-1.5 px-5 sm:px-6">
                 <ZoomButton label={t.zoom.in} onClick={() => zoomAround(0.5)}>
@@ -2594,6 +2630,13 @@ export function ImuSessionAnalysis({
                   the file has the step (2026-10-27): its line, and the pitch
                   read from it rather than from the empty bike. Looking
                   only — nothing measured changes. */}
+                {splitCrossings.length > 0 && (
+                  <SmallSwitch
+                    label={t.zoom.splits}
+                    checked={splitsOn}
+                    onToggle={() => setSplitsOn((on) => !on)}
+                  />
+                )}
                 {pitchOn && (
                   <>
                     <SmallSwitch
@@ -2746,6 +2789,7 @@ export function ImuSessionAnalysis({
             >
               <ImuSessionMap
                 gps={data.gps}
+                lines={splitsOn ? splitLines : undefined}
                 events={
                   eventsOn
                     ? data.events.filter((event) => activeKinds.has(event.kind))

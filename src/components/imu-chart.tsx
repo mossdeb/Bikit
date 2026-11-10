@@ -146,7 +146,12 @@ export function ImuChart({
   onLockChange,
   showValues = true,
   lapBand,
+  splitMarks,
 }: {
+  /** A track's sector lines where this run crossed them (the Perfect Run's
+   * splits, by request, 2026-11-10): numbered, on the plot's own x as a
+   * share of the window, 0 to 1. */
+  splitMarks?: { key: string; label: string; x: number }[];
   tMs: Float64Array;
   series: ImuChartSeries[];
   events: ImuEvent[];
@@ -933,6 +938,22 @@ export function ImuChart({
             </span>
           );
         })}
+
+        {/* The track's sector lines (2026-11-10): dashed, each with its
+            number in a disc at the foot, the editor's. */}
+        {splitMarks?.map((mark) => (
+          <div
+            key={mark.key}
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0"
+            style={{ left: `${mark.x * 100}%` }}
+          >
+            <span className="absolute inset-y-0 -ml-px border-l-2 border-dashed border-foreground/45" />
+            <span className="absolute bottom-1.5 flex size-5 -translate-x-1/2 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background tabular-nums">
+              {mark.label}
+            </span>
+          </div>
+        ))}
 
         {cursorPercent != null && locked && (
           // The padlock rides the line rather than sitting in a corner: it is
