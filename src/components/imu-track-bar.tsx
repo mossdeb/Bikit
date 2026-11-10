@@ -82,8 +82,10 @@ type Profile = {
   /** The stretch drawn, m along the recording. */
   fromM: number;
   toM: number;
-  /** SVG path data on a 1000 × 100 box. */
+  /** SVG path data on a 1000 × 100 box: the filled area, and its top
+   * edge alone — stroked without the base (by request, 2026-11-10). */
   altitudeArea: string;
+  altitudeLine: string;
   altitudeMin: number;
   altitudeMax: number;
 };
@@ -114,19 +116,38 @@ function buildProfile(
   // beside it went by request, 2026-11-10.
   const yAlt = (v: number) =>
     (100 - 6 - ((v - altitudeMin) / altSpan) * 80).toFixed(1);
-  let area = `M0,100`;
+  let line = "";
   for (let i = 0; i < PROFILE_POINTS; i++) {
     const a = Number.isFinite(altS[i]) ? altS[i] : altitudeMin;
-    area += ` L${x(i)},${yAlt(a)}`;
+    line += `${i === 0 ? "M" : " L"}${x(i)},${yAlt(a)}`;
   }
-  area += " L1000,100 Z";
+  const area = `M0,100 L${line.slice(1)} L1000,100 Z`;
   return {
     fromM,
     toM,
     altitudeArea: area,
+    altitudeLine: line,
     altitudeMin,
     altitudeMax,
   };
+}
+
+/** Ticks for the bar's ruler: a round step that gives up to 160 across
+ * the stretch, every fifth one major. */
+const RULER_STEPS_M = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+function rulerTicks(
+  fromM: number,
+  toM: number,
+): { m: number; major: boolean }[] {
+  const span = toM - fromM;
+  if (!(span > 0)) return [];
+  const step =
+    RULER_STEPS_M.find((s) => span / s <= 160) ??
+    RULER_STEPS_M[RULER_STEPS_M.length - 1];
+  const out: { m: number; major: boolean }[] = [];
+  for (let k = Math.ceil(fromM / step); k * step <= toM; k++)
+    out.push({ m: k * step, major: k % 5 === 0 });
+  return out;
 }
 
 function formatDistance(m: number): string {
@@ -370,7 +391,9 @@ export function ImuTrackBar({
         {label && (
           <span
             className={cn(
-              "absolute top-full mt-4 -translate-x-1/2 text-[10px] font-medium whitespace-nowrap tabular-nums",
+              // Inside the bar, over the disc (moved up 2026-11-10, so the
+              // distances can sit close under the bar).
+              "absolute bottom-4 -translate-x-1/2 rounded-full bg-card/85 px-1 text-[10px] font-medium whitespace-nowrap tabular-nums",
               label.warn ? "text-orange-600" : "text-muted-foreground",
             )}
           >
@@ -404,7 +427,7 @@ export function ImuTrackBar({
       </div>
       <div
         ref={barRef}
-        className="relative mt-5 h-36 cursor-pointer touch-none rounded-md bg-muted/60"
+        className="relative mt-5 h-36 cursor-pointer touch-none rounded-md bg-card ring-1 ring-border"
         onPointerDown={(event) => {
           if (
             !event.isPrimary ||
@@ -463,13 +486,35 @@ export function ImuTrackBar({
           <path
             d={profile.altitudeArea}
             fill={ALTITUDE_COLOR}
-            fillOpacity={0.18}
+            fillOpacity={0.08}
+          />
+          <path
+            d={profile.altitudeLine}
+            fill="none"
             stroke={ALTITUDE_COLOR}
             strokeOpacity={0.7}
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+        {/* A ruler across the middle (by request, 2026-11-10): a tick at a
+            round distance, every fifth one taller — so a needle can be set
+            by eye against the metres. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-1/2 h-5 -translate-y-1/2"
+        >
+          {rulerTicks(fromM, toM).map(({ m, major }) => (
+            <span
+              key={m}
+              className={cn(
+                "absolute top-1/2 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full",
+                major ? "h-5 bg-foreground/25" : "h-3 bg-foreground/12",
+              )}
+              style={{ left: pct(m) }}
+            />
+          ))}
+        </div>
         {/* Every other sector a shade darker, so the pieces read apart. */}
         {sectors &&
           startM != null &&
@@ -524,15 +569,24 @@ export function ImuTrackBar({
         )}
         {sectors?.positionsM.map((at, i) => sectorNeedle(i, at))}
       </div>
+      {/* The distances centred under the bar's ends and middle — right
+          under the start's and the finish's needles (by request,
+          2026-11-10). */}
       <div
         className={cn(
-          "flex justify-between text-[11px] text-muted-foreground tabular-nums",
-          sectors ? "mt-9" : "mt-1.5",
+          "relative h-4 text-[11px] text-muted-foreground tabular-nums",
+          sectors ? "mt-4" : "mt-1.5",
         )}
       >
-        <span>0 m</span>
-        <span>{formatDistance(spanM / 2)}</span>
-        <span>{formatDistance(spanM)}</span>
+        {[0, 0.5, 1].map((f) => (
+          <span
+            key={f}
+            className="absolute top-0 -translate-x-1/2 whitespace-nowrap"
+            style={{ left: `${f * 100}%` }}
+          >
+            {formatDistance(spanM * f)}
+          </span>
+        ))}
       </div>
     </div>
   );

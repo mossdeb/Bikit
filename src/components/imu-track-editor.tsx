@@ -481,9 +481,9 @@ function Editor({
   return (
     <div className="space-y-4 pt-4 pb-10 sm:pt-8">
       {/* One card (by request, 2026-11-10): the name, the map and the bar,
-          then the form, parted by a hairline — under them on a narrow
-          screen, beside them from `lg`. */}
-      <div className="overflow-hidden rounded-lg bg-card lg:grid lg:grid-cols-[minmax(0,1fr)_320px]">
+          then the form, parted by a hairline — always one under the other,
+          at every width (by request, 2026-11-10). */}
+      <div className="overflow-hidden rounded-lg bg-card">
         <div className="min-w-0">
           {/* The name, the map and the bar, one card (by request,
               2026-11-09). */}
@@ -574,7 +574,7 @@ function Editor({
                 {/* The sectors' controls, and the circuit switch at the
                     row's right (moved here by request, 2026-11-10) — the
                     row stays for it when a circuit hides the sectors. */}
-                <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+                <div className="mt-8 flex flex-wrap items-center gap-3">
                   {sectorsOn && (
                     <>
                       <span className="text-sm font-semibold">
@@ -639,7 +639,7 @@ function Editor({
         </div>
 
         <form
-          className="space-y-4 border-t border-border p-5 lg:border-t-0 lg:border-l"
+          className="space-y-4 border-t border-border p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit();

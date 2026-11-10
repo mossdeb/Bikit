@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { topoContours } from "@/lib/topo-contours";
 
 /**
  * A route drawn on a plain plate (by request, 2026-10-27, from a
- * reference): a flat dark ground with faint contour-like lines, the
+ * reference): a flat dark ground with a topographic map's contour lines
+ * (the Snapshot simulation's, since 2026-11-10, by request), the
  * stretch in mint — a dot where it starts, the session map's checkered
  * disc where it ends — and north in the top-right corner. No imagery: the
  * pictures are plain SVG from the points, so a list of them fetches no
@@ -86,6 +88,10 @@ export function ImuRoutePlate({
   }, []);
 
   const { w: W, h: H } = size;
+  // The plate's lines: the Snapshot simulation's contours (by request,
+  // 2026-11-10), made up and the same for a box of a size, so the routes
+  // are what differ — white and faint on the black.
+  const contours = useMemo(() => topoContours(W, H), [W, H]);
   if (section.length < 2) return <div ref={ref} className={className} />;
 
   // Metres east and north of the stretch's first point; the stretch is
@@ -123,18 +129,6 @@ export function ImuRoutePlate({
   const [sx, sy] = bright[0].map(tenth);
   const [ex, ey] = bright[bright.length - 1].map(tenth);
 
-  // The plate's lines: gentle waves across it, the same on every plate so
-  // the routes are what differ.
-  const contours = Array.from({ length: Math.ceil(H / 18) }, (_, k) => {
-    const y0 = 10 + k * 18;
-    const amp = 4 + (k % 3) * 2;
-    const phase = k * 1.3;
-    const pts: string[] = [];
-    for (let x = -4; x <= W + 4; x += 6)
-      pts.push(`${x},${(y0 + amp * Math.sin(x / 26 + phase)).toFixed(1)}`);
-    return `M${pts.join(" L")}`;
-  });
-
   return (
     <div ref={ref} className={className}>
       <svg
@@ -151,10 +145,14 @@ export function ImuRoutePlate({
         </defs>
         <g clipPath={`url(#${clip})`}>
           <rect width={W} height={H} fill={PLATE} />
-          <g fill="none" stroke="#ffffff" strokeOpacity={0.06} strokeWidth={1}>
-            {contours.map((c) => (
-              <path key={c} d={c} />
-            ))}
+          <g
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity={0.07}
+            strokeLinecap="round"
+          >
+            <path d={contours.lines} strokeWidth={1} />
+            <path d={contours.index} strokeWidth={1.6} />
           </g>
           {faint && (
             <path
@@ -222,12 +220,7 @@ export function ImuRoutePlate({
           {/* North, top-right: the arrow and the N in white in a disc of
               the plate's colour, outlined dark grey. */}
           <g transform={`translate(${W - 21} 21) scale(${NORTH_SCALE})`}>
-            <circle
-              r={9.5}
-              fill={PLATE}
-              stroke="#3a3f3d"
-              strokeWidth={1}
-            />
+            <circle r={9.5} fill={PLATE} stroke="#3a3f3d" strokeWidth={1} />
             <path
               d="M0 -0.5 V-7 M-2.5 -4.5 L0 -7 L2.5 -4.5"
               fill="none"
@@ -279,10 +272,23 @@ function FinishDisc({ cx, cy, r }: { cx: number; cy: number; r: number }) {
         </clipPath>
       </defs>
       <g clipPath={`url(#${clip})`}>
-        <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill="#ffffff" />
+        <rect
+          x={cx - r}
+          y={cy - r}
+          width={2 * r}
+          height={2 * r}
+          fill="#ffffff"
+        />
         {cells}
       </g>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff" strokeWidth={1} />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={1}
+      />
     </g>
   );
 }
