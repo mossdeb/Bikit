@@ -306,11 +306,12 @@ export function ImuTrackBar({
       >
         <span
           aria-hidden
-          // Both lines green, the start's and the finish's (by request,
-          // 2026-11-10); the pills still tell them apart.
+          // Both lines in the ink, the start's and the finish's (by request,
+          // 2026-11-10: the lime vanished against the white bar); the lime
+          // pills still tell them apart.
           className={cn(
-            "absolute inset-y-0 -ml-px w-0.5",
-            fixed ? "bg-muted-foreground/50" : "bg-[#1fb980]",
+            "absolute inset-y-0 -ml-[1.5px] w-[3px]",
+            fixed ? "bg-muted-foreground/50" : "bg-foreground",
           )}
         />
         <button
