@@ -145,6 +145,7 @@ export function ImuChart({
   onWindowChange,
   onLockChange,
   showValues = true,
+  fill = false,
   lapBand,
   splitMarks,
   sectorBand,
@@ -190,6 +191,10 @@ export function ImuChart({
   /** Value pills where the cursor crosses each trace — toggleable, because
    * with several series on they cost real plot. */
   showValues?: boolean;
+  /** On desktop, the plot grows past its 350px to fill a taller parent (a
+   * flex column) — the session's test copy, where a row's height is set by
+   * hand (2026-11-12). */
+  fill?: boolean;
   /** A circuit's laps, across the top of the plot, on the plot's own x. */
   lapBand?: {
     key: string;
@@ -406,11 +411,14 @@ export function ImuChart({
    * would overlap. Read by an observer, so a resize re-clusters; null until
    * the first measurement, when the drawing box's width stands in. */
   const [plotWidth, setPlotWidth] = useState<number | null>(null);
+  // And its height, px: 350 but where `fill` lets it grow.
+  const [plotHeight, setPlotHeight] = useState(350);
   useEffect(() => {
     const el = plotRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       setPlotWidth(entries[0].contentRect.width);
+      setPlotHeight(el.offsetHeight || 350);
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -569,7 +577,7 @@ export function ImuChart({
     //
     // Relative so the cursor's badge could hang off the plot's top edge: the
     // plot itself is overflow-hidden (the event bands need clipping).
-    <div className="relative">
+    <div className={cn("relative", fill && "lg:flex lg:flex-1 lg:flex-col")}>
       {/* The laps, on the plot's own scale (by request, 2026-10-31). Pulled up
           over the card's padding to its top edge from `sm`, where it has one. */}
       {lapBand && lapBand.length > 0 && (
@@ -681,7 +689,10 @@ export function ImuChart({
         // Only the bottom rule survives — it is the seam against the event
         // strip. The top one was the edge the event tabs hung from, and since
         // they float clear of it nothing needs it any more.
-        className="relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-b border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]"
+        className={cn(
+          "relative h-[350px] w-full cursor-crosshair touch-pan-y overflow-hidden border-b border-border bg-card outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:shadow-[inset_1px_0_0_var(--border),inset_-1px_0_0_var(--border)]",
+          fill && "lg:h-auto lg:min-h-[350px] lg:flex-1",
+        )}
         onPointerDown={(event) => {
           pointersRef.current.set(event.pointerId, {
             x: event.clientX,
@@ -1083,15 +1094,17 @@ export function ImuChart({
           cursorPercent != null &&
           cursorIndex != null &&
           (() => {
-            // The plot is h-[350px] by class, so a px reach converts to the
-            // fraction space the pointer is tracked in.
+            // The plot's height on screen (350px by class, more with
+            // `fill`), so a px reach converts to the fraction space the
+            // pointer is tracked in.
             const near = paths.flatMap((p, i) => {
               const value = series[i].values[cursorIndex];
               if (!Number.isFinite(value) || !p.d) return [];
               const range = p.max - p.min || 1;
               const traceFrac =
                 (H - PAD_Y - ((value - p.min) / range) * (H - PAD_Y * 2)) / H;
-              if (Math.abs(traceFrac - pointerYFrac) * 350 > 48) return [];
+              if (Math.abs(traceFrac - pointerYFrac) * plotHeight > 48)
+                return [];
               return [{ id: p.id, color: p.color, value }];
             });
             if (near.length === 0) return null;

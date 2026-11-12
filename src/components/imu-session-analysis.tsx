@@ -2464,9 +2464,6 @@ export function ImuSessionAnalysis({
         layout={layout}
         width={cardWidths[id]}
         hidden={!shownCards.has(id)}
-        // The map has no height of its own — beside the plot it takes the
-        // row's; on a row alone it needs one, or it folds to nothing.
-        className={id === "map" ? "lg:min-h-[520px]" : undefined}
       >
         {node}
       </LayoutSlot>
@@ -2695,9 +2692,13 @@ export function ImuSessionAnalysis({
                 // the card would stop at its content and leave the map and the
                 // Rider standing past its foot.
                 "min-w-0 flex-1 sm:pt-4 sm:pb-5",
+                // The test copy: a column, so the plot can fill a row made
+                // taller by hand.
+                layoutEditable && "lg:flex lg:flex-col",
               )}
             >
               <ImuChart
+                fill={layoutEditable}
                 tMs={tMs}
                 series={chartSeries}
                 events={eventsOn ? data.events : []}
@@ -3055,7 +3056,12 @@ export function ImuSessionAnalysis({
                 // the channel between the cards — half the gap left of the
                 // map's edge — where it reads against the page instead of
                 // against the dark map it would otherwise sit on.
-                className="absolute top-1/2 left-0 z-[1100] hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px] lg:flex"
+                className={cn(
+                  "absolute top-1/2 left-0 z-[1100] hidden h-24 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px]",
+                  // Not in the test copy: there the card's own edge, in
+                  // edit mode, sets every width (by request, 2026-11-12).
+                  !layoutEditable && "lg:flex",
+                )}
               >
                 {/* Always there, and grey until the hand is on it. The disc it
                   replaces only appeared within 48px of the boundary, which
@@ -3279,7 +3285,14 @@ export function ImuSessionAnalysis({
                         // second track collapses instead of standing there
                         // empty, so a lone channel takes the half it was given
                         // rather than half of it.
-                        className="lg:grid lg:grid-cols-[repeat(auto-fit,minmax(max(320px,(100%_-_11px)/2),1fr))] lg:gap-[11px]"
+                        className={cn(
+                          "lg:grid lg:gap-[11px]",
+                          // The test copy's card can stand narrower than
+                          // 320px: there a channel never goes wider than it.
+                          layoutEditable
+                            ? "lg:grid-cols-[repeat(auto-fit,minmax(min(100%,max(320px,(100%_-_11px)/2)),1fr))]"
+                            : "lg:grid-cols-[repeat(auto-fit,minmax(max(320px,(100%_-_11px)/2),1fr))]",
+                        )}
                       >
                         {group.heading && (
                           <p
@@ -3379,6 +3392,7 @@ export function ImuSessionAnalysis({
                                 stats={seriesStats[def.id]}
                                 unit={def.unit}
                                 locale={locale}
+                                fit={layoutEditable}
                               />
                             </div>
 
@@ -4200,11 +4214,16 @@ function SessionStatLine({
   stats,
   unit,
   locale,
+  fit = false,
 }: {
   stats: { min: number; max: number; avg: number };
   unit: string;
   /** The reader's language, for the decimal separator. */
   locale: Locale;
+  /** Never wider than its card: a line of its own when it does not fit
+   * beside the name, scrolling sideways when not even that — the test copy,
+   * whose cards can be made narrow. */
+  fit?: boolean;
 }) {
   const t = useProDict().analysis.reading;
   const figures = [
@@ -4223,7 +4242,12 @@ function SessionStatLine({
     // next to the name at 375px it took enough width to break "Acelerar e
     // travar" over two lines and still wrapped itself; a full line costs the
     // height of one box and neither happens.
-    <span className="scrollbar-none flex w-full divide-x divide-border overflow-x-auto rounded-[12px] border border-border text-xs leading-tight text-muted-foreground sm:w-auto sm:overflow-visible">
+    <span
+      className={cn(
+        "scrollbar-none flex w-full divide-x divide-border overflow-x-auto rounded-[12px] border border-border text-xs leading-tight text-muted-foreground sm:w-auto",
+        fit ? "max-w-full" : "sm:overflow-visible",
+      )}
+    >
       {figures.map((figure) => (
         <span
           key={figure.label}
@@ -4933,6 +4957,13 @@ const CARD_ROWS_KEY = "bikit.ui2.cardRows";
 const CARD_WIDTHS_KEY = "bikit.ui2.cardWidths";
 /** No card narrower than this, px, while the row has room for it. */
 const CARD_MIN_W = 200;
+/** Each card's row height in px, where one was set by dragging a bottom
+ * edge — every card of the row carries it, so it moves with them. */
+const CARD_HEIGHTS_KEY = "bikit.ui2.cardHeights";
+/** A row set by hand is no shorter and no taller than these, px. A row's
+ * content can still stand taller than its set height — never cut. */
+const ROW_MIN_H = 300;
+const ROW_MAX_H = 1000;
 
 type CardLayout = ReturnType<typeof useCardLayout>;
 
@@ -4959,14 +4990,17 @@ function readStored(key: string): string {
     return "";
   }
 }
-function parseWidths(raw: string): Partial<Record<CardId, number>> {
+function parseWidths(
+  raw: string,
+  min = CARD_MIN_W,
+): Partial<Record<CardId, number>> {
   try {
     const saved = raw ? (JSON.parse(raw) as unknown) : null;
     if (saved && typeof saved === "object" && !Array.isArray(saved)) {
       const out: Partial<Record<CardId, number>> = {};
       for (const id of CARD_IDS) {
         const w = (saved as Record<string, unknown>)[id];
-        if (typeof w === "number" && Number.isFinite(w) && w >= CARD_MIN_W)
+        if (typeof w === "number" && Number.isFinite(w) && w >= min)
           out[id] = Math.round(w);
       }
       return out;
@@ -5076,8 +5110,8 @@ function cardLineOf(slot: HTMLElement): HTMLElement | null {
   return line;
 }
 
-/** The gaps between the rows as they stand, rows with no card shown
- * skipped. */
+/** The gaps between the rows as they stand, and the margin over the first,
+ * rows with no card shown skipped. */
 function measureRowGaps(line: HTMLElement, rows: CardId[][]): RowGap[] {
   const base = line.getBoundingClientRect().top;
   const boxes: { at: number; top: number; bottom: number }[] = [];
@@ -5094,11 +5128,16 @@ function measureRowGaps(line: HTMLElement, rows: CardId[][]): RowGap[] {
     }
     if (top < Infinity) boxes.push({ at, top, bottom });
   });
-  return boxes.slice(1).map((box, k) => ({
+  if (boxes.length === 0) return [];
+  // Above the first row too, in the margin over the cards — as tall as a
+  // gap between rows.
+  const between = boxes.slice(1).map((box, k) => ({
     at: box.at,
     top: boxes[k].bottom,
     height: Math.max(0, box.top - boxes[k].bottom),
   }));
+  const height = between[0]?.height || 24;
+  return [{ at: boxes[0].at, top: boxes[0].top - height, height }, ...between];
 }
 
 /** The test copy's rows and edit mode (by request, 2026-11-12). */
@@ -5113,8 +5152,24 @@ function useCardLayout(enabled: boolean) {
     () => (enabled ? readStored(CARD_WIDTHS_KEY) : ""),
     () => "",
   );
+  const heightsRaw = useSyncExternalStore(
+    subscribeOrder,
+    () => (enabled ? readStored(CARD_HEIGHTS_KEY) : ""),
+    () => "",
+  );
   // What this visit set, when storage would not keep it.
   const [local, setLocal] = useState<CardId[][] | null>(null);
+  const [localHeights, setLocalHeights] = useState<Partial<
+    Record<CardId, number>
+  > | null>(null);
+  const heights = useMemo(
+    () => localHeights ?? parseWidths(heightsRaw, ROW_MIN_H),
+    [localHeights, heightsRaw],
+  );
+  // The row height while a bottom edge is dragged.
+  const [draftRow, setDraftRow] = useState<{ row: number; h: number } | null>(
+    null,
+  );
   const [localWidths, setLocalWidths] = useState<Partial<
     Record<CardId, number>
   > | null>(null);
@@ -5154,6 +5209,29 @@ function useCardLayout(enabled: boolean) {
     }
     for (const listener of orderListeners) listener();
   };
+  const saveHeights = (next: Partial<Record<CardId, number>>) => {
+    try {
+      localStorage.setItem(CARD_HEIGHTS_KEY, JSON.stringify(next));
+      setLocalHeights(null);
+    } catch {
+      setLocalHeights(next);
+    }
+    for (const listener of orderListeners) listener();
+  };
+  /** A moved card leaves its row's height behind and takes the new one's. */
+  const dropHeight = (id: CardId) => {
+    if (heights[id] == null) return;
+    const next = { ...heights };
+    delete next[id];
+    saveHeights(next);
+  };
+  const rowHeightOf = (row: number): number | undefined => {
+    if (draftRow?.row === row) return draftRow.h;
+    const set = (rows[row] ?? [])
+      .map((id) => heights[id])
+      .filter((h): h is number => h != null);
+    return set.length ? Math.max(...set) : undefined;
+  };
   /** The rows without the given card, empty rows dropped. */
   const without = (id: CardId) =>
     rows
@@ -5176,6 +5254,7 @@ function useCardLayout(enabled: boolean) {
       if (!row) return;
       row.splice(row.indexOf(to) + (side === "after" ? 1 : 0), 0, from);
       save(next);
+      dropHeight(from);
     },
     gaps,
     setGaps,
@@ -5185,6 +5264,21 @@ function useCardLayout(enabled: boolean) {
       const next = rows.map((row) => row.filter((other) => other !== from));
       next.splice(at, 0, [from]);
       save(next.filter((row) => row.length > 0));
+      dropHeight(from);
+    },
+    /** The height of the row a card stands in, px, where one was set. */
+    heightOf: (id: CardId) => rowHeightOf(rows.findIndex((r) => r.includes(id))),
+    setDraftRow,
+    /** Sets a row's height on every card of it. */
+    setRowHeight: (row: number, h: number) => {
+      const next = { ...heights };
+      for (const id of rows[row] ?? []) next[id] = h;
+      saveHeights(next);
+    },
+    clearRowHeight: (row: number) => {
+      const next = { ...heights };
+      for (const id of rows[row] ?? []) delete next[id];
+      saveHeights(next);
     },
     /** A card's width set by its edge, px: the one being dragged, else the
      * saved one. */
@@ -5209,6 +5303,7 @@ function useCardLayout(enabled: boolean) {
     reset: () => {
       save(DEFAULT_CARD_ROWS);
       saveWidths({});
+      saveHeights({});
     },
   };
 }
@@ -5384,12 +5479,17 @@ function LayoutSlot({
           // The width its row gives it — on desktop only, through the
           // variable: stacked on a phone, a flex basis would be a height.
           ...(width != null && { "--card-flex": `0 0 ${width}px` }),
+          // The row's height, where one was set; the map, which has no
+          // height of its own, keeps 520px alone on a row.
+          ...((layout.heightOf(id) ?? (id === "map" ? 520 : null)) != null && {
+            "--card-h": `${layout.heightOf(id) ?? 520}px`,
+          }),
         } as React.CSSProperties
       }
       className={cn(
         // The card fills its place; the row's gap, not the cards' own
         // margins, sets the space between them.
-        "relative flex min-w-0 flex-col lg:[flex:var(--card-flex)] lg:[&>*]:mt-0 [&>*]:flex-1",
+        "relative flex min-w-0 flex-col lg:min-h-[var(--card-h)] lg:[flex:var(--card-flex)] lg:[&>*]:mt-0 [&>*]:flex-1",
         className,
         hidden && "hidden",
         dragId === id && "opacity-40",
@@ -5470,6 +5570,58 @@ function LayoutSlot({
             <span
               aria-hidden
               className="h-full w-1.5 rounded-full bg-foreground/70 transition-colors hover:bg-foreground"
+            />
+          </button>
+          {/* The bottom edge: drag to set the whole row's height, between
+              ROW_MIN_H and ROW_MAX_H; double-click for its own. */}
+          <button
+            type="button"
+            draggable={false}
+            aria-label={t.panels.resizeRow}
+            title={t.panels.resizeRow}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              const slot = event.currentTarget.closest<HTMLElement>(
+                "[data-layout-slot]",
+              );
+              const row = layout.rows.findIndex((r) => r.includes(id));
+              if (!slot || row < 0) return;
+              layout.beginResize();
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              } catch {
+                // A pointer the browser no longer tracks: no capture.
+              }
+              const startY = event.clientY;
+              const startH = slot.getBoundingClientRect().height;
+              const target = event.currentTarget;
+              const clamp = (h: number) =>
+                Math.round(Math.min(ROW_MAX_H, Math.max(ROW_MIN_H, h)));
+              let last = clamp(startH);
+              const onMove = (e: PointerEvent) => {
+                last = clamp(startH + e.clientY - startY);
+                layout.setDraftRow({ row, h: last });
+              };
+              const onUp = () => {
+                target.removeEventListener("pointermove", onMove);
+                target.removeEventListener("pointerup", onUp);
+                target.removeEventListener("pointercancel", onUp);
+                layout.endResize();
+                layout.setDraftRow(null);
+                layout.setRowHeight(row, last);
+              };
+              target.addEventListener("pointermove", onMove);
+              target.addEventListener("pointerup", onUp);
+              target.addEventListener("pointercancel", onUp);
+            }}
+            onDoubleClick={() =>
+              layout.clearRowHeight(layout.rows.findIndex((r) => r.includes(id)))
+            }
+            className="absolute -bottom-[13px] left-1/2 z-10 flex h-6 w-20 -translate-x-1/2 cursor-ns-resize touch-none items-center justify-center"
+          >
+            <span
+              aria-hidden
+              className="h-1.5 w-full rounded-full bg-foreground/70 transition-colors hover:bg-foreground"
             />
           </button>
         </div>
