@@ -1,9 +1,29 @@
 "use client";
 
-import { useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useProDict } from "@/components/pro-locale";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import { formatDurationMillis } from "@/lib/imu/derive";
-import { formatRunGap, type TimedRun } from "@/lib/imu/timed-track";
+import { formatDate } from "@/lib/format";
+import { sectorBoundaries } from "@/lib/imu/perfect-run";
+import {
+  prepareSnapshotSession,
+  type SnapshotSession,
+} from "@/lib/imu/snapshot";
+import {
+  findTimedRuns,
+  formatRunGap,
+  type TimedRun,
+} from "@/lib/imu/timed-track";
+import type {
+  ImuTimedTrack,
+  ImuTrackCandidate,
+} from "@/lib/imu/track-candidates";
+import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,10 +59,18 @@ export function lapTime(ms: number): string {
 export function ImuLapsTable({
   laps,
   sectors,
+  rows,
+  heading,
 }: {
   laps: TimedRun[];
   /** As the laps card's: per lap, the sectors' edges, or null. */
   sectors: (number[] | null)[] | null;
+  /** In place of "Lap #n", each row's own name and a line under it — a
+   * start-to-finish track's runs, from every session (2026-11-12). `mine`
+   * tints this session's rows. */
+  rows?: { title: string; sub?: string | null; mine?: boolean }[];
+  /** The first column's heading, "Laps" by default. */
+  heading?: string;
 }) {
   const t = useProDict().tracks;
   const bestMs = Math.min(...laps.map((lap) => lap.durationMs));
@@ -84,7 +112,7 @@ export function ImuLapsTable({
       >
         <thead>
           <tr>
-            <th className={cn(head, "text-left")}>{t.lapsCard}</th>
+            <th className={cn(head, "text-left")}>{heading ?? t.lapsCard}</th>
             <th
               data-lap-col="time"
               className={cn(head, "text-right", col("time", "head"))}
@@ -107,15 +135,38 @@ export function ImuLapsTable({
             const best = lap.durationMs === bestMs;
             const gap = formatRunGap(lap.durationMs, bestMs);
             const own = sectorMs[index];
+            const row = rows?.[index];
             return (
-              <tr key={lap.entryMs}>
+              <tr key={`${index}-${lap.entryMs}`} className={cn(row?.mine && "bg-muted/60")}>
                 <td
                   className={cn(
-                    "border-t border-border px-3 py-7 text-lg font-semibold whitespace-nowrap",
+                    "border-t border-border px-3 py-7 whitespace-nowrap",
+                    row ? "text-base font-semibold" : "text-lg font-semibold",
                     best && "shadow-[inset_3px_0_0_#D9FF00]",
                   )}
                 >
-                  {t.lapNumbered(index + 1)}
+                  {row ? (
+                    <>
+                      {/* The name on up to two lines in 160 px (by request,
+                          2026-11-12), so eight columns fit the 800 px popup;
+                          "This run" on the line under it. */}
+                      <span className="line-clamp-2 block w-[160px] leading-[18px] break-words whitespace-normal">
+                        {row.title}
+                      </span>
+                      <span className="mt-0.5 flex w-[160px] items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                        {row.mine && (
+                          <span className="shrink-0 rounded-full bg-[#D9FF00] px-1.5 font-semibold text-[#101014]">
+                            {t.thisRun}
+                          </span>
+                        )}
+                        {row.sub && (
+                          <span className="truncate">{row.sub}</span>
+                        )}
+                      </span>
+                    </>
+                  ) : (
+                    t.lapNumbered(index + 1)
+                  )}
                 </td>
                 <td
                   data-lap-col="time"
@@ -205,6 +256,119 @@ export function ImuLapsTable({
       </table>
       {count === 0 && (
         <p className="mt-3 text-xs text-muted-foreground">{t.lapsNoSplits}</p>
+      )}
+    </div>
+  );
+}
+
+type SectorRow = {
+  key: string;
+  title: string;
+  sub: string | null;
+  mine: boolean;
+  run: TimedRun;
+  edges: number[] | null;
+};
+
+/**
+ * A start-to-finish track's sectors in full (by request, 2026-11-12), the
+ * track popup's "Sectors" tab: every run on the track — this session's and
+ * every other recording the account has on it, as in "Times" — cut at the
+ * track's sector lines, fastest first, in the laps table. The other files
+ * are read here, in the browser, once each while the tab is open.
+ */
+export function ImuTrackSectors({
+  sessionId,
+  track,
+  runs,
+  prepared,
+  candidates,
+}: {
+  sessionId: string;
+  track: ImuTimedTrack;
+  /** This session's runs on the track, and its recording, prepared. */
+  runs: TimedRun[];
+  prepared: SnapshotSession;
+  candidates: ImuTrackCandidate[];
+}) {
+  const t = useProDict().tracks;
+  const locale = useProLocale();
+  const splits = useMemo(
+    () => track.definition.splits ?? [],
+    [track.definition.splits],
+  );
+  const sub = (c: ImuTrackCandidate | undefined) =>
+    [c?.riderName, c?.createdAt && formatDate(c.createdAt, locale)]
+      .filter(Boolean)
+      .join(" · ") || null;
+  const self = candidates.find((c) => c.id === sessionId);
+  const selfRows = useMemo<SectorRow[]>(
+    () =>
+      runs.map((run, k) => ({
+        key: `${sessionId}:${k}`,
+        title: self?.name ?? "",
+        sub: null,
+        mine: true,
+        run,
+        edges: splits.length
+          ? sectorBoundaries(prepared, splits, run)
+          : null,
+      })),
+    [runs, prepared, splits, sessionId, self?.name],
+  );
+  const others = useMemo(
+    () =>
+      candidates.filter(
+        (c) => c.id !== sessionId && track.candidateIds.includes(c.id),
+      ),
+    [candidates, sessionId, track.candidateIds],
+  );
+  const [read, setRead] = useState<Map<string, SectorRow[]>>(new Map());
+  useEffect(() => {
+    let live = true;
+    for (const c of others) {
+      void loadWholeImuSession(c.storagePath, c.mountOrientation, locale).then(
+        (r) => {
+          if (!live || !r.data) return;
+          const p = prepareSnapshotSession(r.data);
+          const found = findTimedRuns(p, track.definition).map((run, k) => ({
+            key: `${c.id}:${k}`,
+            title: c.name,
+            sub: null,
+            mine: false,
+            run,
+            edges: splits.length ? sectorBoundaries(p, splits, run) : null,
+          }));
+          setRead((prev) => new Map(prev).set(c.id, found));
+        },
+      );
+    }
+    return () => {
+      live = false;
+    };
+  }, [others, track.definition, splits, locale]);
+
+  const all = [...selfRows, ...[...read.values()].flat()].sort(
+    (a, b) => a.run.durationMs - b.run.durationMs,
+  );
+  const byId = new Map(candidates.map((c) => [c.id, c]));
+  const pending = others.length - read.size;
+  return (
+    <div>
+      <ImuLapsTable
+        laps={all.map((r) => r.run)}
+        sectors={all.map((r) => r.edges)}
+        heading={t.runsHeading}
+        rows={all.map((r) => ({
+          title: r.title,
+          sub: sub(byId.get(r.key.split(":")[0])),
+          mine: r.mine,
+        }))}
+      />
+      {pending > 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {t.loadingRuns}
+        </p>
       )}
     </div>
   );

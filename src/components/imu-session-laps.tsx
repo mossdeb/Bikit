@@ -220,3 +220,141 @@ export function ImuSessionLaps({
     </div>
   );
 }
+
+/**
+ * A start-to-finish track's sectors as a card (by request, 2026-11-12): the
+ * laps card's twin for bike runs, "only as splits" — one row per sector of
+ * the run, its time, and its gap to the rider's best there (the Perfect
+ * Run's best sectors, the same yardstick as the Splits band over the plot).
+ * The rider's best carries the lime bar and the pill; picking a sector zooms
+ * the plot onto it. With several runs on the track in one recording, each
+ * run's sectors stand under a line of their own.
+ */
+export function ImuSessionSplits({
+  runs,
+  sectors,
+  bests,
+  trimStartMs,
+  onPick,
+  onExpand,
+  className,
+}: {
+  runs: TimedRun[];
+  /** Per run, in `runs`' order: the sectors' edges on the whole recording's
+   * clock, or null for a run that misses a line. */
+  sectors: (number[] | null)[];
+  /** The rider's best time in each sector, ms; null while the Perfect Run
+   * is not read, or when its sectors do not match these. */
+  bests: number[] | null;
+  trimStartMs: number;
+  onPick: (window: [number, number]) => void;
+  /** "View larger": the track popup, on its "Sectors" tab. */
+  onExpand?: () => void;
+  className?: string;
+}) {
+  const t = useProDict().tracks;
+  const { sectorMs, count } = lapSectorStats(sectors);
+  const bestRunMs = Math.min(...runs.map((r) => r.durationMs));
+  const many = runs.length > 1;
+  return (
+    <div className={cn("flex-col", className)}>
+      <div className="flex items-center gap-3 border-b border-border p-5">
+        <span
+          aria-hidden
+          className="flex size-11 shrink-0 items-center justify-center rounded-md bg-muted"
+        >
+          <FinishFlag className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs leading-tight text-muted-foreground uppercase">
+            {t.sectorsCount(count)}
+          </p>
+          <p className="-mt-1 truncate text-lg leading-tight font-semibold">
+            {/* The time alone: in the 240 px column beside the Rider,
+                "Run 01:34.96" did not fit. */}
+            {lapTime(bestRunMs)}
+          </p>
+        </div>
+        {onExpand && (
+          <button
+            type="button"
+            aria-label={t.lapsExpand}
+            title={t.lapsExpand}
+            onClick={onExpand}
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted"
+          >
+            <SquareArrowOutUpRight aria-hidden className="size-5" />
+          </button>
+        )}
+      </div>
+      <div className="lg:max-h-[480px] lg:overflow-y-auto">
+        {runs.map((run, r) => {
+          const own = sectorMs[r];
+          const edges = sectors[r];
+          return (
+            <div key={run.entryMs}>
+              {many && (
+                <p className="border-b border-border bg-muted/60 px-5 py-2 text-xs font-semibold">
+                  {t.runNumbered(r + 1, lapTime(run.durationMs))}
+                </p>
+              )}
+              {own && edges && own.length === count ? (
+                <ol className="divide-y divide-border">
+                  {own.map((ms, i) => {
+                    const best = bests?.[i] ?? null;
+                    const delta = best != null ? ms - best : null;
+                    // Within a millisecond, or faster (a reading the Perfect
+                    // Run left out): this run holds the rider's best here.
+                    const fastest = delta != null && delta < 1;
+                    return (
+                      <li key={i}>
+                        <button
+                          type="button"
+                          aria-label={t.sectorZoomRun(i + 1)}
+                          onClick={() =>
+                            onPick([
+                              edges[i] - trimStartMs,
+                              edges[i + 1] - trimStartMs,
+                            ])
+                          }
+                          className={cn(
+                            "flex w-full cursor-pointer items-center justify-between gap-2 px-5 py-4 text-left transition-colors hover:bg-muted",
+                            fastest && "shadow-[inset_3px_0_0_#D9FF00]",
+                          )}
+                        >
+                          {/* The sector on the left, its time on the right
+                              with the gap under it (by request, 2026-11-12). */}
+                          <span className="min-w-0 text-sm text-foreground">
+                            {t.perfect.sector(i + 1)}
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end">
+                            <span className="font-display text-lg leading-tight font-bold tabular-nums">
+                              {(ms / 1000).toFixed(2)} s
+                            </span>
+                            {fastest ? (
+                              <span className="mt-0.5 rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                                {t.best}
+                              </span>
+                            ) : delta != null ? (
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {formatRunGap(ms, best!) ?? t.tied}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <p className="px-5 py-4 text-xs text-muted-foreground">
+                  {t.runNoSectors}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

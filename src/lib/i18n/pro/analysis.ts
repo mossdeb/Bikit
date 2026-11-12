@@ -241,6 +241,8 @@ const en = {
   panels: {
     rider: "Rider",
     laps: "Laps",
+    /** A start-to-finish track's sectors card (2026-11-12). */
+    sectors: "Sectors",
     map: "Map",
     show: (label: string): string => `Show ${label}`,
   },
@@ -602,6 +604,7 @@ const pt: typeof en = {
   panels: {
     rider: "Rider",
     laps: "Voltas",
+    sectors: "Sectores",
     map: "Mapa",
     show: (label) => `Mostrar ${label}`,
   },

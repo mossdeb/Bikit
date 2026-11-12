@@ -445,6 +445,7 @@ export function PerfectRunView({
               points,
               color: colorOf(result.sectors[i]?.bestRunId ?? ""),
               opacity: 1,
+              label: `S${i + 1}`,
             }))}
             className="h-64 w-full"
           />

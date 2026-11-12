@@ -40,6 +40,9 @@ export interface RoutePlateSegment {
   opacity: number;
   /** A dash pattern, for a stretch the figures leave out. */
   dashed?: boolean;
+  /** A small pill beside the stretch's start, in its colour — "S1" for
+   * the Perfect Run's sectors (by request, 2026-11-12). */
+  label?: string;
 }
 
 export function ImuRoutePlate({
@@ -217,6 +220,44 @@ export function ImuRoutePlate({
               <FinishDisc cx={ex} cy={ey} r={5} />
             </>
           )}
+          {/* Each labelled stretch's pill, on its own line halfway along
+              it (by request, 2026-11-12: beside the start, where the
+              stretches cross, it read as the wrong one), over the lines
+              and the ends. */}
+          {segments?.map((seg, i) => {
+            if (!seg.label || seg.points.length === 0) return null;
+            const [x, y] = midway(seg.points.map(toXY).map(place));
+            const w = 8 + seg.label.length * 6;
+            const h = 14;
+            // Centred on the line, kept inside the plate.
+            const px = Math.min(Math.max(x - w / 2, 4), W - w - 4);
+            const py = Math.min(Math.max(y - h / 2, 4), H - h - 4);
+            return (
+              <g key={`label-${i}`}>
+                <rect
+                  x={tenth(px)}
+                  y={tenth(py)}
+                  width={w}
+                  height={h}
+                  rx={h / 2}
+                  fill={seg.color}
+                  stroke={PLATE}
+                  strokeWidth={1}
+                />
+                <text
+                  x={tenth(px + w / 2)}
+                  y={tenth(py + h / 2)}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={9}
+                  fontWeight={700}
+                  fill="#101014"
+                >
+                  {seg.label}
+                </text>
+              </g>
+            );
+          })}
           {/* North, top-right: the arrow and the N in white in a disc of
               the plate's colour, outlined dark grey. */}
           <g transform={`translate(${W - 21} 21) scale(${NORTH_SCALE})`}>
@@ -291,4 +332,25 @@ function FinishDisc({ cx, cy, r }: { cx: number; cy: number; r: number }) {
       />
     </g>
   );
+}
+
+/** The point halfway along a line, by length on the plate. */
+function midway(pts: (readonly [number, number])[]): [number, number] {
+  if (pts.length < 2) return [pts[0][0], pts[0][1]];
+  const lengths = pts.slice(1).map((p, i) =>
+    Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]),
+  );
+  let left = lengths.reduce((sum, l) => sum + l, 0) / 2;
+  for (let i = 0; i < lengths.length; i++) {
+    if (left <= lengths[i] && lengths[i] > 0) {
+      const f = left / lengths[i];
+      return [
+        pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f,
+        pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f,
+      ];
+    }
+    left -= lengths[i];
+  }
+  const last = pts[pts.length - 1];
+  return [last[0], last[1]];
 }

@@ -69,6 +69,13 @@ const en = {
   /** The laps card's big line, the count having moved to the label above
    * it (2026-11-12). */
   lapsBest: (time: string): string => `Best ${time}`,
+  /** The sectors card on a start-to-finish track (2026-11-12). */
+  sectorsCount: (n: number): string => `${n} sectors`,
+  runNumbered: (n: number, time: string): string => `Run ${n} · ${time}`,
+  sectorZoomRun: (n: number): string => `Zoom the plot to sector ${n}`,
+  runNoSectors: "This run does not cross every sector line.",
+  /** The sectors tab's first column, on a start-to-finish track. */
+  runsHeading: "Runs",
   lapTimeHeading: "Time",
   /** A lap in the laps table: "Lap #1". */
   lapNumbered: (n: number): string => `Lap #${n}`,
@@ -132,6 +139,7 @@ const en = {
   perfect: {
     tabTimes: "Times",
     tabLaps: "Laps & sectors",
+    tabSectors: "Sectors",
     tab: "Perfect Run",
     /** The line under the ranking: the time, then what it would gain. */
     line: (time: string): string => `Perfect Run ${time}`,
@@ -213,6 +221,11 @@ const pt: typeof en = {
     `Aproximar o gráfico ao sector ${sector} da volta ${lap}`,
   lapsExpand: "Ver em grande",
   lapsBest: (time) => `Melhor ${time}`,
+  sectorsCount: (n) => `${n} sectores`,
+  runNumbered: (n, time) => `Run ${n} · ${time}`,
+  sectorZoomRun: (n) => `Aproximar o gráfico ao sector ${n}`,
+  runNoSectors: "Esta run não cruza todas as linhas dos sectores.",
+  runsHeading: "Runs",
   lapTimeHeading: "Tempo",
   lapNumbered: (n) => `Volta #${n}`,
   bestSectorsRow: "Melhor",
@@ -266,6 +279,7 @@ const pt: typeof en = {
   perfect: {
     tabTimes: "Tempos",
     tabLaps: "Voltas e sectores",
+    tabSectors: "Sectores",
     tab: "Perfect Run",
     line: (time) => `Perfect Run ${time}`,
     gainShort: (s) => `−${s} s possíveis`,

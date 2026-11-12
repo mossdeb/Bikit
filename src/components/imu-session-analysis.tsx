@@ -50,7 +50,10 @@ import {
 } from "@/components/imu-event-icons";
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
-import { ImuSessionLaps } from "@/components/imu-session-laps";
+import {
+  ImuSessionLaps,
+  ImuSessionSplits,
+} from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
 import { isLapTrack, lapMarks, type TimedRun } from "@/lib/imu/timed-track";
 import { sectorBoundaries } from "@/lib/imu/perfect-run";
@@ -1333,12 +1336,43 @@ export function ImuSessionAnalysis({
       sectorBoundaries(timed.prepared, circuitSplits, lap),
     );
   }, [timed, circuitRuns, circuitSplits]);
+  // A start-to-finish track's sectors, for the laps card's twin on bike
+  // runs (by request, 2026-11-12, "only as splits"): the first track's
+  // runs, each cut at its sector lines, and the rider's best in each
+  // sector from the Perfect Run. Gated with it, through splitGates.
+  const pointRuns =
+    !circuitRuns &&
+    splitTrack &&
+    !isLapTrack(splitTrack.track.definition) &&
+    splitGates &&
+    splitGates.length > 0
+      ? splitTrack.runs
+      : null;
+  const pointSectors = useMemo(() => {
+    if (!timed || !pointRuns || !splitGates) return null;
+    return pointRuns.map((run) =>
+      sectorBoundaries(timed.prepared, splitGates, run),
+    );
+  }, [timed, pointRuns, splitGates]);
+  const pointBests =
+    perfect?.status === "ready" &&
+    splitGates &&
+    perfect.trackId === splitTrack?.track.id &&
+    perfect.result.sectors.length === splitGates.length + 1
+      ? perfect.result.sectors.map((s) => s.bestMs)
+      : null;
   // The track popup under the ranking, held here so the laps card's "View
   // larger" opens it on the laps tab (by request, 2026-11-12).
   const [trackPopup, setTrackPopup] = useState<false | TrackDialogTab>(false);
   const dashOn = dashChoice ?? !circuitRuns;
   const [mapOn, setMapOn] = useState(true);
-  const [lapsOn, setLapsOn] = useState(true);
+  // The laps card on by default on a circuit; the sectors card, its twin on
+  // a start-to-finish track, off by default (by request, 2026-11-12). Null
+  // until the rider chooses.
+  const [lapsChoice, setLapsChoice] = useState<boolean | null>(null);
+  const lapsOn = lapsChoice ?? circuitRuns != null;
+  const setLapsOn = (next: (on: boolean) => boolean) =>
+    setLapsChoice(next(lapsOn));
   /** The event kinds drawn on the plot and read in the panel. "Mostrar
    * eventos" is not a switch of its own but this set's emptiness: unticking
    * it clears the filters, ticking it fills them, and ticking one kind with
@@ -2381,13 +2415,15 @@ export function ImuSessionAnalysis({
   // where the heading has no room for them beside the title. They matter on
   // a phone too — there the panels do not stand beside the plot, they stack
   // under it, so switching one off is scrolling saved.
-  const lapsShown = circuitRuns != null && lapsOn;
+  // The laps card, or on a start-to-finish track its sectors card: the same
+  // column and the same switch, named for what it shows.
+  const lapsShown = (circuitRuns != null || pointRuns != null) && lapsOn;
   const panelToggles = (
     <>
       <PanelToggle label={t.panels.rider} on={dashOn} onToggle={toggleDash} />
-      {circuitRuns && (
+      {(circuitRuns || pointRuns) && (
         <PanelToggle
-          label={t.panels.laps}
+          label={circuitRuns ? t.panels.laps : t.panels.sectors}
           on={lapsOn}
           onToggle={() => setLapsOn((v) => !v)}
         />
@@ -2761,6 +2797,23 @@ export function ImuSessionAnalysis({
             <ImuSessionLaps
               laps={circuitRuns}
               sectors={lapSectors}
+              onExpand={() => setTrackPopup("laps")}
+              trimStartMs={trim?.startMs ?? 0}
+              onPick={setWindowMs}
+              className={cn(
+                "order-3 mt-4 flex min-w-0 sm:rounded-lg sm:bg-card lg:order-1 lg:mt-0",
+                DARK_CARD_HAIRLINE_SM,
+              )}
+            />
+          )}
+          {/* A start-to-finish track's sectors, in the laps card's place. */}
+          {pointRuns && pointSectors && lapsOn && (
+            <ImuSessionSplits
+              runs={pointRuns}
+              sectors={pointSectors}
+              bests={pointBests}
+              // Always there (by request, 2026-11-12): the popup on its
+              // "Sectors" tab, which every track with sector lines has.
               onExpand={() => setTrackPopup("laps")}
               trimStartMs={trim?.startMs ?? 0}
               onPick={setWindowMs}
