@@ -59,6 +59,7 @@ import {
   ImuSessionTrackButton,
   ImuTrackRanking,
   useTimedRuns,
+  type TrackDialogTab,
 } from "@/components/imu-session-track";
 import type {
   ImuTimedTrack,
@@ -1332,6 +1333,9 @@ export function ImuSessionAnalysis({
       sectorBoundaries(timed.prepared, circuitSplits, lap),
     );
   }, [timed, circuitRuns, circuitSplits]);
+  // The track popup under the ranking, held here so the laps card's "View
+  // larger" opens it on the laps tab (by request, 2026-11-12).
+  const [trackPopup, setTrackPopup] = useState<false | TrackDialogTab>(false);
   const dashOn = dashChoice ?? !circuitRuns;
   const [mapOn, setMapOn] = useState(true);
   const [lapsOn, setLapsOn] = useState(true);
@@ -2431,6 +2435,8 @@ export function ImuSessionAnalysis({
                 candidates={trackCandidates}
                 timed={timed}
                 perfect={perfect}
+                open={trackPopup}
+                onOpenChange={setTrackPopup}
               />
             )}
           </div>
@@ -2755,6 +2761,7 @@ export function ImuSessionAnalysis({
             <ImuSessionLaps
               laps={circuitRuns}
               sectors={lapSectors}
+              onExpand={() => setTrackPopup("laps")}
               trimStartMs={trim?.startMs ?? 0}
               onPick={setWindowMs}
               className={cn(

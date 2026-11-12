@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, SquareArrowOutUpRight } from "lucide-react";
 import { useProDict } from "@/components/pro-locale";
 import { FinishFlag } from "@/components/imu-session-track";
-import { formatDurationMillis } from "@/lib/imu/derive";
+import { lapSectorStats, lapTime } from "@/components/imu-laps-table";
 import { formatRunGap, type TimedRun } from "@/lib/imu/timed-track";
 import { cn } from "@/lib/utils";
 
@@ -16,15 +16,19 @@ import { cn } from "@/lib/utils";
  * Each lap folds open on its sector times (by request, 2026-11-12), when the
  * circuit has sector lines: each sector's time and its gap to the best of
  * that sector among this session's laps, the fastest marked like the best
- * lap. The chevron opens it; the rest of the row still zooms.
+ * lap. The chevron opens it; the rest of the row still zooms, and so does
+ * a sector, onto its stretch of the lap.
  */
 export function ImuSessionLaps({
   laps,
   sectors,
   trimStartMs,
   onPick,
+  onExpand,
   className,
 }: {
+  /** "View larger": the track popup, on its laps and sectors tab. */
+  onExpand?: () => void;
   laps: TimedRun[];
   /** Per lap, in `laps`' order: the sectors' edges (start, each split,
    * finish) on the whole recording's clock, null for a lap that misses a
@@ -36,20 +40,12 @@ export function ImuSessionLaps({
   className?: string;
 }) {
   const t = useProDict().tracks;
-  const time = (ms: number) => formatDurationMillis(ms).slice(0, -1);
+  const time = lapTime;
   const bestMs = Math.min(...laps.map((lap) => lap.durationMs));
   const [open, setOpen] = useState<Set<number>>(() => new Set());
 
   // Each lap's sector durations, and each sector's best across the laps.
-  const sectorMs = sectors?.map((bounds) =>
-    bounds ? bounds.slice(1).map((to, i) => to - bounds[i]) : null,
-  );
-  const count = sectorMs?.find((s) => s != null)?.length ?? 0;
-  const sectorBest = Array.from({ length: count }, (_, i) =>
-    Math.min(
-      ...(sectorMs ?? []).flatMap((s) => (s && s.length === count ? [s[i]] : [])),
-    ),
-  );
+  const { sectorMs, count, sectorBest } = lapSectorStats(sectors);
 
   const toggle = (index: number) =>
     setOpen((prev) => {
@@ -68,14 +64,27 @@ export function ImuSessionLaps({
         >
           <FinishFlag className="size-5" />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
+          {/* The count up in the label, the best alone below (by request,
+              2026-11-12): "4 voltas · melhor 02:41.10" did not fit. */}
           <p className="text-xs leading-tight text-muted-foreground uppercase">
-            {t.lapsCard}
+            {t.lapsTitle(laps.length)}
           </p>
           <p className="-mt-1 truncate text-lg leading-tight font-semibold">
-            {t.lapsSummary(laps.length, time(bestMs))}
+            {t.lapsBest(time(bestMs))}
           </p>
         </div>
+        {onExpand && (
+          <button
+            type="button"
+            aria-label={t.lapsExpand}
+            title={t.lapsExpand}
+            onClick={onExpand}
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted"
+          >
+            <SquareArrowOutUpRight aria-hidden className="size-5" />
+          </button>
+        )}
       </div>
       <ol className="divide-y divide-border lg:max-h-[480px] lg:overflow-y-auto">
         {laps.map((lap, index) => {
@@ -98,23 +107,29 @@ export function ImuSessionLaps({
                   aria-label={t.lapZoom(index + 1)}
                   onClick={() => onPick([from, to])}
                   className={cn(
-                    "min-w-0 flex-1 cursor-pointer py-4 pl-5 text-left transition-colors hover:bg-muted",
+                    "flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 py-4 pl-5 text-left transition-colors hover:bg-muted",
                     foldable ? "pr-2" : "pr-5",
                   )}
                 >
-                  <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    {t.lap(index + 1)}
-                    {best ? (
-                      <span className="rounded-full bg-foreground px-2 font-semibold text-background">
-                        {t.best}
-                      </span>
-                    ) : (
-                      <span className="tabular-nums">{gap ?? t.tied}</span>
-                    )}
+                  <span className="min-w-0">
+                    <span className="block text-xs text-muted-foreground">
+                      {t.lap(index + 1)}
+                    </span>
+                    <span className="block font-display text-lg leading-tight font-bold tabular-nums">
+                      {time(lap.durationMs)}
+                    </span>
                   </span>
-                  <span className="block font-display text-lg leading-tight font-bold tabular-nums">
-                    {time(lap.durationMs)}
-                  </span>
+                  {/* The gap, or the best's pill, centred on the row (by
+                      request, 2026-11-12). */}
+                  {best ? (
+                    <span className="shrink-0 rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                      {t.best}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {gap ?? t.tied}
+                    </span>
+                  )}
                 </button>
                 {foldable && (
                   <button
@@ -123,47 +138,70 @@ export function ImuSessionLaps({
                     aria-expanded={isOpen}
                     aria-controls={panelId}
                     onClick={() => toggle(index)}
-                    className="flex w-12 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="group flex w-14 shrink-0 cursor-pointer items-center justify-center pr-2"
                   >
-                    <ChevronDown
+                    {/* The chevron in an outlined circle, to be seen (by
+                        request, 2026-11-12). */}
+                    <span
                       aria-hidden
                       className={cn(
-                        "size-4 transition-transform duration-200",
-                        isOpen && "rotate-180",
+                        "flex size-8 items-center justify-center rounded-full border border-foreground/25 text-foreground transition-colors group-hover:border-foreground group-hover:bg-muted",
+                        isOpen && "border-foreground",
                       )}
-                    />
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "size-4 transition-transform duration-200",
+                          isOpen && "rotate-180",
+                        )}
+                      />
+                    </span>
                   </button>
                 )}
               </div>
               {isOpen && (
-                <div id={panelId} className="px-5 pb-4">
+                <div id={panelId} className="px-3 pb-4">
                   {own && own.length === count ? (
-                    <ol className="divide-y divide-border rounded-md bg-muted/60">
+                    <ol className="divide-y divide-border overflow-hidden rounded-md bg-muted/60">
                       {own.map((ms, i) => {
                         const fastest = ms - sectorBest[i] < 1;
                         const delta = formatRunGap(ms, sectorBest[i]);
+                        // The sector's edges, on the whole recording's clock.
+                        const edges = sectors?.[index];
                         return (
-                          <li
-                            key={i}
-                            className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-                          >
-                            <span className="text-muted-foreground">
-                              S{i + 1}
-                            </span>
-                            <span className="flex items-center gap-3 tabular-nums">
-                              {fastest ? (
-                                <span className="rounded-full bg-foreground px-2 text-xs font-semibold text-background">
-                                  {t.best}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {delta ?? t.tied}
-                                </span>
+                          <li key={i}>
+                            <button
+                              type="button"
+                              aria-label={t.sectorZoom(i + 1, index + 1)}
+                              onClick={() =>
+                                edges &&
+                                onPick([
+                                  edges[i] - trimStartMs,
+                                  edges[i + 1] - trimStartMs,
+                                ])
+                              }
+                              className={cn(
+                                "flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-3 text-left text-sm transition-colors hover:bg-muted",
+                                // The fastest sector's bar, as the best lap's.
+                                fastest && "shadow-[inset_3px_0_0_#D9FF00]",
                               )}
-                              <span className="font-semibold">
-                                {(ms / 1000).toFixed(2)} s
+                            >
+                              <span className="font-bold">S{i + 1}</span>
+                              <span className="flex items-center gap-3 tabular-nums">
+                                {fastest ? (
+                                  <span className="rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                                    {t.best}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    {delta ?? t.tied}
+                                  </span>
+                                )}
+                                <span className="font-semibold">
+                                  {(ms / 1000).toFixed(2)} s
+                                </span>
                               </span>
-                            </span>
+                            </button>
                           </li>
                         );
                       })}

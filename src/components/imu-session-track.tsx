@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Timer, Trash2, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,8 @@ import { parseSessionTime, type ImuSessionTrim } from "@/lib/imu/trim";
 import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { saveImuSessionTrim } from "@/components/imu-session-trim";
+import { ImuLapsTable } from "@/components/imu-laps-table";
+import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import {
   createTimedTrack,
   findSameTrack,
@@ -242,6 +244,9 @@ export function ImuSessionTrackButton({
 
 export type Prepared = ReturnType<typeof prepareSnapshotSession>;
 export type Passed = { track: ImuTimedTrack; runs: TimedRun[] }[];
+/** The track popup's tabs: the times, a circuit's laps and sectors
+ * (2026-11-12), the Perfect Run. */
+export type TrackDialogTab = "times" | "laps" | "perfect";
 
 function ImuTrackDialog({
   open,
@@ -264,7 +269,7 @@ function ImuTrackDialog({
   /** The Perfect Run of the first track this run passes (the owner's
    * account only): a tab beside the times, on that track. */
   perfect?: PerfectRunState | null;
-  initialTab?: "times" | "perfect";
+  initialTab?: TrackDialogTab;
   /** The times only, without drawing, redrawing or deleting (the ranking's
    * popup, 2026-10-26). */
   readOnly?: boolean;
@@ -277,8 +282,15 @@ function ImuTrackDialog({
   candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
+  // The laps tab opens on the circuit this run passes, the rest on the
+  // first track.
   const [trackId, setTrackId] = useState<string | null>(
-    passed[0]?.track.id ?? null,
+    (initialTab === "laps"
+      ? passed.find((m) => isLapTrack(m.track.definition))
+      : undefined
+    )?.track.id ??
+      passed[0]?.track.id ??
+      null,
   );
   const current = passed.find((m) => m.track.id === trackId) ?? null;
   // Without a track this run passes, the dialog opens on the form that
@@ -290,17 +302,38 @@ function ImuTrackDialog({
   const [mode, setMode] = useState<"view" | "create" | "edit">(
     readOnly ? "view" : current ? "edit" : "create",
   );
-  const [tab, setTab] = useState<"times" | "perfect">(initialTab);
+  const [tab, setTab] = useState<TrackDialogTab>(initialTab);
   const locale = useProLocale();
   const perfectHere =
     perfect && current && perfect.trackId === current.track.id ? perfect : null;
   const showPerfect = mode === "view" && perfectHere != null;
+  // A circuit's laps and sectors (by request, 2026-11-12): each lap cut at
+  // the track's sector lines, as the laps card does.
+  const lapsHere =
+    mode === "view" && current && isLapTrack(current.track.definition)
+      ? current
+      : null;
+  const showLaps = lapsHere != null;
+  const lapSectors = useMemo(() => {
+    const splits = lapsHere?.track.definition.splits;
+    if (!lapsHere || !splits || splits.length === 0) return null;
+    return lapsHere.runs.map((lap) => sectorBoundaries(prepared, splits, lap));
+  }, [lapsHere, prepared]);
+  const showTabs = showPerfect || showLaps;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Wider with the Perfect Run's tab (by request, 2026-11-09), on both
-          tabs, so switching does not jump. */}
-      <DialogContent className={showPerfect ? "sm:max-w-2xl" : "sm:max-w-lg"}>
+      {/* Wider with the Perfect Run's tab (by request, 2026-11-09), on every
+          tab, so switching does not jump; wider still with the laps table. */}
+      <DialogContent
+        className={
+          showLaps
+            ? "sm:max-w-5xl"
+            : showPerfect
+              ? "sm:max-w-2xl"
+              : "sm:max-w-lg"
+        }
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FinishFlag className="size-5" />
@@ -309,24 +342,46 @@ function ImuTrackDialog({
         </DialogHeader>
 
         {/* The import dialog's pill tabs (by request, 2026-11-10). */}
-        {showPerfect && (
+        {showTabs && (
           <Tabs
             value={tab}
-            onValueChange={(value) => setTab(value as "times" | "perfect")}
+            onValueChange={(value) => setTab(value as TrackDialogTab)}
             className="gap-0"
           >
             <TabsList variant="pill" className="w-full border border-border">
-              <TabsTrigger value="times" className="flex-1 px-3 py-2 text-sm">
+              {/* Taller, each with its icon (by request, 2026-11-12). */}
+              <TabsTrigger
+                value="times"
+                className="flex-1 gap-2 px-3 py-3.5 text-sm"
+              >
+                <PodiumGlyph className="size-4" />
                 {t.perfect.tabTimes}
               </TabsTrigger>
-              <TabsTrigger value="perfect" className="flex-1 px-3 py-2 text-sm">
-                {t.perfect.tab}
-              </TabsTrigger>
+              {showLaps && (
+                <TabsTrigger
+                  value="laps"
+                  className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                >
+                  <Timer aria-hidden className="size-4" />
+                  {t.perfect.tabLaps}
+                </TabsTrigger>
+              )}
+              {showPerfect && (
+                <TabsTrigger
+                  value="perfect"
+                  className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                >
+                  <Trophy aria-hidden className="size-4" />
+                  {t.perfect.tab}
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         )}
 
-        {showPerfect && tab === "perfect" ? (
+        {showLaps && tab === "laps" ? (
+          <ImuLapsTable laps={lapsHere.runs} sectors={lapSectors} />
+        ) : showPerfect && tab === "perfect" ? (
           <PerfectRunView
             state={perfectHere}
             sessionId={sessionId}
@@ -588,16 +643,14 @@ function TrackView({
             const isSelf = r.sessionId === sessionId;
             const body = (
               <>
-                <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">
+                <span className="w-5 shrink-0 text-sm text-muted-foreground tabular-nums">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span
-                    className={cn(
-                      "block truncate text-sm",
-                      isSelf && "font-semibold",
-                    )}
-                  >
+                  {/* The laps table's sizes (by request, 2026-11-12): 18 px
+                      for the run, 16 px for its time. This session's rows
+                      keep their tint to stand out. */}
+                  <span className="block truncate text-lg font-semibold">
                     {r.lap != null && `${t.lap(r.lap)} · `}
                     {r.name}
                   </span>
@@ -610,7 +663,7 @@ function TrackView({
                       .join(" · ")}
                   </span>
                 </span>
-                <span className="text-sm font-semibold tabular-nums">
+                <span className="text-base font-semibold tabular-nums">
                   {formatRunTime(r.run.durationMs)}
                 </span>
                 <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
@@ -622,13 +675,13 @@ function TrackView({
             return (
               <li key={key}>
                 {isSelf ? (
-                  <div className="flex items-center gap-3 bg-muted/60 px-3 py-2">
+                  <div className="flex min-h-[92px] items-center gap-3 bg-muted/60 px-3 py-2">
                     {body}
                   </div>
                 ) : (
                   <Link
                     href={`/pro/sessoes/${r.sessionId}`}
-                    className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-muted"
+                    className="flex min-h-[92px] items-center gap-3 px-3 py-2 transition-colors hover:bg-muted"
                   >
                     {body}
                   </Link>
@@ -639,7 +692,7 @@ function TrackView({
           {pending.map((r) => (
             <li
               key={`${r.sessionId}-${r.status}`}
-              className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground"
+              className="flex min-h-[92px] items-center gap-3 px-3 py-2 text-sm text-muted-foreground"
             >
               <span className="w-5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{r.name}</span>
@@ -1191,6 +1244,8 @@ export function ImuTrackRanking({
   candidates,
   timed,
   perfect = null,
+  open: openProp,
+  onOpenChange,
 }: {
   sessionId: string;
   whole: ImuSessionData;
@@ -1201,9 +1256,15 @@ export function ImuTrackRanking({
   timed: TimedRuns;
   /** usePerfectRun's reading, on the owner's account; null elsewhere. */
   perfect?: PerfectRunState | null;
+  /** The popup's state held by the page, so the laps card's "View larger"
+   * opens it too (2026-11-12); left out, the ranking keeps its own. */
+  open?: false | TrackDialogTab;
+  onOpenChange?: (open: false | TrackDialogTab) => void;
 }) {
   const t = useProDict().tracks;
-  const [open, setOpen] = useState<false | "times" | "perfect">(false);
+  const [openOwn, setOpenOwn] = useState<false | TrackDialogTab>(false);
+  const open = openProp ?? openOwn;
+  const setOpen = onOpenChange ?? setOpenOwn;
   const first = timed.passed[0];
   if (!first) return null;
   const circuit = isLapTrack(first.track.definition);

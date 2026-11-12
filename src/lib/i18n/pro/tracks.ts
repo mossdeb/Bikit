@@ -62,6 +62,18 @@ const en = {
   /** The laps card's accordion: a lap's sector times. */
   lapSectors: (n: number): string => `Sector times of lap ${n}`,
   lapNoSectors: "This lap does not cross every sector line.",
+  sectorZoom: (sector: number, lap: number): string =>
+    `Zoom the plot to sector ${sector} of lap ${lap}`,
+  /** The laps card's "View larger": the track popup's laps tab. */
+  lapsExpand: "View larger",
+  /** The laps card's big line, the count having moved to the label above
+   * it (2026-11-12). */
+  lapsBest: (time: string): string => `Best ${time}`,
+  lapTimeHeading: "Time",
+  /** A lap in the laps table: "Lap #1". */
+  lapNumbered: (n: number): string => `Lap #${n}`,
+  bestSectorsRow: "Best",
+  lapsNoSplits: "This circuit has no sector lines yet.",
   trimWindow: "Trim",
   visibleWindow: "Visible window",
   wholeRecording: "Whole recording",
@@ -119,6 +131,7 @@ const en = {
    * the track, added up. */
   perfect: {
     tabTimes: "Times",
+    tabLaps: "Laps & sectors",
     tab: "Perfect Run",
     /** The line under the ranking: the time, then what it would gain. */
     line: (time: string): string => `Perfect Run ${time}`,
@@ -126,6 +139,8 @@ const en = {
     bestActual: "Best actual run",
     perfectRun: "Perfect Run",
     gain: (s: string): string => `${s} s faster in theory`,
+    /** The summary card beside the two times (2026-11-12). */
+    gainTitle: "Faster in theory",
     noGain: "No sector beats the best run by more than the lines measure.",
     uncertainty: (s: string): string => `± ${s} s from the lines`,
     sectorsTitle: "Best sectors combined",
@@ -194,6 +209,14 @@ const pt: typeof en = {
   lapZoom: (n) => `Aproximar o gráfico à volta ${n}`,
   lapSectors: (n) => `Tempos dos sectores da volta ${n}`,
   lapNoSectors: "Esta volta não cruza todas as linhas dos sectores.",
+  sectorZoom: (sector, lap) =>
+    `Aproximar o gráfico ao sector ${sector} da volta ${lap}`,
+  lapsExpand: "Ver em grande",
+  lapsBest: (time) => `Melhor ${time}`,
+  lapTimeHeading: "Tempo",
+  lapNumbered: (n) => `Volta #${n}`,
+  bestSectorsRow: "Melhor",
+  lapsNoSplits: "Este circuito ainda não tem linhas de sectores.",
   trimWindow: "Recorte",
   visibleWindow: "Janela visível",
   wholeRecording: "Gravação inteira",
@@ -242,12 +265,14 @@ const pt: typeof en = {
   },
   perfect: {
     tabTimes: "Tempos",
+    tabLaps: "Voltas e sectores",
     tab: "Perfect Run",
     line: (time) => `Perfect Run ${time}`,
     gainShort: (s) => `−${s} s possíveis`,
     bestActual: "Melhor run real",
     perfectRun: "Perfect Run",
     gain: (s) => `${s} s mais rápida, em teoria`,
+    gainTitle: "Mais rápida, em teoria",
     noGain: "Nenhum sector bate a melhor run por mais do que as linhas medem.",
     uncertainty: (s) => `± ${s} s das linhas`,
     sectorsTitle: "Melhores sectores combinados",
