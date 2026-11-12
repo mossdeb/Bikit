@@ -3143,7 +3143,7 @@ export function ImuSessionAnalysis({
               "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:border-0 sm:p-0",
               // The editable layout: no box of its own from `sm`; its two
               // halves stand among the cards as cards of their own.
-              layoutEditable && "sm:contents",
+              layoutEditable && "sm:contents lg:contents",
               // It lives inside the columns block now, which is what lets the
               // Rider panel fall past it on a phone — `order` can only shuffle
               // siblings, and these two were in different parents.
@@ -3216,7 +3216,10 @@ export function ImuSessionAnalysis({
                   activeSeriesDefs.length > 0
                     ? "lg:grid-cols-[var(--imu-read-w)_minmax(0,1fr)]"
                     : "lg:grid-cols-1",
-                  layoutEditable && "sm:contents",
+                  // `lg:contents` too: `lg:grid` above comes later in the
+                  // stylesheet and would otherwise win from `lg` up, putting
+                  // the metrics and events back in two equal halves.
+                  layoutEditable && "sm:contents lg:contents",
                 )}
               >
                 {/* Only what the chart is drawing — toggling a pill toggles its
