@@ -35,8 +35,8 @@ import { setImuTrackSplits } from "@/lib/actions/imu-tracks";
 import { ImuRoutePlate } from "@/components/imu-route-plate";
 
 /**
- * Perfect Run in the Pro (2026-11-09, phase 2): the owner's account only
- * (hasPerfectRun). The page reads it once, for the first track this run
+ * Perfect Run in the Pro (2026-11-09, phase 2): every Pro account since
+ * 2026-11-12 (hasPerfectRun). The page reads it once, for the first track this run
  * passes — the one the ranking names — from this rider's runs on the same
  * kind of vehicle, and hands it to the ranking's line and to the track
  * dialog's tab. The other runs' files are read here, in the browser, as the

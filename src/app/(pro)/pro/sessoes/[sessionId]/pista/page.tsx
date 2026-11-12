@@ -9,9 +9,9 @@ import { ImuTrackEditor } from "@/components/imu-track-editor";
 /**
  * The track editor (by request, 2026-11-09): a session's start and finish
  * drawn on a page of their own, the map large and the recording's profile
- * under it. `?pista=<id>` edits that track; without it, a new one. Only on
- * the owner's account for now (hasPerfectRun) — everyone else draws in the
- * popup, as before. The file is read in the browser, like the session page.
+ * under it. `?pista=<id>` edits that track; without it, a new one. Every Pro
+ * account since 2026-11-12 (hasPerfectRun), on its own sessions and tracks.
+ * The file is read in the browser, like the session page.
  */
 export default async function ImuTrackEditorPage({
   params,

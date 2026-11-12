@@ -52,8 +52,8 @@ import {
  * a page of their own — the map large, and under it a bar with the
  * recording's altitude and speed, where the lines are needles to drag. The
  * form beside them is the popup's, through the same useTrackDraft, so a
- * track drawn here is drawn and saved by the popup's rules. For now only
- * on the owner's account (hasPerfectRun), the sector lines' next home.
+ * track drawn here is drawn and saved by the popup's rules. Every Pro
+ * account since 2026-11-12 (hasPerfectRun), the sector lines' next home.
  */
 /** Sector lines a track may have, as sectors: from two to twelve. */
 const MIN_SECTORS = 2;

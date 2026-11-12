@@ -1213,8 +1213,8 @@ export function ImuSessionAnalysis({
   trackCandidates = [],
   perfectRun = false,
 }: {
-  /** The Perfect Run is shown (hasPerfectRun: the owner's account only,
-   * 2026-11-09). */
+  /** The Perfect Run is shown (hasPerfectRun: every Pro account since
+   * 2026-11-12). */
   perfectRun?: boolean;
   /** The row already keeps the file's rider-sag reading (migration
    * 00052); when it does not and the file has one, the page hands it over

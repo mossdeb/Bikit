@@ -148,7 +148,7 @@ export async function deleteImuTrack(trackId: string): Promise<ImuTrackResult> {
  * in the browser on the first opening and kept on the track's definition,
  * so every later opening reads the same sectors. Only the splits change:
  * the start, the finish and the name are read back from the row as they
- * are. The owner's account only, as the Perfect Run is.
+ * are. Gated as the Perfect Run is (hasPerfectRun).
  */
 export async function setImuTrackSplits(input: {
   trackId: string;

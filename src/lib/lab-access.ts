@@ -39,13 +39,6 @@ const LAB_EMAILS = [
 const RECORDING_DOWNLOAD_EMAILS = ["miguelgomesdzn@gmail.com"];
 
 /**
- * Who sees the Perfect Run (by request, 2026-11-09): the owner's account
- * only, while it is tried on his own tracks. The beta accounts keep the
- * timed tracks as they were.
- */
-const PERFECT_RUN_EMAILS = ["miguelgomesdzn@gmail.com"];
-
-/**
  * Who sees the administration page (/pro/admin, 2026-11-09): how every
  * account uses the app. The owner only — it reads every account's rows.
  */
@@ -92,9 +85,14 @@ export function isAccessExpired(
   return ends != null && lisbonToday(now) >= ends;
 }
 
+/**
+ * Who sees the Perfect Run and the track editor page. The owner's account
+ * only from 2026-11-09; every account with the Pro since 2026-11-12 (by
+ * request). Each account reads and writes only its own tracks and sessions —
+ * the queries and actions are scoped by user id, not by this gate.
+ */
 export function hasPerfectRun(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return PERFECT_RUN_EMAILS.includes(email.trim().toLowerCase());
+  return hasLabAccess(email);
 }
 
 export function canDownloadRecordings(
