@@ -3245,8 +3245,13 @@ export function ImuSessionAnalysis({
                               that shows is half-leading, not margin, so
                               tightening the boxes is what halves it — the bike
                               header's totals again. */}
-                            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                              <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-3">
+                              {/* 160 px at least for the name and its line
+                                  (2026-11-12): with two cards side by side the
+                                  min/max/mean box, which never shrinks, ate the
+                                  name down to "Forç…" or to nothing; now the
+                                  box wraps under the name instead. */}
+                              <div className="min-w-[160px] flex-1">
                                 <span className="flex items-center gap-1.5 text-base leading-tight font-semibold">
                                   <span
                                     aria-hidden
