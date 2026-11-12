@@ -183,7 +183,7 @@
      lighter value instead (see below) — the sidebar reads fine near-black
      since it's a full-height rail, but an emphasis tile sits directly next
      to regular cards and needs contrast against them specifically. */
-  --sidebar: #1c1c1c;
+  --sidebar: #1d1f23;
   --sidebar-foreground: #f5f3ee;
   --sidebar-primary: #D9FF00;
   --sidebar-primary-foreground: #101014;
@@ -249,7 +249,7 @@
   --series-4: #c98500;
   --series-5: #d55181;
 
-  --sidebar: #1c1c1c;
+  --sidebar: #1d1f23;
   --sidebar-foreground: #f5f3ee;
   --sidebar-primary: #D9FF00;
   --sidebar-primary-foreground: #101014;
