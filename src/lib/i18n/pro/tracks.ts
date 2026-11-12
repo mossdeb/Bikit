@@ -66,6 +66,9 @@ const en = {
     `Zoom the plot to sector ${sector} of lap ${lap}`,
   /** The laps card's "View larger": the track popup's laps tab. */
   lapsExpand: "View larger",
+  /** The small label over the track popup's name (2026-11-12). */
+  trackKicker: "Track",
+  circuitKicker: "Circuit",
   /** The laps card's big line, the count having moved to the label above
    * it (2026-11-12). */
   lapsBest: (time: string): string => `Best ${time}`,
@@ -220,6 +223,8 @@ const pt: typeof en = {
   sectorZoom: (sector, lap) =>
     `Aproximar o gráfico ao sector ${sector} da volta ${lap}`,
   lapsExpand: "Ver em grande",
+  trackKicker: "Pista",
+  circuitKicker: "Circuito",
   lapsBest: (time) => `Melhor ${time}`,
   sectorsCount: (n) => `${n} sectores`,
   runNumbered: (n, time) => `Run ${n} · ${time}`,

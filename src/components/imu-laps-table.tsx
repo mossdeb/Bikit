@@ -91,7 +91,10 @@ export function ImuLapsTable({
   }
   // A figure column's cell: the band when it has the mouse — rounded at
   // the header and at the last row.
-  const lastRow = count > 0 ? laps.length : laps.length - 1;
+  // The "Best" row is hidden (by request, 2026-11-12): the last lap's row
+  // closes the band.
+  const showBestRow = false;
+  const lastRow = showBestRow && count > 0 ? laps.length : laps.length - 1;
   const col = (key: string, row: number | "head") =>
     cn(
       "border-x border-x-transparent transition-colors duration-150",
@@ -102,7 +105,7 @@ export function ImuLapsTable({
       focus === key && row === lastRow && "rounded-b-[12px]",
     );
   const head =
-    "px-3 pt-6 pb-2 text-xs font-medium whitespace-nowrap text-foreground";
+    "px-3 pt-4 pb-2 text-xs font-medium whitespace-nowrap text-foreground";
   return (
     <div className="-mx-1 mt-4 overflow-x-auto px-1">
       <table
@@ -226,7 +229,7 @@ export function ImuLapsTable({
               </tr>
             );
           })}
-          {count > 0 && (
+          {showBestRow && count > 0 && (
             <tr>
               <td className="border-t-2 border-border px-3 py-5 text-lg font-semibold whitespace-nowrap">
                 {t.bestSectorsRow}

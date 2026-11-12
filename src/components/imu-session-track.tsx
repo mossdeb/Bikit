@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Plus, Timer, Trash2, Trophy } from "lucide-react";
+import {
+  Check,
+  Pencil,
+  Plus,
+  Timer,
+  Trash2,
+  Trophy,
+  XIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -24,10 +33,7 @@ import { parseSessionTime, type ImuSessionTrim } from "@/lib/imu/trim";
 import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { saveImuSessionTrim } from "@/components/imu-session-trim";
-import {
-  ImuLapsTable,
-  ImuTrackSectors,
-} from "@/components/imu-laps-table";
+import { ImuLapsTable, ImuTrackSectors } from "@/components/imu-laps-table";
 import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import {
   createTimedTrack,
@@ -284,6 +290,7 @@ function ImuTrackDialog({
   tracks: ImuTimedTrack[];
   candidates: ImuTrackCandidate[];
 }) {
+  const common = useProDict().common;
   const t = useProDict().tracks;
   // The laps tab opens on the circuit this run passes, the rest on the
   // first track.
@@ -338,6 +345,9 @@ function ImuTrackDialog({
       {/* Wider with the Perfect Run's tab (by request, 2026-11-09), on every
           tab, so switching does not jump; wider still with the laps table. */}
       <DialogContent
+        // Its own outlined close, in the header (by request, 2026-11-12);
+        // the title at 24 px, as the import popup's (by request, 2026-11-12).
+        showClose={false}
         className={
           // 850 px at most with the laps or sectors table (by request,
           // 2026-11-12), on a circuit and on a start-to-finish track.
@@ -348,53 +358,79 @@ function ImuTrackDialog({
               : "sm:max-w-lg"
         }
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FinishFlag className="size-5" />
-            {mode === "view" && current ? current.track.name : t.title}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* The import dialog's pill tabs (by request, 2026-11-10). */}
-        {showTabs && (
-          <Tabs
-            value={tab}
-            onValueChange={(value) => setTab(value as TrackDialogTab)}
-            className="gap-0"
-          >
-            <TabsList variant="pill" className="w-full border border-border">
-              {/* Taller, each with its icon (by request, 2026-11-12). */}
-              <TabsTrigger
-                value="times"
-                className="flex-1 gap-2 px-3 py-3.5 text-sm"
+        {/* The header from the mockup (by request, 2026-11-12): the flag
+            large on its own, the outlined close beside it, then the track's
+            name large with the tabs on its right — under it on a phone. */}
+        {/* A rule under it from edge to edge of the popup (by request,
+            2026-11-12): out through the popup's 24 px padding. */}
+        <DialogHeader className="-mx-6 gap-4 border-b border-border px-6 pb-6">
+          <div className="flex items-start justify-between">
+            <FinishFlag className="size-9" />
+            <DialogClose
+              aria-label={common.close}
+              className="flex size-12 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <XIcon className="size-5" strokeWidth={1.75} />
+            </DialogClose>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              {mode === "view" && current && (
+                <p className="text-xs text-muted-foreground">
+                  {isLapTrack(current.track.definition)
+                    ? t.circuitKicker
+                    : t.trackKicker}
+                </p>
+              )}
+              <DialogTitle className="min-w-0 font-display text-[24px] leading-tight font-bold">
+                {mode === "view" && current ? current.track.name : t.title}
+              </DialogTitle>
+            </div>
+            {/* The import dialog's pill tabs (by request, 2026-11-10). */}
+            {showTabs && (
+              <Tabs
+                value={tab}
+                onValueChange={(value) => setTab(value as TrackDialogTab)}
+                className="w-full shrink-0 gap-0 sm:w-[460px]"
               >
-                <PodiumGlyph className="size-4" />
-                {t.perfect.tabTimes}
-              </TabsTrigger>
-              {showLaps && (
-                <TabsTrigger
-                  value="laps"
-                  className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                <TabsList
+                  variant="pill"
+                  className="w-full border border-border"
                 >
-                  <Timer aria-hidden className="size-4" />
-                  {lapsHere ? t.perfect.tabLaps : t.perfect.tabSectors}
-                </TabsTrigger>
-              )}
-              {showPerfect && (
-                // Inactive while there is no Perfect Run to show (by
-                // request, 2026-11-12): reading, or too few runs.
-                <TabsTrigger
-                  value="perfect"
-                  disabled={perfectHere.status !== "ready"}
-                  className="flex-1 gap-2 px-3 py-3.5 text-sm"
-                >
-                  <Trophy aria-hidden className="size-4" />
-                  {t.perfect.tab}
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
-        )}
+                  {/* Taller, each with its icon (by request, 2026-11-12). */}
+                  <TabsTrigger
+                    value="times"
+                    className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                  >
+                    <PodiumGlyph className="size-4" />
+                    {t.perfect.tabTimes}
+                  </TabsTrigger>
+                  {showLaps && (
+                    <TabsTrigger
+                      value="laps"
+                      className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                    >
+                      <Timer aria-hidden className="size-4" />
+                      {lapsHere ? t.perfect.tabLaps : t.perfect.tabSectors}
+                    </TabsTrigger>
+                  )}
+                  {showPerfect && (
+                    // Inactive while there is no Perfect Run to show (by
+                    // request, 2026-11-12): reading, or too few runs.
+                    <TabsTrigger
+                      value="perfect"
+                      disabled={perfectHere.status !== "ready"}
+                      className="flex-1 gap-2 px-3 py-3.5 text-sm"
+                    >
+                      <Trophy aria-hidden className="size-4" />
+                      {t.perfect.tab}
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              </Tabs>
+            )}
+          </div>
+        </DialogHeader>
 
         {showLaps && tab === "laps" ? (
           lapsHere ? (
@@ -411,25 +447,32 @@ function ImuTrackDialog({
             )
           )
         ) : showPerfect && tab === "perfect" ? (
-          <PerfectRunView
-            state={perfectHere}
-            sessionId={sessionId}
-            locale={locale}
-          />
+          // Each tab's content 48 px under the rule (by request,
+          // 2026-11-12): the popup's 16 px gap and 32 more here; the tables
+          // reach the same with their header's own padding.
+          <div className="pt-8">
+            <PerfectRunView
+              state={perfectHere}
+              sessionId={sessionId}
+              locale={locale}
+            />
+          </div>
         ) : mode === "view" && current ? (
-          <TrackView
-            key={current.track.id}
-            sessionId={sessionId}
-            current={current}
-            others={passed.filter((m) => m !== current)}
-            tracks={tracks}
-            candidates={candidates}
-            onPick={setTrackId}
-            readOnly={readOnly}
-            onEdit={() => setMode("edit")}
-            onNew={() => setMode("create")}
-            onDeleted={() => onOpenChange(false)}
-          />
+          <div className="pt-8">
+            <TrackView
+              key={current.track.id}
+              sessionId={sessionId}
+              current={current}
+              others={passed.filter((m) => m !== current)}
+              tracks={tracks}
+              candidates={candidates}
+              onPick={setTrackId}
+              readOnly={readOnly}
+              onEdit={() => setMode("edit")}
+              onNew={() => setMode("create")}
+              onDeleted={() => onOpenChange(false)}
+            />
+          </div>
         ) : (
           <>
             <TrackForm
