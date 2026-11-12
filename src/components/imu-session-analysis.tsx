@@ -1442,6 +1442,13 @@ export function ImuSessionAnalysis({
    * version of the media query the utility does not carry. */
   const [splitHover, setSplitHover] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
+  // The test copy measures the row of cards to share its line out.
+  const [cardRowEl, setCardRowEl] = useState<HTMLDivElement | null>(null);
+  const cardRowRef = useCallback((el: HTMLDivElement | null) => {
+    splitRef.current = el;
+    setCardRowEl(el);
+  }, []);
+  const cardLineW = useLineWidth(cardRowEl, layoutEditable);
   const splitDragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -2429,28 +2436,37 @@ export function ImuSessionAnalysis({
   // column and the same switch, named for what it shows.
   const lapsShown = (circuitRuns != null || pointRuns != null) && lapsOn;
   // Each card of the row, as is on the page; in the test copy, inside a
-  // draggable place that gives it its width and its order.
+  // draggable place that gives it its width, its row and its order.
+  // The reading's two cards stand only once the cursor is on the plot.
+  const shownCards = new Set<CardId>(["chart"]);
+  if (lapsShown) shownCards.add("laps");
+  if (dashOn) shownCards.add("rider");
+  if (data.gps && mapOn) shownCards.add("map");
+  if (cursorIndex >= 0) shownCards.add("events");
+  if (cursorIndex >= 0 && activeSeriesDefs.length > 0)
+    shownCards.add("metrics");
+  const cardWidths = layoutEditable
+    ? cardRowWidths(
+        layout.rows,
+        shownCards,
+        cardLineW.width,
+        cardLineW.gap,
+        { laps: dashOn ? 240 : 300, rider: 300, map: mapWidth },
+        layout.widthOf,
+        layout.draftId,
+      )
+    : {};
   const slot = (id: CardId, node: React.ReactNode) =>
     layoutEditable ? (
       <LayoutSlot
         key={id}
         id={id}
         layout={layout}
-        width={
-          id === "laps"
-            ? dashOn
-              ? "lg:w-[240px] lg:shrink-0"
-              : "lg:w-[300px] lg:shrink-0"
-            : id === "rider"
-              ? "lg:w-[300px] lg:shrink-0"
-              : id === "chart"
-                ? "lg:min-w-0 lg:flex-1 lg:basis-0"
-                : id === "map"
-                  ? "lg:w-[var(--imu-map-w)] lg:shrink-0"
-                  : // Metrics and events: half the row each, so they take a
-                    // line of their own unless moved in among the others.
-                    "lg:min-w-0 lg:basis-[calc(50%-11px)] lg:grow"
-        }
+        width={cardWidths[id]}
+        hidden={!shownCards.has(id)}
+        // The map has no height of its own — beside the plot it takes the
+        // row's; on a row alone it needs one, or it folds to nothing.
+        className={id === "map" ? "lg:min-h-[520px]" : undefined}
       >
         {node}
       </LayoutSlot>
@@ -2610,7 +2626,7 @@ export function ImuSessionAnalysis({
           row keep an inset. Without a GPS track the grid never engages and
           the chart keeps the whole width, as before. */}
         <div
-          ref={splitRef}
+          ref={cardRowRef}
           style={{ "--imu-map-w": `${mapWidth}px` } as React.CSSProperties}
           // The proximity tracking that used to live here is gone with the
           // fade: the handle is a bar that stands in the channel at all times,
@@ -2631,7 +2647,7 @@ export function ImuSessionAnalysis({
             // The test copy: a wrapping row instead of the grid, each card
             // keeping its width and taking its place from the saved order.
             layoutEditable
-              ? "lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px]"
+              ? "lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
               : lapsShown && dashOn
               ? data.gps && mapOn
                 ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
@@ -2653,6 +2669,9 @@ export function ImuSessionAnalysis({
           {/* The plot's column: one card from `sm` up, its head inside it with
             the title and the menus over the plot (by request, 2026-11-12) —
             it had stood on the page above the card. */}
+          {/* While a card is dragged: the zone for a row of its own. Placed
+            by its `order`, at the foot of the cards. */}
+          {layoutEditable && <NewRowZone layout={layout} />}
           {slot("chart", <div
             className={cn(
               "order-1 flex min-w-0 flex-col lg:order-2 sm:overflow-hidden sm:rounded-lg sm:bg-card",
@@ -4898,30 +4917,30 @@ function ZoomButton({
 
 /** The cards of the session's row that the test copy can reorder. */
 type CardId = "laps" | "rider" | "chart" | "map" | "metrics" | "events";
-/** The page's own order on desktop: laps, Rider, plot, map, then the
- * reading's two halves — metrics and events, cards of their own here. */
-const DEFAULT_CARD_ORDER: CardId[] = [
-  "laps",
-  "rider",
-  "chart",
-  "map",
-  "metrics",
-  "events",
+const CARD_IDS: CardId[] = ["laps", "rider", "chart", "map", "metrics", "events"];
+/** The page's own rows on desktop: laps, Rider, plot and map on one line,
+ * then the reading's two halves — metrics and events, cards of their own. */
+const DEFAULT_CARD_ROWS: CardId[][] = [
+  ["laps", "rider", "chart", "map"],
+  ["metrics", "events"],
 ];
-const CARD_ORDER_KEY = "bikit.ui2.cardOrder";
+/** The rows, each a list of cards left to right (2026-11-12: it had been
+ * one order the browser wrapped as it could, so a card could not be put
+ * on the line wanted). */
+const CARD_ROWS_KEY = "bikit.ui2.cardRows";
 /** Each card's width in px, where one was set by dragging its edge. */
 const CARD_WIDTHS_KEY = "bikit.ui2.cardWidths";
-/** No card narrower than this, px. */
+/** No card narrower than this, px, while the row has room for it. */
 const CARD_MIN_W = 200;
 
 type CardLayout = ReturnType<typeof useCardLayout>;
 
 /**
- * The test copy's card order, remembered in this browser — read through
+ * The test copy's rows, remembered in this browser — read through
  * `useSyncExternalStore` like the sessions list's folds: the server renders
- * the default order, the first client render agrees with it, and the stored
- * order takes over without a flash. Unreadable storage (a private window)
- * keeps the order for the visit only.
+ * the default rows, the first client render agrees with them, and the
+ * stored ones take over without a flash. Unreadable storage (a private
+ * window) keeps them for the visit only.
  */
 const orderListeners = new Set<() => void>();
 function subscribeOrder(listener: () => void) {
@@ -4944,7 +4963,7 @@ function parseWidths(raw: string): Partial<Record<CardId, number>> {
     const saved = raw ? (JSON.parse(raw) as unknown) : null;
     if (saved && typeof saved === "object" && !Array.isArray(saved)) {
       const out: Partial<Record<CardId, number>> = {};
-      for (const id of DEFAULT_CARD_ORDER) {
+      for (const id of CARD_IDS) {
         const w = (saved as Record<string, unknown>)[id];
         if (typeof w === "number" && Number.isFinite(w) && w >= CARD_MIN_W)
           out[id] = Math.round(w);
@@ -4956,26 +4975,98 @@ function parseWidths(raw: string): Partial<Record<CardId, number>> {
   }
   return {};
 }
-function parseOrder(raw: string): CardId[] {
+/** The saved rows when every card is in exactly one of them, else the
+ * default. */
+function parseRows(raw: string): CardId[][] {
   try {
     const saved = raw ? (JSON.parse(raw) as unknown) : null;
     if (
       Array.isArray(saved) &&
-      saved.length === DEFAULT_CARD_ORDER.length &&
-      DEFAULT_CARD_ORDER.every((id) => saved.includes(id))
-    )
-      return saved as CardId[];
+      saved.every((row) => Array.isArray(row) && row.length > 0)
+    ) {
+      const flat = (saved as unknown[][]).flat();
+      if (
+        flat.length === CARD_IDS.length &&
+        CARD_IDS.every((id) => flat.includes(id))
+      )
+        return saved as CardId[][];
+    }
   } catch {
-    // A broken value: the default order.
+    // A broken value: the default rows.
   }
-  return DEFAULT_CARD_ORDER;
+  return DEFAULT_CARD_ROWS;
 }
 
-/** The test copy's card order and edit mode (by request, 2026-11-12). */
+/**
+ * Each shown card's width in px, row by row, so that a row fills the line
+ * exactly — and so the browser, wrapping, breaks where the rows break.
+ *
+ * In a row, a card with a width set by its edge keeps it; the laps, Rider
+ * and map keep their own (240/300, 300, the map's); the plot, metrics and
+ * events share what is left. A row with none of those three gives the rest
+ * to the cards on their own widths, and a row of set widths only scales
+ * them — all but the edge being dragged, which stays as dragged. Switching
+ * a card off takes it out of its row and the others fill its place.
+ */
+function cardRowWidths(
+  rows: CardId[][],
+  shown: ReadonlySet<CardId>,
+  lineW: number,
+  gap: number,
+  ownW: Partial<Record<CardId, number>>,
+  setW: (id: CardId) => number | undefined,
+  dragging: CardId | null,
+): Partial<Record<CardId, number>> {
+  const out: Partial<Record<CardId, number>> = {};
+  if (lineW <= 0) return out;
+  for (const row of rows) {
+    const ids = row.filter((id) => shown.has(id));
+    if (ids.length === 0) continue;
+    const avail = lineW - gap * (ids.length - 1);
+    const min = Math.min(CARD_MIN_W, avail / ids.length);
+    const w: Partial<Record<CardId, number>> = {};
+    const set = ids.filter((id) => setW(id) != null);
+    const own = ids.filter((id) => setW(id) == null && ownW[id] != null);
+    const fluid = ids.filter((id) => setW(id) == null && ownW[id] == null);
+    for (const id of set) w[id] = setW(id);
+    for (const id of own) w[id] = ownW[id];
+    const setGive = set.filter((id) => id !== dragging);
+    // Who takes up the slack.
+    const give = fluid.length
+      ? fluid
+      : own.length
+        ? own
+        : setGive.length
+          ? setGive
+          : set;
+    const fixed = ids.filter((id) => !give.includes(id));
+    const sum = (list: CardId[]) =>
+      list.reduce((total, id) => total + (w[id] ?? 0), 0);
+    // The fixed ones leave the others their minimum.
+    const room = avail - give.length * min;
+    const fixedSum = sum(fixed);
+    if (fixedSum > room && fixedSum > 0)
+      for (const id of fixed)
+        w[id] = Math.max(min, ((w[id] ?? 0) * room) / fixedSum);
+    const rest = avail - sum(fixed);
+    if (give === fluid) for (const id of give) w[id] = rest / give.length;
+    else {
+      const giveSum = sum(give);
+      for (const id of give)
+        w[id] =
+          giveSum > 0 ? ((w[id] ?? 0) * rest) / giveSum : rest / give.length;
+    }
+    // Rounded down, so a row never comes to more than the line.
+    for (const id of ids) out[id] = Math.floor(w[id] ?? min);
+  }
+  return out;
+}
+
+/** The test copy's rows and edit mode (by request, 2026-11-12). */
 function useCardLayout(enabled: boolean) {
   const raw = useSyncExternalStore(
     subscribeOrder,
-    () => (enabled ? readStored(CARD_ORDER_KEY) : ""),
+    () => (enabled ? readStored(CARD_ROWS_KEY) : ""),
     () => "",
   );
   const widthsRaw = useSyncExternalStore(
@@ -4984,11 +5075,12 @@ function useCardLayout(enabled: boolean) {
     () => "",
   );
   // What this visit set, when storage would not keep it.
-  const [local, setLocal] = useState<CardId[] | null>(null);
+  const [local, setLocal] = useState<CardId[][] | null>(null);
   const [localWidths, setLocalWidths] = useState<Partial<
     Record<CardId, number>
   > | null>(null);
-  const order = useMemo(() => local ?? parseOrder(raw), [local, raw]);
+  const rows = useMemo(() => local ?? parseRows(raw), [local, raw]);
+  const order = useMemo(() => rows.flat(), [rows]);
   const widths = useMemo(
     () => localWidths ?? parseWidths(widthsRaw),
     [localWidths, widthsRaw],
@@ -4999,10 +5091,13 @@ function useCardLayout(enabled: boolean) {
   const resizing = useRef(false);
   const [editing, setEditing] = useState(false);
   const [dragId, setDragId] = useState<CardId | null>(null);
-  const [overId, setOverId] = useState<CardId | null>(null);
-  const save = (next: CardId[]) => {
+  const [over, setOver] = useState<{
+    id: CardId;
+    side: "before" | "after";
+  } | null>(null);
+  const save = (next: CardId[][]) => {
     try {
-      localStorage.setItem(CARD_ORDER_KEY, JSON.stringify(next));
+      localStorage.setItem(CARD_ROWS_KEY, JSON.stringify(next));
       setLocal(null);
     } catch {
       setLocal(next);
@@ -5018,25 +5113,36 @@ function useCardLayout(enabled: boolean) {
     }
     for (const listener of orderListeners) listener();
   };
-  /** Puts the dragged card where the target stands. */
-  const move = (from: CardId, to: CardId) => {
-    if (from === to) return;
-    const next = order.filter((id) => id !== from);
-    next.splice(order.indexOf(to), 0, from);
-    save(next);
-  };
+  /** The rows without the given card, empty rows dropped. */
+  const without = (id: CardId) =>
+    rows
+      .map((row) => row.filter((other) => other !== id))
+      .filter((row) => row.length > 0);
   return {
+    rows,
     order,
     editing,
     setEditing,
     dragId,
     setDragId,
-    overId,
-    setOverId,
-    move,
-    /** A card's width, px: the edge being dragged, else the saved one. */
+    over,
+    setOver,
+    /** Puts the dragged card beside the target, on its row. */
+    move: (from: CardId, to: CardId, side: "before" | "after") => {
+      if (from === to) return;
+      const next = without(from);
+      const row = next.find((r) => r.includes(to));
+      if (!row) return;
+      row.splice(row.indexOf(to) + (side === "after" ? 1 : 0), 0, from);
+      save(next);
+    },
+    /** Gives the dragged card a row of its own, at the foot. */
+    moveToNewRow: (from: CardId) => save([...without(from), [from]]),
+    /** A card's width set by its edge, px: the one being dragged, else the
+     * saved one. */
     widthOf: (id: CardId): number | undefined =>
       draft?.id === id ? draft.w : widths[id],
+    draftId: draft?.id ?? null,
     setDraft,
     /** Whether an edge is held — the card must not start to drag then. */
     isResizing: () => resizing.current,
@@ -5053,10 +5159,63 @@ function useCardLayout(enabled: boolean) {
       saveWidths(next);
     },
     reset: () => {
-      save(DEFAULT_CARD_ORDER);
+      save(DEFAULT_CARD_ROWS);
       saveWidths({});
     },
   };
+}
+
+/** The test copy's line, px: the row of cards' content width and the gap
+ * between its cards — read from the CSS, which widens it on a wide screen —
+ * measured as they change. Zero until measured, and off the test copy. */
+function useLineWidth(el: HTMLElement | null, enabled: boolean) {
+  const [line, setLine] = useState({ width: 0, gap: 0 });
+  useEffect(() => {
+    if (!enabled || !el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.floor(entry.contentRect.width);
+      const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+      setLine((prev) =>
+        prev.width === width && prev.gap === gap ? prev : { width, gap },
+      );
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el, enabled]);
+  return line;
+}
+
+/** While a card is dragged: the drop zone that gives it a row of its own,
+ * at the foot of the cards. */
+function NewRowZone({ layout }: { layout: CardLayout }) {
+  const t = useProDict().analysis;
+  const [over, setOver] = useState(false);
+  if (!layout.editing || !layout.dragId) return null;
+  return (
+    <div
+      style={{ order: 9998 }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!over) setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        if (layout.dragId) layout.moveToNewRow(layout.dragId);
+        layout.setDragId(null);
+        layout.setOver(null);
+      }}
+      className={cn(
+        "hidden h-24 basis-full items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium transition-colors lg:flex",
+        over
+          ? "border-foreground bg-[#D9FF00]/20 text-foreground"
+          : "border-foreground/30 text-muted-foreground",
+      )}
+    >
+      {t.panels.newRow}
+    </div>
+  );
 }
 
 /** One card's place in the test copy's row: its width and its order, and
@@ -5065,15 +5224,30 @@ function LayoutSlot({
   id,
   layout,
   width,
+  hidden,
+  className,
   children,
 }: {
   id: CardId;
+  className?: string;
   layout: CardLayout;
-  width: string;
+  /** Its width on the row, px; unset until the line is measured. */
+  width: number | undefined;
+  /** Switched off, or with nothing to show: out of its row. */
+  hidden?: boolean;
   children: React.ReactNode;
 }) {
   const t = useProDict().analysis;
-  const { editing, dragId, overId } = layout;
+  const { editing, dragId, over } = layout;
+  const overSide = over?.id === id && dragId !== id ? over.side : null;
+  /** Which half of the card the pointer is over: the dragged card goes
+   * before or after it. */
+  const sideAt = (event: React.DragEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientX < rect.left + rect.width / 2
+      ? ("before" as const)
+      : ("after" as const);
+  };
   return (
     <div
       data-layout-slot
@@ -5091,35 +5265,40 @@ function LayoutSlot({
       onDragOver={(event) => {
         if (!dragId) return;
         event.preventDefault();
-        if (overId !== id) layout.setOverId(id);
+        const side = sideAt(event);
+        if (over?.id !== id || over.side !== side)
+          layout.setOver({ id, side });
       }}
-      onDragLeave={() => {
-        if (overId === id) layout.setOverId(null);
+      onDragLeave={(event) => {
+        // Only on leaving the card, not on crossing into its own children.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null))
+          return;
+        if (over?.id === id) layout.setOver(null);
       }}
       onDrop={(event) => {
         event.preventDefault();
-        if (dragId) layout.move(dragId, id);
+        if (dragId) layout.move(dragId, id, sideAt(event));
         layout.setDragId(null);
-        layout.setOverId(null);
+        layout.setOver(null);
       }}
       onDragEnd={() => {
         layout.setDragId(null);
-        layout.setOverId(null);
+        layout.setOver(null);
       }}
-      style={{
-        order: layout.order.indexOf(id),
-        // A width set by dragging the edge: that many px, neither growing
-        // nor shrinking, in place of the card's own (2026-11-12).
-        ...(layout.widthOf(id) != null && {
-          flex: `0 0 ${layout.widthOf(id)}px`,
-          maxWidth: "100%",
-        }),
-      }}
+      style={
+        {
+          order: layout.order.indexOf(id),
+          // The width its row gives it — on desktop only, through the
+          // variable: stacked on a phone, a flex basis would be a height.
+          ...(width != null && { "--card-flex": `0 0 ${width}px` }),
+        } as React.CSSProperties
+      }
       className={cn(
         // The card fills its place; the row's gap, not the cards' own
         // margins, sets the space between them.
-        "relative flex min-w-0 flex-col lg:[&>*]:mt-0 [&>*]:flex-1",
-        width,
+        "relative flex min-w-0 flex-col lg:[flex:var(--card-flex)] lg:[&>*]:mt-0 [&>*]:flex-1",
+        className,
+        hidden && "hidden",
         dragId === id && "opacity-40",
       )}
     >
@@ -5130,11 +5309,21 @@ function LayoutSlot({
         <div
           className={cn(
             "absolute inset-0 z-[1200] flex cursor-grab items-start justify-end rounded-lg border-2 border-dashed p-3 transition-colors active:cursor-grabbing",
-            overId === id && dragId !== id
+            overSide
               ? "border-foreground bg-[#D9FF00]/20"
               : "border-foreground/30 bg-background/30",
           )}
         >
+          {/* Where the dragged card would land: a bar on that side. */}
+          {overSide && (
+            <span
+              aria-hidden
+              className={cn(
+                "absolute top-0 bottom-0 w-1.5 rounded-full bg-foreground",
+                overSide === "before" ? "-left-[14px]" : "-right-[14px]",
+              )}
+            />
+          )}
           <span
             aria-label={t.panels.dragCard}
             title={t.panels.dragCard}

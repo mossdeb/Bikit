@@ -250,6 +250,7 @@ const en = {
     resetLayout: "Reset",
     dragCard: "Drag to move this card",
     resizeCard: "Drag to change the width; double-click for its own",
+    newRow: "Drop here for a new row",
     show: (label: string): string => `Show ${label}`,
   },
 
@@ -617,6 +618,7 @@ const pt: typeof en = {
     resetLayout: "Repor",
     dragCard: "Arrastar para mudar este cartão de lugar",
     resizeCard: "Arrastar para mudar a largura; duplo clique para a de origem",
+    newRow: "Largar aqui para uma linha nova",
     show: (label) => `Mostrar ${label}`,
   },
 
