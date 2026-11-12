@@ -71,7 +71,8 @@ export default async function ProLayout({
           the texture's rule in globals.css reaches. */}
         <div data-app-shell className="flex min-h-dvh bg-background">
           <ProSidebar />
-          <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-1 flex-col">
+          {/* Up to 1920 px (by request, 2026-11-12; 1600 before). */}
+          <div className="mx-auto flex w-full max-w-[1920px] min-w-0 flex-1 flex-col">
             <AppHeader>
               <HeaderBackButton />
               <BikitLockup pro className="h-8 w-auto sm:hidden" />
