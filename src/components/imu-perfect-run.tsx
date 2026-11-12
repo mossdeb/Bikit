@@ -418,12 +418,14 @@ export function PerfectRunView({
             {t.runs(result.runCount)}
           </p>
         </div>
-        <div className="col-span-2 rounded-md bg-muted px-4 py-3 sm:col-span-1">
-          <p className="text-xs font-medium text-muted-foreground">
+        {/* Lime, the text in ink (by request, 2026-11-12): the gain is
+            what the tab is for. */}
+        <div className="col-span-2 flex flex-col items-center justify-center rounded-md bg-[#D9FF00] text-center px-4 py-3 text-[#101014] sm:col-span-1">
+          <p className="text-xs font-medium text-[#101014]/70">
             {t.gainTitle}
           </p>
           {gains ? (
-            <p className="flex items-center gap-1.5 font-display text-2xl font-bold tabular-nums text-[#5f7300] sm:text-3xl dark:text-[#D9FF00]">
+            <p className="flex items-center gap-1.5 font-display text-2xl font-bold tabular-nums sm:text-3xl">
               <ArrowDown className="size-5 shrink-0" strokeWidth={2.5} />
               {seconds(result.gainMs)} s
             </p>
