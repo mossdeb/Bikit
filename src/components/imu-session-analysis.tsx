@@ -1408,7 +1408,9 @@ export function ImuSessionAnalysis({
     [...kinds].some((kind) => kind !== HIGHG_KIND || hasHighG);
   const eventsOn = kindsOn(activeKinds);
   const [windowMs, setWindowMs] = useState<[number, number] | null>(null);
-  const [cursorMs, setCursorMs] = useState<number | null>(null);
+  // Where the rider put the cursor; until then it stands at the start of
+  // what the plot shows (below), so the page opens with a reading.
+  const [pickedCursorMs, setCursorMs] = useState<number | null>(null);
   /** Whether the chart has the cursor pinned (its double-click lock). The
    * chart owns the lock; this is a copy for the map's seek to consult. */
   const [cursorLocked, setCursorLocked] = useState(false);
@@ -1834,6 +1836,10 @@ export function ImuSessionAnalysis({
   const sampleRateHz = data.sampleRateHz;
   const full: [number, number] = [tMs[0], data.durationMs];
   const win = windowMs ?? full;
+  // The needle on the plot from the first visit (by request, 2026-11-12):
+  // at the start of the visible window until the rider moves it, so the
+  // reading cards stand from the first look instead of a prompt.
+  const cursorMs = pickedCursorMs ?? win[0];
   // A circuit's laps across the top of the plot.
   const lapBand = circuitRuns
     ? lapMarks(circuitRuns, trim?.startMs ?? 0, win).map((mark) => ({
