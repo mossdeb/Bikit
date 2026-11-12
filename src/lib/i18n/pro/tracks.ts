@@ -59,6 +59,9 @@ const en = {
   /** The laps card. */
   lapsCard: "Laps",
   lapZoom: (n: number): string => `Zoom the plot to lap ${n}`,
+  /** The laps card's accordion: a lap's sector times. */
+  lapSectors: (n: number): string => `Sector times of lap ${n}`,
+  lapNoSectors: "This lap does not cross every sector line.",
   trimWindow: "Trim",
   visibleWindow: "Visible window",
   wholeRecording: "Whole recording",
@@ -189,6 +192,8 @@ const pt: typeof en = {
   bestLap: "Melhor volta",
   lapsCard: "Voltas",
   lapZoom: (n) => `Aproximar o gráfico à volta ${n}`,
+  lapSectors: (n) => `Tempos dos sectores da volta ${n}`,
+  lapNoSectors: "Esta volta não cruza todas as linhas dos sectores.",
   trimWindow: "Recorte",
   visibleWindow: "Janela visível",
   wholeRecording: "Gravação inteira",

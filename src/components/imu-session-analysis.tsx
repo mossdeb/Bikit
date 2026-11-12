@@ -1318,6 +1318,20 @@ export function ImuSessionAnalysis({
   const circuitRuns = timed?.passed.find((m) =>
     isLapTrack(m.track.definition),
   )?.runs;
+  // Each lap's sector edges (start, each split, finish), for the laps
+  // card's accordion (by request, 2026-11-12): the circuit's own lines,
+  // null for a lap that misses one. Gated with the Perfect Run.
+  const circuitSplits = perfectRun
+    ? timed?.passed.find((m) => isLapTrack(m.track.definition))?.track
+        .definition.splits
+    : undefined;
+  const lapSectors = useMemo(() => {
+    if (!timed || !circuitRuns || !circuitSplits || circuitSplits.length === 0)
+      return null;
+    return circuitRuns.map((lap) =>
+      sectorBoundaries(timed.prepared, circuitSplits, lap),
+    );
+  }, [timed, circuitRuns, circuitSplits]);
   const dashOn = dashChoice ?? !circuitRuns;
   const [mapOn, setMapOn] = useState(true);
   const [lapsOn, setLapsOn] = useState(true);
@@ -2740,6 +2754,7 @@ export function ImuSessionAnalysis({
           {circuitRuns && lapsOn && (
             <ImuSessionLaps
               laps={circuitRuns}
+              sectors={lapSectors}
               trimStartMs={trim?.startMs ?? 0}
               onPick={setWindowMs}
               className={cn(
