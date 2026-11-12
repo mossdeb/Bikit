@@ -356,8 +356,12 @@ export default async function ImuSessionPage({
                     // A square box, not the app's h-5 w-7: the art is 101×104 and
                     // `meet` fits it to the height, so a 28px box left ~4px of
                     // empty margin on each side of a 19px drawing.
+                    // Centred in its box (by request, 2026-11-12): the
+                    // glyphs sit on the box's floor elsewhere, and a wide
+                    // one (101×61) read low beside the line's text.
                     <BikeGlyph
                       className="mr-2 inline-block h-5 w-5 align-middle text-foreground"
+                      preserveAspectRatio="xMidYMid meet"
                       aria-hidden
                     />
                   )}

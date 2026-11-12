@@ -3794,13 +3794,18 @@ function SmallSwitch({
   );
 }
 
+/** The mounting line under the session's name, off for now (2026-11-12). */
+const SHOW_MOUNTING_BADGE = false;
+
 export function SessionFileBadges() {
   const session = useContext(SessionDataContext);
   if (!session) return null;
   return (
     <p className="mt-1 flex flex-wrap items-baseline gap-x-2.5">
       <RealignmentBadge session={session} />
-      <MountingBadge session={session} />
+      {/* "Bicycle · forward by the logger (57%)" hidden for now (by
+          request, 2026-11-12); kept to come back. */}
+      {SHOW_MOUNTING_BADGE && <MountingBadge session={session} />}
       <VibrationBadge session={session} />
     </p>
   );

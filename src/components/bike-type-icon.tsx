@@ -1,7 +1,9 @@
 import type { ComponentType } from "react";
 import type { BikeType } from "@/lib/constants";
 
-type IconProps = { className?: string };
+/** `preserveAspectRatio` overrides the glyphs' floor-sitting default where a
+ * line wants them centred (the session's subtitle, 2026-11-12). */
+type IconProps = { className?: string; preserveAspectRatio?: string };
 
 function RoadIcon(props: IconProps) {
   return (
