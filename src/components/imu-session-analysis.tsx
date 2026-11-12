@@ -11,6 +11,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -21,9 +22,11 @@ import {
   Check,
   ChevronDown,
   Gauge,
+  GripVertical,
   Info,
   Minus,
   Plus,
+  RotateCcw,
   Scissors,
   TrendingDown,
   TrendingUp,
@@ -1216,10 +1219,14 @@ export function ImuSessionAnalysis({
   timedTracks = [],
   trackCandidates = [],
   perfectRun = false,
+  layoutEditable = false,
 }: {
   /** The Perfect Run is shown (hasPerfectRun: every Pro account since
    * 2026-11-12). */
   perfectRun?: boolean;
+  /** The test copy at /ui2 (by request, 2026-11-12): the cards' order can
+   * be changed by dragging, and is kept in this browser. Off on the page. */
+  layoutEditable?: boolean;
   /** The row already keeps the file's rider-sag reading (migration
    * 00052); when it does not and the file has one, the page hands it over
    * once, for the setup's history. */
@@ -1364,6 +1371,9 @@ export function ImuSessionAnalysis({
   // The track popup under the ranking, held here so the laps card's "View
   // larger" opens it on the laps tab (by request, 2026-11-12).
   const [trackPopup, setTrackPopup] = useState<false | TrackDialogTab>(false);
+  // The test copy's card order and its edit mode (2026-11-12). Read from
+  // and written to this browser; the page itself never reads it.
+  const layout = useCardLayout(layoutEditable);
   const dashOn = dashChoice ?? !circuitRuns;
   const [mapOn, setMapOn] = useState(true);
   // The laps card on by default on a circuit; the sectors card, its twin on
@@ -2418,6 +2428,35 @@ export function ImuSessionAnalysis({
   // The laps card, or on a start-to-finish track its sectors card: the same
   // column and the same switch, named for what it shows.
   const lapsShown = (circuitRuns != null || pointRuns != null) && lapsOn;
+  // Each card of the row, as is on the page; in the test copy, inside a
+  // draggable place that gives it its width and its order.
+  const slot = (id: CardId, node: React.ReactNode) =>
+    layoutEditable ? (
+      <LayoutSlot
+        key={id}
+        id={id}
+        layout={layout}
+        width={
+          id === "laps"
+            ? dashOn
+              ? "lg:w-[240px] lg:shrink-0"
+              : "lg:w-[300px] lg:shrink-0"
+            : id === "rider"
+              ? "lg:w-[300px] lg:shrink-0"
+              : id === "chart"
+                ? "lg:min-w-0 lg:flex-1 lg:basis-0"
+                : id === "map"
+                  ? "lg:w-[var(--imu-map-w)] lg:shrink-0"
+                  : // Metrics and events: half the row each, so they take a
+                    // line of their own unless moved in among the others.
+                    "lg:min-w-0 lg:basis-[calc(50%-11px)] lg:grow"
+        }
+      >
+        {node}
+      </LayoutSlot>
+    ) : (
+      node
+    );
   const panelToggles = (
     <>
       <PanelToggle label={t.panels.rider} on={dashOn} onToggle={toggleDash} />
@@ -2559,7 +2598,10 @@ export function ImuSessionAnalysis({
           they never governed the Rider panel or the map, and a heading over
           all three cards said they did. What is left up here is the pair
           that decides which cards exist at all, which is nobody's card. */}
-        <PanelSwitchRow>{panelToggles}</PanelSwitchRow>
+        <PanelSwitchRow>
+          {layoutEditable && <LayoutEditButtons layout={layout} />}
+          {panelToggles}
+        </PanelSwitchRow>
 
         {/* The plot and the route: one card each from `sm` up, side by side
           from `lg`. The plot runs to its card's edges — on a 375px phone
@@ -2586,7 +2628,11 @@ export function ImuSessionAnalysis({
           // spacing lands the same as when they stacked in source order.
           className={cn(
             "flex flex-col",
-            lapsShown && dashOn
+            // The test copy: a wrapping row instead of the grid, each card
+            // keeping its width and taking its place from the saved order.
+            layoutEditable
+              ? "lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px]"
+              : lapsShown && dashOn
               ? data.gps && mapOn
                 ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
                 : "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)] lg:gap-x-[22px]"
@@ -2607,7 +2653,7 @@ export function ImuSessionAnalysis({
           {/* The plot's column: one card from `sm` up, its head inside it with
             the title and the menus over the plot (by request, 2026-11-12) —
             it had stood on the page above the card. */}
-          <div
+          {slot("chart", <div
             className={cn(
               "order-1 flex min-w-0 flex-col lg:order-2 sm:overflow-hidden sm:rounded-lg sm:bg-card",
               DARK_CARD_HAIRLINE_SM,
@@ -2792,10 +2838,10 @@ export function ImuSessionAnalysis({
                 )}
               </div>
             </div>
-          </div>
+          </div>)}
 
           {/* A circuit's laps: the row's first column, before the Rider's. */}
-          {circuitRuns && lapsOn && (
+          {circuitRuns && lapsOn && slot("laps",
             <ImuSessionLaps
               laps={circuitRuns}
               sectors={lapSectors}
@@ -2809,7 +2855,7 @@ export function ImuSessionAnalysis({
             />
           )}
           {/* A start-to-finish track's sectors, in the laps card's place. */}
-          {pointRuns && pointSectors && lapsOn && (
+          {pointRuns && pointSectors && lapsOn && slot("laps",
             <ImuSessionSplits
               runs={pointRuns}
               sectors={pointSectors}
@@ -2829,7 +2875,7 @@ export function ImuSessionAnalysis({
           {/* The instant dashboard — the same cursor, read as instruments. A
             card of its own beside the chart on desktop, a stacked section
             on a phone. */}
-          {dashOn && (
+          {dashOn && slot("rider",
             <ImuSessionDashboard
               riderName={riderName}
               motorbike={engineFilter}
@@ -2881,7 +2927,7 @@ export function ImuSessionAnalysis({
               around it would be a bright frame on a dark picture. The filter
               switches govern its marks too — the rule that a kind switched
               off is off everywhere. */}
-          {data.gps && mapOn && (
+          {data.gps && mapOn && slot("map",
             // `isolate` fences the map in. Leaflet gives its panes z-indexes
             // from 200 to 1000, and with no stacking context around them those
             // numbers competed with the whole page — the filter menus opened
@@ -3067,6 +3113,9 @@ export function ImuSessionAnalysis({
           <div
             className={cn(
               "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:border-0 sm:p-0",
+              // The test copy: no box of its own from `lg`; its two halves
+              // stand in the row as cards of their own (2026-11-12).
+              layoutEditable && "lg:contents",
               // It lives inside the columns block now, which is what lets the
               // Rider panel fall past it on a phone — `order` can only shuffle
               // siblings, and these two were in different parents.
@@ -3093,7 +3142,12 @@ export function ImuSessionAnalysis({
             )}
           >
             {cursorIndex < 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p
+                className={cn(
+                  "text-sm text-muted-foreground",
+                  layoutEditable && "lg:order-last lg:basis-full",
+                )}
+              >
                 {t.reading.prompt}
               </p>
             ) : (
@@ -3134,6 +3188,7 @@ export function ImuSessionAnalysis({
                   activeSeriesDefs.length > 0
                     ? "lg:grid-cols-[var(--imu-read-w)_minmax(0,1fr)]"
                     : "lg:grid-cols-1",
+                  layoutEditable && "lg:contents",
                 )}
               >
                 {/* Only what the chart is drawing — toggling a pill toggles its
@@ -3152,11 +3207,15 @@ export function ImuSessionAnalysis({
                   (2026-09-10), side by side it was a column held open for
                   nothing (2026-09-11). The ref stays on it for the drag,
                   which cannot start while it is hidden. */}
-                <div
+                {slot("metrics", <div
                   ref={readLeftRef}
                   className={cn(
                     "min-w-0",
                     activeSeriesDefs.length === 0 && "hidden",
+                    // The test copy: the metrics as one white card around
+                    // their outlined cards (2026-11-12).
+                    layoutEditable && "lg:rounded-lg lg:bg-card lg:p-[22px]",
+                    layoutEditable && DARK_CARD_HAIRLINE_SM,
                   )}
                 >
                   {[
@@ -3231,6 +3290,10 @@ export function ImuSessionAnalysis({
                               // them is the grid's, so a margin here would add
                               // to it instead of replacing it.
                               "lg:mt-0 lg:rounded-[22px] lg:bg-card lg:p-[22px] lg:dark:ring-1 lg:dark:ring-inset lg:dark:ring-border/60",
+                              // The test copy: inside the metrics' own white
+                              // card, an outline each instead (2026-11-12).
+                              layoutEditable &&
+                                "lg:bg-transparent lg:ring-1 lg:ring-inset lg:ring-border",
                               i > 0
                                 ? "mt-5 border-t border-border pt-5"
                                 : group.heading
@@ -3339,7 +3402,7 @@ export function ImuSessionAnalysis({
                         ))}
                       </div>
                     ))}
-                </div>
+                </div>)}
 
                 {/* The instant's headline event as a card of its own: mark, name,
                   confidence, then its figures as labelled columns.
@@ -3348,7 +3411,7 @@ export function ImuSessionAnalysis({
                   Turning the events off leaves the channels alone and puts an
                   outline here instead — the half stays, because it carries the
                   handle that splits the two. */}
-                <div
+                {slot("events", <div
                   className={cn(
                     // No top margin stacked when there is nothing above to
                     // stand apart from — the metrics half is gone.
@@ -3598,6 +3661,8 @@ export function ImuSessionAnalysis({
                       "absolute top-6 left-0 z-20 hidden h-24 w-8 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center outline-none focus-visible:[&>span]:bg-foreground lg:-ml-[11px]",
                       // No split to move while the channels' half is gone.
                       activeSeriesDefs.length > 0 && "lg:flex",
+                      // Nor in the test copy, where the halves are cards.
+                      layoutEditable && "lg:hidden",
                     )}
                   >
                     <span
@@ -3610,7 +3675,7 @@ export function ImuSessionAnalysis({
                       )}
                     />
                   </button>
-                </div>
+                </div>)}
               </div>
             )}
           </div>
@@ -4828,5 +4893,341 @@ function ZoomButton({
     >
       {children}
     </button>
+  );
+}
+
+/** The cards of the session's row that the test copy can reorder. */
+type CardId = "laps" | "rider" | "chart" | "map" | "metrics" | "events";
+/** The page's own order on desktop: laps, Rider, plot, map, then the
+ * reading's two halves — metrics and events, cards of their own here. */
+const DEFAULT_CARD_ORDER: CardId[] = [
+  "laps",
+  "rider",
+  "chart",
+  "map",
+  "metrics",
+  "events",
+];
+const CARD_ORDER_KEY = "bikit.ui2.cardOrder";
+/** Each card's width in px, where one was set by dragging its edge. */
+const CARD_WIDTHS_KEY = "bikit.ui2.cardWidths";
+/** No card narrower than this, px. */
+const CARD_MIN_W = 200;
+
+type CardLayout = ReturnType<typeof useCardLayout>;
+
+/**
+ * The test copy's card order, remembered in this browser — read through
+ * `useSyncExternalStore` like the sessions list's folds: the server renders
+ * the default order, the first client render agrees with it, and the stored
+ * order takes over without a flash. Unreadable storage (a private window)
+ * keeps the order for the visit only.
+ */
+const orderListeners = new Set<() => void>();
+function subscribeOrder(listener: () => void) {
+  orderListeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    orderListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+function readStored(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+function parseWidths(raw: string): Partial<Record<CardId, number>> {
+  try {
+    const saved = raw ? (JSON.parse(raw) as unknown) : null;
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+      const out: Partial<Record<CardId, number>> = {};
+      for (const id of DEFAULT_CARD_ORDER) {
+        const w = (saved as Record<string, unknown>)[id];
+        if (typeof w === "number" && Number.isFinite(w) && w >= CARD_MIN_W)
+          out[id] = Math.round(w);
+      }
+      return out;
+    }
+  } catch {
+    // A broken value: no widths set.
+  }
+  return {};
+}
+function parseOrder(raw: string): CardId[] {
+  try {
+    const saved = raw ? (JSON.parse(raw) as unknown) : null;
+    if (
+      Array.isArray(saved) &&
+      saved.length === DEFAULT_CARD_ORDER.length &&
+      DEFAULT_CARD_ORDER.every((id) => saved.includes(id))
+    )
+      return saved as CardId[];
+  } catch {
+    // A broken value: the default order.
+  }
+  return DEFAULT_CARD_ORDER;
+}
+
+/** The test copy's card order and edit mode (by request, 2026-11-12). */
+function useCardLayout(enabled: boolean) {
+  const raw = useSyncExternalStore(
+    subscribeOrder,
+    () => (enabled ? readStored(CARD_ORDER_KEY) : ""),
+    () => "",
+  );
+  const widthsRaw = useSyncExternalStore(
+    subscribeOrder,
+    () => (enabled ? readStored(CARD_WIDTHS_KEY) : ""),
+    () => "",
+  );
+  // What this visit set, when storage would not keep it.
+  const [local, setLocal] = useState<CardId[] | null>(null);
+  const [localWidths, setLocalWidths] = useState<Partial<
+    Record<CardId, number>
+  > | null>(null);
+  const order = useMemo(() => local ?? parseOrder(raw), [local, raw]);
+  const widths = useMemo(
+    () => localWidths ?? parseWidths(widthsRaw),
+    [localWidths, widthsRaw],
+  );
+  // The width while an edge is being dragged — drawn live, saved on release.
+  const [draft, setDraft] = useState<{ id: CardId; w: number } | null>(null);
+  // Set while an edge is held, so the card itself does not start to drag.
+  const resizing = useRef(false);
+  const [editing, setEditing] = useState(false);
+  const [dragId, setDragId] = useState<CardId | null>(null);
+  const [overId, setOverId] = useState<CardId | null>(null);
+  const save = (next: CardId[]) => {
+    try {
+      localStorage.setItem(CARD_ORDER_KEY, JSON.stringify(next));
+      setLocal(null);
+    } catch {
+      setLocal(next);
+    }
+    for (const listener of orderListeners) listener();
+  };
+  const saveWidths = (next: Partial<Record<CardId, number>>) => {
+    try {
+      localStorage.setItem(CARD_WIDTHS_KEY, JSON.stringify(next));
+      setLocalWidths(null);
+    } catch {
+      setLocalWidths(next);
+    }
+    for (const listener of orderListeners) listener();
+  };
+  /** Puts the dragged card where the target stands. */
+  const move = (from: CardId, to: CardId) => {
+    if (from === to) return;
+    const next = order.filter((id) => id !== from);
+    next.splice(order.indexOf(to), 0, from);
+    save(next);
+  };
+  return {
+    order,
+    editing,
+    setEditing,
+    dragId,
+    setDragId,
+    overId,
+    setOverId,
+    move,
+    /** A card's width, px: the edge being dragged, else the saved one. */
+    widthOf: (id: CardId): number | undefined =>
+      draft?.id === id ? draft.w : widths[id],
+    setDraft,
+    /** Whether an edge is held — the card must not start to drag then. */
+    isResizing: () => resizing.current,
+    beginResize: () => {
+      resizing.current = true;
+    },
+    endResize: () => {
+      resizing.current = false;
+    },
+    setWidth: (id: CardId, w: number) => saveWidths({ ...widths, [id]: w }),
+    clearWidth: (id: CardId) => {
+      const next = { ...widths };
+      delete next[id];
+      saveWidths(next);
+    },
+    reset: () => {
+      save(DEFAULT_CARD_ORDER);
+      saveWidths({});
+    },
+  };
+}
+
+/** One card's place in the test copy's row: its width and its order, and
+ * while editing a dashed frame with the grip that drags it. */
+function LayoutSlot({
+  id,
+  layout,
+  width,
+  children,
+}: {
+  id: CardId;
+  layout: CardLayout;
+  width: string;
+  children: React.ReactNode;
+}) {
+  const t = useProDict().analysis;
+  const { editing, dragId, overId } = layout;
+  return (
+    <div
+      data-layout-slot
+      draggable={editing}
+      onDragStart={(event) => {
+        // An edge being resized is not a card being moved.
+        if (layout.isResizing()) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", id);
+        layout.setDragId(id);
+      }}
+      onDragOver={(event) => {
+        if (!dragId) return;
+        event.preventDefault();
+        if (overId !== id) layout.setOverId(id);
+      }}
+      onDragLeave={() => {
+        if (overId === id) layout.setOverId(null);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        if (dragId) layout.move(dragId, id);
+        layout.setDragId(null);
+        layout.setOverId(null);
+      }}
+      onDragEnd={() => {
+        layout.setDragId(null);
+        layout.setOverId(null);
+      }}
+      style={{
+        order: layout.order.indexOf(id),
+        // A width set by dragging the edge: that many px, neither growing
+        // nor shrinking, in place of the card's own (2026-11-12).
+        ...(layout.widthOf(id) != null && {
+          flex: `0 0 ${layout.widthOf(id)}px`,
+          maxWidth: "100%",
+        }),
+      }}
+      className={cn(
+        // The card fills its place; the row's gap, not the cards' own
+        // margins, sets the space between them.
+        "relative flex min-w-0 flex-col lg:[&>*]:mt-0 [&>*]:flex-1",
+        width,
+        dragId === id && "opacity-40",
+      )}
+    >
+      {children}
+      {editing && (
+        // Over the card while editing: its own controls (the map, the plot)
+        // would otherwise take the pointer. Above the map's panes (1000).
+        <div
+          className={cn(
+            "absolute inset-0 z-[1200] flex cursor-grab items-start justify-end rounded-lg border-2 border-dashed p-3 transition-colors active:cursor-grabbing",
+            overId === id && dragId !== id
+              ? "border-foreground bg-[#D9FF00]/20"
+              : "border-foreground/30 bg-background/30",
+          )}
+        >
+          <span
+            aria-label={t.panels.dragCard}
+            title={t.panels.dragCard}
+            className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm"
+          >
+            <GripVertical aria-hidden className="size-4" />
+          </span>
+          {/* The right edge: drag to set the card's width, double-click to
+              give it back its own. */}
+          <button
+            type="button"
+            draggable={false}
+            aria-label={t.panels.resizeCard}
+            title={t.panels.resizeCard}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              const slot = event.currentTarget.closest<HTMLElement>(
+                "[data-layout-slot]",
+              );
+              if (!slot) return;
+              layout.beginResize();
+              try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+              } catch {
+                // A pointer the browser no longer tracks: no capture.
+              }
+              const startX = event.clientX;
+              const startW = slot.getBoundingClientRect().width;
+              const rowW = slot.parentElement?.clientWidth ?? startW;
+              const target = event.currentTarget;
+              const clamp = (w: number) =>
+                Math.round(Math.min(rowW, Math.max(CARD_MIN_W, w)));
+              let last = startW;
+              const onMove = (e: PointerEvent) => {
+                last = clamp(startW + e.clientX - startX);
+                layout.setDraft({ id, w: last });
+              };
+              const onUp = () => {
+                target.removeEventListener("pointermove", onMove);
+                target.removeEventListener("pointerup", onUp);
+                target.removeEventListener("pointercancel", onUp);
+                layout.endResize();
+                layout.setDraft(null);
+                layout.setWidth(id, last);
+              };
+              target.addEventListener("pointermove", onMove);
+              target.addEventListener("pointerup", onUp);
+              target.addEventListener("pointercancel", onUp);
+            }}
+            onDoubleClick={() => layout.clearWidth(id)}
+            className="absolute top-1/2 -right-[13px] z-10 flex h-20 w-6 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center"
+          >
+            <span
+              aria-hidden
+              className="h-full w-1.5 rounded-full bg-foreground/70 transition-colors hover:bg-foreground"
+            />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Edit layout" / "Done", and "Reset" while editing — the test copy's
+ * switches, at the head of the panel switches. */
+function LayoutEditButtons({ layout }: { layout: CardLayout }) {
+  const t = useProDict().analysis;
+  return (
+    <>
+      {layout.editing && (
+        <button
+          type="button"
+          onClick={layout.reset}
+          className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-muted px-3.5 text-sm font-medium transition-colors hover:bg-card dark:hover:bg-emphasis"
+        >
+          <RotateCcw aria-hidden className="size-4" />
+          {t.panels.resetLayout}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-pressed={layout.editing}
+        onClick={() => layout.setEditing(!layout.editing)}
+        className={cn(
+          "mr-2 flex h-10 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors",
+          layout.editing
+            ? "bg-foreground text-background"
+            : "bg-muted hover:bg-card dark:hover:bg-emphasis",
+        )}
+      >
+        <GripVertical aria-hidden className="size-4" />
+        {layout.editing ? t.panels.doneLayout : t.panels.editLayout}
+      </button>
+    </>
   );
 }

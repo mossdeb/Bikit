@@ -244,6 +244,12 @@ const en = {
     /** A start-to-finish track's sectors card (2026-11-12). */
     sectors: "Sectors",
     map: "Map",
+    /** The /ui2 test copy's layout editing (2026-11-12). */
+    editLayout: "Edit layout",
+    doneLayout: "Done",
+    resetLayout: "Reset",
+    dragCard: "Drag to move this card",
+    resizeCard: "Drag to change the width; double-click for its own",
     show: (label: string): string => `Show ${label}`,
   },
 
@@ -606,6 +612,11 @@ const pt: typeof en = {
     laps: "Voltas",
     sectors: "Sectores",
     map: "Mapa",
+    editLayout: "Editar disposição",
+    doneLayout: "Concluir",
+    resetLayout: "Repor",
+    dragCard: "Arrastar para mudar este cartão de lugar",
+    resizeCard: "Arrastar para mudar a largura; duplo clique para a de origem",
     show: (label) => `Mostrar ${label}`,
   },
 
