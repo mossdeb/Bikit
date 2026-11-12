@@ -2604,12 +2604,15 @@ export function ImuSessionAnalysis({
             thing you drag, and everything else only says what the cursor
             found. Phone: chart, map, reading, Rider. Desktop: Rider, chart,
             map, then the reading across the foot. */}
-          {/* The plot's column: its head on the page, the plot in a card under
-            it. The head is not part of the card because it is not part of
-            the picture — it names the picture and holds the controls that
-            shape it, the way the page's own section titles do. Inside the
-            card it had read as a strip of chrome bolted onto the plot. */}
-          <div className="order-1 flex min-w-0 flex-col lg:order-2">
+          {/* The plot's column: one card from `sm` up, its head inside it with
+            the title and the menus over the plot (by request, 2026-11-12) —
+            it had stood on the page above the card. */}
+          <div
+            className={cn(
+              "order-1 flex min-w-0 flex-col lg:order-2 sm:overflow-hidden sm:rounded-lg sm:bg-card",
+              DARK_CARD_HAIRLINE_SM,
+            )}
+          >
             <ChartCardHeading
               legend={<MetricLegend defs={activeSeriesDefs} />}
               controls={
@@ -2625,8 +2628,7 @@ export function ImuSessionAnalysis({
                 // grid row is as tall as the tallest column, and without it
                 // the card would stop at its content and leave the map and the
                 // Rider standing past its foot.
-                "min-w-0 flex-1 sm:overflow-hidden sm:rounded-lg sm:bg-card sm:py-5",
-                DARK_CARD_HAIRLINE_SM,
+                "min-w-0 flex-1 sm:pt-4 sm:pb-5",
               )}
             >
               <ImuChart
@@ -3968,7 +3970,7 @@ function MetricLegend({
           // a capsule, which is the shape the controls use. A small radius
           // is the second thing, after the fill, that keeps a legend from
           // reading as something you press.
-          className="flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] bg-card px-2 text-xs font-medium"
+          className="flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] border border-border bg-card px-2 text-xs font-medium"
         >
           <span
             className="size-1.5 shrink-0 rounded-full"
@@ -4017,7 +4019,10 @@ function ChartCardHeading({
     // 617px at 1400 and four chips alone want ~290 — the menus drop to a
     // second line rather than everything being crushed on one. Costs 36px of
     // head, and only while many metrics are on.
-    <div className="mb-4 hidden flex-wrap items-center gap-x-2.5 gap-y-2 sm:flex">
+    // Inside the plot's card since 2026-11-12: the card's 20 px padding
+    // around it, a rule under it from edge to edge (by request, the same
+    // day), and the plot 16 px below.
+    <div className="hidden flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-border px-5 pt-5 pb-5 sm:flex">
       <ImuChartGlyph className={TELEMETRY_GLYPH_CLASS} />
       <h2 className="font-display text-xl font-semibold whitespace-nowrap">
         {t.telemetry}
