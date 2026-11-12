@@ -1,15 +1,12 @@
-import { SessionPage } from "../session-page";
+import { redirect } from "next/navigation";
 
-/**
- * The session page's test copy (by request, 2026-11-12): the same cards, and
- * a switch that lets them be dragged into another order, kept in this
- * browser. The owner's account only; the page itself is untouched.
- */
+/** The layout once tried here is the session page's own now (2026-11-12):
+ * old links land there. */
 export default async function ImuSessionUi2Page({
   params,
 }: {
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
-  return <SessionPage sessionId={sessionId} layoutEditable />;
+  redirect(`/pro/sessoes/${sessionId}`);
 }

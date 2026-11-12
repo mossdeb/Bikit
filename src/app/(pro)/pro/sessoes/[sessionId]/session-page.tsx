@@ -7,7 +7,6 @@ import { CLICKABLE_CARD_HOVER } from "@/lib/card-styles";
 import {
   canDownloadRecordings,
   hasLabAccess,
-  isAdmin,
   hasPerfectRun,
 } from "@/lib/lab-access";
 import { localeFromMetadata } from "@/lib/i18n";
@@ -61,16 +60,16 @@ function riderNames(sessions: { rider_name: string | null }[]): string[] {
 }
 
 /**
- * The session page's body, shared by the page and its test copy (by
- * request, 2026-11-12): `/pro/sessoes/[id]` as it is, and `/ui2`, where the
- * cards can be put in another order — owner-only there.
+ * The session page's body. Its cards can be put in rows of the rider's own
+ * (by request, 2026-11-12: tried at `/ui2`, then made the page itself).
  */
 export async function SessionPage({
   sessionId,
   layoutEditable = false,
 }: {
   sessionId: string;
-  /** The test copy's draggable cards; off on the page itself. */
+  /** The cards' rows, widths and heights, set by hand and kept in the
+   * browser. */
   layoutEditable?: boolean;
 }) {
   const supabase = await createClient();
@@ -78,8 +77,6 @@ export async function SessionPage({
   const email = userData?.claims?.email as string | undefined;
   const userId = userData?.claims?.sub as string | undefined;
   if (!userId || !hasLabAccess(email)) notFound();
-  // The test copy is the owner's alone while it is an experiment.
-  if (layoutEditable && !isAdmin(email)) notFound();
 
   const { data: session } = await supabase
     .from("imu_sessions")

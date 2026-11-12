@@ -2612,8 +2612,8 @@ export function ImuSessionAnalysis({
           all three cards said they did. What is left up here is the pair
           that decides which cards exist at all, which is nobody's card. */}
         <PanelSwitchRow>
-          {layoutEditable && <LayoutEditButtons layout={layout} />}
           {panelToggles}
+          {layoutEditable && <LayoutEditButtons layout={layout} />}
         </PanelSwitchRow>
 
         {/* The plot and the route: one card each from `sm` up, side by side
@@ -2644,7 +2644,9 @@ export function ImuSessionAnalysis({
             // The test copy: a wrapping row instead of the grid, each card
             // keeping its width and taking its place from the saved order.
             layoutEditable
-              ? "lg:relative lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
+              ? // Stacked, the column's gap spaces the cards: in the rider's
+                // order the cards' own top margins no longer line up.
+                "sm:gap-y-[22px] lg:relative lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
               : lapsShown && dashOn
               ? data.gps && mapOn
                 ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
@@ -3139,9 +3141,9 @@ export function ImuSessionAnalysis({
           <div
             className={cn(
               "min-h-[248px] border-t border-border px-5 pt-5 pb-6 sm:border-0 sm:p-0",
-              // The test copy: no box of its own from `lg`; its two halves
-              // stand in the row as cards of their own (2026-11-12).
-              layoutEditable && "lg:contents",
+              // The editable layout: no box of its own from `sm`; its two
+              // halves stand among the cards as cards of their own.
+              layoutEditable && "sm:contents",
               // It lives inside the columns block now, which is what lets the
               // Rider panel fall past it on a phone — `order` can only shuffle
               // siblings, and these two were in different parents.
@@ -3171,7 +3173,7 @@ export function ImuSessionAnalysis({
               <p
                 className={cn(
                   "text-sm text-muted-foreground",
-                  layoutEditable && "lg:order-last lg:basis-full",
+                  layoutEditable && "sm:order-last sm:basis-full",
                 )}
               >
                 {t.reading.prompt}
@@ -3214,7 +3216,7 @@ export function ImuSessionAnalysis({
                   activeSeriesDefs.length > 0
                     ? "lg:grid-cols-[var(--imu-read-w)_minmax(0,1fr)]"
                     : "lg:grid-cols-1",
-                  layoutEditable && "lg:contents",
+                  layoutEditable && "sm:contents",
                 )}
               >
                 {/* Only what the chart is drawing — toggling a pill toggles its
@@ -3240,7 +3242,7 @@ export function ImuSessionAnalysis({
                     activeSeriesDefs.length === 0 && "hidden",
                     // The test copy: the metrics as one white card around
                     // their outlined cards (2026-11-12).
-                    layoutEditable && "lg:rounded-lg lg:bg-card lg:p-[22px]",
+                    layoutEditable && "sm:rounded-lg sm:bg-card sm:p-[22px]",
                     layoutEditable && DARK_CARD_HAIRLINE_SM,
                   )}
                 >
@@ -3471,7 +3473,11 @@ export function ImuSessionAnalysis({
                     // bottom. Dashed (by request, the same day): a place for
                     // cards, not a card. `isolate` keeps the outline, drawn behind the
                     // cards, inside this box rather than behind the page.
-                    "lg:isolate lg:before:absolute lg:before:inset-0 lg:before:-z-10 lg:before:rounded-[22px] lg:before:border lg:before:border-dashed lg:before:border-foreground/15 lg:before:content-['']",
+                    // The test copy: a filled card instead, whatever height
+                    // its row gives it (by request, 2026-11-12).
+                    layoutEditable
+                      ? cn("sm:rounded-[22px] sm:bg-card", DARK_CARD_HAIRLINE_SM)
+                      : "lg:isolate lg:before:absolute lg:before:inset-0 lg:before:-z-10 lg:before:rounded-[22px] lg:before:border lg:before:border-dashed lg:before:border-foreground/15 lg:before:content-['']",
                   )}
                   style={eventsMinH ? { minHeight: eventsMinH } : undefined}
                 >
@@ -5489,7 +5495,7 @@ function LayoutSlot({
       className={cn(
         // The card fills its place; the row's gap, not the cards' own
         // margins, sets the space between them.
-        "relative flex min-w-0 flex-col lg:min-h-[var(--card-h)] lg:[flex:var(--card-flex)] lg:[&>*]:mt-0 [&>*]:flex-1",
+        "relative flex min-w-0 flex-col lg:min-h-[var(--card-h)] lg:[flex:var(--card-flex)] sm:[&>*]:mt-0 [&>*]:flex-1",
         className,
         hidden && "hidden",
         dragId === id && "opacity-40",
@@ -5635,7 +5641,9 @@ function LayoutSlot({
 function LayoutEditButtons({ layout }: { layout: CardLayout }) {
   const t = useProDict().analysis;
   return (
-    <>
+    // Apart from the panel switches by a little more than their own gap:
+    // these arrange the cards, the switches decide which exist.
+    <div className="ml-2 flex items-center gap-2">
       {layout.editing && (
         <button
           type="button"
@@ -5651,7 +5659,7 @@ function LayoutEditButtons({ layout }: { layout: CardLayout }) {
         aria-pressed={layout.editing}
         onClick={() => layout.setEditing(!layout.editing)}
         className={cn(
-          "mr-2 flex h-10 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors",
+          "flex h-10 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors",
           layout.editing
             ? "bg-foreground text-background"
             : "bg-muted hover:bg-card dark:hover:bg-emphasis",
@@ -5660,6 +5668,6 @@ function LayoutEditButtons({ layout }: { layout: CardLayout }) {
         <GripVertical aria-hidden className="size-4" />
         {layout.editing ? t.panels.doneLayout : t.panels.editLayout}
       </button>
-    </>
+    </div>
   );
 }
