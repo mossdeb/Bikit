@@ -5255,10 +5255,8 @@ function NewRowZone({ layout }: { layout: CardLayout }) {
         layout.setOver(null);
       }}
       className={cn(
-        "hidden h-24 basis-full items-center justify-center rounded-lg border-2 border-dashed text-sm font-medium transition-colors lg:flex",
-        over
-          ? "border-foreground bg-[#D9FF00]/20 text-foreground"
-          : "border-foreground/30 text-muted-foreground",
+        "hidden h-24 basis-full items-center justify-center rounded-lg border border-dashed border-[#D9FF00] text-sm font-medium transition-colors lg:flex",
+        over ? "bg-[#D9FF00]/20 text-foreground" : "text-muted-foreground",
       )}
     >
       {t.panels.newRow}
@@ -5298,7 +5296,7 @@ function RowGapZones({ layout }: { layout: CardLayout }) {
           "absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full transition-all",
           overAt === gap.at
             ? "h-1.5 bg-foreground"
-            : "h-0 border-t-2 border-dashed border-foreground/30",
+            : "h-0 border-t border-dashed border-[#D9FF00]",
         )}
       />
       {overAt === gap.at && (
@@ -5403,10 +5401,8 @@ function LayoutSlot({
         // would otherwise take the pointer. Above the map's panes (1000).
         <div
           className={cn(
-            "absolute inset-0 z-[1200] flex cursor-grab items-start justify-end rounded-lg border-2 border-dashed p-3 transition-colors active:cursor-grabbing",
-            overSide
-              ? "border-foreground bg-[#D9FF00]/20"
-              : "border-foreground/30 bg-background/30",
+            "absolute inset-0 z-[1200] flex cursor-grab items-start justify-end rounded-lg border border-dashed border-[#D9FF00] p-3 transition-colors active:cursor-grabbing",
+            overSide ? "bg-[#D9FF00]/20" : "bg-background/30",
           )}
         >
           {/* Where the dragged card would land: a bar on that side. */}
