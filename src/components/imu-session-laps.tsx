@@ -181,7 +181,7 @@ export function ImuSessionLaps({
                                 ])
                               }
                               className={cn(
-                                "flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-3 text-left text-sm transition-colors hover:bg-muted",
+                                "flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-4 text-left text-sm transition-colors hover:bg-muted",
                                 // The fastest sector's bar, as the best lap's.
                                 fastest && "shadow-[inset_3px_0_0_#D9FF00]",
                               )}
