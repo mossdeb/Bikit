@@ -2647,7 +2647,7 @@ export function ImuSessionAnalysis({
             // The test copy: a wrapping row instead of the grid, each card
             // keeping its width and taking its place from the saved order.
             layoutEditable
-              ? "lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
+              ? "lg:relative lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
               : lapsShown && dashOn
               ? data.gps && mapOn
                 ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
@@ -2672,6 +2672,7 @@ export function ImuSessionAnalysis({
           {/* While a card is dragged: the zone for a row of its own. Placed
             by its `order`, at the foot of the cards. */}
           {layoutEditable && <NewRowZone layout={layout} />}
+          {layoutEditable && <RowGapZones layout={layout} />}
           {slot("chart", <div
             className={cn(
               "order-1 flex min-w-0 flex-col lg:order-2 sm:overflow-hidden sm:rounded-lg sm:bg-card",
@@ -5062,6 +5063,44 @@ function cardRowWidths(
   return out;
 }
 
+/** A gap between two rows of cards: dropping a card in it gives the card a
+ * new row there, before the row at `at`. Px from the top of the cards. */
+type RowGap = { at: number; top: number; height: number };
+
+/** The row of cards a card stands in — past the reading's wrappers, which
+ * take no box of their own (`contents`) and so measure 0 wide. */
+function cardLineOf(slot: HTMLElement): HTMLElement | null {
+  let line = slot.parentElement;
+  while (line && getComputedStyle(line).display === "contents")
+    line = line.parentElement;
+  return line;
+}
+
+/** The gaps between the rows as they stand, rows with no card shown
+ * skipped. */
+function measureRowGaps(line: HTMLElement, rows: CardId[][]): RowGap[] {
+  const base = line.getBoundingClientRect().top;
+  const boxes: { at: number; top: number; bottom: number }[] = [];
+  rows.forEach((row, at) => {
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const id of row) {
+      const el = line.querySelector(`[data-card-id="${id}"]`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      top = Math.min(top, rect.top - base);
+      bottom = Math.max(bottom, rect.bottom - base);
+    }
+    if (top < Infinity) boxes.push({ at, top, bottom });
+  });
+  return boxes.slice(1).map((box, k) => ({
+    at: box.at,
+    top: boxes[k].bottom,
+    height: Math.max(0, box.top - boxes[k].bottom),
+  }));
+}
+
 /** The test copy's rows and edit mode (by request, 2026-11-12). */
 function useCardLayout(enabled: boolean) {
   const raw = useSyncExternalStore(
@@ -5095,6 +5134,8 @@ function useCardLayout(enabled: boolean) {
     id: CardId;
     side: "before" | "after";
   } | null>(null);
+  // Where the gaps between the rows stand, measured as a drag starts.
+  const [gaps, setGaps] = useState<RowGap[]>([]);
   const save = (next: CardId[][]) => {
     try {
       localStorage.setItem(CARD_ROWS_KEY, JSON.stringify(next));
@@ -5136,8 +5177,15 @@ function useCardLayout(enabled: boolean) {
       row.splice(row.indexOf(to) + (side === "after" ? 1 : 0), 0, from);
       save(next);
     },
-    /** Gives the dragged card a row of its own, at the foot. */
-    moveToNewRow: (from: CardId) => save([...without(from), [from]]),
+    gaps,
+    setGaps,
+    /** Gives the dragged card a row of its own — before the row at `at`,
+     * or at the foot. */
+    moveToNewRow: (from: CardId, at = rows.length) => {
+      const next = rows.map((row) => row.filter((other) => other !== from));
+      next.splice(at, 0, [from]);
+      save(next.filter((row) => row.length > 0));
+    },
     /** A card's width set by its edge, px: the one being dragged, else the
      * saved one. */
     widthOf: (id: CardId): number | undefined =>
@@ -5218,6 +5266,50 @@ function NewRowZone({ layout }: { layout: CardLayout }) {
   );
 }
 
+/** While a card is dragged: a drop zone in each gap between two rows,
+ * for a new row there (by request, 2026-11-12). Laid over the gap, a little
+ * taller than it so it is not a hairline to aim at. */
+function RowGapZones({ layout }: { layout: CardLayout }) {
+  const t = useProDict().analysis;
+  const [overAt, setOverAt] = useState<number | null>(null);
+  if (!layout.editing || !layout.dragId) return null;
+  return layout.gaps.map((gap) => (
+    <div
+      key={gap.at}
+      style={{ top: gap.top - 10, height: gap.height + 20 }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (overAt !== gap.at) setOverAt(gap.at);
+        if (layout.over) layout.setOver(null);
+      }}
+      onDragLeave={() => setOverAt(null)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOverAt(null);
+        if (layout.dragId) layout.moveToNewRow(layout.dragId, gap.at);
+        layout.setDragId(null);
+        layout.setOver(null);
+      }}
+      className="absolute inset-x-0 z-[1300] hidden items-center justify-center lg:flex"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full transition-all",
+          overAt === gap.at
+            ? "h-1.5 bg-foreground"
+            : "h-0 border-t-2 border-dashed border-foreground/30",
+        )}
+      />
+      {overAt === gap.at && (
+        <span className="relative rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+          {t.panels.newRowHere}
+        </span>
+      )}
+    </div>
+  ));
+}
+
 /** One card's place in the test copy's row: its width and its order, and
  * while editing a dashed frame with the grip that drags it. */
 function LayoutSlot({
@@ -5251,6 +5343,7 @@ function LayoutSlot({
   return (
     <div
       data-layout-slot
+      data-card-id={id}
       draggable={editing}
       onDragStart={(event) => {
         // An edge being resized is not a card being moved.
@@ -5260,6 +5353,8 @@ function LayoutSlot({
         }
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", id);
+        const line = cardLineOf(event.currentTarget);
+        layout.setGaps(line ? measureRowGaps(line, layout.rows) : []);
         layout.setDragId(id);
       }}
       onDragOver={(event) => {
@@ -5352,7 +5447,7 @@ function LayoutSlot({
               }
               const startX = event.clientX;
               const startW = slot.getBoundingClientRect().width;
-              const rowW = slot.parentElement?.clientWidth ?? startW;
+              const rowW = cardLineOf(slot)?.clientWidth || startW;
               const target = event.currentTarget;
               const clamp = (w: number) =>
                 Math.round(Math.min(rowW, Math.max(CARD_MIN_W, w)));
