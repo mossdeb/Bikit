@@ -3310,10 +3310,13 @@ export function ImuSessionAnalysis({
                                 Written as a value because the scale has no
                                 rung there — `text-xl` is 20. */}
                               <span className="min-w-[132px] text-[22px] leading-none font-semibold tabular-nums whitespace-nowrap sm:min-w-[164px]">
+                                {/* Two decimals, as the rest of the page
+                                    (2026-11-12): four were finer than the
+                                    sensor reads. */}
                                 {proNumber(
                                   shownValues[def.id][cursorIndex],
                                   locale,
-                                  4,
+                                  2,
                                 )}{" "}
                                 <span className="text-sm font-normal text-muted-foreground">
                                   {def.unit}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useProDict } from "@/components/pro-locale";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import type { Locale } from "@/lib/i18n";
 import { formatDate } from "@/lib/format";
 import {
@@ -16,6 +16,7 @@ import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import {
   findTimedRuns,
   formatRunTime,
+  formatSeconds,
   isLapTrack,
   RUN_TIE_MS,
   type TimedRun,
@@ -282,8 +283,9 @@ function sectorPaths(read: Read, splits: SnapshotGate[]): [number, number][][] {
   return out;
 }
 
-function seconds(ms: number): string {
-  return (ms / 1000).toFixed(2);
+/** Seconds to the hundredth in the language's own decimals (2026-11-12). */
+function seconds(ms: number, locale: Locale = "en"): string {
+  return formatSeconds(ms, 2, locale);
 }
 
 /** The runs' marks (by request, 2026-11-09: sectors from the same run
@@ -307,6 +309,7 @@ export function PerfectRunLine({
   onOpen: () => void;
 }) {
   const t = useProDict().tracks.perfect;
+  const locale = useProLocale();
   if (state.status !== "ready") return null;
   const { result } = state;
   return (
@@ -329,7 +332,7 @@ export function PerfectRunLine({
             aria-hidden
             className="hidden text-xs text-muted-foreground tabular-nums"
           >
-            {t.gainShort(seconds(result.gainMs))}
+            {t.gainShort(seconds(result.gainMs, locale))}
           </span>
         )}
       </span>
@@ -427,7 +430,7 @@ export function PerfectRunView({
           {gains ? (
             <p className="flex items-center gap-1.5 font-display text-2xl font-bold tabular-nums sm:text-3xl">
               <ArrowDown className="size-5 shrink-0" strokeWidth={2.5} />
-              {seconds(result.gainMs)} s
+              {seconds(result.gainMs, locale)} s
             </p>
           ) : (
             <p className="py-1 text-sm">{t.noGain}</p>
@@ -464,7 +467,7 @@ export function PerfectRunView({
             // On hover, the run the sector came from (by request,
             // 2026-11-09) — the bar's own words, so it reads without the
             // list below.
-            const tip = `${t.sector(i + 1)} · ${shortName(s.bestRunId)} · ${seconds(s.bestMs)} s`;
+            const tip = `${t.sector(i + 1)} · ${shortName(s.bestRunId)} · ${seconds(s.bestMs, locale)} s`;
             return (
               <span
                 key={i}
@@ -498,7 +501,7 @@ export function PerfectRunView({
                   {" · "}
                   {shortName(s.bestRunId)}
                   {" · "}
-                  <span className="tabular-nums">{seconds(s.bestMs)} s</span>
+                  <span className="tabular-nums">{seconds(s.bestMs, locale)} s</span>
                 </span>
               </span>
             );
@@ -511,7 +514,7 @@ export function PerfectRunView({
             const name = runName(s.bestRunId);
             const lose =
               s.potentialMs != null && s.potentialMs > RUN_TIE_MS
-                ? t.potential(seconds(s.potentialMs))
+                ? t.potential(seconds(s.potentialMs, locale))
                 : null;
             const body = (
               <>
@@ -532,7 +535,7 @@ export function PerfectRunView({
                 </span>
                 <span className="text-right">
                   <span className="block text-base font-semibold tabular-nums">
-                    {seconds(s.bestMs)} s
+                    {seconds(s.bestMs, locale)} s
                   </span>
                   {lose && (
                     <span className="block text-xs text-muted-foreground tabular-nums">

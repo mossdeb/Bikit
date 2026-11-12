@@ -7,7 +7,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useProDict, useProLocale } from "@/components/pro-locale";
-import { formatDurationMillis } from "@/lib/imu/derive";
 import { formatDate } from "@/lib/format";
 import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import {
@@ -17,6 +16,8 @@ import {
 import {
   findTimedRuns,
   formatRunGap,
+  formatRunTime,
+  formatSeconds,
   type TimedRun,
 } from "@/lib/imu/timed-track";
 import type {
@@ -44,9 +45,9 @@ export function lapSectorStats(sectors: (number[] | null)[] | null | undefined) 
   return { sectorMs, count, sectorBest };
 }
 
-/** A lap's time as the laps card writes it: mm:ss.cc. */
+/** A lap's time, as every clock on the page since 2026-11-12: mm:ss.mmm. */
 export function lapTime(ms: number): string {
-  return formatDurationMillis(ms).slice(0, -1);
+  return formatRunTime(ms);
 }
 
 /**
@@ -73,6 +74,7 @@ export function ImuLapsTable({
   heading?: string;
 }) {
   const t = useProDict().tracks;
+  const locale = useProLocale();
   const bestMs = Math.min(...laps.map((lap) => lap.durationMs));
   const { sectorMs, count, sectorBest } = lapSectorStats(sectors);
   // The column the mouse is over, as in the Snapshots' comparison table
@@ -136,7 +138,7 @@ export function ImuLapsTable({
         <tbody>
           {laps.map((lap, index) => {
             const best = lap.durationMs === bestMs;
-            const gap = formatRunGap(lap.durationMs, bestMs);
+            const gap = formatRunGap(lap.durationMs, bestMs, locale);
             const own = sectorMs[index];
             const row = rows?.[index];
             return (
@@ -207,7 +209,7 @@ export function ImuLapsTable({
                           )}
                         >
                           <span className="block text-base font-semibold">
-                            {(ms / 1000).toFixed(2)}
+                            {formatSeconds(ms, 2, locale)}
                           </span>
                           <span
                             className={cn(
@@ -219,7 +221,7 @@ export function ImuLapsTable({
                           >
                             {fastest
                               ? t.best
-                              : (formatRunGap(ms, sectorBest[i]) ?? t.tied)}
+                              : (formatRunGap(ms, sectorBest[i], locale) ?? t.tied)}
                           </span>
                         </span>
                       )}
@@ -250,7 +252,7 @@ export function ImuLapsTable({
                     col(`s${i}`, laps.length),
                   )}
                 >
-                  {(ms / 1000).toFixed(2)}
+                  {formatSeconds(ms, 2, locale)}
                 </td>
               ))}
             </tr>

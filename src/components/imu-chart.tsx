@@ -972,8 +972,11 @@ export function ImuChart({
             aria-hidden
             // A chip clear of the plot's top edge: 5px on the four corners
             // and a gap above it, so it reads as laid over the trace rather
-            // than hung from the frame.
-            className="pointer-events-none absolute flex -translate-x-1/2 items-center rounded-[5px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background"
+            // than hung from the frame. Kept inside the plot at its ends.
+            className={cn(
+              "pointer-events-none absolute flex items-center rounded-[5px] bg-foreground px-1.5 text-[10px] leading-tight font-medium whitespace-nowrap text-background",
+              edgeShift(((tab.midMs - w0) / span) * 100),
+            )}
             style={{
               left: `${((tab.midMs - w0) / span) * 100}%`,
               top: EVENT_TAB_TOP,
@@ -988,7 +991,8 @@ export function ImuChart({
             own figure in a pill under the tabs. Outlined where the tabs are
             solid, so the two read as different things on one strip. */}
         {shockMarks.map((mark, i) => {
-          const left = `${(((mark.fromMs + mark.toMs) / 2 - w0) / span) * 100}%`;
+          const pct = (((mark.fromMs + mark.toMs) / 2 - w0) / span) * 100;
+          const left = `${pct}%`;
           return (
             <span key={`shock-${i}`} aria-hidden>
               <span
@@ -996,7 +1000,12 @@ export function ImuChart({
                 style={{ left, top: SHOCK_PILL_TOP }}
               />
               <span
-                className="pointer-events-none absolute flex -translate-x-1/2 items-center gap-1 rounded-full border border-foreground bg-card px-1.5 text-[10px] leading-[15px] font-semibold whitespace-nowrap text-foreground tabular-nums"
+                // Inside the plot at its ends (2026-11-12): centred on the
+                // instant, a pill near an edge hung half out of it.
+                className={cn(
+                  "pointer-events-none absolute flex items-center gap-1 rounded-full border border-foreground bg-card px-1.5 text-[10px] leading-[15px] font-semibold whitespace-nowrap text-foreground tabular-nums",
+                  edgeShift(pct),
+                )}
                 style={{ left, top: SHOCK_PILL_TOP }}
               >
                 {mark.count > 1 && (
@@ -1005,7 +1014,7 @@ export function ImuChart({
                 {mark.peakG.toLocaleString(PRO_NUMBER_LOCALE[locale], {
                   maximumFractionDigits: mark.peakG >= 20 ? 0 : 1,
                 })}{" "}
-                g
+                {/* "G" as everywhere else on the page (2026-11-12). */}G
               </span>
             </span>
           );
@@ -1497,4 +1506,12 @@ function eventSpan(event: ImuEvent): [number, number] {
     default:
       return [event.startMs, event.endMs];
   }
+}
+
+/** How a label centred on an instant shifts at the plot's ends: from the
+ * edge inwards within 4 % of it, centred elsewhere (2026-11-12). */
+function edgeShift(pct: number): string {
+  if (pct < 4) return "translate-x-0";
+  if (pct > 96) return "-translate-x-full";
+  return "-translate-x-1/2";
 }

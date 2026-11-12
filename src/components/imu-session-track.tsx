@@ -660,7 +660,7 @@ function TrackView({
   const bestMs = timed[0]?.run.durationMs ?? null;
   const isCircuit = isLapTrack(current.track.definition);
   const mineMs = headlineRunMs(current.track.definition, current.runs);
-  const myGap = bestMs != null ? formatRunGap(mineMs, bestMs) : null;
+  const myGap = bestMs != null ? formatRunGap(mineMs, bestMs, locale) : null;
 
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -711,7 +711,7 @@ function TrackView({
         <p className="mb-2 text-sm font-semibold">{t.runsTitle}</p>
         <ol className="divide-y divide-border rounded-md border border-border">
           {timed.map((r, i) => {
-            const gap = formatRunGap(r.run.durationMs, bestMs!);
+            const gap = formatRunGap(r.run.durationMs, bestMs!, locale);
             const isSelf = r.sessionId === sessionId;
             const body = (
               <>

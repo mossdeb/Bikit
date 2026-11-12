@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { ChevronDown, SquareArrowOutUpRight } from "lucide-react";
-import { useProDict } from "@/components/pro-locale";
+import { useProDict, useProLocale } from "@/components/pro-locale";
 import { FinishFlag } from "@/components/imu-session-track";
 import { lapSectorStats, lapTime } from "@/components/imu-laps-table";
-import { formatRunGap, type TimedRun } from "@/lib/imu/timed-track";
+import {
+  formatRunGap,
+  formatSeconds,
+  type TimedRun,
+} from "@/lib/imu/timed-track";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,6 +44,7 @@ export function ImuSessionLaps({
   className?: string;
 }) {
   const t = useProDict().tracks;
+  const locale = useProLocale();
   const time = lapTime;
   const bestMs = Math.min(...laps.map((lap) => lap.durationMs));
   const [open, setOpen] = useState<Set<number>>(() => new Set());
@@ -91,7 +96,7 @@ export function ImuSessionLaps({
           const from = lap.entryMs - trimStartMs;
           const to = lap.exitMs - trimStartMs;
           const best = lap.durationMs === bestMs;
-          const gap = formatRunGap(lap.durationMs, bestMs);
+          const gap = formatRunGap(lap.durationMs, bestMs, locale);
           const foldable = count > 0;
           const isOpen = foldable && open.has(index);
           const own = sectorMs?.[index];
@@ -165,7 +170,7 @@ export function ImuSessionLaps({
                     <ol className="divide-y divide-border overflow-hidden rounded-md bg-muted/60">
                       {own.map((ms, i) => {
                         const fastest = ms - sectorBest[i] < 1;
-                        const delta = formatRunGap(ms, sectorBest[i]);
+                        const delta = formatRunGap(ms, sectorBest[i], locale);
                         // The sector's edges, on the whole recording's clock.
                         const edges = sectors?.[index];
                         return (
@@ -198,7 +203,7 @@ export function ImuSessionLaps({
                                   </span>
                                 )}
                                 <span className="font-semibold">
-                                  {(ms / 1000).toFixed(2)} s
+                                  {formatSeconds(ms, 2, locale)} s
                                 </span>
                               </span>
                             </button>
@@ -253,6 +258,7 @@ export function ImuSessionSplits({
   className?: string;
 }) {
   const t = useProDict().tracks;
+  const locale = useProLocale();
   const { sectorMs, count } = lapSectorStats(sectors);
   const bestRunMs = Math.min(...runs.map((r) => r.durationMs));
   const many = runs.length > 1;
@@ -329,7 +335,7 @@ export function ImuSessionSplits({
                           </span>
                           <span className="flex shrink-0 flex-col items-end">
                             <span className="font-display text-lg leading-tight font-bold tabular-nums">
-                              {(ms / 1000).toFixed(2)} s
+                              {formatSeconds(ms, 2, locale)} s
                             </span>
                             {fastest ? (
                               <span className="mt-0.5 rounded-full bg-foreground px-2 text-xs font-semibold text-background">
@@ -337,7 +343,7 @@ export function ImuSessionSplits({
                               </span>
                             ) : delta != null ? (
                               <span className="text-xs text-muted-foreground tabular-nums">
-                                {formatRunGap(ms, best!) ?? t.tied}
+                                {formatRunGap(ms, best!, locale) ?? t.tied}
                               </span>
                             ) : null}
                           </span>

@@ -337,21 +337,39 @@ export function isTimedTrackDefinition(
   );
 }
 
-/** A run's time to the thousandth, "1:49.167" — a stopwatch's point in
- * both languages (by request, 2026-10-24, like the session's duration).
+/** A run's time to the thousandth, "01:49.167" — a stopwatch's point in
+ * both languages (by request, 2026-10-24, like the session's duration),
+ * and the minutes on two digits like it (2026-11-12): one clock format on
+ * the whole page.
  * Finer than the lines measure (RUN_TIE_MS), which the dialog says under
  * the list. */
 export function formatRunTime(ms: number): string {
   const total = Math.round(Math.max(0, ms));
   const minutes = Math.floor(total / 60_000);
   const seconds = Math.floor((total % 60_000) / 1000);
-  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(total % 1000).padStart(3, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(total % 1000).padStart(3, "0")}`;
 }
 
-/** A run against the best, "+1.412 s", with the times' point — or null
- * when it is the best or within RUN_TIE_MS of it. */
-export function formatRunGap(ms: number, bestMs: number): string | null {
+/** Seconds as a plain decimal, "39.09" or "39,09" by the language (by
+ * request, 2026-11-12) — not a clock, so the language's own separator. */
+export function formatSeconds(
+  ms: number,
+  digits: number,
+  locale: "en" | "pt" = "en",
+): string {
+  const text = (ms / 1000).toFixed(digits);
+  return locale === "pt" ? text.replace(".", ",") : text;
+}
+
+/** A run against the best, "+1.412 s" ("+1,412 s" in Portuguese, since
+ * 2026-11-12: a gap is seconds, not a clock) — or null when it is the
+ * best or within RUN_TIE_MS of it. */
+export function formatRunGap(
+  ms: number,
+  bestMs: number,
+  locale: "en" | "pt" = "en",
+): string | null {
   const gap = ms - bestMs;
   if (gap <= RUN_TIE_MS) return null;
-  return `+${(Math.round(gap) / 1000).toFixed(3)} s`;
+  return `+${formatSeconds(Math.round(gap), 3, locale)} s`;
 }

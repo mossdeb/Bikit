@@ -632,7 +632,9 @@ const pt: typeof en = {
     out: "Afastar",
     reset: "Repor zoom",
     values: "Valores",
-    splits: "Sectores",
+    // "Linhas", not "Sectores" (2026-11-12): the panel switch above is
+    // "Sectores" and shows the card; this one draws the lines.
+    splits: "Linhas",
     trimSet: "Recorte da sessão",
     trim: "Recortar a sessão",
   },

@@ -295,9 +295,10 @@ describe("timed tracks", () => {
   });
 
   it("writes times and gaps to the thousandth, with a point", () => {
-    expect(formatRunTime(107_320)).toBe("1:47.320");
-    expect(formatRunTime(59_999.6)).toBe("1:00.000");
+    expect(formatRunTime(107_320)).toBe("01:47.320");
+    expect(formatRunTime(59_999.6)).toBe("01:00.000");
     expect(formatRunGap(108_732, 107_320)).toBe("+1.412 s");
+    expect(formatRunGap(108_732, 107_320, "pt")).toBe("+1,412 s");
     expect(formatRunGap(107_500, 107_320)).toBeNull();
     expect(formatRunGap(107_320, 107_320)).toBeNull();
   });
