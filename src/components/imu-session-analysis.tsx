@@ -2470,13 +2470,14 @@ export function ImuSessionAnalysis({
         layout={layout}
         width={cardWidths[id]}
         hidden={!shownCards.has(id)}
-        // The laps' list and the events scroll. Where the row has a height
+        // The laps' list, the events and the metrics scroll. Where the row has a height
         // set by hand they ask it for none of their own (`h-0`) and stretch
         // to the row as it stands — the set height, or taller where another
         // card's content is — scrolling inside it (by request, 2026-11-13).
         // Without one they grow with their content like every card.
         className={
-          (id === "laps" || id === "events") && layout.heightOf(id) != null
+          (id === "laps" || id === "events" || id === "metrics") &&
+          layout.heightOf(id) != null
             ? "lg:[&>:first-child]:h-0 lg:[&>:first-child]:min-h-0 lg:[&>:first-child]:basis-0"
             : undefined
         }
@@ -3261,7 +3262,8 @@ export function ImuSessionAnalysis({
                     activeSeriesDefs.length === 0 && "hidden",
                     // The test copy: the metrics as one white card around
                     // their outlined cards (2026-11-12).
-                    layoutEditable && "sm:rounded-lg sm:bg-card sm:p-[22px]",
+                    layoutEditable &&
+                      "sm:rounded-lg sm:bg-card sm:p-[22px] lg:overflow-y-auto",
                     layoutEditable && DARK_CARD_HAIRLINE_SM,
                   )}
                 >
