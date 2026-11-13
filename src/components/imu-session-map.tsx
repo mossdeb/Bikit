@@ -496,6 +496,8 @@ export function ImuSessionMap({
     if (!container) return;
     let cancelled = false;
     let observer: ResizeObserver | null = null;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const openTimers: ReturnType<typeof setTimeout>[] = [];
     let removeWheel: (() => void) | null = null;
 
     (async () => {
@@ -797,6 +799,17 @@ export function ImuSessionMap({
       // would be worse than the problem: dragging the desktop separator
       // resizes this box continuously, and someone zoomed into a corner
       // would be thrown back to the whole ride mid-drag.
+      // Our framing again, fitted to the box as it stands now — only while
+      // the reader has not taken the view over.
+      const refit = () => {
+        if (cancelled || !framedRef.current || !boundsRef.current) return;
+        map.invalidateSize({ animate: false });
+        map.stop();
+        map.fitBounds(boundsRef.current, {
+          padding: fitPadding(containerRef.current),
+          animate: false,
+        });
+      };
       observer = new ResizeObserver(() => {
         map.invalidateSize({ animate: false });
         // Only on a change of value, or this would set state on every frame
@@ -805,20 +818,23 @@ export function ImuSessionMap({
           const next = markScale(containerRef.current);
           return next === prev ? prev : next;
         });
-        if (!framedRef.current || !boundsRef.current) return;
         // Stopped and not animated (2026-11-13): the session's cards settle
         // in a few quick sizes as the page opens (natural, then the row's
         // width, then a row height set by hand), and Leaflet ignores a new
         // view while a zoom animation is running — so the last fit was
         // dropped and the map kept the zoom of a narrower card, the route a
         // speck in the middle. Measured: 166×140 px in a 1293 px card.
-        map.stop();
-        map.fitBounds(boundsRef.current, {
-          padding: fitPadding(containerRef.current),
-          animate: false,
-        });
+        refit();
+        // And once more when the sizes settle: a fit landing on a size
+        // Leaflet had not taken in yet still left the route a speck
+        // (2026-11-13), and a resize nudge always cured it.
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(refit, 250);
       });
       observer.observe(container);
+      // After opening too, for the same reason: the cards finish sizing
+      // themselves (the row's width, a height set by hand) around now.
+      openTimers.push(setTimeout(refit, 300), setTimeout(refit, 1200));
 
       mapRef.current = map;
       setReady((n) => n + 1);
@@ -826,6 +842,8 @@ export function ImuSessionMap({
 
     return () => {
       cancelled = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      for (const timer of openTimers) clearTimeout(timer);
       observer?.disconnect();
       removeWheel?.();
       stopVignetteFollowRef.current?.();

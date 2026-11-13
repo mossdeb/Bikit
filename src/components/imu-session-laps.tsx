@@ -23,6 +23,14 @@ import { cn } from "@/lib/utils";
  * lap. The chevron opens it; the rest of the row still zooms, and so does
  * a sector, onto its stretch of the lap.
  */
+/** The colour of time lost to the best (by request, 2026-11-13): amber up
+ * to half a second, red past it — read at a glance down a column of gaps. */
+function gapTone(lostMs: number): string {
+  return lostMs <= 500
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-red-600 dark:text-red-400";
+}
+
 export function ImuSessionLaps({
   laps,
   sectors,
@@ -113,7 +121,8 @@ export function ImuSessionLaps({
                   onClick={() => onPick([from, to])}
                   className={cn(
                     "flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 py-4 pl-5 text-left transition-colors hover:bg-muted",
-                    foldable ? "pr-2" : "pr-5",
+                    // Room between the gap and the sectors' button.
+                    "pr-5",
                   )}
                 >
                   <span className="min-w-0">
@@ -127,11 +136,18 @@ export function ImuSessionLaps({
                   {/* The gap, or the best's pill, centred on the row (by
                       request, 2026-11-12). */}
                   {best ? (
-                    <span className="shrink-0 rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                    <span className="shrink-0 rounded-full bg-[#D9FF00] px-2 text-xs font-semibold text-[#101014]">
                       {t.best}
                     </span>
                   ) : (
-                    <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs tabular-nums",
+                        gap
+                          ? gapTone(lap.durationMs - bestMs)
+                          : "text-muted-foreground",
+                      )}
+                    >
                       {gap ?? t.tied}
                     </span>
                   )}
@@ -143,17 +159,18 @@ export function ImuSessionLaps({
                     aria-expanded={isOpen}
                     aria-controls={panelId}
                     onClick={() => toggle(index)}
-                    className="group flex w-14 shrink-0 cursor-pointer items-center justify-center pr-2"
+                    className="group flex shrink-0 cursor-pointer items-center justify-center pr-3"
                   >
-                    {/* The chevron in an outlined circle, to be seen (by
-                        request, 2026-11-12). */}
+                    {/* The chevron in an outlined pill, named for what it
+                        opens (by request, 2026-11-13; a bare circle before). */}
                     <span
                       aria-hidden
                       className={cn(
-                        "flex size-8 items-center justify-center rounded-full border border-foreground/25 text-foreground transition-colors group-hover:border-foreground group-hover:bg-muted",
+                        "flex h-8 items-center gap-1.5 rounded-full border border-foreground/25 pr-2 pl-3 text-xs font-medium text-foreground transition-colors group-hover:border-foreground group-hover:bg-muted",
                         isOpen && "border-foreground",
                       )}
                     >
+                      {t.lapSectorsButton}
                       <ChevronDown
                         className={cn(
                           "size-4 transition-transform duration-200",
@@ -194,11 +211,18 @@ export function ImuSessionLaps({
                               <span className="font-bold">S{i + 1}</span>
                               <span className="flex items-center gap-3 tabular-nums">
                                 {fastest ? (
-                                  <span className="rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                                  <span className="rounded-full bg-[#D9FF00] px-2 text-xs font-semibold text-[#101014]">
                                     {t.best}
                                   </span>
                                 ) : (
-                                  <span className="text-xs text-muted-foreground">
+                                  <span
+                                    className={cn(
+                                      "text-xs",
+                                      delta
+                                        ? gapTone(ms - sectorBest[i])
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
                                     {delta ?? t.tied}
                                   </span>
                                 )}
@@ -338,11 +362,18 @@ export function ImuSessionSplits({
                               {formatSeconds(ms, 2, locale)} s
                             </span>
                             {fastest ? (
-                              <span className="mt-0.5 rounded-full bg-foreground px-2 text-xs font-semibold text-background">
+                              <span className="mt-0.5 rounded-full bg-[#D9FF00] px-2 text-xs font-semibold text-[#101014]">
                                 {t.best}
                               </span>
                             ) : delta != null ? (
-                              <span className="text-xs text-muted-foreground tabular-nums">
+                              <span
+                                className={cn(
+                                  "text-xs tabular-nums",
+                                  formatRunGap(ms, best!, locale)
+                                    ? gapTone(ms - best!)
+                                    : "text-muted-foreground",
+                                )}
+                              >
                                 {formatRunGap(ms, best!, locale) ?? t.tied}
                               </span>
                             ) : null}

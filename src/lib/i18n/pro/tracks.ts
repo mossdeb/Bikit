@@ -61,6 +61,8 @@ const en = {
   lapZoom: (n: number): string => `Zoom the plot to lap ${n}`,
   /** The laps card's accordion: a lap's sector times. */
   lapSectors: (n: number): string => `Sector times of lap ${n}`,
+  /** On the button that opens a lap's sector times. */
+  lapSectorsButton: "Sectors",
   lapNoSectors: "This lap does not cross every sector line.",
   sectorZoom: (sector: number, lap: number): string =>
     `Zoom the plot to sector ${sector} of lap ${lap}`,
@@ -219,6 +221,7 @@ const pt: typeof en = {
   lapsCard: "Voltas",
   lapZoom: (n) => `Aproximar o gráfico à volta ${n}`,
   lapSectors: (n) => `Tempos dos sectores da volta ${n}`,
+  lapSectorsButton: "Sectores",
   lapNoSectors: "Esta volta não cruza todas as linhas dos sectores.",
   sectorZoom: (sector, lap) =>
     `Aproximar o gráfico ao sector ${sector} da volta ${lap}`,
