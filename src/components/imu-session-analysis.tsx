@@ -2652,7 +2652,7 @@ export function ImuSessionAnalysis({
             layoutEditable
               ? // Stacked, the column's gap spaces the cards: in the rider's
                 // order the cards' own top margins no longer line up.
-                "sm:gap-y-[22px] lg:relative lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[75rem]:gap-x-9 min-[75rem]:gap-y-9"
+                "sm:gap-y-[22px] lg:relative lg:flex-row lg:flex-wrap lg:gap-x-[22px] lg:gap-y-[22px] min-[100rem]:gap-x-9 min-[100rem]:gap-y-9"
               : lapsShown && dashOn
               ? data.gps && mapOn
                 ? "lg:grid lg:grid-cols-[240px_300px_minmax(0,1fr)_var(--imu-map-w)] lg:gap-x-[22px]"
