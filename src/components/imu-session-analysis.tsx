@@ -2470,6 +2470,13 @@ export function ImuSessionAnalysis({
         layout={layout}
         width={cardWidths[id]}
         hidden={!shownCards.has(id)}
+        // The laps' list scrolls: a row height set by hand is its ceiling
+        // as well as its floor, where every other card only grows past it.
+        className={
+          id === "laps"
+            ? "lg:max-h-[var(--card-h)] lg:[&>*]:min-h-0"
+            : undefined
+        }
       >
         {node}
       </LayoutSlot>

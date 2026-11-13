@@ -102,7 +102,10 @@ export function ImuSessionLaps({
           </button>
         )}
       </div>
-      <ol className="divide-y divide-border lg:max-h-[480px] lg:overflow-y-auto">
+      {/* Its own height, up to the height set for its row by hand, and
+          scrolling past that (by request, 2026-11-13; 480px at most before).
+          The ceiling is the card's place's — see the session's slots. */}
+      <ol className="divide-y divide-border lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {laps.map((lap, index) => {
           const from = lap.entryMs - trimStartMs;
           const to = lap.exitMs - trimStartMs;
@@ -323,7 +326,7 @@ export function ImuSessionSplits({
           </button>
         )}
       </div>
-      <div className="lg:max-h-[480px] lg:overflow-y-auto">
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         {runs.map((run, r) => {
           const own = sectorMs[r];
           const edges = sectors[r];
