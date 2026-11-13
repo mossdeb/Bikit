@@ -93,9 +93,12 @@ export function ImuSessionLaps({
             aria-label={t.lapsExpand}
             title={t.lapsExpand}
             onClick={onExpand}
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted"
+            // Named for the tab it opens (by request, 2026-11-13; an icon
+            // alone before), in the outlined pill of the rows' buttons.
+            className="flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-foreground/25 px-3.5 text-sm font-medium transition-colors hover:border-foreground hover:bg-muted"
           >
-            <SquareArrowOutUpRight aria-hidden className="size-5" />
+            {t.perfect.tabLaps}
+            <SquareArrowOutUpRight aria-hidden className="size-4" />
           </button>
         )}
       </div>
@@ -311,9 +314,12 @@ export function ImuSessionSplits({
             aria-label={t.lapsExpand}
             title={t.lapsExpand}
             onClick={onExpand}
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-muted"
+            // Named for the tab it opens (by request, 2026-11-13; an icon
+            // alone before), in the outlined pill of the rows' buttons.
+            className="flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border border-foreground/25 px-3.5 text-sm font-medium transition-colors hover:border-foreground hover:bg-muted"
           >
-            <SquareArrowOutUpRight aria-hidden className="size-5" />
+            {t.perfect.tabSectors}
+            <SquareArrowOutUpRight aria-hidden className="size-4" />
           </button>
         )}
       </div>
