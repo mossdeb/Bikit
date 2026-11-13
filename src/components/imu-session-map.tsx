@@ -798,7 +798,7 @@ export function ImuSessionMap({
       // resizes this box continuously, and someone zoomed into a corner
       // would be thrown back to the whole ride mid-drag.
       observer = new ResizeObserver(() => {
-        map.invalidateSize();
+        map.invalidateSize({ animate: false });
         // Only on a change of value, or this would set state on every frame
         // of a separator drag.
         setMarkS((prev) => {
@@ -806,8 +806,16 @@ export function ImuSessionMap({
           return next === prev ? prev : next;
         });
         if (!framedRef.current || !boundsRef.current) return;
+        // Stopped and not animated (2026-11-13): the session's cards settle
+        // in a few quick sizes as the page opens (natural, then the row's
+        // width, then a row height set by hand), and Leaflet ignores a new
+        // view while a zoom animation is running — so the last fit was
+        // dropped and the map kept the zoom of a narrower card, the route a
+        // speck in the middle. Measured: 166×140 px in a 1293 px card.
+        map.stop();
         map.fitBounds(boundsRef.current, {
           padding: fitPadding(containerRef.current),
+          animate: false,
         });
       });
       observer.observe(container);
