@@ -2470,11 +2470,14 @@ export function ImuSessionAnalysis({
         layout={layout}
         width={cardWidths[id]}
         hidden={!shownCards.has(id)}
-        // The laps' list scrolls: a row height set by hand is its ceiling
-        // as well as its floor, where every other card only grows past it.
+        // The laps' list and the events scroll. Where the row has a height
+        // set by hand they ask it for none of their own (`h-0`) and stretch
+        // to the row as it stands — the set height, or taller where another
+        // card's content is — scrolling inside it (by request, 2026-11-13).
+        // Without one they grow with their content like every card.
         className={
-          id === "laps"
-            ? "lg:max-h-[var(--card-h)] lg:[&>*]:min-h-0"
+          (id === "laps" || id === "events") && layout.heightOf(id) != null
+            ? "lg:[&>:first-child]:h-0 lg:[&>:first-child]:min-h-0 lg:[&>:first-child]:basis-0"
             : undefined
         }
       >
@@ -3492,10 +3495,20 @@ export function ImuSessionAnalysis({
                     // The test copy: a filled card instead, whatever height
                     // its row gives it (by request, 2026-11-12).
                     layoutEditable
-                      ? cn("sm:rounded-[22px] sm:bg-card", DARK_CARD_HAIRLINE_SM)
+                      ? cn(
+                        "sm:rounded-[22px] sm:bg-card lg:overflow-y-auto",
+                        DARK_CARD_HAIRLINE_SM,
+                      )
                       : "lg:isolate lg:before:absolute lg:before:inset-0 lg:before:-z-10 lg:before:rounded-[22px] lg:before:border lg:before:border-dashed lg:before:border-foreground/15 lg:before:content-['']",
                   )}
-                  style={eventsMinH ? { minHeight: eventsMinH } : undefined}
+                  // The high-water mark only while the row has no height set
+                  // by hand: there the set height is a ceiling, and a floor
+                  // above it would push the card past it.
+                  style={
+                    eventsMinH && layout.heightOf("events") == null
+                      ? { minHeight: eventsMinH }
+                      : undefined
+                  }
                 >
                   {/* The cards' own height, measured for the mark above. One
                       column: each event a full card, 18px apart. */}
