@@ -5453,6 +5453,11 @@ function LayoutSlot({
       data-layout-slot
       data-card-id={id}
       draggable={editing}
+      // A press on the card itself — the edges stop theirs from reaching
+      // here — means no edge is held, whatever a lost release left behind.
+      onPointerDown={() => {
+        if (layout.isResizing()) layout.endResize();
+      }}
       onDragStart={(event) => {
         // An edge being resized is not a card being moved.
         if (layout.isResizing()) {
@@ -5567,17 +5572,29 @@ function LayoutSlot({
                 last = clamp(startW + e.clientX - startX);
                 layout.setDraft({ id, w: last });
               };
+              // Ended by any release, anywhere, or by the pointer being
+              // lost (a native drag taking over, a capture refused): left to
+              // the handle's own pointerup, a release that never reached it
+              // kept the card from ever being dragged again.
+              let done = false;
               const onUp = () => {
-                target.removeEventListener("pointermove", onMove);
-                target.removeEventListener("pointerup", onUp);
-                target.removeEventListener("pointercancel", onUp);
+                if (done) return;
+                done = true;
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+                window.removeEventListener("pointercancel", onUp);
+                window.removeEventListener("blur", onUp);
+                target.removeEventListener("lostpointercapture", onUp);
                 layout.endResize();
                 layout.setDraft(null);
-                layout.setWidth(id, last);
+                // A click, not a drag: the card keeps the width it had.
+                if (Math.abs(last - startW) >= 1) layout.setWidth(id, last);
               };
-              target.addEventListener("pointermove", onMove);
-              target.addEventListener("pointerup", onUp);
-              target.addEventListener("pointercancel", onUp);
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+              window.addEventListener("pointercancel", onUp);
+              window.addEventListener("blur", onUp);
+              target.addEventListener("lostpointercapture", onUp);
             }}
             onDoubleClick={() => layout.clearWidth(id)}
             className="absolute top-1/2 -right-[13px] z-10 flex h-20 w-6 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center"
@@ -5613,21 +5630,34 @@ function LayoutSlot({
               const clamp = (h: number) =>
                 Math.round(Math.min(ROW_MAX_H, Math.max(ROW_MIN_H, h)));
               let last = clamp(startH);
+              let moved = false;
               const onMove = (e: PointerEvent) => {
+                moved = true;
                 last = clamp(startH + e.clientY - startY);
                 layout.setDraftRow({ row, h: last });
               };
+              // Ended by any release, anywhere, or by the pointer being
+              // lost (a native drag taking over, a capture refused): left to
+              // the handle's own pointerup, a release that never reached it
+              // kept the card from ever being dragged again.
+              let done = false;
               const onUp = () => {
-                target.removeEventListener("pointermove", onMove);
-                target.removeEventListener("pointerup", onUp);
-                target.removeEventListener("pointercancel", onUp);
+                if (done) return;
+                done = true;
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+                window.removeEventListener("pointercancel", onUp);
+                window.removeEventListener("blur", onUp);
+                target.removeEventListener("lostpointercapture", onUp);
                 layout.endResize();
                 layout.setDraftRow(null);
-                layout.setRowHeight(row, last);
+                if (moved) layout.setRowHeight(row, last);
               };
-              target.addEventListener("pointermove", onMove);
-              target.addEventListener("pointerup", onUp);
-              target.addEventListener("pointercancel", onUp);
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+              window.addEventListener("pointercancel", onUp);
+              window.addEventListener("blur", onUp);
+              target.addEventListener("lostpointercapture", onUp);
             }}
             onDoubleClick={() =>
               layout.clearRowHeight(layout.rows.findIndex((r) => r.includes(id)))
