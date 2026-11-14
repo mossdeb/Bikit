@@ -45,6 +45,7 @@ import {
   formatRunGap,
   formatRunTime,
   runTrimOf,
+  widenToPass,
   type TimedRun,
 } from "@/lib/imu/timed-track";
 import type {
@@ -60,6 +61,7 @@ import {
   createImuTrack,
   deleteImuTrack,
   updateImuTrack,
+  widenImuTrackLines,
 } from "@/lib/actions/imu-tracks";
 
 /**
@@ -1022,6 +1024,38 @@ export function useTrackDraft({
     onSaved(result.id);
   }
 
+  /**
+   * "Use <track>": the existing track instead of a new one. Its lines stood
+   * within SAME_TRACK_M of the ones drawn, but this run counts on it only
+   * where it crosses each line within its half-width — so the lines it
+   * rides beside are made long enough first (by request, 2026-11-14; until
+   * then the button only went back, and R0212 never took the track).
+   * Returns the track's id, or null with the error set.
+   */
+  async function adoptSameTrack(): Promise<string | null> {
+    if (busy || !sameTrack) return null;
+    const track = sameTrack.track;
+    const fit = widenToPass(prepared, track.definition);
+    if (fit?.changed) {
+      setBusy(true);
+      setError(null);
+      const result = await widenImuTrackLines({
+        trackId: track.id,
+        entryM: fit.definition.entry.halfWidthM,
+        exitM: fit.definition.exit.halfWidthM,
+        splitsM: fit.definition.splits?.map((gate) => gate.halfWidthM),
+        sessionId,
+      });
+      setBusy(false);
+      if (result.status === "error") {
+        setError(result.message);
+        return null;
+      }
+      router.refresh();
+    }
+    return track.id;
+  }
+
   return {
     fullMs,
     name,
@@ -1055,6 +1089,7 @@ export function useTrackDraft({
     error,
     sameTrack,
     submit,
+    adoptSameTrack,
   };
 }
 
@@ -1083,6 +1118,7 @@ function TrackForm({
     error,
     sameTrack,
     submit,
+    adoptSameTrack,
   } = useTrackDraft(options);
 
   return (
@@ -1173,7 +1209,9 @@ function TrackForm({
               variant="inverted"
               className="rounded-full sm:flex-1"
               disabled={busy}
-              onClick={() => onSaved(sameTrack.track.id)}
+              onClick={() =>
+                void adoptSameTrack().then((id) => id && onSaved(id))
+              }
             >
               {t.useSameTrack(sameTrack.track.name)}
             </Button>

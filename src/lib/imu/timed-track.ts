@@ -5,6 +5,7 @@ import {
   isGate,
   isGatePair,
   lineCrossings,
+  lineReachM,
   type GatePair,
   type SnapshotGate,
   type SnapshotPass,
@@ -273,6 +274,47 @@ export function createTimedTrack(
         Math.round(pair.reference.exitMs) - Math.round(pair.reference.entryMs),
     },
   };
+}
+
+/** A line widened for a run is this much past where the run crossed, m —
+ * GPS puts the next ride of the same stretch a few metres either way. */
+const WIDEN_MARGIN_M = 3;
+/** And never wider than this, half-width m: the furthest a "same track"
+ * line can stand (SAME_TRACK_M) plus a line's own half-width. */
+export const WIDEN_MAX_M = 40;
+
+/**
+ * An existing track's lines made long enough for this run to pass them
+ * (by request, 2026-11-14): "Use <track>" offered a track whose lines lay
+ * within SAME_TRACK_M of the new ones, but a run counts only where it
+ * crosses each line within its half-width — R0212 crossed a finish 20 m
+ * out, past its 12, and the track never applied. Only the lines the run
+ * misses widen, to where it crossed plus WIDEN_MARGIN_M; places and
+ * directions stay. `changed` false when the run passes as they are; null
+ * when even widened, it would not.
+ */
+export function widenToPass(
+  prepared: SnapshotSession,
+  definition: TimedTrackDefinition,
+): { definition: TimedTrackDefinition; changed: boolean } | null {
+  if (findTimedRuns(prepared, definition).length > 0)
+    return { definition, changed: false };
+  let changed = false;
+  const widen = (gate: SnapshotGate): SnapshotGate => {
+    if (lineCrossings(prepared, gate).length > 0) return gate;
+    const reach = lineReachM(prepared, gate, WIDEN_MAX_M - WIDEN_MARGIN_M);
+    if (reach == null) return gate;
+    changed = true;
+    return { ...gate, halfWidthM: Math.ceil(reach + WIDEN_MARGIN_M) };
+  };
+  const widened: TimedTrackDefinition = {
+    ...definition,
+    entry: widen(definition.entry),
+    exit: widen(definition.exit),
+    ...(definition.splits && { splits: definition.splits.map(widen) }),
+  };
+  if (!changed || findTimedRuns(prepared, widened).length === 0) return null;
+  return { definition: widened, changed: true };
 }
 
 /** Every run a session makes down a track, in the order ridden. */

@@ -18,6 +18,7 @@ import {
   isTimedTrackDefinition,
   runTrimOf,
   trackNameOfRun,
+  widenToPass,
 } from "./timed-track";
 
 const LAT0 = 37.1;
@@ -301,6 +302,46 @@ describe("timed tracks", () => {
     expect(formatRunGap(108_732, 107_320, "pt")).toBe("+1,412 s");
     expect(formatRunGap(107_500, 107_320)).toBeNull();
     expect(formatRunGap(107_320, 107_320)).toBeNull();
+  });
+});
+
+describe("widenToPass", () => {
+  // R0212 (2026-11-14): "Use <track>" offered a track whose finish stood
+  // 13 m from the one drawn, and the run crossed it 20 m out, past its 12.
+  const made = createTimedTrack(
+    prepareSnapshotSession(descent(10, 60)),
+    10_000,
+    50_000,
+  )!;
+  const eastM = (m: number) => m / (R * RAD * Math.cos(LAT0 * RAD));
+  const shifted = (finishEastM: number) => ({
+    ...made.definition,
+    exit: {
+      ...made.definition.exit,
+      lonDeg: made.definition.exit.lonDeg + eastM(finishEastM),
+    },
+  });
+  const run = prepareSnapshotSession(descent(10, 60));
+
+  it("leaves a track the run already passes as it is", () => {
+    const fit = widenToPass(run, made.definition);
+    expect(fit).toEqual({ definition: made.definition, changed: false });
+  });
+
+  it("widens only the line the run rides beside, to where it crossed", () => {
+    const track = shifted(20);
+    expect(findTimedRuns(run, track)).toHaveLength(0);
+    const fit = widenToPass(run, track)!;
+    expect(fit.changed).toBe(true);
+    expect(fit.definition.entry).toEqual(track.entry);
+    expect(fit.definition.exit.halfWidthM).toBe(23);
+    expect(fit.definition.exit.latDeg).toBe(track.exit.latDeg);
+    expect(fit.definition.exit.lonDeg).toBe(track.exit.lonDeg);
+    expect(findTimedRuns(run, fit.definition)).toHaveLength(1);
+  });
+
+  it("does not stretch a line past its limit", () => {
+    expect(widenToPass(run, shifted(60))).toBeNull();
   });
 });
 
