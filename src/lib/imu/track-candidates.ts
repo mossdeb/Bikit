@@ -8,6 +8,7 @@ import {
 } from "@/lib/imu/snapshot";
 import {
   isTimedTrackDefinition,
+  withTrackPath,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
 
@@ -75,8 +76,18 @@ export async function loadTimedTracks(
     .order("created_at", { ascending: false });
 
   const used = new Set<string>();
+  const outlineOf = new Map(
+    (sessions ?? []).flatMap((s) =>
+      isTrackIndex(s.track_index) ? [[s.id, s.track_index.outline] as const] : [],
+    ),
+  );
   const tracks = rows.map((row) => {
-    const definition = row.definition as unknown as TimedTrackDefinition;
+    // With its way between the lines, from the run it was drawn from
+    // (2026-11-14): a run counts on it only along the same way.
+    const { definition } = withTrackPath(
+      { definition: row.definition as unknown as TimedTrackDefinition },
+      row.reference_session_id ? outlineOf.get(row.reference_session_id) : null,
+    );
     const wide = row.id === options.nearEitherGateOf;
     const candidateIds = (sessions ?? [])
       .filter(

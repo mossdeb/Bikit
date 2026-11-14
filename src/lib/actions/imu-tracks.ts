@@ -22,6 +22,14 @@ import type { Json } from "@/types/database.types";
 export type ImuTrackResult =
   { status: "ok"; id: string } | { status: "error"; message: string };
 
+/** A definition as it is stored: without the way between the lines, which
+ * is read with the track from its reference run and never kept. */
+function stored(definition: TimedTrackDefinition): Json {
+  const { path: _path, ...rest } = definition;
+  void _path;
+  return rest as unknown as Json;
+}
+
 async function caller() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getClaims();
@@ -74,7 +82,7 @@ export async function createImuTrack(input: {
     .insert({
       user_id: userId,
       name,
-      definition: input.definition as unknown as Json,
+      definition: stored(input.definition),
       reference_session_id: input.referenceSessionId,
     })
     .select("id")
@@ -113,7 +121,7 @@ export async function updateImuTrack(input: {
     .update({
       name,
       ...(input.redraw && {
-        definition: input.redraw.definition as unknown as Json,
+        definition: stored(input.redraw.definition),
         reference_session_id: input.redraw.referenceSessionId,
       }),
     })

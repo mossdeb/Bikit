@@ -44,6 +44,7 @@ import {
   isLapTrack,
   formatRunGap,
   formatRunTime,
+  runPath,
   runTrimOf,
   type TimedRun,
 } from "@/lib/imu/timed-track";
@@ -978,7 +979,11 @@ export function useTrackDraft({
       redraw = { definition: made.definition, referenceSessionId: sessionId };
       // A new track on a stretch an existing one already times: ask first.
       if (!editing && !createAnyway) {
-        const found = findSameTrack(made.definition, tracks);
+        const found = findSameTrack(
+          made.definition,
+          tracks,
+          runPath(prepared, made.reference.entryMs, made.reference.exitMs),
+        );
         if (found) {
           setSameTrack(found);
           return;

@@ -36,6 +36,11 @@ export interface TimedTrackDefinition extends GatePair {
    * in the order ridden (Perfect Run, 2026-11-09; src/lib/imu/perfect-run.ts).
    * Absent on a track never split. */
   splits?: SnapshotGate[];
+  /** The way between the lines, [lat, lon] in the order ridden: the run the
+   * track was drawn from, as its recording's outline keeps it. Never
+   * stored — read with the track (withTrackPath) — and absent where that
+   * run's outline is not to hand, when only the lines decide. */
+  path?: [number, number][];
 }
 
 export interface TimedRun extends SnapshotPass {
@@ -95,13 +100,18 @@ function headingGapDeg(a: number, b: number): number {
 /**
  * The existing track a new one would duplicate: the same kind (a circuit
  * matches only a circuit), start within SAME_TRACK_M of its start, finish
- * within SAME_TRACK_M of its finish, both lines facing the same way. The
- * closest, by the sum of the two distances, with how far each line is.
- * Null when no track is that close.
+ * within SAME_TRACK_M of its finish, both lines facing the same way — and,
+ * where both ways between the lines are known, the same way (samePath; by
+ * request, 2026-11-14: "Passarihos" was offered for R0212, which shared its
+ * lines and rode elsewhere between them). The closest, by the sum of the
+ * two distances, with how far each line is. Null when no track is that
+ * close.
  */
 export function findSameTrack<T extends { definition: TimedTrackDefinition }>(
   definition: TimedTrackDefinition,
   tracks: T[],
+  /** The new track's run between its lines, when it is known. */
+  way?: [number, number][],
 ): { track: T; startM: number; finishM: number } | null {
   let best: { track: T; startM: number; finishM: number } | null = null;
   for (const track of tracks) {
@@ -117,6 +127,7 @@ export function findSameTrack<T extends { definition: TimedTrackDefinition }>(
         SAME_TRACK_HEADING_DEG
     )
       continue;
+    if (way && other.path && !samePath(way, other.path, other)) continue;
     if (!best || startM + finishM < best.startM + best.finishM)
       best = { track, startM, finishM };
   }
@@ -275,18 +286,174 @@ export function createTimedTrack(
   };
 }
 
-/** Every run a session makes down a track, in the order ridden. */
+/** Two ways between the same lines are one trail when no point of either
+ * lies further than this from the other, m (by request, 2026-11-14: tracks
+ * that start and finish together and part between). Measured on
+ * "Passarihos": runs of one way kept within 20 m of each other, and the
+ * two ways stood 46–64 m apart. */
+export const PATH_MATCH_M = 25;
+/** How near a line the outline must come to be cut there, m, beyond the
+ * line's half-width — the outline's tolerance and the receiver's wander. */
+const PATH_GATE_REACH_M = 10;
+
+type LatLon = [number, number];
+
+/** Metres east and north of `origin`, on a plane good for a trail. */
+function planar(origin: LatLon): (p: LatLon) => [number, number] {
+  const m = (Math.PI / 180) * 6_371_000;
+  const cosLat = Math.cos((origin[0] * Math.PI) / 180);
+  return (p) => [(p[1] - origin[1]) * m * cosLat, (p[0] - origin[0]) * m];
+}
+
+/** The furthest any point of `a` lies from the line through `b`, m — `a`
+ * walked every 2 m so a long straight cannot hide a detour — leaving out
+ * the points `skip` says are at the lines. */
+function furthestFrom(
+  a: [number, number][],
+  b: [number, number][],
+  skip: (x: number, y: number) => boolean,
+): number {
+  let worst = 0;
+  const near = (px: number, py: number) => {
+    let best = Infinity;
+    for (let k = 0; k + 1 < b.length; k++) {
+      const [ax, ay] = b[k];
+      const dx = b[k + 1][0] - ax;
+      const dy = b[k + 1][1] - ay;
+      const len2 = dx * dx + dy * dy;
+      const t =
+        len2 > 0
+          ? Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / len2))
+          : 0;
+      best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+    }
+    return best;
+  };
+  for (let k = 0; k + 1 < a.length; k++) {
+    const [ax, ay] = a[k];
+    const [bx, by] = a[k + 1];
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 2));
+    for (let i = 0; i < steps; i++) {
+      const f = i / steps;
+      const x = ax + f * (bx - ax);
+      const y = ay + f * (by - ay);
+      if (!skip(x, y)) worst = Math.max(worst, near(x, y));
+    }
+  }
+  if (a.length) {
+    const [lx, ly] = a[a.length - 1];
+    if (!skip(lx, ly)) worst = Math.max(worst, near(lx, ly));
+  }
+  return worst;
+}
+
+/**
+ * Whether two ways between the same lines are one trail: neither strays
+ * further than PATH_MATCH_M from the other. Near the lines themselves —
+ * within a line's half-width and PATH_GATE_REACH_M — nothing is compared:
+ * a run's way starts on the line, a track's outline a few points either
+ * side of it.
+ */
+export function samePath(
+  a: LatLon[],
+  b: LatLon[],
+  lines: GatePair,
+): boolean {
+  if (a.length < 2 || b.length < 2) return true;
+  const xy = planar(a[0]);
+  const pa = a.map(xy);
+  const pb = b.map(xy);
+  const ends = [lines.entry, lines.exit].map((gate) => ({
+    at: xy([gate.latDeg, gate.lonDeg]),
+    reach: gate.halfWidthM + PATH_GATE_REACH_M,
+  }));
+  const skip = (x: number, y: number) =>
+    ends.some((e) => Math.hypot(x - e.at[0], y - e.at[1]) <= e.reach);
+  return (
+    furthestFrom(pa, pb, skip) <= PATH_MATCH_M &&
+    furthestFrom(pb, pa, skip) <= PATH_MATCH_M
+  );
+}
+
+/** A run's way between its crossings, from the session's fixes. */
+export function runPath(
+  prepared: SnapshotSession,
+  fromMs: number,
+  toMs: number,
+): LatLon[] {
+  const track = prepared.track;
+  if (!track) return [];
+  const out: LatLon[] = [];
+  for (let k = 0; k < track.tMs.length; k++)
+    if (track.tMs[k] >= fromMs && track.tMs[k] <= toMs)
+      out.push([track.latDeg[k], track.lonDeg[k]]);
+  return out;
+}
+
+/**
+ * A track's way between its lines, cut from the outline of the recording
+ * it was drawn from: from where the outline first comes near the start to
+ * where it next comes near the finish. Null for a circuit (one line, every
+ * lap its own way round) or when the outline does not reach both lines.
+ */
+export function trackPathFromOutline(
+  definition: TimedTrackDefinition,
+  outline: LatLon[],
+): LatLon[] | null {
+  if (isLapTrack(definition) || outline.length < 2) return null;
+  const nearGate = (p: LatLon, gate: SnapshotGate) =>
+    gateMetres({ ...gate, latDeg: p[0], lonDeg: p[1] }, gate) <=
+    gate.halfWidthM + PATH_GATE_REACH_M;
+  const from = outline.findIndex((p) => nearGate(p, definition.entry));
+  if (from < 0) return null;
+  let to = -1;
+  for (let k = from + 1; k < outline.length; k++)
+    if (nearGate(outline[k], definition.exit)) {
+      to = k;
+      break;
+    }
+  if (to < 0) return null;
+  return outline.slice(from, to + 1);
+}
+
+/** The track with its way between the lines, where its reference
+ * recording's outline gives one (by request, 2026-11-14). */
+export function withTrackPath<T extends { definition: TimedTrackDefinition }>(
+  track: T,
+  referenceOutline: LatLon[] | null | undefined,
+): T {
+  const path = referenceOutline
+    ? trackPathFromOutline(track.definition, referenceOutline)
+    : null;
+  return path ? { ...track, definition: { ...track.definition, path } } : track;
+}
+
+/** Every run a session makes down a track, in the order ridden. Where the
+ * track knows its way between the lines, only runs that keep to it
+ * (samePath): two tracks may share a start and a finish and part between
+ * them (by request, 2026-11-14 — R0212 took "Passarihos"' lines another
+ * way, and timed with its runs). */
 export function findTimedRuns(
   prepared: SnapshotSession,
   definition: TimedTrackDefinition,
 ): TimedRun[] {
   if (isLapTrack(definition)) return findLaps(prepared, definition);
-  return findSnapshotPasses(prepared, definition).map((pass) => ({
-    ...pass,
-    // Between the crossings as the trim stores them, to the millisecond,
-    // so the run's time and the trimmed session's duration read the same.
-    durationMs: Math.round(pass.exitMs) - Math.round(pass.entryMs),
-  }));
+  return findSnapshotPasses(prepared, definition)
+    .filter(
+      (pass) =>
+        !definition.path ||
+        samePath(
+          runPath(prepared, pass.entryMs, pass.exitMs),
+          definition.path,
+          definition,
+        ),
+    )
+    .map((pass) => ({
+      ...pass,
+      // Between the crossings as the trim stores them, to the millisecond,
+      // so the run's time and the trimmed session's duration read the same.
+      durationMs: Math.round(pass.exitMs) - Math.round(pass.entryMs),
+    }));
 }
 
 /**

@@ -18,6 +18,9 @@ import {
   isTimedTrackDefinition,
   runTrimOf,
   trackNameOfRun,
+  samePath,
+  trackPathFromOutline,
+  withTrackPath,
 } from "./timed-track";
 
 const LAT0 = 37.1;
@@ -301,6 +304,83 @@ describe("timed tracks", () => {
     expect(formatRunGap(108_732, 107_320, "pt")).toBe("+1,412 s");
     expect(formatRunGap(107_500, 107_320)).toBeNull();
     expect(formatRunGap(107_320, 107_320)).toBeNull();
+  });
+});
+
+describe("the way between the lines", () => {
+  // Two tracks may share a start and a finish and part between them
+  // (2026-11-14): R0212 took "Passarihos"' lines another way.
+  /** A descent north like `descent`, bowed `bowM` east between 150 m and
+   * 450 m up — clear of the lines, which stand at 100 m and 500 m. */
+  function bowed(bowM: number): ImuSessionData {
+    const data = descent(10, 60);
+    const gps = data.gps!;
+    for (let k = 0; k < gps.tMs.length; k++) {
+      const north = (gps.latDeg[k] - LAT0) * R * RAD;
+      const east =
+        north > 150 && north < 450
+          ? bowM * Math.sin((Math.PI * (north - 150)) / 300)
+          : 0;
+      gps.lonDeg[k] = LON0 + east / (R * RAD * Math.cos(LAT0 * RAD));
+    }
+    return data;
+  }
+  const outlineOf = (data: ImuSessionData): [number, number][] => {
+    const gps = data.gps!;
+    const out: [number, number][] = [];
+    for (let k = 0; k < gps.tMs.length; k += 20)
+      out.push([gps.latDeg[k], gps.lonDeg[k]]);
+    return out;
+  };
+  const made = createTimedTrack(
+    prepareSnapshotSession(descent(10, 60)),
+    10_000,
+    50_000,
+  )!;
+  const track = withTrackPath(
+    { definition: made.definition },
+    outlineOf(descent(10, 60)),
+  ).definition;
+
+  it("cuts the reference run's outline between the lines", () => {
+    const path = trackPathFromOutline(made.definition, outlineOf(descent(10, 60)));
+    expect(path).not.toBeNull();
+    // From near the start (100 m up) to near the finish (500 m up).
+    const north = (p: [number, number]) => (p[0] - LAT0) * R * RAD;
+    expect(north(path![0])).toBeGreaterThan(70);
+    expect(north(path![0])).toBeLessThan(110);
+    expect(north(path![path!.length - 1])).toBeGreaterThan(470);
+    expect(north(path![path!.length - 1])).toBeLessThan(530);
+  });
+
+  it("counts a run that keeps to the way, GPS wander and all", () => {
+    expect(
+      findTimedRuns(prepareSnapshotSession(bowed(10)), track),
+    ).toHaveLength(1);
+  });
+
+  it("does not count a run that rides another way between the same lines", () => {
+    const other = prepareSnapshotSession(bowed(50));
+    // It crosses both lines: by the lines alone it would count.
+    expect(findTimedRuns(other, made.definition)).toHaveLength(1);
+    expect(findTimedRuns(other, track)).toHaveLength(0);
+  });
+
+  it("tells two ways apart past 25 m, not before", () => {
+    const a = outlineOf(descent(10, 60));
+    expect(samePath(outlineOf(bowed(20)), a, made.definition)).toBe(true);
+    expect(samePath(outlineOf(bowed(35)), a, made.definition)).toBe(false);
+  });
+
+  it("offers no existing track that rides another way", () => {
+    const run = prepareSnapshotSession(bowed(50));
+    const drawn = createTimedTrack(run, 10_000, 50_000)!;
+    const way = outlineOf(bowed(50)).filter(
+      (p) => (p[0] - LAT0) * R * RAD >= 100 && (p[0] - LAT0) * R * RAD <= 500,
+    );
+    const tracks = [{ id: "t", definition: track }];
+    expect(findSameTrack(drawn.definition, tracks)).not.toBeNull();
+    expect(findSameTrack(drawn.definition, tracks, way)).toBeNull();
   });
 });
 

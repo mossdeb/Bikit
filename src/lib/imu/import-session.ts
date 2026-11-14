@@ -21,7 +21,11 @@ import type { ImuSessionData } from "@/lib/imu/format";
 import type { ImuSessionSummary } from "@/lib/imu/derive";
 import type { ImuSessionGroupRef } from "@/lib/imu/groups";
 import type { ImuSessionBikeRef } from "@/lib/imu/bike-ref";
-import { buildTrackIndex, prepareSnapshotSession } from "@/lib/imu/snapshot";
+import {
+  buildTrackIndex,
+  isTrackIndex,
+  prepareSnapshotSession,
+} from "@/lib/imu/snapshot";
 import { alignSession, sessionSummary } from "@/lib/imu/derive";
 import { withBikeFrameEvents } from "@/lib/imu/events";
 import { suggestTrim, trimSession, wasRidden } from "@/lib/imu/trim";
@@ -30,9 +34,11 @@ import {
   findSameTrack,
   findTimedRuns,
   isTimedTrackDefinition,
+  runPath,
   runTrimOf,
   isClosedStretch,
   trackNameOfRun,
+  withTrackPath,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
 
@@ -51,14 +57,42 @@ export interface ImportTrack {
  * and runTrimOf give them. Read once per import, however many files. The
  * account's own (RLS); a failed read is no tracks. */
 export async function loadImportTracks(): Promise<ImportTrack[]> {
-  const { data } = await createClient()
+  const supabase = createClient();
+  const { data } = await supabase
     .from("imu_tracks")
-    .select("name, definition")
+    .select("name, definition, reference_session_id")
     .order("created_at", { ascending: false });
+  // Each track's way between its lines, from the outline of the run it was
+  // drawn from (2026-11-14): a run takes a track only along the same way.
+  const refIds = [
+    ...new Set(
+      (data ?? []).flatMap((row) =>
+        row.reference_session_id ? [row.reference_session_id] : [],
+      ),
+    ),
+  ];
+  const { data: refs } = refIds.length
+    ? await supabase
+        .from("imu_sessions")
+        .select("id, track_index")
+        .in("id", refIds)
+    : { data: [] };
+  const outlineOf = new Map(
+    (refs ?? []).flatMap((s) =>
+      isTrackIndex(s.track_index) ? [[s.id, s.track_index.outline] as const] : [],
+    ),
+  );
   return (data ?? []).flatMap((row) => {
     const definition: unknown = row.definition;
     return isTimedTrackDefinition(definition)
-      ? [{ name: row.name, definition }]
+      ? [
+          withTrackPath(
+            { name: row.name, definition },
+            row.reference_session_id
+              ? outlineOf.get(row.reference_session_id)
+              : null,
+          ),
+        ]
       : [];
   });
 }
@@ -174,7 +208,14 @@ export async function uploadAndRegisterImuSession(input: {
       // its finish — how R0179 drew a third "Cabeço". No new track then;
       // the run keeps the suggested trim, untimed, rather than splitting
       // the trail's runs across two tracks.
-      if (made && !findSameTrack(made.definition, tracks)) {
+      if (
+        made &&
+        !findSameTrack(
+          made.definition,
+          tracks,
+          runPath(prepared, made.reference.entryMs, made.reference.exitMs),
+        )
+      ) {
         newTrack = made.definition;
         trim = {
           startMs: Math.round(made.reference.entryMs),
