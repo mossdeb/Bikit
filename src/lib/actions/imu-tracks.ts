@@ -7,7 +7,6 @@ import { localeFromMetadata } from "@/lib/i18n";
 import { getProDictionary } from "@/lib/i18n/pro";
 import {
   isTimedTrackDefinition,
-  WIDEN_MAX_M,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
 import { isGate, type SnapshotGate } from "@/lib/imu/snapshot";
@@ -125,67 +124,6 @@ export async function updateImuTrack(input: {
   if (error) return { status: "error", message: error.message };
   if (!data)
     return { status: "error", message: t.tracks.errors.trackNotFound };
-  return { status: "ok", id: data.id };
-}
-
-/**
- * Makes a track's lines longer, so a run that rode the stretch beside them
- * passes them (by request, 2026-11-14 — "Use <track>" from a new track's
- * form; widenToPass in src/lib/imu/timed-track.ts works the widths out).
- * Only the half-widths change, and only upwards, to WIDEN_MAX_M at most:
- * where the lines stand and which way they face stay as drawn, so no run
- * that passed them before stops passing.
- */
-export async function widenImuTrackLines(input: {
-  trackId: string;
-  /** Half-widths wanted, m: the start, the finish, and each sector line in
-   * order. */
-  entryM: number;
-  exitM: number;
-  splitsM?: number[];
-  /** The session the widening is for, refreshed after. */
-  sessionId: string;
-}): Promise<ImuTrackResult> {
-  const { supabase, userId, t } = await caller();
-  if (!userId) return { status: "error", message: t.common.noAccess };
-  const { data: row, error: readError } = await supabase
-    .from("imu_tracks")
-    .select("id, definition")
-    .eq("id", input.trackId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (readError) return { status: "error", message: readError.message };
-  if (!row || !isTimedTrackDefinition(row.definition))
-    return { status: "error", message: t.tracks.errors.trackNotFound };
-  const definition = row.definition as unknown as TimedTrackDefinition;
-  const wider = (gate: SnapshotGate, wantM: number | undefined): SnapshotGate =>
-    typeof wantM === "number" && Number.isFinite(wantM)
-      ? {
-          ...gate,
-          halfWidthM: Math.max(gate.halfWidthM, Math.min(WIDEN_MAX_M, wantM)),
-        }
-      : gate;
-  const next: TimedTrackDefinition = {
-    ...definition,
-    entry: wider(definition.entry, input.entryM),
-    exit: wider(definition.exit, input.exitM),
-    ...(definition.splits && {
-      splits: definition.splits.map((gate, i) => wider(gate, input.splitsM?.[i])),
-    }),
-  };
-  if (!isTimedTrackDefinition(next))
-    return { status: "error", message: t.tracks.errors.invalidDefinition };
-  const { data, error } = await supabase
-    .from("imu_tracks")
-    .update({ definition: next as unknown as Json })
-    .eq("id", input.trackId)
-    .eq("user_id", userId)
-    .select("id")
-    .maybeSingle();
-  if (error) return { status: "error", message: error.message };
-  if (!data)
-    return { status: "error", message: t.tracks.errors.trackNotFound };
-  revalidatePath(`/pro/sessoes/${input.sessionId}`);
   return { status: "ok", id: data.id };
 }
 

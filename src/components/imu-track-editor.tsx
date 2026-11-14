@@ -706,11 +706,7 @@ function Editor({
                   variant="inverted"
                   className="rounded-full"
                   disabled={busy}
-                  onClick={() =>
-                    void draft
-                      .adoptSameTrack()
-                      .then((id) => id && router.push(sessionHref))
-                  }
+                  onClick={() => router.push(sessionHref)}
                 >
                   {t.useSameTrack(sameTrack.track.name)}
                 </Button>

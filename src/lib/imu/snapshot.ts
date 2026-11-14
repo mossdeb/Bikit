@@ -468,54 +468,6 @@ function crossings(track: SnapshotTrack, gate: SnapshotGate): number[] {
   return out;
 }
 
-/**
- * How far from a line's centre, m, the closest forward crossing of it runs
- * — the line taken as long as it needs to be, by the crossing rule above
- * otherwise. Null when the track never crosses it forwards within `maxM`.
- * What a line has to reach for this ride to pass it (2026-11-14: R0212
- * crossed a track's finish 20 m out, past its 12).
- */
-export function lineReachM(
-  prepared: SnapshotSession,
-  gate: SnapshotGate,
-  maxM: number,
-): number | null {
-  const track = prepared.track;
-  if (!track) return null;
-  const wide = crossingsOffsets(track, { ...gate, halfWidthM: maxM });
-  return wide.length ? Math.min(...wide) : null;
-}
-
-/** The lateral offsets, m, of every forward crossing of a gate. */
-function crossingsOffsets(track: SnapshotTrack, gate: SnapshotGate): number[] {
-  const hx = Math.sin(gate.headingDeg * RAD);
-  const hy = Math.cos(gate.headingDeg * RAD);
-  const cosLat = Math.cos(gate.latDeg * RAD);
-  const x = (k: number) =>
-    (track.lonDeg[k] - gate.lonDeg) * RAD * EARTH_R * cosLat;
-  const y = (k: number) => (track.latDeg[k] - gate.latDeg) * RAD * EARTH_R;
-  const out: number[] = [];
-  for (let k = 0; k + 1 < track.tMs.length; k++) {
-    if (track.tMs[k + 1] - track.tMs[k] > MAX_FIX_GAP_MS) continue;
-    const ax = x(k);
-    const ay = y(k);
-    const bx = x(k + 1);
-    const by = y(k + 1);
-    const sA = ax * hx + ay * hy;
-    const sB = bx * hx + by * hy;
-    if (!(sA < 0 && sB >= 0)) continue;
-    const segM = Math.hypot(bx - ax, by - ay);
-    if (segM < MIN_SEGMENT_M) continue;
-    if (((bx - ax) * hx + (by - ay) * hy) / segM < MIN_ALIGNMENT) continue;
-    const f = -sA / (sB - sA);
-    const lateral = Math.abs(
-      (ay + f * (by - ay)) * hx - (ax + f * (bx - ax)) * hy,
-    );
-    if (lateral <= gate.halfWidthM) out.push(lateral);
-  }
-  return out;
-}
-
 /** Every crossing of one line, in the order ridden. Empty without a track. */
 export function lineCrossings(
   prepared: SnapshotSession,
