@@ -2508,7 +2508,7 @@ export function ImuSessionAnalysis({
         cardLineW.gap,
         { laps: dashOn ? 240 : 300, rider: 300, map: mapWidth },
         layout.widthOf,
-        layout.draftId,
+        layout.draftIds,
       )
     : {};
   const slot = (id: CardId, node: React.ReactNode) =>
@@ -5177,7 +5177,7 @@ function cardRowWidths(
   gap: number,
   ownW: Partial<Record<CardId, number>>,
   setW: (id: CardId) => number | undefined,
-  dragging: CardId | null,
+  dragging: readonly CardId[],
 ): Partial<Record<CardId, number>> {
   const out: Partial<Record<CardId, number>> = {};
   if (lineW <= 0) return out;
@@ -5192,7 +5192,7 @@ function cardRowWidths(
     const fluid = ids.filter((id) => setW(id) == null && ownW[id] == null);
     for (const id of set) w[id] = setW(id);
     for (const id of own) w[id] = ownW[id];
-    const setGive = set.filter((id) => id !== dragging);
+    const setGive = set.filter((id) => !dragging.includes(id));
     // Who takes up the slack.
     const give = fluid.length
       ? fluid
@@ -5230,6 +5230,28 @@ type RowGap = { at: number; top: number; height: number };
 
 /** The row of cards a card stands in — past the reading's wrappers, which
  * take no box of their own (`contents`) and so measure 0 wide. */
+/** The card shown right after this one on its row, or none at the row's
+ * end: the nearest slot to its right on the same line of the page. */
+function nextOnRow(slot: HTMLElement): HTMLElement | null {
+  const line = cardLineOf(slot);
+  if (!line) return null;
+  const box = slot.getBoundingClientRect();
+  let best: HTMLElement | null = null;
+  let bestLeft = Infinity;
+  for (const other of line.querySelectorAll<HTMLElement>(
+    "[data-layout-slot]",
+  )) {
+    if (other === slot) continue;
+    const b = other.getBoundingClientRect();
+    if (b.width === 0 || Math.abs(b.top - box.top) > 2) continue;
+    if (b.left >= box.right - 1 && b.left < bestLeft) {
+      best = other;
+      bestLeft = b.left;
+    }
+  }
+  return best;
+}
+
 function cardLineOf(slot: HTMLElement): HTMLElement | null {
   let line = slot.parentElement;
   while (line && getComputedStyle(line).display === "contents")
@@ -5306,8 +5328,11 @@ function useCardLayout(enabled: boolean) {
     () => localWidths ?? parseWidths(widthsRaw),
     [localWidths, widthsRaw],
   );
-  // The width while an edge is being dragged — drawn live, saved on release.
-  const [draft, setDraft] = useState<{ id: CardId; w: number } | null>(null);
+  // The widths while a gap is being dragged — the two cards beside it,
+  // drawn live, saved on release.
+  const [draft, setDraft] = useState<Partial<Record<CardId, number>> | null>(
+    null,
+  );
   // Set while an edge is held, so the card itself does not start to drag.
   const resizing = useRef(false);
   const [editing, setEditing] = useState(false);
@@ -5410,9 +5435,8 @@ function useCardLayout(enabled: boolean) {
     },
     /** A card's width set by its edge, px: the one being dragged, else the
      * saved one. */
-    widthOf: (id: CardId): number | undefined =>
-      draft?.id === id ? draft.w : widths[id],
-    draftId: draft?.id ?? null,
+    widthOf: (id: CardId): number | undefined => draft?.[id] ?? widths[id],
+    draftIds: draft ? (Object.keys(draft) as CardId[]) : [],
     setDraft,
     /** Whether an edge is held — the card must not start to drag then. */
     isResizing: () => resizing.current,
@@ -5422,10 +5446,12 @@ function useCardLayout(enabled: boolean) {
     endResize: () => {
       resizing.current = false;
     },
-    setWidth: (id: CardId, w: number) => saveWidths({ ...widths, [id]: w }),
-    clearWidth: (id: CardId) => {
+    /** Sets the widths of the cards either side of a gap. */
+    setWidths: (set: Partial<Record<CardId, number>>) =>
+      saveWidths({ ...widths, ...set }),
+    clearWidths: (ids: CardId[]) => {
       const next = { ...widths };
-      delete next[id];
+      for (const id of ids) delete next[id];
       saveWidths(next);
     },
     reset: () => {
@@ -5553,21 +5579,26 @@ function LayoutSlot({
   const t = useProDict().analysis;
   const { editing, dragId, over } = layout;
   const overSide = over?.id === id && dragId !== id ? over.side : null;
-  // The card against the right edge of the page (2026-11-15): its width
-  // handle there sits on the page's margin, out of reach, so it moves to
-  // the left edge and drags the other way. Measured, since where a card
-  // ends depends on its row's widths and on what is switched off.
+  // One width handle per gap between two cards of a row (2026-11-15),
+  // centred in it and carried by the card on its left: dragging it moves
+  // the border between the two, one gaining what the other gives. The card
+  // at the end of its row has none. Measured, since which card stands next
+  // depends on the row's widths and on what is switched off.
   const slotRef = useRef<HTMLDivElement>(null);
-  const [atRightEdge, setAtRightEdge] = useState(false);
+  const [gapRight, setGapRight] = useState<number | null>(null);
   useEffect(() => {
     const slot = slotRef.current;
     const line = slot && cardLineOf(slot);
     if (!editing || !slot || !line) return;
-    const measure = () =>
-      setAtRightEdge(
-        slot.getBoundingClientRect().right >=
-          line.getBoundingClientRect().right - 2,
+    const measure = () => {
+      const next = nextOnRow(slot);
+      setGapRight(
+        next
+          ? next.getBoundingClientRect().left -
+              slot.getBoundingClientRect().right
+          : null,
       );
+    };
     const observer = new ResizeObserver(measure);
     observer.observe(slot);
     observer.observe(line);
@@ -5675,72 +5706,85 @@ function LayoutSlot({
           >
             <GripVertical aria-hidden className="size-4" />
           </span>
-          {/* The right edge — the left one for the card at the end of its
-              row: drag to set the card's width, double-click to give it
-              back its own. */}
-          <button
-            type="button"
-            draggable={false}
-            aria-label={t.panels.resizeCard}
-            title={t.panels.resizeCard}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              const slot =
-                event.currentTarget.closest<HTMLElement>("[data-layout-slot]");
-              if (!slot) return;
-              layout.beginResize();
-              try {
-                event.currentTarget.setPointerCapture(event.pointerId);
-              } catch {
-                // A pointer the browser no longer tracks: no capture.
-              }
-              const startX = event.clientX;
-              const startW = slot.getBoundingClientRect().width;
-              const rowW = cardLineOf(slot)?.clientWidth || startW;
-              const target = event.currentTarget;
-              const clamp = (w: number) =>
-                Math.round(Math.min(rowW, Math.max(CARD_MIN_W, w)));
-              let last = startW;
-              const onMove = (e: PointerEvent) => {
-                const dx = e.clientX - startX;
-                last = clamp(startW + (atRightEdge ? -dx : dx));
-                layout.setDraft({ id, w: last });
-              };
-              // Ended by any release, anywhere, or by the pointer being
-              // lost (a native drag taking over, a capture refused): left to
-              // the handle's own pointerup, a release that never reached it
-              // kept the card from ever being dragged again.
-              let done = false;
-              const onUp = () => {
-                if (done) return;
-                done = true;
-                window.removeEventListener("pointermove", onMove);
-                window.removeEventListener("pointerup", onUp);
-                window.removeEventListener("pointercancel", onUp);
-                window.removeEventListener("blur", onUp);
-                target.removeEventListener("lostpointercapture", onUp);
-                layout.endResize();
-                layout.setDraft(null);
-                // A click, not a drag: the card keeps the width it had.
-                if (Math.abs(last - startW) >= 1) layout.setWidth(id, last);
-              };
-              window.addEventListener("pointermove", onMove);
-              window.addEventListener("pointerup", onUp);
-              window.addEventListener("pointercancel", onUp);
-              window.addEventListener("blur", onUp);
-              target.addEventListener("lostpointercapture", onUp);
-            }}
-            onDoubleClick={() => layout.clearWidth(id)}
-            className={cn(
-              "absolute top-1/2 z-10 flex h-20 w-6 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center",
-              atRightEdge ? "-left-[13px]" : "-right-[13px]",
-            )}
-          >
-            <span
-              aria-hidden
-              className="h-full w-1.5 rounded-full bg-foreground/70 transition-colors hover:bg-foreground"
-            />
-          </button>
+          {/* The gap on the right, between this card and the next: drag to
+              move the border, double-click to give both their own widths. */}
+          {gapRight != null && (
+            <button
+              type="button"
+              draggable={false}
+              aria-label={t.panels.resizeCard}
+              title={t.panels.resizeCard}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                const slot =
+                  event.currentTarget.closest<HTMLElement>(
+                    "[data-layout-slot]",
+                  );
+                const next = slot && nextOnRow(slot);
+                const nextId = next?.dataset.cardId as CardId | undefined;
+                if (!slot || !next || !nextId) return;
+                layout.beginResize();
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                } catch {
+                  // A pointer the browser no longer tracks: no capture.
+                }
+                const startX = event.clientX;
+                const startW = slot.getBoundingClientRect().width;
+                const pair = startW + next.getBoundingClientRect().width;
+                const target = event.currentTarget;
+                // Each keeps at least its minimum, where the two have room.
+                const min = Math.min(CARD_MIN_W, pair / 2);
+                const clamp = (w: number) =>
+                  Math.round(Math.min(pair - min, Math.max(min, w)));
+                let last = startW;
+                const onMove = (e: PointerEvent) => {
+                  last = clamp(startW + e.clientX - startX);
+                  layout.setDraft({ [id]: last, [nextId]: pair - last });
+                };
+                // Ended by any release, anywhere, or by the pointer being
+                // lost (a native drag taking over, a capture refused): left to
+                // the handle's own pointerup, a release that never reached it
+                // kept the card from ever being dragged again.
+                let done = false;
+                const onUp = () => {
+                  if (done) return;
+                  done = true;
+                  window.removeEventListener("pointermove", onMove);
+                  window.removeEventListener("pointerup", onUp);
+                  window.removeEventListener("pointercancel", onUp);
+                  window.removeEventListener("blur", onUp);
+                  target.removeEventListener("lostpointercapture", onUp);
+                  layout.endResize();
+                  layout.setDraft(null);
+                  // A click, not a drag: the card keeps the width it had.
+                  if (Math.abs(last - startW) >= 1)
+                    layout.setWidths({ [id]: last, [nextId]: pair - last });
+                };
+                window.addEventListener("pointermove", onMove);
+                window.addEventListener("pointerup", onUp);
+                window.addEventListener("pointercancel", onUp);
+                window.addEventListener("blur", onUp);
+                target.addEventListener("lostpointercapture", onUp);
+              }}
+              onDoubleClick={(event) => {
+                const slot =
+                  event.currentTarget.closest<HTMLElement>(
+                    "[data-layout-slot]",
+                  );
+                const nextId = slot && nextOnRow(slot)?.dataset.cardId;
+                layout.clearWidths(nextId ? [id, nextId as CardId] : [id]);
+              }}
+              // Its middle on the gap's middle (the button is 24px wide).
+              style={{ right: -(gapRight / 2) - 12 }}
+              className="absolute top-1/2 z-10 flex h-20 w-6 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center"
+            >
+              <span
+                aria-hidden
+                className="h-full w-1.5 rounded-full bg-foreground/70 transition-colors hover:bg-foreground"
+              />
+            </button>
+          )}
           {/* The bottom edge: drag to set the whole row's height, between
               ROW_MIN_H and ROW_MAX_H; double-click for its own. */}
           <button
