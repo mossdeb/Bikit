@@ -289,7 +289,8 @@ const en = {
         rearCompare: "Rear drop, two ways",
         bySensor: "Sensor",
         byShock: "Shock",
-        ofWheelTravel: (percent: string): string => `${percent} of wheel travel`,
+        ofWheelTravel: (percent: string): string =>
+          `${percent} of wheel travel`,
         rearDiverges: (mm: string): string =>
           `These differ by ${mm}, so check them before relying on either: measure the sag again and repeat the calibration with the rider in the same position.`,
         importLabel: "Import rider SAG",
@@ -303,8 +304,7 @@ const en = {
           needsSag: "BIKIT.SAG is missing: pick both files together.",
           needsCal: "BIKIT.CAL is missing: pick both files together.",
           corrupt: "The files are damaged and couldn't be read.",
-          otherCalibration:
-            "These two files come from different calibrations.",
+          otherCalibration: "These two files come from different calibrations.",
         },
         noseUp: (deg: string): string => `${deg} nose up`,
         noseDown: (deg: string): string => `${deg} nose down`,
@@ -375,14 +375,24 @@ const en = {
     bikeCount: (n: number): string => (n === 1 ? "1 bike" : `${n} bikes`),
     runCount: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
     lastRide: (date: string): string => `Last ride ${date}`,
+    trackDelete: {
+      title: (name: string): string => `Delete ${name}?`,
+      description: (runs: number): string =>
+        runs === 0
+          ? "The track's lines go. No run counts on it."
+          : `The track's lines go. Its ${runs === 1 ? "run stays" : `${runs} runs stay`}, and ${runs === 1 ? "takes" : "take"} the most similar track left when next opened.`,
+      aria: (name: string): string => `Delete ${name}`,
+    },
     riderDelete: {
       title: (name: string): string => `Delete ${name}?`,
       description: (name: string, sessions: number): string =>
         `The name "${name}" is taken off ${sessions === 1 ? "its session" : `its ${sessions} sessions`}. The sessions themselves stay, with all their data.`,
       aria: (name: string): string => `Delete ${name}`,
     },
-    noRiders: "No riders yet. The rider's name written on a session shows up here.",
-    noTracks: "No tracks yet. Draw one from a session's start and finish lines.",
+    noRiders:
+      "No riders yet. The rider's name written on a session shows up here.",
+    noTracks:
+      "No tracks yet. Draw one from a session's start and finish lines.",
     title: "Bikes",
     empty: "No bikes yet. Register one in Bikit and it shows up here.",
     /** "2 setups in 5 sessions" — the two counts come formatted from
@@ -673,7 +683,8 @@ const pt: typeof en = {
           needsSag: "Falta o BIKIT.SAG: escolhe os dois ficheiros em conjunto.",
           needsCal: "Falta o BIKIT.CAL: escolhe os dois ficheiros em conjunto.",
           corrupt: "Os ficheiros estão danificados e não foi possível lê-los.",
-          otherCalibration: "Estes dois ficheiros são de calibrações diferentes.",
+          otherCalibration:
+            "Estes dois ficheiros são de calibrações diferentes.",
         },
         noseUp: (deg) => `${deg} nariz acima`,
         noseDown: (deg) => `${deg} nariz abaixo`,
@@ -732,6 +743,14 @@ const pt: typeof en = {
     bikeCount: (n) => (n === 1 ? "1 bicicleta" : `${n} bicicletas`),
     runCount: (n) => (n === 1 ? "1 run" : `${n} runs`),
     lastRide: (date) => `Última volta ${date}`,
+    trackDelete: {
+      title: (name) => `Apagar ${name}?`,
+      description: (runs) =>
+        runs === 0
+          ? "As linhas da pista saem. Nenhuma run conta nela."
+          : `As linhas da pista saem. ${runs === 1 ? "A run fica" : `As ${runs} runs ficam`} e ${runs === 1 ? "recebe" : "recebem"} a pista mais parecida que sobrar, quando ${runs === 1 ? "for aberta" : "forem abertas"}.`,
+      aria: (name) => `Apagar ${name}`,
+    },
     riderDelete: {
       title: (name) => `Apagar ${name}?`,
       description: (name, sessions) =>

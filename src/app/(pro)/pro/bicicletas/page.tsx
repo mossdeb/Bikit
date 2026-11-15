@@ -10,6 +10,7 @@ import { CLICKABLE_CARD_HOVER, DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { BikeIcon } from "@/components/bike-icon";
 import { ProAddBikeButton } from "@/components/pro-bike-actions";
 import { ProRiderDelete } from "@/components/pro-rider-delete";
+import { ProTrackDelete } from "@/components/pro-track-delete";
 import { groupBikeSetups, type BikeSetupRow } from "@/lib/imu/bike-setups";
 import { isSetupValues } from "@/lib/imu/setup";
 
@@ -227,44 +228,41 @@ export default async function ProBikesPage({
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tracks.map((track) => {
-              const body = (
-                <>
-                  <h2 className="font-display text-[20px] font-bold">
+            {tracks.map((track) => (
+              // A card, not a link (2026-11-15): "Delete" in its corner,
+              // and "View more" opens the editor, on the run its lines
+              // were drawn from.
+              <div
+                key={track.id}
+                className={`flex h-full flex-col rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="min-w-0 font-display text-[20px] font-bold">
                     {track.name}
                   </h2>
-                  {/* The runs, and "View more" as on the bikes' cards
-                      (2026-11-15) where the card opens its editor. */}
-                  <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                    <p className="text-sm font-semibold tabular-nums">
-                      {t.report.bikes.runCount(track.runs)}
-                    </p>
-                    {track.reference_session_id && (
-                      <span className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold">
-                        {dict.bikes.viewBike}
-                      </span>
-                    )}
+                  <div className="-mt-2 -mr-2">
+                    <ProTrackDelete
+                      trackId={track.id}
+                      name={track.name}
+                      runs={track.runs}
+                    />
                   </div>
-                </>
-              );
-              // Its editor, on the run its lines were drawn from.
-              return track.reference_session_id ? (
-                <Link
-                  key={track.id}
-                  href={`/pro/sessoes/${track.reference_session_id}/pista?pista=${track.id}`}
-                  className={`flex h-full flex-col rounded-lg bg-card p-5 ${CLICKABLE_CARD_HOVER} ${DARK_CARD_HAIRLINE}`}
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div
-                  key={track.id}
-                  className={`flex h-full flex-col rounded-lg bg-card p-5 ${DARK_CARD_HAIRLINE}`}
-                >
-                  {body}
                 </div>
-              );
-            })}
+                <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+                  <p className="text-sm font-semibold tabular-nums">
+                    {t.report.bikes.runCount(track.runs)}
+                  </p>
+                  {track.reference_session_id && (
+                    <Link
+                      href={`/pro/sessoes/${track.reference_session_id}/pista?pista=${track.id}`}
+                      className="flex h-11 shrink-0 items-center justify-center rounded-full bg-muted px-4 text-sm font-semibold transition-colors hover:bg-muted/70"
+                    >
+                      {dict.bikes.viewBike}
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )
       ) : !bikes || bikes.length === 0 ? (
