@@ -44,6 +44,7 @@ import {
   isLapTrack,
   formatRunGap,
   formatRunTime,
+  pickTrack,
   runPath,
   runTrimOf,
   type TimedRun,
@@ -60,6 +61,7 @@ import {
 import {
   createImuTrack,
   deleteImuTrack,
+  setImuSessionTrack,
   updateImuTrack,
 } from "@/lib/actions/imu-tracks";
 
@@ -606,6 +608,7 @@ function TrackView({
   // redraw or a switch of track reads them again from here, not the net.
   const cache = useRef(new Map<string, Promise<Prepared | null>>());
   const synced = useRef(new Set<string>());
+  const trackSynced = useRef(new Set<string>());
 
   useEffect(() => {
     let live = true;
@@ -632,6 +635,25 @@ function TrackView({
         ) {
           synced.current.add(c.id);
           void saveImuSessionTrim(c.id, p.session, target, true);
+        }
+        // Its one track too (2026-11-15), among the tracks it may pass —
+        // so a track's dialog fills in the runs no page has opened yet.
+        if (p && !c.trackByHand && !trackSynced.current.has(c.id)) {
+          const pick =
+            pickTrack(
+              tracks
+                .filter((t) => t.candidateIds.includes(c.id))
+                .map((t) => ({ track: t, runs: findTimedRuns(p, t.definition) })),
+              c.name,
+            )?.id ?? null;
+          if (pick !== c.trackId) {
+            trackSynced.current.add(c.id);
+            void setImuSessionTrack({
+              sessionId: c.id,
+              trackId: pick,
+              byHand: false,
+            });
+          }
         }
         if (!live) return;
         setRows((prev) =>

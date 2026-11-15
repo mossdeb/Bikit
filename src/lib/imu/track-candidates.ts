@@ -38,6 +38,10 @@ export interface ImuTrackCandidate {
   /** Ridden on a motorbike (the engine filter, the one signal of it): a
    * Perfect Run never mixes the two. */
   motorbike: boolean;
+  /** Its one track as the row keeps it (migration 00059), and whether the
+   * rider chose it. */
+  trackId: string | null;
+  trackByHand: boolean;
 }
 
 /**
@@ -70,7 +74,7 @@ export async function loadTimedTracks(
   const { data: sessions } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index, trim_start_ms, trim_end_ms, trim_by_track, engine_filter",
+      "id, name, rider_name, created_at, storage_path, mount_orientation, track_index, trim_start_ms, trim_end_ms, trim_by_track, engine_filter, track_id, track_by_hand",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -116,6 +120,8 @@ export async function loadTimedTracks(
       trim: trimOf(s.trim_start_ms, s.trim_end_ms),
       trimByTrack: s.trim_by_track,
       motorbike: s.engine_filter,
+      trackId: s.track_id,
+      trackByHand: s.track_by_hand,
     }));
   return { tracks, candidates };
 }

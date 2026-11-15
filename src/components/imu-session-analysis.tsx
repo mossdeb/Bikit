@@ -58,7 +58,13 @@ import {
   ImuSessionSplits,
 } from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
-import { isLapTrack, lapMarks, type TimedRun } from "@/lib/imu/timed-track";
+import {
+  isLapTrack,
+  lapMarks,
+  pickTrack,
+  type TimedRun,
+} from "@/lib/imu/timed-track";
+import { setImuSessionTrack } from "@/lib/actions/imu-tracks";
 import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import { usePerfectRun } from "@/components/imu-perfect-run";
 import {
@@ -1220,7 +1226,14 @@ export function ImuSessionAnalysis({
   trackCandidates = [],
   perfectRun = false,
   layoutEditable = false,
+  sessionName = "",
+  storedTrack = { id: null, byHand: false },
 }: {
+  /** The run's name, which names its track when it can (pickTrack). */
+  sessionName?: string;
+  /** The one track the row keeps for this run (migration 00059), and
+   * whether the rider chose it. */
+  storedTrack?: { id: string | null; byHand: boolean };
   /** The Perfect Run is shown (hasPerfectRun: every Pro account since
    * 2026-11-12). */
   perfectRun?: boolean;
@@ -1280,6 +1293,17 @@ export function ImuSessionAnalysis({
   // The run read against the account's tracks once, for the flag on the
   // zoom row and the ranking in the header.
   const timed = useTimedRuns(whole, timedTracks);
+  // The run's one track, kept with it (2026-11-15): chosen among the tracks
+  // it passes and written when it differs from the row's — once a run is
+  // read, as the trim follows the lines. A track the rider chose stays.
+  const trackSynced = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!timed || storedTrack.byHand) return;
+    const pick = pickTrack(timed.passed, sessionName)?.id ?? null;
+    if (pick === storedTrack.id || trackSynced.current === pick) return;
+    trackSynced.current = pick;
+    void setImuSessionTrack({ sessionId, trackId: pick, byHand: false });
+  }, [timed, storedTrack.id, storedTrack.byHand, sessionName, sessionId]);
   // The Perfect Run of the first track it passes, for the ranking's line
   // and the track dialog's tab — read once, here.
   const perfect = usePerfectRun({

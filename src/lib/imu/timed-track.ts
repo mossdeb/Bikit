@@ -481,6 +481,48 @@ export function runTrimOf(
   return null;
 }
 
+/** A name as it is compared: lower case, without accents, letters and
+ * digits only — "Casa Velha", "casa velha" and "Casa-Velha" read the same. */
+function nameKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * The one track a run belongs to (by request, 2026-11-15), among those it
+ * passes: the one its name names — what the rider wrote after the logger's
+ * code, "R0108 - casa velha" for "Casa Velha" — and, when the name names
+ * none or several, the one covering most of the ride (its runs' time added
+ * up): a run that crosses a long track's lines rode the long track, though
+ * a shorter one inside it shares its stretch. Null when it passes none.
+ */
+export function pickTrack<T extends { id: string; name: string }>(
+  passed: { track: T; runs: TimedRun[] }[],
+  runName: string,
+): T | null {
+  const timed = passed.filter((p) => p.runs.length > 0);
+  if (timed.length === 0) return null;
+  const covered = (p: (typeof timed)[number]) =>
+    p.runs.reduce((sum, run) => sum + run.durationMs, 0);
+  const byCover = (list: typeof timed) =>
+    [...list].sort((a, b) => covered(b) - covered(a))[0].track;
+  const said = nameKey(trackNameOfRun(runName) ?? "");
+  if (said) {
+    const exact = timed.filter((p) => nameKey(p.track.name) === said);
+    if (exact.length > 0) return byCover(exact);
+    // "Casa DH" names "Casa DH race": one name within the other.
+    const partial = timed.filter((p) => {
+      const key = nameKey(p.track.name);
+      return key.includes(said) || said.includes(key);
+    });
+    if (partial.length > 0) return byCover(partial);
+  }
+  return byCover(timed);
+}
+
 /**
  * The name a track drawn at import takes from the run's (2026-10-27): what
  * the rider wrote after the logger's code — "R0117 - Salgueiro" names it

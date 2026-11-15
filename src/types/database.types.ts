@@ -638,6 +638,8 @@ export type Database = {
           track_index: Json | null;
           trim_by_track: boolean;
           engine_filter: boolean;
+          track_id: string | null;
+          track_by_hand: boolean;
           trim_end_ms: number | null;
           trim_start_ms: number | null;
           user_id: string;
@@ -666,6 +668,8 @@ export type Database = {
           track_index?: Json | null;
           trim_by_track?: boolean;
           engine_filter?: boolean;
+          track_id?: string | null;
+          track_by_hand?: boolean;
           trim_end_ms?: number | null;
           trim_start_ms?: number | null;
           user_id: string;
@@ -694,11 +698,20 @@ export type Database = {
           track_index?: Json | null;
           trim_by_track?: boolean;
           engine_filter?: boolean;
+          track_id?: string | null;
+          track_by_hand?: boolean;
           trim_end_ms?: number | null;
           trim_start_ms?: number | null;
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "imu_sessions_track_id_fkey";
+            columns: ["track_id"];
+            isOneToOne: false;
+            referencedRelation: "imu_tracks";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "imu_sessions_setup_id_fkey";
             columns: ["setup_id"];

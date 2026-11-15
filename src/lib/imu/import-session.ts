@@ -13,7 +13,7 @@ import type { Locale } from "@/lib/i18n";
 import { getProDictionary } from "@/lib/i18n/pro";
 import { createClient } from "@/lib/supabase/client";
 import { createImuSession, setImuSessionTrim } from "@/lib/actions/imu";
-import { createImuTrack } from "@/lib/actions/imu-tracks";
+import { createImuTrack, setImuSessionTrack } from "@/lib/actions/imu-tracks";
 import { lookupPlaceName } from "@/lib/imu/place-name";
 import { storedRiderSag } from "@/lib/imu/rider-sag";
 import { BKT_CONTENT_TYPE, BKT_FORMAT } from "@/lib/imu/bkt";
@@ -37,6 +37,7 @@ import {
   runPath,
   runTrimOf,
   isClosedStretch,
+  pickTrack,
   trackNameOfRun,
   withTrackPath,
   type TimedTrackDefinition,
@@ -49,6 +50,8 @@ export type ImportOutcome =
 
 /** One of the account's timed tracks, as an import reads it. */
 export interface ImportTrack {
+  /** Its row — for the run's one track (2026-11-15). */
+  id: string;
   name: string;
   definition: TimedTrackDefinition;
 }
@@ -60,7 +63,7 @@ export async function loadImportTracks(): Promise<ImportTrack[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("imu_tracks")
-    .select("name, definition, reference_session_id")
+    .select("id, name, definition, reference_session_id")
     .order("created_at", { ascending: false });
   // Each track's way between its lines, from the outline of the run it was
   // drawn from (2026-11-14): a run takes a track only along the same way.
@@ -87,7 +90,7 @@ export async function loadImportTracks(): Promise<ImportTrack[]> {
     return isTimedTrackDefinition(definition)
       ? [
           withTrackPath(
-            { name: row.name, definition },
+            { id: row.id, name: row.name, definition },
             row.reference_session_id
               ? outlineOf.get(row.reference_session_id)
               : null,
@@ -169,6 +172,9 @@ export async function uploadAndRegisterImuSession(input: {
   let gps = session.gps;
   let newTrack: TimedTrackDefinition | null = null;
   let tracks: ImportTrack[] = [];
+  // The run's one track among those it passes (2026-11-15): the one its
+  // name names, else the one covering most of it.
+  let pickedTrackId: string | null = null;
   // A recording never ridden faster than walking pace has no run to cut
   // out (2026-11-04: R0161 kept 59 s of 9 min, R0159 5 s of 6.5): it is
   // kept whole, with no track drawn from it and none trimming it — the
@@ -186,6 +192,14 @@ export async function uploadAndRegisterImuSession(input: {
           )
         : null;
     trimByTrack = trim != null;
+    pickedTrackId =
+      pickTrack(
+        tracks.map((track) => ({
+          track,
+          runs: findTimedRuns(prepared, track.definition),
+        })),
+        input.name,
+      )?.id ?? null;
     if (!trim) {
       const suggested = suggestTrim(whole);
       // A stretch that ends where it began is laps of a circuit: two lines
@@ -269,6 +283,14 @@ export async function uploadAndRegisterImuSession(input: {
     engineFilter: session.vehicle === "motorcycle",
   });
   if (result.status === "error") return { ok: false, error: result.message };
+  // The run's track, kept with it; a failure only leaves it to be chosen
+  // when the session is first opened.
+  if (pickedTrackId)
+    await setImuSessionTrack({
+      sessionId: result.id,
+      trackId: pickedTrackId,
+      byHand: false,
+    });
   if (!newTrack || !session.gps) return { ok: true, track: null };
 
   // The track after the session, which it names as the run it was drawn
@@ -307,5 +329,14 @@ export async function uploadAndRegisterImuSession(input: {
     });
     return { ok: true, track: null };
   }
-  return { ok: true, track: { name: trackName, definition: newTrack } };
+  // The track this run drew is its track.
+  await setImuSessionTrack({
+    sessionId: result.id,
+    trackId: made.id,
+    byHand: false,
+  });
+  return {
+    ok: true,
+    track: { id: made.id, name: trackName, definition: newTrack },
+  };
 }

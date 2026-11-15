@@ -135,6 +135,42 @@ export async function updateImuTrack(input: {
   return { status: "ok", id: data.id };
 }
 
+/**
+ * The one track a run belongs to (2026-11-15; migration 00059), or none.
+ * `byHand` false is the automatic choice (pickTrack), made in the browser
+ * as the run is read: it never replaces one the rider made, and it writes
+ * nothing when the run already has that track. The caller's own session
+ * and track only.
+ */
+export async function setImuSessionTrack(input: {
+  sessionId: string;
+  trackId: string | null;
+  byHand: boolean;
+}): Promise<ImuTrackResult> {
+  const { supabase, userId, t } = await caller();
+  if (!userId) return { status: "error", message: t.common.noAccess };
+  if (input.trackId) {
+    const { data: track } = await supabase
+      .from("imu_tracks")
+      .select("id")
+      .eq("id", input.trackId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!track)
+      return { status: "error", message: t.tracks.errors.trackNotFound };
+  }
+  let query = supabase
+    .from("imu_sessions")
+    .update({ track_id: input.trackId, track_by_hand: input.byHand })
+    .eq("id", input.sessionId)
+    .eq("user_id", userId);
+  // The automatic choice leaves a hand-set track alone.
+  if (!input.byHand) query = query.eq("track_by_hand", false);
+  const { error } = await query;
+  if (error) return { status: "error", message: error.message };
+  return { status: "ok", id: input.sessionId };
+}
+
 export async function deleteImuTrack(trackId: string): Promise<ImuTrackResult> {
   const { supabase, userId, t } = await caller();
   if (!userId) return { status: "error", message: t.common.noAccess };

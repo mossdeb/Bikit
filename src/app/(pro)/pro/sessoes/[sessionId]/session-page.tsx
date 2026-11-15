@@ -81,7 +81,7 @@ export async function SessionPage({
   const { data: session } = await supabase
     .from("imu_sessions")
     .select(
-      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms, trim_by_track, rider_sag, engine_filter",
+      "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, duration_ms, sample_rate_hz, sample_count, storage_path, trim_start_ms, trim_end_ms, trim_by_track, rider_sag, engine_filter, track_id, track_by_hand",
     )
     .eq("id", sessionId)
     .eq("user_id", userId)
@@ -318,6 +318,8 @@ export async function SessionPage({
         engineFilter={session.engine_filter}
         timedTracks={timedTracks}
         trackCandidates={trackCandidates}
+        sessionName={session.name}
+        storedTrack={{ id: session.track_id, byHand: session.track_by_hand }}
         perfectRun={hasPerfectRun(email)}
         layoutEditable={layoutEditable}
         header={

@@ -21,6 +21,7 @@ import {
   samePath,
   trackPathFromOutline,
   withTrackPath,
+  pickTrack,
 } from "./timed-track";
 
 const LAT0 = 37.1;
@@ -381,6 +382,45 @@ describe("the way between the lines", () => {
     const tracks = [{ id: "t", definition: track }];
     expect(findSameTrack(drawn.definition, tracks)).not.toBeNull();
     expect(findSameTrack(drawn.definition, tracks, way)).toBeNull();
+  });
+});
+
+describe("pickTrack", () => {
+  // The one track a run keeps (2026-11-15), with the cases the simulation
+  // of the owner's 77 runs turned up.
+  const run = (ms: number) => [{ entryMs: 0, exitMs: ms, durationMs: ms }];
+  const casaDh = { id: "dh", name: "Casa DH race" };
+  const casaVelha = { id: "cv", name: "Casa Velha" };
+  const passed = [
+    { track: casaDh, runs: run(154_000) },
+    { track: casaVelha, runs: run(72_000) },
+  ];
+
+  it("takes the track the run's name names", () => {
+    expect(pickTrack(passed, "R0108 - casa velha")).toBe(casaVelha);
+    expect(pickTrack(passed, "R0139 - Casa Velha")).toBe(casaVelha);
+  });
+
+  it("takes a track whose name holds the run's", () => {
+    expect(pickTrack(passed, "R0060 - Casa DH")).toBe(casaDh);
+  });
+
+  it("takes the one covering most of the run when the name names none", () => {
+    expect(
+      pickTrack(passed, "R0213 - Alcaria, São Brás de Alportel - New track 20"),
+    ).toBe(casaDh);
+    expect(pickTrack(passed, "R0117")).toBe(casaDh);
+  });
+
+  it("reads names without case or accents", () => {
+    const mitica = { id: "m", name: "Mítica" };
+    expect(
+      pickTrack([...passed, { track: mitica, runs: run(1000) }], "R0116 -mitica"),
+    ).toBe(mitica);
+  });
+
+  it("has no track for a run that passes none", () => {
+    expect(pickTrack([{ track: casaDh, runs: [] }], "R0108 - casa velha")).toBeNull();
   });
 });
 
