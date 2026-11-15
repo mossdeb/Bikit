@@ -44,14 +44,14 @@ import {
   isLapTrack,
   formatRunGap,
   formatRunTime,
-  pickTrack,
   runPath,
   runTrimOf,
   type TimedRun,
 } from "@/lib/imu/timed-track";
-import type {
-  ImuTimedTrack,
-  ImuTrackCandidate,
+import {
+  candidateTrackId,
+  type ImuTimedTrack,
+  type ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
 import {
   PerfectRunLine,
@@ -446,6 +446,7 @@ function ImuTrackDialog({
                 runs={pointHere.runs}
                 prepared={prepared}
                 candidates={candidates}
+                tracks={tracks}
               />
             )
           )
@@ -636,21 +637,15 @@ function TrackView({
           synced.current.add(c.id);
           void saveImuSessionTrim(c.id, p.session, target, true);
         }
-        // Its one track too (2026-11-15), among the tracks it may pass —
-        // so a track's dialog fills in the runs no page has opened yet.
+        // Its one track (2026-11-15): it is listed on that track only,
+        // and the dialog fills it in for the runs no page has opened yet.
+        const own = p ? candidateTrackId(p, c, tracks) : null;
         if (p && !c.trackByHand && !trackSynced.current.has(c.id)) {
-          const pick =
-            pickTrack(
-              tracks
-                .filter((t) => t.candidateIds.includes(c.id))
-                .map((t) => ({ track: t, runs: findTimedRuns(p, t.definition) })),
-              c.name,
-            )?.id ?? null;
-          if (pick !== c.trackId) {
+          if (own !== c.trackId) {
             trackSynced.current.add(c.id);
             void setImuSessionTrack({
               sessionId: c.id,
-              trackId: pick,
+              trackId: own,
               byHand: false,
             });
           }
@@ -662,7 +657,7 @@ function TrackView({
             p
               ? rowsOf(
                   c,
-                  findTimedRuns(p, track.definition),
+                  own === track.id ? findTimedRuns(p, track.definition) : [],
                   isLapTrack(track.definition),
                 )
               : [{ status: "error", sessionId: c.id, name: c.name }],
@@ -673,7 +668,7 @@ function TrackView({
     return () => {
       live = false;
     };
-  }, [toRead, track.definition, tracks, locale]);
+  }, [toRead, track.id, track.definition, tracks, locale]);
 
   const all = [...selfRows, ...[...rows.values()].flat()];
   const timed = all
@@ -1389,6 +1384,9 @@ export function ImuTrackRanking({
   for (const c of candidates) {
     if (c.id === sessionId || !c.trimByTrack || !c.trim) continue;
     if (!first.track.candidateIds.includes(c.id)) continue;
+    // A run kept on another track is not on this one (2026-11-15); one with
+    // no track kept yet still counts, until it is read.
+    if (c.trackId && c.trackId !== first.track.id) continue;
     if (c.trim.endMs - c.trim.startMs < mine) rank++;
   }
   return (

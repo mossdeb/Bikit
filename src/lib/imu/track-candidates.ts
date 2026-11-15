@@ -7,10 +7,14 @@ import {
   trackIndexNearGate,
 } from "@/lib/imu/snapshot";
 import {
+  findTimedRuns,
   isTimedTrackDefinition,
+  pickTrack,
   withTrackPath,
+  type TimedRun,
   type TimedTrackDefinition,
 } from "@/lib/imu/timed-track";
+import type { SnapshotSession } from "@/lib/imu/snapshot";
 
 /** A timed track as the session page hands it to the browser. */
 export interface ImuTimedTrack {
@@ -124,4 +128,39 @@ export async function loadTimedTracks(
       trackByHand: s.track_by_hand,
     }));
   return { tracks, candidates };
+}
+
+/**
+ * The one track a run counts on (2026-11-15): the one the rider chose, when
+ * it still passes it, else the one pickTrack gives among the tracks it
+ * passes — the same answer the session page writes to the row. Every list
+ * of runs reads it, so a run sits in one track's times only.
+ */
+export function runTrackId(
+  passed: { track: { id: string; name: string }; runs: TimedRun[] }[],
+  run: { name: string; trackId: string | null; trackByHand: boolean },
+): string | null {
+  const timed = passed.filter((p) => p.runs.length > 0);
+  if (
+    run.trackByHand &&
+    run.trackId &&
+    timed.some((p) => p.track.id === run.trackId)
+  )
+    return run.trackId;
+  return pickTrack(timed, run.name)?.id ?? null;
+}
+
+/** …for another recording, read in the browser: its one track among the
+ * tracks it is a candidate of. */
+export function candidateTrackId(
+  prepared: SnapshotSession,
+  candidate: ImuTrackCandidate,
+  tracks: ImuTimedTrack[],
+): string | null {
+  return runTrackId(
+    tracks
+      .filter((t) => t.candidateIds.includes(candidate.id))
+      .map((t) => ({ track: t, runs: findTimedRuns(prepared, t.definition) })),
+    candidate,
+  );
 }

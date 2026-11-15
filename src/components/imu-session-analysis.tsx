@@ -58,12 +58,8 @@ import {
   ImuSessionSplits,
 } from "@/components/imu-session-laps";
 import { ImuSessionTrimDialog } from "@/components/imu-session-trim";
-import {
-  isLapTrack,
-  lapMarks,
-  pickTrack,
-  type TimedRun,
-} from "@/lib/imu/timed-track";
+import { isLapTrack, lapMarks, type TimedRun } from "@/lib/imu/timed-track";
+import { runTrackId } from "@/lib/imu/track-candidates";
 import { setImuSessionTrack } from "@/lib/actions/imu-tracks";
 import { sectorBoundaries } from "@/lib/imu/perfect-run";
 import { usePerfectRun } from "@/components/imu-perfect-run";
@@ -1292,18 +1288,46 @@ export function ImuSessionAnalysis({
   } = useImuSession(storagePath, mountOrientation, trim, engineFilter);
   // The run read against the account's tracks once, for the flag on the
   // zoom row and the ranking in the header.
-  const timed = useTimedRuns(whole, timedTracks);
-  // The run's one track, kept with it (2026-11-15): chosen among the tracks
-  // it passes and written when it differs from the row's — once a run is
-  // read, as the trim follows the lines. A track the rider chose stays.
+  const allTimed = useTimedRuns(whole, timedTracks);
+  // The run's one track (2026-11-15): the rider's choice, else the one
+  // runTrackId picks among those it passes. Everything below reads the run
+  // on that track alone — the ranking, the dialog, the Perfect Run, the
+  // laps card and the trim — so a run sits in one track's times only.
+  const runTrack = allTimed
+    ? runTrackId(allTimed.passed, {
+        name: sessionName,
+        trackId: storedTrack.id,
+        trackByHand: storedTrack.byHand,
+      })
+    : null;
+  const timed = useMemo(
+    () =>
+      allTimed && {
+        ...allTimed,
+        passed: allTimed.passed.filter((m) => m.track.id === runTrack),
+      },
+    [allTimed, runTrack],
+  );
+  // The run's own track first: the trim follows the first track it passes.
+  const ownTracksFirst = useMemo(
+    () =>
+      runTrack
+        ? [
+            ...timedTracks.filter((t) => t.id === runTrack),
+            ...timedTracks.filter((t) => t.id !== runTrack),
+          ]
+        : timedTracks,
+    [timedTracks, runTrack],
+  );
+  // …kept with the run, written when it differs from the row's — once a run
+  // is read, as the trim follows the lines. A track the rider chose stays.
   const trackSynced = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!timed || storedTrack.byHand) return;
-    const pick = pickTrack(timed.passed, sessionName)?.id ?? null;
-    if (pick === storedTrack.id || trackSynced.current === pick) return;
-    trackSynced.current = pick;
-    void setImuSessionTrack({ sessionId, trackId: pick, byHand: false });
-  }, [timed, storedTrack.id, storedTrack.byHand, sessionName, sessionId]);
+    if (!allTimed || storedTrack.byHand) return;
+    if (runTrack === storedTrack.id || trackSynced.current === runTrack) return;
+    trackSynced.current = runTrack;
+    void setImuSessionTrack({ sessionId, trackId: runTrack, byHand: false });
+  }, [allTimed, runTrack, storedTrack.id, storedTrack.byHand, sessionId]);
   // The Perfect Run of the first track it passes, for the ranking's line
   // and the track dialog's tab — read once, here.
   const perfect = usePerfectRun({
@@ -1314,6 +1338,7 @@ export function ImuSessionAnalysis({
     prepared: timed?.prepared ?? null,
     track: timed?.passed[0]?.track ?? null,
     runs: timed?.passed[0]?.runs ?? NO_RUNS,
+    tracks: timedTracks,
     candidates: trackCandidates,
     locale,
   });
@@ -2560,7 +2585,7 @@ export function ImuSessionAnalysis({
                   trim?.startMs ?? 0,
                   trim?.endMs ?? whole.durationMs,
                 ]}
-                tracks={timedTracks}
+                tracks={ownTracksFirst}
                 candidates={trackCandidates}
                 timed={timed}
                 perfect={perfect}
@@ -2894,7 +2919,7 @@ export function ImuSessionAnalysis({
                       (zoomed ? Math.round(win[0]) : 0) + (trim?.startMs ?? 0),
                       Math.round(win[1]) + (trim?.startMs ?? 0),
                     ]}
-                    tracks={timedTracks}
+                    tracks={ownTracksFirst}
                     candidates={trackCandidates}
                     timed={timed}
                     editorPage={perfectRun}

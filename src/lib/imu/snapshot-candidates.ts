@@ -44,7 +44,7 @@ export async function loadSnapshotCandidates(
     supabase
       .from("imu_sessions")
       .select(
-        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms, engine_filter",
+        "id, name, rider_name, bike_id, group_id, mount_orientation, setup_id, created_at, storage_path, track_index, trim_start_ms, trim_end_ms, engine_filter, track_id",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
@@ -113,11 +113,16 @@ export async function loadSnapshotCandidates(
       motorbike: s.engine_filter,
       // The tracks this recording comes near both lines of — whether a
       // pass of the stretch was ridden on one is for the file to say. The
-      // reference without an index is offered them all.
-      tracks: tracks.filter((track) =>
-        isTrackIndex(s.track_index)
-          ? trackIndexMayPass(s.track_index, track.definition)
-          : s.id === referenceSessionId,
-      ),
+      // reference without an index is offered them all. A recording that
+      // keeps its one track (2026-11-15) is offered that one alone, so its
+      // passes sit under one track in the filter, as its run does in the
+      // track's times.
+      tracks: s.track_id
+        ? tracks.filter((track) => track.id === s.track_id)
+        : tracks.filter((track) =>
+            isTrackIndex(s.track_index)
+              ? trackIndexMayPass(s.track_index, track.definition)
+              : s.id === referenceSessionId,
+          ),
     }));
 }

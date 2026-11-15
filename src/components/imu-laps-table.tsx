@@ -20,9 +20,10 @@ import {
   formatSeconds,
   type TimedRun,
 } from "@/lib/imu/timed-track";
-import type {
-  ImuTimedTrack,
-  ImuTrackCandidate,
+import {
+  candidateTrackId,
+  type ImuTimedTrack,
+  type ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
 import { loadWholeImuSession } from "@/lib/imu/use-imu-session";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,9 @@ import { cn } from "@/lib/utils";
  * how many sectors there are, and each sector's best across the laps. A lap
  * that misses a line has no sector times (null).
  */
-export function lapSectorStats(sectors: (number[] | null)[] | null | undefined) {
+export function lapSectorStats(
+  sectors: (number[] | null)[] | null | undefined,
+) {
   const sectorMs = (sectors ?? []).map((bounds) =>
     bounds ? bounds.slice(1).map((to, i) => to - bounds[i]) : null,
   );
@@ -142,7 +145,10 @@ export function ImuLapsTable({
             const own = sectorMs[index];
             const row = rows?.[index];
             return (
-              <tr key={`${index}-${lap.entryMs}`} className={cn(row?.mine && "bg-muted/60")}>
+              <tr
+                key={`${index}-${lap.entryMs}`}
+                className={cn(row?.mine && "bg-muted/60")}
+              >
                 <td
                   className={cn(
                     "border-t border-border px-3 py-7 whitespace-nowrap",
@@ -164,9 +170,7 @@ export function ImuLapsTable({
                             {t.thisRun}
                           </span>
                         )}
-                        {row.sub && (
-                          <span className="truncate">{row.sub}</span>
-                        )}
+                        {row.sub && <span className="truncate">{row.sub}</span>}
                       </span>
                     </>
                   ) : (
@@ -221,7 +225,8 @@ export function ImuLapsTable({
                           >
                             {fastest
                               ? t.best
-                              : (formatRunGap(ms, sectorBest[i], locale) ?? t.tied)}
+                              : (formatRunGap(ms, sectorBest[i], locale) ??
+                                t.tied)}
                           </span>
                         </span>
                       )}
@@ -288,6 +293,7 @@ export function ImuTrackSectors({
   runs,
   prepared,
   candidates,
+  tracks = null,
 }: {
   sessionId: string;
   track: ImuTimedTrack;
@@ -295,6 +301,9 @@ export function ImuTrackSectors({
   runs: TimedRun[];
   prepared: SnapshotSession;
   candidates: ImuTrackCandidate[];
+  /** All the account's tracks: another run is listed only when this is its
+   * own track (2026-11-15). */
+  tracks?: ImuTimedTrack[] | null;
 }) {
   const t = useProDict().tracks;
   const locale = useProLocale();
@@ -315,9 +324,7 @@ export function ImuTrackSectors({
         sub: null,
         mine: true,
         run,
-        edges: splits.length
-          ? sectorBoundaries(prepared, splits, run)
-          : null,
+        edges: splits.length ? sectorBoundaries(prepared, splits, run) : null,
       })),
     [runs, prepared, splits, sessionId, self?.name],
   );
@@ -336,14 +343,17 @@ export function ImuTrackSectors({
         (r) => {
           if (!live || !r.data) return;
           const p = prepareSnapshotSession(r.data);
-          const found = findTimedRuns(p, track.definition).map((run, k) => ({
-            key: `${c.id}:${k}`,
-            title: c.name,
-            sub: null,
-            mine: false,
-            run,
-            edges: splits.length ? sectorBoundaries(p, splits, run) : null,
-          }));
+          const own = !tracks || candidateTrackId(p, c, tracks) === track.id;
+          const found = (own ? findTimedRuns(p, track.definition) : []).map(
+            (run, k) => ({
+              key: `${c.id}:${k}`,
+              title: c.name,
+              sub: null,
+              mine: false,
+              run,
+              edges: splits.length ? sectorBoundaries(p, splits, run) : null,
+            }),
+          );
           setRead((prev) => new Map(prev).set(c.id, found));
         },
       );
@@ -351,7 +361,7 @@ export function ImuTrackSectors({
     return () => {
       live = false;
     };
-  }, [others, track.definition, splits, locale]);
+  }, [others, track.id, track.definition, tracks, splits, locale]);
 
   const all = [...selfRows, ...[...read.values()].flat()].sort(
     (a, b) => a.run.durationMs - b.run.durationMs,
@@ -371,9 +381,7 @@ export function ImuTrackSectors({
         }))}
       />
       {pending > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          {t.loadingRuns}
-        </p>
+        <p className="mt-3 text-xs text-muted-foreground">{t.loadingRuns}</p>
       )}
     </div>
   );

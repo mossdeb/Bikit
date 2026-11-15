@@ -29,9 +29,10 @@ import {
   type PerfectRun,
   type SectorRun,
 } from "@/lib/imu/perfect-run";
-import type {
-  ImuTimedTrack,
-  ImuTrackCandidate,
+import {
+  candidateTrackId,
+  type ImuTimedTrack,
+  type ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
 import { setImuTrackSplits } from "@/lib/actions/imu-tracks";
 import { ImuRoutePlate } from "@/components/imu-route-plate";
@@ -102,8 +103,12 @@ export function usePerfectRun({
   track,
   runs,
   candidates,
+  tracks = null,
   locale,
 }: {
+  /** All the account's tracks: another run counts on this one only when
+   * it is that run's own track (2026-11-15). */
+  tracks?: ImuTimedTrack[] | null;
   enabled: boolean;
   sessionId: string;
   riderName: string | null;
@@ -163,6 +168,9 @@ export function usePerfectRun({
       );
       for (const item of loaded) {
         if (!item) continue;
+        // A run on another track of its own is not this track's.
+        if (tracks && candidateTrackId(item.p, item.c, tracks) !== trackId)
+          continue;
         findTimedRuns(item.p, definition).forEach((run, k) =>
           reads.push({
             id: `${item.c.id}:${k}`,
@@ -251,6 +259,7 @@ export function usePerfectRun({
     prepared,
     runs,
     candidates,
+    tracks,
     sessionId,
     riderName,
     motorbike,
