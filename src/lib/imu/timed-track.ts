@@ -481,6 +481,25 @@ export function runTrimOf(
   return null;
 }
 
+/** Why a run near a track does not count on it (2026-11-15, for the track
+ * editor's list): it misses the start line, misses the finish, crosses
+ * both but not start-then-finish within a run's time, or rides another way
+ * between them. Null when it counts. Circuits: the finish line alone. */
+export type NotPassedReason = "start" | "finish" | "order" | "path";
+export function whyNotPassed(
+  prepared: SnapshotSession,
+  definition: TimedTrackDefinition,
+): NotPassedReason | null {
+  if (findTimedRuns(prepared, definition).length > 0) return null;
+  if (isLapTrack(definition))
+    return lineCrossings(prepared, definition.exit).length > 0
+      ? "order"
+      : "finish";
+  if (lineCrossings(prepared, definition.entry).length === 0) return "start";
+  if (lineCrossings(prepared, definition.exit).length === 0) return "finish";
+  return findSnapshotPasses(prepared, definition).length > 0 ? "path" : "order";
+}
+
 /** A name as it is compared: lower case, without accents, letters and
  * digits only — "Casa Velha", "casa velha" and "Casa-Velha" read the same. */
 function nameKey(name: string): string {

@@ -111,6 +111,19 @@ const en = {
   newTrack: "New track",
   /** The track editor's page (2026-11-09): the map, and the bar under it
    * with the start and finish to drag. */
+  /** The track editor's dropdown (2026-11-15): the run's one track. */
+  picker: {
+    label: "Track",
+    newOption: "+ New track",
+    thisRun: "this run's",
+    excludedTitle: "Near this run, but it does not count on them:",
+    reasons: {
+      start: "does not cross the start",
+      finish: "does not cross the finish",
+      order: "does not ride from the start to the finish",
+      path: "takes another way between the lines",
+    },
+  },
   editor: {
     newTitle: "New track",
     editTitle: "Edit track",
@@ -259,6 +272,18 @@ const pt: typeof en = {
   cancel: "Cancelar",
   otherTracks: "Outras pistas por onde esta run passa",
   newTrack: "Nova pista",
+  picker: {
+    label: "Pista",
+    newOption: "+ Nova pista",
+    thisRun: "desta run",
+    excludedTitle: "Perto desta run, mas ela não conta nelas:",
+    reasons: {
+      start: "não cruza a partida",
+      finish: "não cruza a chegada",
+      order: "não vai da partida à chegada",
+      path: "vai por outro caminho entre as linhas",
+    },
+  },
   editor: {
     newTitle: "Nova pista",
     editTitle: "Editar pista",

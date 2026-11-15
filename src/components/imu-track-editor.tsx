@@ -27,6 +27,8 @@ import {
   createTimedTrack,
   findTimedRuns,
   LINE_HEADING_SPAN_M,
+  whyNotPassed,
+  type NotPassedReason,
   type TimedRun,
 } from "@/lib/imu/timed-track";
 import { PERFECT_RUN_SECTORS, sectorBoundaries } from "@/lib/imu/perfect-run";
@@ -34,7 +36,17 @@ import type {
   ImuTimedTrack,
   ImuTrackCandidate,
 } from "@/lib/imu/track-candidates";
-import { setImuTrackSplits } from "@/lib/actions/imu-tracks";
+import {
+  setImuSessionTrack,
+  setImuTrackSplits,
+} from "@/lib/actions/imu-tracks";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImuSessionMap, type ImuMapLine } from "@/components/imu-session-map";
 import { ImuTrackBar } from "@/components/imu-track-bar";
 import {
@@ -55,6 +67,9 @@ import {
  * track drawn here is drawn and saved by the popup's rules. Every Pro
  * account since 2026-11-12 (hasPerfectRun), the sector lines' next home.
  */
+/** The dropdown's value for a new track (2026-11-15). */
+const NEW_TRACK = "nova";
+
 /** Sector lines a track may have, as sectors: from two to twelve. */
 const MIN_SECTORS = 2;
 const MAX_SECTORS = 12;
@@ -159,6 +174,7 @@ export function ImuTrackEditor({
   trim,
   tracks,
   trackId,
+  storedTrackId = null,
   candidates,
 }: {
   sessionId: string;
@@ -168,6 +184,8 @@ export function ImuTrackEditor({
   tracks: ImuTimedTrack[];
   /** The track to edit; null draws a new one. */
   trackId: string | null;
+  /** The run's one track as its row keeps it (migration 00059). */
+  storedTrackId?: string | null;
   candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
@@ -182,6 +200,14 @@ export function ImuTrackEditor({
   const editing = trackId
     ? (timed.passed.find((m) => m.track.id === trackId) ?? null)
     : null;
+  // The tracks near this run that it does not count on, and why — listed
+  // under the dropdown, which offers only those it does (2026-11-15).
+  const excluded = tracks.flatMap((track) => {
+    if (!track.candidateIds.includes(sessionId)) return [];
+    if (timed.passed.some((m) => m.track.id === track.id)) return [];
+    const reason = whyNotPassed(timed.prepared, track.definition);
+    return reason ? [{ track, reason }] : [];
+  });
   return (
     <Editor
       key={editing?.track.id ?? "new"}
@@ -192,6 +218,8 @@ export function ImuTrackEditor({
       trim={trim}
       tracks={tracks}
       editing={editing}
+      storedTrackId={storedTrackId}
+      excluded={excluded}
       candidates={candidates}
     />
   );
@@ -205,6 +233,8 @@ function Editor({
   trim,
   tracks,
   editing,
+  storedTrackId,
+  excluded,
   candidates,
 }: {
   sessionId: string;
@@ -214,6 +244,8 @@ function Editor({
   trim: ImuSessionTrim | null;
   tracks: ImuTimedTrack[];
   editing: Passed[number] | null;
+  storedTrackId: string | null;
+  excluded: { track: ImuTimedTrack; reason: NotPassedReason }[];
   candidates: ImuTrackCandidate[];
 }) {
   const t = useProDict().tracks;
@@ -475,8 +507,31 @@ function Editor({
     : !circuit && startMs != null && finishMs != null && finishMs > startMs
       ? [startMs, finishMs]
       : [0, fullMs];
-  const others = passed.filter((m) => m !== editing);
   const gps = whole.gps;
+  const [choosing, setChoosing] = useState(false);
+  // The dropdown's choice: an existing track is this run's from now on,
+  // chosen by hand; "new" draws one, which becomes its track on saving.
+  async function chooseTrack(value: string) {
+    if (value === NEW_TRACK) {
+      router.push(`/pro/sessoes/${sessionId}/pista?pista=nova`);
+      return;
+    }
+    setChoosing(true);
+    await setImuSessionTrack({ sessionId, trackId: value, byHand: true });
+    setChoosing(false);
+    router.push(`/pro/sessoes/${sessionId}/pista?pista=${value}`);
+    router.refresh();
+  }
+  const pickerItems = [
+    ...passed.map((m) => ({
+      value: m.track.id,
+      label:
+        m.track.id === storedTrackId
+          ? `${m.track.name} · ${t.picker.thisRun}`
+          : m.track.name,
+    })),
+    { value: NEW_TRACK, label: t.picker.newOption },
+  ];
 
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-4 pt-4 pb-10 sm:pt-8">
@@ -499,9 +554,46 @@ function Editor({
                 <FinishFlag className="size-6" />
                 {editing ? t.editor.editTitle : t.editor.newTitle}
               </h1>
-              <Label htmlFor="track-name">{t.name}</Label>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="min-w-48 flex-1">
+              {/* The run's one track (by request, 2026-11-15): the tracks
+                  it counts on, and a new one — in place of the name with
+                  "New track" beside it and the other tracks' chips. */}
+              {/* The track and its name on one line (by request,
+                  2026-11-15). */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-48 flex-1 space-y-1.5">
+                  <Label htmlFor="track-picker">{t.picker.label}</Label>
+                  <Select
+                    items={pickerItems}
+                    value={editing?.track.id ?? NEW_TRACK}
+                    onValueChange={(value) => {
+                      if (typeof value === "string") void chooseTrack(value);
+                    }}
+                    disabled={choosing}
+                  >
+                    <SelectTrigger
+                      id="track-picker"
+                      // The name field's height and corners, as the form's
+                      // other field (by request, 2026-11-15). `data-[size]`
+                      // because the trigger's own h-8 is set that way.
+                      className="w-full rounded-sm px-4 text-base data-[size=default]:h-[48px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-[16px] p-1">
+                      {pickerItems.map((item) => (
+                        <SelectItem
+                          key={item.value}
+                          value={item.value}
+                          className="rounded-[12px] py-2.5 pr-9 pl-3 text-base"
+                        >
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-48 flex-1 space-y-1.5">
+                  <Label htmlFor="track-name">{t.name}</Label>
                   <Input
                     id="track-name"
                     value={draft.name}
@@ -509,15 +601,45 @@ function Editor({
                     onChange={(e) => draft.setName(e.target.value)}
                   />
                 </div>
-                {editing && (
-                  <TrackEditActions
-                    inline
-                    trackId={editing.track.id}
-                    onNew={() => router.push(`/pro/sessoes/${sessionId}/pista`)}
-                    onDeleted={() => router.push(sessionHref)}
-                  />
-                )}
               </div>
+              {/* Under them: the tracks near the run that it does not count
+                  on, and "Delete track" at the line's end (by request,
+                  2026-11-15). */}
+              {(excluded.length > 0 || editing) && (
+                <div className="flex flex-wrap items-start justify-between gap-3 pt-1">
+                  {excluded.length > 0 ? (
+                    <div className="min-w-0 flex-1 space-y-1 text-sm text-muted-foreground">
+                      <p>{t.picker.excludedTitle}</p>
+                      <ul className="space-y-0.5">
+                        {excluded.map(({ track, reason }) => (
+                          <li key={track.id}>
+                            <span className="text-foreground">
+                              {track.name}
+                            </span>
+                            {" — "}
+                            {t.picker.reasons[reason]}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <span />
+                  )}
+                  {editing && (
+                    <TrackEditActions
+                      inline
+                      hideNew
+                      trackId={editing.track.id}
+                      onNew={() =>
+                        router.push(
+                          `/pro/sessoes/${sessionId}/pista?pista=nova`,
+                        )
+                      }
+                      onDeleted={() => router.push(sessionHref)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             {gps ? (
               <ImuSessionMap
@@ -706,7 +828,12 @@ function Editor({
                   variant="inverted"
                   className="rounded-full"
                   disabled={busy}
-                  onClick={() => router.push(sessionHref)}
+                  onClick={() =>
+                    // The run's track, by hand, where it counts on it.
+                    passed.some((m) => m.track.id === sameTrack.track.id)
+                      ? void chooseTrack(sameTrack.track.id)
+                      : router.push(sessionHref)
+                  }
                 >
                   {t.useSameTrack(sameTrack.track.name)}
                 </Button>
@@ -719,23 +846,6 @@ function Editor({
                 >
                   {busy ? common.saving : t.createAnyway}
                 </Button>
-              </div>
-            </div>
-          )}
-          {others.length > 0 && (
-            <div className="space-y-2 border-t border-border pt-4">
-              <p className="text-sm text-muted-foreground">{t.otherTracks}</p>
-              <div className="flex flex-wrap gap-2">
-                {others.map((m) => (
-                  <Link
-                    key={m.track.id}
-                    href={`/pro/sessoes/${sessionId}/pista?pista=${m.track.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
-                  >
-                    <FinishFlag className="size-3.5" />
-                    {m.track.name}
-                  </Link>
-                ))}
               </div>
             </div>
           )}

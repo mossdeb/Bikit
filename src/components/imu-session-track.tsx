@@ -1045,6 +1045,13 @@ export function useTrackDraft({
       setError(result.message);
       return;
     }
+    // A track drawn from this run is its track, chosen by hand (2026-11-15).
+    if (!editing)
+      await setImuSessionTrack({
+        sessionId,
+        trackId: result.id,
+        byHand: true,
+      });
     router.refresh();
     onSaved(result.id);
   }
@@ -1249,10 +1256,13 @@ export function TrackEditActions({
   onNew,
   onDeleted,
   inline = false,
+  hideNew = false,
 }: {
   /** Beside the track's name on the editor's page (2026-11-10): no rule
    * above, the buttons to the right. */
   inline?: boolean;
+  /** No "New track" chip: the editor's dropdown offers it (2026-11-15). */
+  hideNew?: boolean;
   trackId: string;
   onNew: () => void;
   onDeleted: () => void;
@@ -1313,10 +1323,12 @@ export function TrackEditActions({
             inline ? "justify-end" : "justify-center",
           )}
         >
-          <Chip onClick={onNew}>
-            <Plus className="size-3.5" />
-            {t.newTrack}
-          </Chip>
+          {!hideNew && (
+            <Chip onClick={onNew}>
+              <Plus className="size-3.5" />
+              {t.newTrack}
+            </Chip>
+          )}
           <Chip
             onClick={() => setConfirming(true)}
             className="text-destructive"

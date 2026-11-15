@@ -9,7 +9,9 @@ import { ImuTrackEditor } from "@/components/imu-track-editor";
 /**
  * The track editor (by request, 2026-11-09): a session's start and finish
  * drawn on a page of their own, the map large and the recording's profile
- * under it. `?pista=<id>` edits that track; without it, a new one. Every Pro
+ * under it. `?pista=<id>` edits that track, `?pista=nova` draws a new one,
+ * and without it the run's own track opens (2026-11-15), or a new one when
+ * it has none. Every Pro
  * account since 2026-11-12 (hasPerfectRun), on its own sessions and tracks.
  * The file is read in the browser, like the session page.
  */
@@ -30,13 +32,16 @@ export default async function ImuTrackEditorPage({
 
   const { data: session } = await supabase
     .from("imu_sessions")
-    .select("id, storage_path, mount_orientation, trim_start_ms, trim_end_ms")
+    .select(
+      "id, storage_path, mount_orientation, trim_start_ms, trim_end_ms, track_id",
+    )
     .eq("id", sessionId)
     .eq("user_id", userId)
     .single();
   if (!session) notFound();
+  const trackId = pista === "nova" ? null : (pista ?? session.track_id);
   const { tracks, candidates } = await loadTimedTracks(supabase, userId, {
-    nearEitherGateOf: pista ?? null,
+    nearEitherGateOf: trackId,
   });
 
   return (
@@ -48,7 +53,8 @@ export default async function ImuTrackEditorPage({
       }
       trim={trimOf(session.trim_start_ms, session.trim_end_ms)}
       tracks={tracks}
-      trackId={pista ?? null}
+      trackId={trackId}
+      storedTrackId={session.track_id}
       candidates={candidates}
     />
   );
