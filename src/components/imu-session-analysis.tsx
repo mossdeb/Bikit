@@ -3046,6 +3046,7 @@ export function ImuSessionAnalysis({
             >
               <ImuSessionMap
                 gps={data.gps}
+                trackName={timed?.passed[0]?.track.name ?? null}
                 lines={splitsOn ? splitLines : undefined}
                 events={
                   eventsOn

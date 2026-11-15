@@ -559,7 +559,7 @@ function Editor({
                   "New track" beside it and the other tracks' chips. */}
               {/* The track and its name on one line (by request,
                   2026-11-15). */}
-              <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-48 flex-1 space-y-1.5">
                   <Label htmlFor="track-picker">{t.picker.label}</Label>
                   <Select
@@ -644,6 +644,7 @@ function Editor({
             {gps ? (
               <ImuSessionMap
                 gps={gps}
+                trackName={editing?.track.name ?? null}
                 events={[]}
                 windowMs={windowMs}
                 speedOn={false}
@@ -735,15 +736,31 @@ function Editor({
                       )}
                     </>
                   )}
-                  <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={circuit}
-                      onChange={(e) => draft.setCircuit(e.target.checked)}
-                      className="size-4 accent-foreground"
-                    />
+                  {/* A switch, as the app's other on/off choices (by request,
+                      2026-11-15; a checkbox before). */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={circuit}
+                    onClick={() => draft.setCircuit(!circuit)}
+                    className="ml-auto flex cursor-pointer items-center gap-2.5 text-sm"
+                  >
                     {t.circuit}
-                  </label>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                        circuit ? "bg-foreground" : "bg-muted-foreground/30",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "absolute top-0.5 left-0.5 size-4 rounded-full bg-background transition-transform",
+                          circuit && "translate-x-4",
+                        )}
+                      />
+                    </span>
+                  </button>
                 </div>
                 {lost.length > 0 && (
                   <p className="mt-4 rounded-[14px] border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200">

@@ -367,6 +367,7 @@ export function ImuSessionMap({
   onSeek,
   onEventPick,
   title,
+  trackName = null,
   className,
   lines,
   endMarkPx,
@@ -401,6 +402,9 @@ export function ImuSessionMap({
    * overlaid rather than given a header row, so it costs the picture no
    * height. */
   title?: string;
+  /** The run's track, named over the place in the corner (by request,
+   * 2026-11-15); none, and the place stands alone. */
+  trackName?: string | null;
   className?: string;
 }) {
   // The reader's language: the controls' names, the credit line's word,
@@ -1231,11 +1235,11 @@ export function ImuSessionMap({
           Leaflet's credit line — measured, because those credits wrap to a
           second line on a narrow map and this label must never be the
           thing covering the attribution the tiles are served under. */}
-      {ready && (placeName ?? title) && (
+      {ready && (trackName || placeName || title) && (
         <span
           // Capped and clipped: a place name is written by whoever mapped
           // it and can run long, and the north badge owns the corner above.
-          className="pointer-events-none absolute right-2 z-[1100] block max-w-52 truncate px-1.5 text-right font-display text-sm font-semibold text-white"
+          className="pointer-events-none absolute right-2 z-[1100] flex max-w-64 flex-col items-end px-1.5 text-right font-display text-white"
           // A shadow and not a plate: the imagery is dark-treated, so the
           // word only needs enough separation to survive a pale patch of
           // ground. Inline because the offset is computed and the shadow is
@@ -1245,7 +1249,25 @@ export function ImuSessionMap({
             textShadow: "0 1px 4px rgba(0,0,0,0.75)",
           }}
         >
-          {placeName ?? title}
+          {/* The track over the place (2026-11-15): what the run was, then
+              where. */}
+          {trackName && (
+            <span className="block max-w-full truncate text-base leading-tight font-semibold">
+              {trackName}
+            </span>
+          )}
+          {(placeName ?? title) && (
+            <span
+              className={cn(
+                "block max-w-full truncate",
+                trackName
+                  ? "text-xs font-medium text-white/85"
+                  : "text-sm font-semibold",
+              )}
+            >
+              {placeName ?? title}
+            </span>
+          )}
         </span>
       )}
     </div>
