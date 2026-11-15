@@ -367,6 +367,22 @@ const en = {
 
   /** The bikes pages under Pro. */
   bikes: {
+    /** The page's tabs (2026-11-15): the bikes, the riders written on the
+     * sessions, and the timed tracks. */
+    tabs: { bikes: "Bikes", riders: "Riders", tracks: "Tracks" },
+    riderCount: (n: number): string => (n === 1 ? "1 rider" : `${n} riders`),
+    trackCount: (n: number): string => (n === 1 ? "1 track" : `${n} tracks`),
+    bikeCount: (n: number): string => (n === 1 ? "1 bike" : `${n} bikes`),
+    runCount: (n: number): string => (n === 1 ? "1 run" : `${n} runs`),
+    lastRide: (date: string): string => `Last ride ${date}`,
+    riderDelete: {
+      title: (name: string): string => `Delete ${name}?`,
+      description: (name: string, sessions: number): string =>
+        `The name "${name}" is taken off ${sessions === 1 ? "its session" : `its ${sessions} sessions`}. The sessions themselves stay, with all their data.`,
+      aria: (name: string): string => `Delete ${name}`,
+    },
+    noRiders: "No riders yet. The rider's name written on a session shows up here.",
+    noTracks: "No tracks yet. Draw one from a session's start and finish lines.",
     title: "Bikes",
     empty: "No bikes yet. Register one in Bikit and it shows up here.",
     /** "2 setups in 5 sessions" — the two counts come formatted from
@@ -710,6 +726,22 @@ const pt: typeof en = {
   },
 
   bikes: {
+    tabs: { bikes: "Bicicletas", riders: "Riders", tracks: "Pistas" },
+    riderCount: (n) => (n === 1 ? "1 rider" : `${n} riders`),
+    trackCount: (n) => (n === 1 ? "1 pista" : `${n} pistas`),
+    bikeCount: (n) => (n === 1 ? "1 bicicleta" : `${n} bicicletas`),
+    runCount: (n) => (n === 1 ? "1 run" : `${n} runs`),
+    lastRide: (date) => `Última volta ${date}`,
+    riderDelete: {
+      title: (name) => `Apagar ${name}?`,
+      description: (name, sessions) =>
+        `O nome "${name}" sai ${sessions === 1 ? "da sessão dele" : `das ${sessions} sessões dele`}. As sessões ficam, com todos os dados.`,
+      aria: (name) => `Apagar ${name}`,
+    },
+    noRiders:
+      "Ainda não há riders. O nome do rider escrito numa sessão aparece aqui.",
+    noTracks:
+      "Ainda não há pistas. Desenha uma a partir da partida e da chegada de uma sessão.",
     title: "Bicicletas",
     empty: "Ainda não há bicicletas. Regista uma no Bikit e ela aparece aqui.",
     setupsInSessions: (setups, sessions) => `${setups} em ${sessions}`,

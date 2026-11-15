@@ -391,6 +391,40 @@ export async function deleteImuSessionGroup(
 }
 
 /**
+ * Removes a rider from the Paddock (by request, 2026-11-15): a rider is the
+ * name written on the sessions, not a record of its own, so their sessions
+ * lose the name — as typed in any case or spacing — and stay, with all
+ * their figures. The caller's own sessions only.
+ */
+export async function clearImuRiderName(
+  riderName: string,
+): Promise<ImuActionResult> {
+  const caller = await labCaller();
+  if (caller.status === "error") return caller;
+  const key = riderName.trim().toLocaleLowerCase();
+  if (!key) return { status: "ok" };
+  const { data: rows, error: readError } = await caller.supabase
+    .from("imu_sessions")
+    .select("id, rider_name")
+    .eq("user_id", caller.userId)
+    .not("rider_name", "is", null);
+  if (readError) return { status: "error", message: readError.message };
+  const ids = (rows ?? [])
+    .filter((r) => r.rider_name?.trim().toLocaleLowerCase() === key)
+    .map((r) => r.id);
+  if (ids.length === 0) return { status: "ok" };
+  const { error } = await caller.supabase
+    .from("imu_sessions")
+    .update({ rider_name: null })
+    .in("id", ids)
+    .eq("user_id", caller.userId);
+  if (error) return { status: "error", message: error.message };
+  revalidatePath("/pro/bicicletas");
+  revalidatePath("/pro");
+  return { status: "ok" };
+}
+
+/**
  * Deletes a session: the row first, then the file. Both writes have their
  * error read — the Supabase client returns {data, error} without throwing,
  * and an unread error is a silent partial failure.

@@ -8,7 +8,8 @@
 const en = {
   /** The rail's and the phone bar's entries, in their order. */
   sessions: "Sessions",
-  bikes: "Bikes",
+  // The bikes, the riders and the tracks since 2026-11-15: "Paddock".
+  bikes: "Paddock",
   logger: "Logger",
   settings: "Settings",
   /** The `aria-label` of the phone bar's `<nav>`. */
@@ -35,7 +36,7 @@ const en = {
 
 const pt: typeof en = {
   sessions: "Sessões",
-  bikes: "Bicicletas",
+  bikes: "Paddock",
   logger: "Logger",
   settings: "Definições",
   primary: "Principal",
