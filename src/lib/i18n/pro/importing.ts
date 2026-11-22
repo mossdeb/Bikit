@@ -239,6 +239,14 @@ const en = {
       `Block ${b} (GNSS) leaves a hole in the sample index.`,
     gnssTimeBackwards: (i: number, t: number, previous: number): string =>
       `Time goes backwards at GNSS sample ${i} (${t} ms after ${previous} ms).`,
+    suspensionFormat: (b: number, stream: string, flags: number): string =>
+      `Block ${b} (${stream}) carries an unknown sample format (${flags}).`,
+    suspensionSampleSize: (b: number, stream: string, bytes: number): string =>
+      `Block ${b} (${stream}) has ${bytes}-byte samples.`,
+    suspensionIndexHole: (b: number, stream: string): string =>
+      `Block ${b} (${stream}) leaves a hole in the sample index.`,
+    suspensionTimeBackwards: (b: number, stream: string): string =>
+      `Time goes backwards in block ${b} (${stream}).`,
     imuCountMismatch: (written: number, declared: number): string =>
       `The blocks carry ${written} IMU samples and the header declares ${declared}.`,
   },
@@ -472,6 +480,14 @@ const pt: typeof en = {
       `O bloco ${b} (GNSS) deixa um buraco no índice das amostras.`,
     gnssTimeBackwards: (i, t, previous) =>
       `O tempo anda para trás na amostra GNSS ${i} (${t} ms após ${previous} ms).`,
+    suspensionFormat: (b, stream, flags) =>
+      `O bloco ${b} (${stream}) traz um formato de amostra desconhecido (${flags}).`,
+    suspensionSampleSize: (b, stream, bytes) =>
+      `O bloco ${b} (${stream}) tem amostras de ${bytes} bytes.`,
+    suspensionIndexHole: (b, stream) =>
+      `O bloco ${b} (${stream}) deixa um buraco no índice das amostras.`,
+    suspensionTimeBackwards: (b, stream) =>
+      `O tempo anda para trás no bloco ${b} (${stream}).`,
     imuCountMismatch: (written, declared) =>
       `Os blocos trazem ${written} amostras IMU e o cabeçalho declara ${declared}.`,
   },

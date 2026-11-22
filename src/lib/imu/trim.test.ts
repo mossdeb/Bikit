@@ -141,6 +141,39 @@ describe("trimSession", () => {
     expect(cut.highG?.map((h) => h.timeMs)).toEqual([10000]);
   });
 
+  it("crops the suspension to the window, re-zeroed", () => {
+    // One sample a second, 0…59 s, raw = the second it was taken.
+    const tMs = Float64Array.from({ length: 60 }, (_, i) => i * 1000);
+    const raw = Uint16Array.from({ length: 60 }, (_, i) => i);
+    const cut = trimSession(
+      {
+        ...recording(),
+        suspension: {
+          fork: {
+            channel: 0,
+            tMs,
+            raw,
+            medianRaw: raw,
+            sensor: null,
+            calibration: null,
+            presence: "confirmed",
+          },
+        },
+      },
+      { startMs: 20000, endMs: 50000 },
+    );
+    const fork = cut.suspension!.fork!;
+    expect(fork.tMs).toHaveLength(30);
+    expect(fork.tMs[0]).toBe(0);
+    expect(fork.raw[0]).toBe(20);
+    expect(fork.medianRaw[29]).toBe(49);
+    expect(fork.presence).toBe("confirmed");
+    expect(cut.suspension!.shock).toBeUndefined();
+    // Without the sensors, the trim does not invent them.
+    expect(trimSession(recording(), { startMs: 20000, endMs: 50000 }).suspension)
+      .toBeUndefined();
+  });
+
   it("leaves the session alone without a trim or with an empty window", () => {
     const s = recording();
     expect(trimSession(s, null)).toBe(s);

@@ -63,6 +63,16 @@ interface HighGEventSpec {
    * default rests y at −3 LSB, as it would at 800 Hz. */
   even?: boolean;
 }
+/** The suspension's linear sensor, firmware V19/V20: type 4 is the fork
+ * (CH0), type 5 the shock (CH1). Each sample is [t_us, raw, median]. */
+interface SuspensionBlock {
+  type: 4 | 5;
+  samples: [number, number, number][];
+  /** The block's flags byte — the sample layout; 0x01 is V19's. */
+  format?: number;
+  /** Advance first_sample_index before this block, leaving a hole. */
+  skipBefore?: number;
+}
 interface HighGBlock {
   type: 3;
   events: HighGEventSpec[];
@@ -71,7 +81,7 @@ interface HighGBlock {
 }
 
 function buildBkt(
-  blocks: (ImuBlock | GnssBlock | HighGBlock)[],
+  blocks: (ImuBlock | GnssBlock | HighGBlock | SuspensionBlock)[],
   overrides: {
     /** Header flag bit 2, which firmware V15 sets on every file. */
     highGFlag?: boolean;
@@ -95,6 +105,12 @@ function buildBkt(
     /** Write firmware V18.9's VEH1 record at 424: 0 bicycle, 1 motorbike. */
     vehicle?: number;
     breakVehicleCrc?: boolean;
+    /** Write the LIN1/LCA1 records as R0058 has them (V20, 2026-11-21):
+     * fork 202 mm, shock with no stroke, neither calibrated. */
+    suspensionRecords?: boolean;
+    /** The fork's LCA1 as a calibrated one: zero 300, sag 1100, +1. */
+    calibratedFork?: boolean;
+    breakForkLinCrc?: boolean;
     breakHeaderCrc?: boolean;
     breakBlockCrc?: number;
     breakSequence?: number;
@@ -218,8 +234,45 @@ function buildBkt(
     view.setUint32(436, overrides.breakVehicleCrc ? vehCrc ^ 1 : vehCrc, true);
   }
 
+  if (overrides.suspensionRecords) {
+    const lin = (off: number, stroke: number, rawMax: number, ch: number, broken = false) => {
+      put(off, "LIN1");
+      view.setUint16(off + 4, 1, true);
+      view.setUint16(off + 6, 24, true);
+      view.setUint16(off + 8, 900, true);
+      view.setUint16(off + 10, stroke, true);
+      view.setUint16(off + 12, 0, true);
+      view.setUint16(off + 14, rawMax, true);
+      view.setUint8(off + 16, ch);
+      view.setUint8(off + 17, 3);
+      view.setUint16(off + 18, 8, true);
+      const c = crc32(u8.subarray(off, off + 24));
+      view.setUint32(off + 20, broken ? c ^ 1 : c, true);
+    };
+    const lca = (off: number, ch: number, presence: number, cal = false) => {
+      put(off, "LCA1");
+      view.setUint16(off + 4, 1, true);
+      view.setUint16(off + 6, 24, true);
+      if (cal) {
+        view.setUint32(off + 8, 2, true);
+        view.setUint16(off + 12, 300, true);
+        view.setUint16(off + 14, 1100, true);
+        view.setInt8(off + 16, 1);
+        view.setUint8(off + 17, 3);
+      }
+      view.setUint8(off + 18, presence);
+      view.setUint8(off + 19, ch);
+      view.setUint32(off + 20, crc32(u8.subarray(off, off + 24)), true);
+    };
+    lin(448, 202, 4090, 0, overrides.breakForkLinCrc);
+    lca(472, 0, overrides.calibratedFork ? 3 : 0, overrides.calibratedFork);
+    lin(496, 0, 4095, 1);
+    lca(520, 1, 1);
+  }
+
   let imuIndex = 0;
   let gnssIndex = 0;
+  const suspensionIndex = { 4: 0, 5: 0 };
   let highGIndex = 0;
   blocks.forEach((b, seq) => {
     const off = BLOCK + seq * BLOCK;
@@ -231,11 +284,24 @@ function buildBkt(
       overrides.breakSequence === seq ? seq + 5 : seq,
       true,
     );
-    const size = b.type === 1 ? 12 : b.type === 3 ? 208 : b.size;
+    const size =
+      b.type === 1 ? 12 : b.type === 3 ? 208 : b.type === 2 ? b.size : 8;
     const count = b.type === 3 ? b.events.length : b.samples.length;
     view.setUint16(off + 16, count, true);
     view.setUint16(off + 18, size, true);
-    if (b.type === 3) {
+    if (b.type === 4 || b.type === 5) {
+      view.setUint8(off + 5, b.format ?? 1);
+      suspensionIndex[b.type] += b.skipBefore ?? 0;
+      view.setUint32(off + 12, suspensionIndex[b.type], true);
+      view.setBigUint64(off + 20, BigInt(b.samples[0]?.[0] ?? 0), true);
+      b.samples.forEach(([tUs, raw, median], i) => {
+        const p = off + 32 + i * 8;
+        view.setUint32(p, tUs, true);
+        view.setUint16(p + 4, raw, true);
+        view.setUint16(p + 6, median, true);
+      });
+      suspensionIndex[b.type] += b.samples.length;
+    } else if (b.type === 3) {
       view.setUint8(off + 5, b.format ?? 1);
       view.setUint32(off + 12, highGIndex, true);
       view.setBigUint64(off + 20, BigInt(b.events[0]?.triggerUs ?? 0), true);
@@ -274,7 +340,7 @@ function buildBkt(
         s.forEach((v, k) => view.setInt16(p + k * 2, v, true));
       });
       imuIndex += b.samples.length;
-    } else {
+    } else if (b.type === 2) {
       view.setBigUint64(off + 20, BigInt(0), true);
       view.setUint32(off + 12, gnssIndex, true);
       b.samples.forEach((s, i) => {
@@ -889,6 +955,211 @@ describe("parseBktFile — firmware V15's high-g events", () => {
     );
     expect(tooMany.ok).toBe(false);
     if (!tooMany.ok) expect(tooMany.error).toMatch(/declara 40 amostras/);
+  });
+});
+
+describe("parseBktFile — the suspension's linear sensors (firmware V19/V20)", () => {
+  /** n samples every 1100 µs from `t0Us`, raw and median from `value`. */
+  const suspension = (
+    type: 4 | 5,
+    n: number,
+    t0Us: number,
+    value = (i: number) => 1036 + (i % 3),
+  ): SuspensionBlock => ({
+    type,
+    samples: Array.from({ length: n }, (_, i) => [
+      t0Us + i * 1100,
+      value(i),
+      1036,
+    ]),
+  });
+
+  it("reads the fork and the shock onto the IMU's timeline, with their records", () => {
+    const result = parseBktFile(
+      buildBkt(
+        [
+          suspension(4, 508, 12_024),
+          suspension(5, 508, 12_421),
+          imuBlock(338),
+          suspension(4, 100, 12_024 + 508 * 1100),
+        ],
+        { magic: "BKT1", suspensionRecords: true },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { fork, shock } = result.session.suspension!;
+    expect(fork!.channel).toBe(0);
+    expect(fork!.tMs).toHaveLength(608);
+    expect(fork!.tMs[0]).toBeCloseTo(12.024, 6);
+    expect(fork!.tMs[607]).toBeCloseTo((12_024 + 607 * 1100) / 1000, 6);
+    expect(fork!.raw[1]).toBe(1037);
+    expect(fork!.medianRaw[1]).toBe(1036);
+    expect(fork!.sensor).toEqual({
+      nominalRateHz: 900,
+      strokeMm: 202,
+      rawMin: 0,
+      rawMax: 4090,
+    });
+    // R0058's LCA1: never calibrated — the zeros are not readings.
+    expect(fork!.calibration).toBeNull();
+    expect(fork!.presence).toBe("disabled");
+    expect(shock!.channel).toBe(1);
+    expect(shock!.tMs).toHaveLength(508);
+    // A stroke of 0 is "not written", not a sensor 0 mm long.
+    expect(shock!.sensor!.strokeMm).toBeNull();
+    expect(shock!.presence).toBe("unknown");
+    // The IMU side is untouched by the extra blocks.
+    expect(result.session.sampleCount).toBe(338);
+  });
+
+  it("reads a calibrated fork's zero, sag and direction", () => {
+    const result = parseBktFile(
+      buildBkt([imuBlock(100), suspension(4, 10, 0)], {
+        magic: "BKT1",
+        suspensionRecords: true,
+        calibratedFork: true,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.session.suspension!.fork!.calibration).toEqual({
+      calibrationCount: 2,
+      zeroRaw: 300,
+      sagRaw: 1100,
+      compressionDirection: 1,
+    });
+    expect(result.session.suspension!.fork!.presence).toBe("confirmed");
+  });
+
+  it("keeps the samples when a record is damaged or missing", () => {
+    const damaged = parseBktFile(
+      buildBkt([imuBlock(100), suspension(4, 10, 0)], {
+        magic: "BKT1",
+        suspensionRecords: true,
+        breakForkLinCrc: true,
+      }),
+    );
+    expect(damaged.ok).toBe(true);
+    if (!damaged.ok) return;
+    expect(damaged.session.suspension!.fork!.sensor).toBeNull();
+    expect(damaged.session.suspension!.fork!.tMs).toHaveLength(10);
+
+    // R0024's firmware (V19.0.007) wrote the blocks before LCA1 existed.
+    const bare = parseBktFile(
+      buildBkt([imuBlock(100), suspension(4, 10, 0)], { magic: "BKT1" }),
+    );
+    expect(bare.ok).toBe(true);
+    if (!bare.ok) return;
+    expect(bare.session.suspension!.fork!.sensor).toBeNull();
+    expect(bare.session.suspension!.fork!.calibration).toBeNull();
+    expect(bare.session.suspension!.fork!.presence).toBeNull();
+    expect(bare.session.suspension!.shock).toBeUndefined();
+  });
+
+  it("has no suspension on a file without its blocks", () => {
+    const result = parseBktFile(
+      buildBkt([imuBlock(100)], { magic: "BKT1", suspensionRecords: true }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.session.suspension).toBeUndefined();
+  });
+
+  it("unwraps the µs clock past 2^32 (~71.6 min)", () => {
+    const near = 2 ** 32 - 1100;
+    const result = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(100),
+          {
+            type: 4,
+            samples: [
+              [near, 1000, 1000],
+              [0, 1000, 1000],
+              [1100, 1000, 1000],
+            ],
+          },
+        ],
+        { magic: "BKT1" },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const t = result.session.suspension!.fork!.tMs;
+    expect(t[1] - t[0]).toBeCloseTo(1.1, 6);
+    expect(t[2] - t[1]).toBeCloseTo(1.1, 6);
+  });
+
+  it("refuses time that runs backwards", () => {
+    const result = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(100),
+          {
+            type: 5,
+            samples: [
+              [5000, 1000, 1000],
+              [4000, 1000, 1000],
+            ],
+          },
+        ],
+        { magic: "BKT1" },
+      ),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toBe("O tempo anda para trás no bloco 1 (SHOCK).");
+  });
+
+  it("refuses a hole in the sample index", () => {
+    const result = parseBktFile(
+      buildBkt(
+        [
+          imuBlock(100),
+          suspension(4, 10, 0),
+          { ...suspension(4, 10, 11_000), skipBefore: 3 },
+        ],
+        { magic: "BKT1" },
+      ),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toBe(
+        "O bloco 2 (FORK) deixa um buraco no índice das amostras.",
+      );
+  });
+
+  it("refuses an unknown sample layout and a damaged block", () => {
+    const layout = parseBktFile(
+      buildBkt([imuBlock(100), { ...suspension(4, 10, 0), format: 2 }], {
+        magic: "BKT1",
+      }),
+    );
+    expect(layout.ok).toBe(false);
+    if (!layout.ok)
+      expect(layout.error).toBe(
+        "O bloco 1 (FORK) traz um formato de amostra desconhecido (2).",
+      );
+
+    const crc = parseBktFile(
+      buildBkt([imuBlock(100), suspension(5, 10, 0)], {
+        magic: "BKT1",
+        breakBlockCrc: 1,
+      }),
+    );
+    expect(crc.ok).toBe(false);
+    if (!crc.ok) expect(crc.error).toMatch(/bloco 1 \(SHOCK\)/);
+  });
+
+  it("still refuses a block type it does not know", () => {
+    const bytes = buildBkt([imuBlock(100), suspension(4, 10, 0)], {
+      magic: "BKT1",
+    });
+    new DataView(bytes).setUint8(BLOCK * 2 + 4, 6);
+    const result = parseBktFile(bytes);
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.error).toBe("O bloco 1 é de um tipo desconhecido (6).");
   });
 });
 

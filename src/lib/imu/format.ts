@@ -198,6 +198,72 @@ export interface ImuSessionData {
    * ImuHighGEvent. Absent on files without the sensor; empty when it was
    * there and nothing crossed its threshold. */
   highG?: ImuHighGEvent[];
+  /** The suspension's linear sensors, when the file carries their blocks
+   * (firmware V19/V20: .BKT block types 4 and 5) — see ImuSuspension.
+   * Absent on files without them. */
+  suspension?: ImuSuspension;
+}
+
+/**
+ * The fork and the shock as the logger's linear sensors read them: two
+ * potentiometers on an MCP3208 ADC, CH0 on the fork and CH1 on the shock,
+ * sampled at ~900 Hz nominal (the SD's writes take slots, so ~820–850 Hz
+ * in practice, with gaps up to ~22 ms). A side is present only when its
+ * blocks carry samples.
+ */
+export interface ImuSuspension {
+  /** CH0, block type 4. */
+  fork?: ImuSuspensionTrace;
+  /** CH1, block type 5. */
+  shock?: ImuSuspensionTrace;
+}
+
+export interface ImuSuspensionTrace {
+  /** The ADC channel, 0 or 1. */
+  channel: number;
+  /** On the session's timeline, ms: the firmware stamps these from the same
+   * RTC2 and the same START origin as the IMU blocks. */
+  tMs: Float64Array;
+  /** The 12-bit ADC reading, 0–4095, as it was taken. */
+  raw: Uint16Array;
+  /** The firmware's median of the last three readings — what it treats as
+   * the position; `raw` keeps the spikes the median removes. */
+  medianRaw: Uint16Array;
+  /** The sensor's scale (the LIN1 record), or null when the file has no
+   * valid one. */
+  sensor: ImuSuspensionSensor | null;
+  /** The mounting calibration (the LCA1 record's zero, sag and direction),
+   * or null when the logger was never calibrated for this side. */
+  calibration: ImuSuspensionCalibration | null;
+  /** The logger's presence check at START (LCA1), or null when the file
+   * does not say. "disabled" is the CHECK switched off, not the sensor:
+   * R0049–R0058 say it of a fork that recorded the whole ride. */
+  presence: ImuSuspensionPresence | null;
+}
+
+export type ImuSuspensionPresence =
+  | "disabled"
+  | "unknown"
+  | "possibly-disconnected"
+  | "confirmed";
+
+export interface ImuSuspensionSensor {
+  nominalRateHz: number;
+  /** The rod travel that `rawMin`…`rawMax` spans, mm; null when the file
+   * says 0 — the shock's, before firmware V19.0.034 wrote its 78 mm. */
+  strokeMm: number | null;
+  rawMin: number;
+  rawMax: number;
+}
+
+export interface ImuSuspensionCalibration {
+  calibrationCount: number;
+  /** The reading at full extension, as mounted. */
+  zeroRaw: number;
+  /** The reading with the rider on. */
+  sagRaw: number;
+  /** +1 when compressing raises the reading, −1 when it lowers it. */
+  compressionDirection: 1 | -1;
 }
 
 /**

@@ -33,6 +33,13 @@
  *                type 3 = HIGHG, firmware V15: 208-byte shock events from
  *                         the ADXL375, written at STOP after every other
  *                         block — see readHighGEvents
+ *                type 4 = FORK, firmware V19+: 8-byte linear-sensor samples
+ *                         from the MCP3208's CH0
+ *                type 5 = SHOCK, firmware V19.0.022+: the same, from CH1
+ *   [448, 472)   fork sensor     "LIN1"  — the CH0 sensor's rate and scale
+ *   [472, 496)   fork mounting   "LCA1"  — CH0's zero, sag and direction
+ *   [496, 520)   shock sensor    "LIN1"  — CH1's
+ *   [520, 544)   shock mounting  "LCA1"  — CH1's
  *
  * Strict where the JSON parser is strict, and for the same reason: a bad
  * CRC, a block out of sequence, an index that goes backwards or a file
@@ -67,6 +74,10 @@ import type {
   ImuMountOrientation,
   ImuParseResult,
   ImuRiderSag,
+  ImuSuspension,
+  ImuSuspensionCalibration,
+  ImuSuspensionPresence,
+  ImuSuspensionSensor,
   ImuVehicle,
   ImuTimelineGap,
 } from "./format";
@@ -151,6 +162,40 @@ const VEH_MAGIC = "VEH1";
 const VEH_OFFSET = 424;
 const VEH_SIZE = 16;
 const VEH_VERSION = 1;
+/** The suspension's linear sensors (firmware V19/V20). Each block sample is
+ * `BikitLinearDiskSampleV1` (`<IHH>`): t_us, the session-relative time in
+ * µs from RTC2 — the IMU's clock and origin, a u32 that wraps after
+ * ~71.6 min — then the raw 12-bit reading and the firmware's 3-sample
+ * median. The block's flags byte names the layout; 0x01 is this one, and
+ * its stream_time_us is its first sample's t_us. */
+const BLOCK_TYPE_FORK = 4;
+const BLOCK_TYPE_SHOCK = 5;
+const SUSPENSION_SAMPLE_SIZE = 8;
+const SUSPENSION_FORMAT_V1 = 0x01;
+const U32_WRAP = 2 ** 32;
+/** Per side: the LIN1 sensor record (`<4sHHHHHHBBHI>`: magic, version 1,
+ * size 24, nominal_hz, stroke_mm, raw_min, raw_max, channel, flags,
+ * sample_size, crc32) and the LCA1 mounting record right after it
+ * (`<4sHHIHHbBBBI>`: magic, version 1, size 24, calibration_count,
+ * zero_raw, sag_raw, compression_direction, flags — bit 0 a valid
+ * calibration — presence, channel, crc32). Both CRCs over all 24 bytes
+ * with the field zero. Extras, like SAG1: a record that is absent,
+ * damaged or of another layout leaves the side without it, and the
+ * samples still import. */
+const LIN_MAGIC = "LIN1";
+const LCA_MAGIC = "LCA1";
+const SUSPENSION_RECORD_SIZE = 24;
+const SUSPENSION_RECORD_VERSION = 1;
+const SUSPENSION_SIDES = [
+  { key: "fork", type: BLOCK_TYPE_FORK, channel: 0, linOffset: 448, lcaOffset: 472 },
+  { key: "shock", type: BLOCK_TYPE_SHOCK, channel: 1, linOffset: 496, lcaOffset: 520 },
+] as const;
+const SUSPENSION_PRESENCE = [
+  "disabled",
+  "unknown",
+  "possibly-disconnected",
+  "confirmed",
+] as const;
 /** 2^24 ticks of the logger's 32768 Hz RTC, the span of firmware V13's block
  * clock stamps before they wrap. */
 const RTC_WRAP_MS = (2 ** 24 / 32768) * 1000;
@@ -428,6 +473,75 @@ function recordCrc(
   return crc32(copy);
 }
 
+/** A 24-byte suspension record at `offset` with this magic, version 1, size
+ * 24, the expected channel byte at `channelAt` and a matching CRC — else
+ * false, and the side goes without it. */
+function suspensionRecordOk(
+  view: DataView,
+  u8: Uint8Array,
+  offset: number,
+  magic: string,
+  channelAt: number,
+  channel: number,
+): boolean {
+  if (view.byteLength < offset + SUSPENSION_RECORD_SIZE) return false;
+  if (ascii(view, offset, 4) !== magic) return false;
+  if (
+    view.getUint16(offset + 4, true) !== SUSPENSION_RECORD_VERSION ||
+    view.getUint16(offset + 6, true) !== SUSPENSION_RECORD_SIZE ||
+    view.getUint8(offset + channelAt) !== channel
+  ) {
+    console.warn(`BKT: ${magic} for CH${channel} has an unknown layout; ignored.`);
+    return false;
+  }
+  const crcOk =
+    recordCrc(u8, offset, SUSPENSION_RECORD_SIZE, MAGIC_V1) ===
+    view.getUint32(offset + 20, true);
+  if (!crcOk)
+    console.warn(`BKT: ${magic} for CH${channel} CRC does not match; ignored.`);
+  return crcOk;
+}
+
+function readSuspensionRecords(
+  view: DataView,
+  u8: Uint8Array,
+  side: (typeof SUSPENSION_SIDES)[number],
+): {
+  sensor: ImuSuspensionSensor | null;
+  calibration: ImuSuspensionCalibration | null;
+  presence: ImuSuspensionPresence | null;
+} {
+  let sensor: ImuSuspensionSensor | null = null;
+  const lin = side.linOffset;
+  if (suspensionRecordOk(view, u8, lin, LIN_MAGIC, 16, side.channel)) {
+    const stroke = view.getUint16(lin + 10, true);
+    sensor = {
+      nominalRateHz: view.getUint16(lin + 8, true),
+      strokeMm: stroke > 0 ? stroke : null,
+      rawMin: view.getUint16(lin + 12, true),
+      rawMax: view.getUint16(lin + 14, true),
+    };
+  }
+
+  let calibration: ImuSuspensionCalibration | null = null;
+  let presence: ImuSuspensionPresence | null = null;
+  const lca = side.lcaOffset;
+  if (suspensionRecordOk(view, u8, lca, LCA_MAGIC, 19, side.channel)) {
+    presence = SUSPENSION_PRESENCE[view.getUint8(lca + 18)] ?? null;
+    const direction = view.getInt8(lca + 16);
+    // Bit 0 says the zero and the sag were taken; without it the fields
+    // are the firmware's zeros, not readings.
+    if (view.getUint8(lca + 17) & 0x1 && (direction === 1 || direction === -1))
+      calibration = {
+        calibrationCount: view.getUint32(lca + 8, true),
+        zeroRaw: view.getUint16(lca + 12, true),
+        sagRaw: view.getUint16(lca + 14, true),
+        compressionDirection: direction,
+      };
+  }
+  return { sensor, calibration, presence };
+}
+
 export function parseBktFile(
   bytes: ArrayBuffer,
   locale: Locale,
@@ -630,6 +744,25 @@ export function parseBktFile(
   let highGValues = 0;
   let highGOddValues = 0;
   const highGRaw: HighGRaw[] = [];
+  // The suspension's samples, one buffer per side, sized from the block
+  // headers up front (a pass over headers only; the loop validates them).
+  const suspensionBuffers = SUSPENSION_SIDES.map((side) => {
+    let declared = 0;
+    for (let j = 0; j < h.totalBlocks; j++) {
+      const off = BLOCK_SIZE + j * BLOCK_SIZE;
+      if (view.getUint8(off + 4) === side.type)
+        declared += view.getUint16(off + 16, true);
+    }
+    return {
+      tMs: new Float64Array(declared),
+      raw: new Uint16Array(declared),
+      medianRaw: new Uint16Array(declared),
+      written: 0,
+      nextIndex: 0,
+      lastUs: -1,
+      wrapUs: 0,
+    };
+  });
   let imuWritten = 0;
   // Where the IMU timeline starts, from the first block's clock stamp. Every
   // firmware so far stamps the nominal index / rate, which makes this 0; a
@@ -651,8 +784,14 @@ export function parseBktFile(
     if (bh.headerSize !== BLOCK_HEADER_SIZE)
       return fail(t.blockHeaderSize(b, bh.headerSize));
 
-    let stream: "IMU" | "GNSS" | "HIGHG";
-    if (bh.type === BLOCK_TYPE_IMU) {
+    let stream: "IMU" | "GNSS" | "HIGHG" | "FORK" | "SHOCK";
+    if (bh.type === BLOCK_TYPE_FORK || bh.type === BLOCK_TYPE_SHOCK) {
+      stream = bh.type === BLOCK_TYPE_FORK ? "FORK" : "SHOCK";
+      if (bh.flags !== SUSPENSION_FORMAT_V1)
+        return fail(t.suspensionFormat(b, stream, bh.flags));
+      if (bh.sampleSize !== SUSPENSION_SAMPLE_SIZE)
+        return fail(t.suspensionSampleSize(b, stream, bh.sampleSize));
+    } else if (bh.type === BLOCK_TYPE_IMU) {
       if (bh.sampleSize !== IMU_SAMPLE_SIZE)
         return fail(t.imuBlockSampleSize(b, bh.sampleSize));
       stream = "IMU";
@@ -746,6 +885,31 @@ export function parseBktFile(
       }
       nextImuIndex = bh.firstSampleIndex + bh.sampleCount;
       imuWritten += bh.sampleCount;
+    } else if (stream === "FORK" || stream === "SHOCK") {
+      // Contiguous index and a clock that only moves forward, like GNSS:
+      // every file seen so far (R0024–R0058, 2026-11-20/21) has both, so a
+      // break in either is a damaged file, not a variant.
+      const buf = suspensionBuffers[stream === "FORK" ? 0 : 1];
+      if (bh.firstSampleIndex !== buf.nextIndex)
+        return fail(t.suspensionIndexHole(b, stream));
+      for (let i = 0; i < bh.sampleCount; i++) {
+        const s = payloadStart + i * SUSPENSION_SAMPLE_SIZE;
+        const tUs = view.getUint32(s, true);
+        if (buf.lastUs >= 0) {
+          // The u32 wraps every ~71.6 min: a step back by more than half
+          // its span is the wrap; a smaller one is time running backwards.
+          const step = (tUs - buf.lastUs + U32_WRAP) % U32_WRAP;
+          if (step > U32_WRAP / 2) return fail(t.suspensionTimeBackwards(b, stream));
+          if (tUs < buf.lastUs) buf.wrapUs += U32_WRAP;
+        }
+        buf.lastUs = tUs;
+        const idx = buf.written + i;
+        buf.tMs[idx] = (tUs + buf.wrapUs) / 1000;
+        buf.raw[idx] = view.getUint16(s + 4, true);
+        buf.medianRaw[idx] = view.getUint16(s + 6, true);
+      }
+      buf.written += bh.sampleCount;
+      buf.nextIndex += bh.sampleCount;
     } else if (stream === "HIGHG") {
       if (bh.firstSampleIndex !== nextHighGIndex)
         return fail(t.highGIndexHole(b));
@@ -819,6 +983,27 @@ export function parseBktFile(
 
   if (imuWritten !== n) return fail(t.imuCountMismatch(imuWritten, n));
 
+  let suspension: ImuSuspension | undefined;
+  for (let i = 0; i < SUSPENSION_SIDES.length; i++) {
+    const side = SUSPENSION_SIDES[i];
+    const buf = suspensionBuffers[i];
+    if (buf.written === 0) continue;
+    const records =
+      magic === MAGIC_V1
+        ? readSuspensionRecords(view, u8, side)
+        : { sensor: null, calibration: null, presence: null };
+    suspension = {
+      ...suspension,
+      [side.key]: {
+        channel: side.channel,
+        tMs: buf.tMs.subarray(0, buf.written),
+        raw: buf.raw.subarray(0, buf.written),
+        medianRaw: buf.medianRaw.subarray(0, buf.written),
+        ...records,
+      },
+    };
+  }
+
   let gps: GpsChannels | null = null;
   if (gpsKept.length > 0) {
     const m = gpsKept.length;
@@ -891,6 +1076,7 @@ export function parseBktFile(
           az,
         ),
       }),
+      ...(suspension && { suspension }),
     },
   };
 }

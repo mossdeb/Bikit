@@ -18,6 +18,7 @@ import type {
   ImuChannels,
   ImuEvent,
   ImuSessionData,
+  ImuSuspensionTrace,
 } from "./format";
 
 export interface ImuSessionTrim {
@@ -88,6 +89,31 @@ export function trimSession(
     highG: session.highG
       ?.filter((hit) => hit.timeMs >= start && hit.timeMs < end)
       .map((hit) => ({ ...hit, timeMs: hit.timeMs - start })),
+    suspension: session.suspension && {
+      fork:
+        session.suspension.fork &&
+        cropSuspension(session.suspension.fork, start, end),
+      shock:
+        session.suspension.shock &&
+        cropSuspension(session.suspension.shock, start, end),
+    },
+  };
+}
+
+function cropSuspension(
+  trace: ImuSuspensionTrace,
+  startMs: number,
+  endMs: number,
+): ImuSuspensionTrace {
+  const from = lowerBoundIndex(trace.tMs, startMs);
+  const to = lowerBoundIndex(trace.tMs, endMs);
+  const tMs = new Float64Array(Math.max(0, to - from));
+  for (let i = from; i < to; i++) tMs[i - from] = trace.tMs[i] - startMs;
+  return {
+    ...trace,
+    tMs,
+    raw: trace.raw.slice(from, to),
+    medianRaw: trace.medianRaw.slice(from, to),
   };
 }
 
