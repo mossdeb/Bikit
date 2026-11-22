@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { GpsChannels, ImuSessionData } from "./format";
+import type {
+  GpsChannels,
+  ImuSessionData,
+  ImuSuspensionTrace,
+} from "./format";
 import {
   IMPACT_SEVERITY_REF_ENERGY,
   alignSessionToBike,
@@ -31,6 +35,8 @@ import {
   roughnessSeries,
   sessionSummary,
   speedKmhSeries,
+  suspensionSeries,
+  SHOCK_ASSUMED_SCALE,
   windowMeanAbs,
   windowPeak,
   windowRange,
@@ -1277,5 +1283,84 @@ describe("vibration", () => {
     expect(vibrationShare(ride(10))).toBe(1);
     expect(vibrationShare([1, 6, 1, 6])).toBe(0.5);
     expect(vibrationShare([])).toBe(0);
+  });
+});
+
+describe("suspensionSeries", () => {
+  // The sensor every 1 ms reading 1000 + t, the IMU every 2.5 ms.
+  const trace = (over: Partial<ImuSuspensionTrace> = {}): ImuSuspensionTrace => {
+    const tMs = Float64Array.from({ length: 100 }, (_, i) => i);
+    const raw = Uint16Array.from({ length: 100 }, (_, i) => 1000 + i);
+    return {
+      channel: 0,
+      tMs,
+      raw,
+      medianRaw: raw,
+      sensor: null,
+      calibration: null,
+      presence: null,
+      ...over,
+    };
+  };
+  const imuT = Float64Array.from({ length: 4 }, (_, i) => i * 2.5);
+
+  it("interpolates the median onto the IMU timeline, raw without a scale", () => {
+    const out = suspensionSeries(imuT, trace());
+    expect(out.unit).toBe("ADC");
+    expect(out.travel).toBe(false);
+    expect([...out.values]).toEqual([1000, 1002.5, 1005, 1007.5]);
+  });
+
+  it("gives the rod's position in mm when the stroke is known", () => {
+    const sensor = { nominalRateHz: 900, strokeMm: 200, rawMin: 0, rawMax: 4000 };
+    const out = suspensionSeries(imuT, trace({ sensor }));
+    expect(out.unit).toBe("mm");
+    expect(out.travel).toBe(false);
+    expect(out.values[0]).toBeCloseTo(50, 5);
+    // No stroke written (the shock before V19.0.034): back to raw.
+    expect(
+      suspensionSeries(imuT, trace({ sensor: { ...sensor, strokeMm: null } }))
+        .unit,
+    ).toBe("ADC");
+  });
+
+  it("falls back on an assumed scale only when the file has none", () => {
+    const noStroke = {
+      nominalRateHz: 900,
+      strokeMm: null,
+      rawMin: 0,
+      rawMax: 4095,
+    };
+    const out = suspensionSeries(
+      imuT,
+      trace({ sensor: noStroke }),
+      SHOCK_ASSUMED_SCALE,
+    );
+    expect(out.unit).toBe("mm");
+    expect(out.scaleAssumed).toBe(true);
+    expect(out.values[0]).toBeCloseTo((1000 * 78) / 4090, 4);
+    // The file's own stroke wins over the assumption.
+    const own = suspensionSeries(
+      imuT,
+      trace({ sensor: { ...noStroke, strokeMm: 100, rawMax: 4000 } }),
+      SHOCK_ASSUMED_SCALE,
+    );
+    expect(own.scaleAssumed).toBe(false);
+    expect(own.values[0]).toBeCloseTo(25, 5);
+  });
+
+  it("gives travel from the mounted zero once calibrated, compression positive", () => {
+    const sensor = { nominalRateHz: 900, strokeMm: 200, rawMin: 0, rawMax: 4000 };
+    const calibration = {
+      calibrationCount: 1,
+      zeroRaw: 1010,
+      sagRaw: 1080,
+      compressionDirection: -1 as const,
+    };
+    const out = suspensionSeries(imuT, trace({ sensor, calibration }));
+    expect(out.travel).toBe(true);
+    // 1000 is 10 counts BELOW the zero; with compression lowering the
+    // reading, that is 0.5 mm of compression.
+    expect(out.values[0]).toBeCloseTo(0.5, 5);
   });
 });

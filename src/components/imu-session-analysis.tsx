@@ -93,6 +93,8 @@ import type {
 import { HIGHG_LINK_MS, highGNear, highGWidthMs } from "@/lib/imu/highg";
 import {
   altitudeMSeries,
+  suspensionSeries,
+  SHOCK_ASSUMED_SCALE,
   centredMeanSeries,
   corneringGSeries,
   EVENT_REACH_MS,
@@ -174,13 +176,20 @@ const SERIES_DEFS = [
   { id: "speed", unit: "km/h", color: "#65A30D" },
   /** GPS-only as well: the receiver's own altitude, resampled. */
   { id: "altitude", unit: "m", color: "#92400E" },
+  /** The suspension's linear sensors (firmware V19/V20, .BKT blocks 4 and
+   * 5), only when the file carries them — see suspensionSeries for the
+   * unit, which the file decides (mm, or the raw ADC count). */
+  { id: "fork", unit: "mm", color: "#DC2626" },
+  { id: "shock", unit: "mm", color: "#4F46E5" },
 ] as const;
 
 type SeriesId = (typeof SERIES_DEFS)[number]["id"];
 
 /** A series definition with its words joined on from the dictionary — what
- * every consumer below reads, so a label is never looked up twice. */
-type LabelledSeriesDef = (typeof SERIES_DEFS)[number] & {
+ * every consumer below reads, so a label is never looked up twice. The unit
+ * is widened: the suspension's comes from the file. */
+type LabelledSeriesDef = Omit<(typeof SERIES_DEFS)[number], "unit"> & {
+  unit: string;
   label: string;
   summary: string;
   description: string;
@@ -200,7 +209,19 @@ const UNSIGNED_IDS = new Set<SeriesId>([
   "roughness",
   "speed",
   "altitude",
+  "fork",
+  "shock",
 ]);
+
+/** The series that exist only when the file carries the suspension's
+ * blocks. Unlike the GPS ones they are left out, not disabled, without
+ * them: almost no recording has the sensors, and a disabled pill on every
+ * one of those would promise something they cannot have. */
+const SUSPENSION_SERIES_IDS = new Set<SeriesId>(["fork", "shock"]);
+
+/** Decimals in the metric cards: two, as the rest of the page — none for a
+ * raw ADC count, which is a whole number from the converter. */
+const seriesDecimals = (unit: string) => (unit === "ADC" ? 0 : 2);
 
 /** The series that only exist when the file carries a GPS track. Without
  * one they stay listed but disabled — the promise the Velocidade pill has
@@ -1634,6 +1655,20 @@ export function ImuSessionAnalysis({
     [sessionId, snapshotSession, snapshotCache, locale],
   );
 
+  /** The fork and the shock on the IMU timeline, each with the unit its
+   * file allows — apart from seriesValues because the unit travels too. */
+  const suspension = useMemo(() => {
+    const s = data?.suspension;
+    if (!data || !s) return null;
+    const tMs = data.channels.tMs;
+    return {
+      fork: s.fork ? suspensionSeries(tMs, s.fork) : null,
+      shock: s.shock
+        ? suspensionSeries(tMs, s.shock, SHOCK_ASSUMED_SCALE)
+        : null,
+    };
+  }, [data]);
+
   const seriesValues = useMemo(() => {
     if (!data || !gForce) return null;
     const { tMs, ax, ay, az, gx, gy, gz } = data.channels;
@@ -1674,8 +1709,10 @@ export function ImuSessionAnalysis({
       values.speed = speed;
       values.altitude = altitudeMSeries(tMs, data.gps);
     }
+    if (suspension?.fork) values.fork = suspension.fork.values;
+    if (suspension?.shock) values.shock = suspension.shock.values;
     return values as Record<SeriesId, ArrayLike<number>>;
-  }, [data, gForce]);
+  }, [data, gForce, suspension]);
 
   /** The estimated pitch, the dashboard's second attitude — not a chart
    * series, so it lives beside seriesValues rather than inside it. */
@@ -1961,10 +1998,29 @@ export function ImuSessionAnalysis({
 
   // The series with their words joined on, in the reader's language — the
   // list every consumer below reads.
-  const seriesDefs: LabelledSeriesDef[] = SERIES_DEFS.map((def) => ({
-    ...def,
-    ...t.series[def.id],
-  }));
+  const seriesDefs: LabelledSeriesDef[] = SERIES_DEFS.filter(
+    (def) => !SUSPENSION_SERIES_IDS.has(def.id) || seriesValues[def.id],
+  ).map((def) => {
+    if (def.id !== "fork" && def.id !== "shock")
+      return { ...def, ...t.series[def.id] };
+    const side = suspension?.[def.id];
+    const words = t.series[def.id];
+    return {
+      ...def,
+      label: words.label,
+      description: words.description,
+      unit: side?.unit ?? def.unit,
+      // Travel from the mounted zero reads differently from the rod's
+      // position along the sensor; the summary says which it is.
+      summary: side?.travel
+        ? words.summaryTravel
+        : side?.unit === "ADC"
+          ? words.summaryRaw
+          : side?.scaleAssumed
+            ? words.summaryAssumed
+            : words.summary,
+    };
+  });
   // The GPS series are real pills only when this file recorded a track;
   // without one they stay the disabled pills they always were, with their
   // "no data" hint.
@@ -1988,6 +2044,11 @@ export function ImuSessionAnalysis({
     label: def.label,
     color: def.color,
     values: shownValues[def.id],
+    // The fork and the shock on one axis when both read in the same unit,
+    // so the shock's shorter sensor reads shorter (by request, 2026-11-22).
+    ...(SUSPENSION_SERIES_IDS.has(def.id) && {
+      scaleGroup: `suspension-${def.unit}`,
+    }),
     // The rider-sag attitude across the pitch: at its own angle, or at 0
     // when the pitch is read from it.
     ...(def.id === "pitch" &&
@@ -3491,6 +3552,7 @@ export function ImuSessionAnalysis({
                                   unit={def.unit}
                                   locale={locale}
                                   fit={layoutEditable}
+                                  decimals={seriesDecimals(def.unit)}
                                 />
                               </div>
 
@@ -3518,7 +3580,7 @@ export function ImuSessionAnalysis({
                                   {proNumber(
                                     shownValues[def.id][cursorIndex],
                                     locale,
-                                    2,
+                                    seriesDecimals(def.unit),
                                   )}{" "}
                                   <span className="text-sm font-normal text-muted-foreground">
                                     {def.unit}
@@ -4335,9 +4397,12 @@ function SessionStatLine({
   unit,
   locale,
   fit = false,
+  decimals = 2,
 }: {
   stats: { min: number; max: number; avg: number };
   unit: string;
+  /** Two, as the rest of the page; none for a raw ADC count. */
+  decimals?: number;
   /** The reader's language, for the decimal separator. */
   locale: Locale;
   /** Never wider than its card: a line of its own when it does not fit
@@ -4383,7 +4448,7 @@ function SessionStatLine({
         >
           {figure.label}{" "}
           <span className="font-medium text-foreground tabular-nums">
-            {proNumber(figure.value, locale, 2)}
+            {proNumber(figure.value, locale, decimals)}
             {unit}
           </span>
         </span>

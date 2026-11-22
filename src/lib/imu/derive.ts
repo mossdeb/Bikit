@@ -11,6 +11,8 @@ import type {
   ImuEvent,
   ImuMountOrientation,
   ImuSessionData,
+  ImuSuspensionSensor,
+  ImuSuspensionTrace,
   MountingYaw,
 } from "./format";
 import { lowerBoundIndex, upperBoundIndex } from "./downsample";
@@ -783,6 +785,62 @@ function resampleGpsSeries(
   }
   return out;
 }
+
+/**
+ * A suspension sensor on the IMU timeline, for the chart: the firmware's
+ * median reading, interpolated at each IMU sample (the sensor runs at
+ * ~850 Hz, the IMU at 416, so a peak between two IMU samples is softened —
+ * acceptable for a chart line, not for a figure that needs the peak).
+ *
+ * In the best unit the file allows:
+ * - "mm" of TRAVEL from the mounted zero, compression positive, when the
+ *   logger was calibrated (LCA1) and the sensor's stroke is known (LIN1);
+ * - "mm" of the ROD's position along the sensor when only the stroke is
+ *   known — every file so far (2026-11-22);
+ * - the raw ADC count otherwise, unit "ADC".
+ */
+export function suspensionSeries(
+  tMs: Float64Array,
+  trace: ImuSuspensionTrace,
+  /** The scale to use when the file gives none — see SHOCK_ASSUMED_SCALE. */
+  assumed?: ImuSuspensionSensor,
+): {
+  values: Float32Array;
+  unit: "mm" | "ADC";
+  travel: boolean;
+  /** True when the mm come from `assumed`, not from the file. */
+  scaleAssumed: boolean;
+} {
+  const own = trace.sensor?.strokeMm ? trace.sensor : null;
+  const sensor = own ?? assumed ?? null;
+  const span = sensor ? sensor.rawMax - sensor.rawMin : 0;
+  const mmPerCount =
+    sensor?.strokeMm && span > 0 ? sensor.strokeMm / span : null;
+  const values = resampleGpsSeries(tMs, trace.tMs, trace.medianRaw, 1);
+  if (mmPerCount == null)
+    return { values, unit: "ADC", travel: false, scaleAssumed: false };
+  const cal = trace.calibration;
+  for (let i = 0; i < values.length; i++)
+    values[i] = cal
+      ? (values[i] - cal.zeroRaw) * cal.compressionDirection * mmPerCount
+      : (values[i] - sensor!.rawMin) * mmPerCount;
+  return { values, unit: "mm", travel: cal != null, scaleAssumed: !own };
+}
+
+/**
+ * The shock sensor's scale when the file does not write one: the 78 mm rod
+ * over 0–4090 that firmware V19.0.034 measured on the bench for the sensor
+ * installed on CH1 (`g_shockScale`), and writes in LIN1 from then on.
+ * Firmware before it wrote a stroke of 0 (R0049–R0058, 2026-11-21), on the
+ * same rod — assumed for those by request, 2026-11-22. A file with its own
+ * stroke always wins.
+ */
+export const SHOCK_ASSUMED_SCALE: ImuSuspensionSensor = {
+  nominalRateHz: 900,
+  strokeMm: 78,
+  rawMin: 0,
+  rawMax: 4090,
+};
 
 /** Ground speed on the IMU timeline, km/h. Recorded, not derived: the
  * receiver's Doppler speed resampled, never integrated from acceleration.

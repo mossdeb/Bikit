@@ -87,6 +87,24 @@ const en = {
       summary: "Elevation profile",
       description: "Altitude above sea level, measured by the recording's GPS",
     },
+    fork: {
+      label: "Fork",
+      summary: "Sensor position",
+      summaryTravel: "Travel used",
+      summaryRaw: "Raw reading",
+      summaryAssumed: "Sensor position · 78 mm assumed",
+      description:
+        "The fork's linear sensor, read about 850 times a second — the rod's position along the sensor in mm, travel from the mounted zero once the logger is calibrated, or the raw reading when the file does not give the sensor's length",
+    },
+    shock: {
+      label: "Shock",
+      summary: "Sensor position",
+      summaryTravel: "Travel used",
+      summaryRaw: "Raw reading",
+      summaryAssumed: "Sensor position · 78 mm assumed",
+      description:
+        "The shock's linear sensor, read about 850 times a second — the rod's position along the sensor in mm, travel from the mounted zero once the logger is calibrated, or the raw reading when the file does not give the sensor's length",
+    },
   },
 
   /** The event kinds on the events menu, in the plural. */
@@ -482,6 +500,24 @@ const pt: typeof en = {
       summary: "Perfil de elevação",
       description:
         "Altitude acima do nível do mar, medida pelo GPS da gravação",
+    },
+    fork: {
+      label: "Garfo",
+      summary: "Posição do sensor",
+      summaryTravel: "Curso usado",
+      summaryRaw: "Leitura raw",
+      summaryAssumed: "Posição do sensor · 78 mm assumidos",
+      description:
+        "O sensor linear do garfo, lido cerca de 850 vezes por segundo — a posição da haste ao longo do sensor em mm, o curso desde o zero montado quando o logger estiver calibrado, ou a leitura raw quando o ficheiro não diz o comprimento do sensor",
+    },
+    shock: {
+      label: "Amortecedor",
+      summary: "Posição do sensor",
+      summaryTravel: "Curso usado",
+      summaryRaw: "Leitura raw",
+      summaryAssumed: "Posição do sensor · 78 mm assumidos",
+      description:
+        "O sensor linear do amortecedor, lido cerca de 850 vezes por segundo — a posição da haste ao longo do sensor em mm, o curso desde o zero montado quando o logger estiver calibrado, ou a leitura raw quando o ficheiro não diz o comprimento do sensor",
     },
   },
 

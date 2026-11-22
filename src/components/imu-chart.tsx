@@ -110,6 +110,9 @@ export interface ImuChartSeries {
    * its colour — the rider-sag attitude on the pitch (2026-10-27). The
    * scale stretches to keep it in view. */
   reference?: { value: number; label: string };
+  /** Series with the same group share one y scale instead of each its
+   * own — for quantities in the same unit whose sizes should compare. */
+  scaleGroup?: string;
 }
 
 /**
@@ -349,6 +352,19 @@ export function ImuChart({
           max = Math.max(max, ref);
         }
         return min <= max ? { min, max } : { min: 0, max: 0 };
+      }).map((range, si, ranges) => {
+        // Series in one scale group share the group's widest range, so
+        // their heights compare: the fork's 202 mm and the shock's 78 mm on
+        // one axis (by request, 2026-11-22).
+        const group = series[si].scaleGroup;
+        if (!group) return range;
+        let { min, max } = range;
+        series.forEach((other, oi) => {
+          if (other.scaleGroup !== group) return;
+          min = Math.min(min, ranges[oi].min);
+          max = Math.max(max, ranges[oi].max);
+        });
+        return { min, max };
       }),
     [series],
   );
