@@ -95,6 +95,28 @@ export interface BikitDeviceConfig {
    * recent, good fix. On by default; off only for bench tests. */
   gpsFixProtection: boolean | null;
   vehicle: BikitVehicleType | null;
+  /** LINEAR_ENABLED (firmware V19.0.036+): whether the fork sensor (CH0)
+   * is read and recorded at all — SHOCK_ENABLED's twin. Firmware before it
+   * records the fork always and does not send the key: null. The older
+   * LINEAR_DETECTION, a CH0 presence check that never stopped the fork
+   * recording, is not read. */
+  forkEnabled: boolean | null;
+  /** SHOCK_ENABLED (firmware V19.0.022+): whether the shock sensor (CH1) is
+   * read and recorded at all. On by default since V19.0.024. */
+  shockEnabled: boolean | null;
+}
+
+/** A config with nothing read yet — every field null. */
+export function emptyDeviceConfig(): BikitDeviceConfig {
+  return {
+    autoStop: null,
+    autoSleep: null,
+    sleepMinutes: null,
+    vehicle: null,
+    gpsFixProtection: null,
+    forkEnabled: null,
+    shockEnabled: null,
+  };
 }
 
 export type BikitConfigKey =
@@ -102,7 +124,9 @@ export type BikitConfigKey =
   | "AUTO_SLEEP"
   | "SLEEP_MIN"
   | "VEHICLE"
-  | "GPS_FIX_PROTECTION";
+  | "GPS_FIX_PROTECTION"
+  | "LINEAR_ENABLED"
+  | "SHOCK_ENABLED";
 
 export const SLEEP_MINUTES = [5, 10, 15] as const;
 
@@ -117,12 +141,16 @@ function applyConfigLine(
   switch (key) {
     case "AUTO_STOP":
     case "AUTO_SLEEP":
-    case "GPS_FIX_PROTECTION": {
+    case "GPS_FIX_PROTECTION":
+    case "LINEAR_ENABLED":
+    case "SHOCK_ENABLED": {
       const on = v === "1" || v === "ON" ? true : v === "0" || v === "OFF" ? false : null;
       if (on === null) return;
       if (key === "AUTO_STOP") config.autoStop = on;
       else if (key === "AUTO_SLEEP") config.autoSleep = on;
-      else config.gpsFixProtection = on;
+      else if (key === "GPS_FIX_PROTECTION") config.gpsFixProtection = on;
+      else if (key === "LINEAR_ENABLED") config.forkEnabled = on;
+      else config.shockEnabled = on;
       return;
     }
     case "SLEEP_MIN": {
@@ -718,13 +746,7 @@ export class BikitDevice {
    */
   readConfig(): Promise<BikitDeviceConfig | null> {
     return new Promise<BikitDeviceConfig | null>((resolve, reject) => {
-      const config: BikitDeviceConfig = {
-        autoStop: null,
-        autoSleep: null,
-        sleepMinutes: null,
-        vehicle: null,
-        gpsFixProtection: null,
-      };
+      const config = emptyDeviceConfig();
       let seen = false;
       let settled = false;
       let silence: ReturnType<typeof setTimeout> | null = null;
@@ -794,13 +816,7 @@ export class BikitDevice {
       const [head, k, v] = m.split(/\s+/);
       return head === "SET_OK" && k?.toUpperCase() === key ? (v ?? value) : undefined;
     });
-    const config: BikitDeviceConfig = {
-      autoStop: null,
-      autoSleep: null,
-      sleepMinutes: null,
-      vehicle: null,
-      gpsFixProtection: null,
-    };
+    const config = emptyDeviceConfig();
     applyConfigLine(config, key, stored);
     return config;
   }

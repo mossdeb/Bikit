@@ -604,28 +604,80 @@ function LoggerSettings({
             onSave={(n) => save("SLEEP_MIN", String(n))}
           />
         </SettingsCard>
-        <SettingsCard title={t.vehicle.title} hint={t.vehicle.hint}>
-          <ChoiceRow
-            label={t.vehicle.title}
-            hideLabel
-            value={config ? config.vehicle : null}
-            options={[
-              {
-                value: "BICYCLE",
-                label: t.vehicle.bicycle,
-                hint: t.vehicle.bicycleHint,
-                icon: <BIKE_ICON_FALLBACK className="h-6 w-auto" />,
-              },
-              {
-                value: "MOTORCYCLE",
-                label: t.vehicle.motorcycle,
-                hint: t.vehicle.motorcycleHint,
-                icon: <MotorbikeIcon className="h-6 w-auto" />,
-              },
-            ]}
-            onSave={(v: BikitVehicleType) => save("VEHICLE", v)}
-          />
-        </SettingsCard>
+        {/* The right column stacks: the vehicle, then the linear sensors
+            (2026-11-22), so the left card's height is not left empty. */}
+        <div className="space-y-4">
+          <SettingsCard title={t.vehicle.title} hint={t.vehicle.hint}>
+            <ChoiceRow
+              label={t.vehicle.title}
+              hideLabel
+              value={config ? config.vehicle : null}
+              options={[
+                {
+                  value: "BICYCLE",
+                  label: t.vehicle.bicycle,
+                  hint: t.vehicle.bicycleHint,
+                  icon: <BIKE_ICON_FALLBACK className="h-6 w-auto" />,
+                },
+                {
+                  value: "MOTORCYCLE",
+                  label: t.vehicle.motorcycle,
+                  hint: t.vehicle.motorcycleHint,
+                  icon: <MotorbikeIcon className="h-6 w-auto" />,
+                },
+              ]}
+              onSave={(v: BikitVehicleType) => save("VEHICLE", v)}
+            />
+          </SettingsCard>
+          {/* Each sensor in or out of the recordings: LINEAR_ENABLED (the
+              fork, CH0) and SHOCK_ENABLED (the shock, CH1), the same switch
+              for both (by request, 2026-11-22; firmware V19.0.036). Before
+              it the firmware sends only the shock's, and the fork's switch
+              stays disabled, saying why. A logger whose CONFIG sends
+              neither has no linear sensors. */}
+          <SettingsCard
+            title={t.linear.title}
+            hint={
+              config &&
+              config.forkEnabled === null &&
+              config.shockEnabled === null
+                ? t.linear.unsupported
+                : t.linear.hint
+            }
+            action={
+              <CardToggle
+                label={t.linear.both}
+                values={
+                  config ? [config.forkEnabled, config.shockEnabled] : [null]
+                }
+                onSave={async (on) => {
+                  const value = on ? "1" : "0";
+                  await save("LINEAR_ENABLED", value);
+                  await save("SHOCK_ENABLED", value);
+                }}
+              />
+            }
+          >
+            <ToggleRow
+              label={t.linear.fork}
+              hint={(on) =>
+                config && config.forkEnabled === null && config.shockEnabled !== null
+                  ? t.linear.forkNotSent
+                  : on === false
+                    ? t.linear.forkOff
+                    : t.linear.forkOn
+              }
+              value={config ? config.forkEnabled : null}
+              onSave={(on) => save("LINEAR_ENABLED", on ? "1" : "0")}
+            />
+            <ToggleRow
+              label={t.linear.shock}
+              hint={(on) => (on === false ? t.linear.shockOff : t.linear.shockOn)}
+              value={config ? config.shockEnabled : null}
+              onSave={(on) => save("SHOCK_ENABLED", on ? "1" : "0")}
+            />
+          </SettingsCard>
+        </div>
       </div>
     </div>
   );
@@ -634,15 +686,21 @@ function LoggerSettings({
 function SettingsCard({
   title,
   hint,
+  action,
   children,
 }: {
   title: string;
   hint?: string;
+  /** Drawn on the title's line, at its right — a switch for the card. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className={cn("rounded-lg bg-card p-6 sm:p-7", DARK_CARD_HAIRLINE)}>
-      <h2 className="font-display text-xl font-semibold">{title}</h2>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-display text-xl font-semibold">{title}</h2>
+        {action}
+      </div>
       {hint && <p className="mt-1 text-sm text-muted-foreground">{hint}</p>}
       <div className="mt-5 divide-y divide-border">{children}</div>
     </section>
@@ -741,6 +799,46 @@ function ToggleRow({
             onChange={(on) => void commit(on)}
           />
         </div>
+      </div>
+      {message?.bad && <RowStatus saving={false} message={message} />}
+    </div>
+  );
+}
+
+/**
+ * A switch on a card's title line that sets several keys at once — the
+ * linear sensors' "both on / both off" (by request, 2026-11-22). On when
+ * every one is on; a click turns them all off from there, and all on from
+ * anything else. The keys go one after the other (one command on the air at
+ * a time), and a refusal stops there, with the logger's reason under the
+ * title — the rows then show what each key really holds.
+ */
+function CardToggle({
+  label,
+  values,
+  onSave,
+}: {
+  label: string;
+  /** Null while not read, or when the logger did not send one of them. */
+  values: (boolean | null)[];
+  onSave: (on: boolean) => Promise<void>;
+}) {
+  const known = values.every((v) => v !== null);
+  const allOn = known && values.every((v) => v === true);
+  const { shown, saving, message, commit } = useSaving(
+    known ? allOn : null,
+    onSave,
+  );
+  return (
+    <div className="flex shrink-0 flex-col items-end">
+      <div className="flex items-center gap-2">
+        {!message?.bad && <RowStatus saving={saving} message={message} />}
+        <Switch
+          label={label}
+          checked={shown === true}
+          disabled={!known || saving}
+          onChange={(on) => void commit(on)}
+        />
       </div>
       {message?.bad && <RowStatus saving={false} message={message} />}
     </div>

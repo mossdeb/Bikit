@@ -95,6 +95,25 @@ const en = {
       motorcycle: "Dirt Bike",
       motorcycleHint: "Motorbikes, with the engine's added vibration",
     },
+    /** The suspension's linear sensors (firmware V20.5, 2026-11-22). */
+    linear: {
+      title: "Linear Sensors",
+      /** The title-line switch: both sensors on or off at once. */
+      both: "Both linear sensors",
+      hint: "The suspension's sensors: the fork on CH0, the shock on CH1.",
+      /** CONFIG sent neither key: a firmware from before the sensors. */
+      unsupported: "This logger's firmware has no linear sensors.",
+      fork: "Fork Sensor",
+      forkOn: "The fork sensor is read and recorded in every session.",
+      forkOff: "The fork sensor is neither read nor recorded.",
+      /** No LINEAR_ENABLED in CONFIG: firmware before V19.0.036, which
+       * records the fork always. */
+      forkNotSent:
+        "This firmware always records the fork; it cannot be switched off yet.",
+      shock: "Shock Sensor",
+      shockOn: "The shock sensor is read and recorded in every session.",
+      shockOff: "The shock sensor is neither read nor recorded.",
+    },
   },
 };
 
@@ -180,6 +199,20 @@ const pt: typeof en = {
       bicycleHint: "Bicicletas convencionais e elétricas",
       motorcycle: "Mota de cross",
       motorcycleHint: "Motas, com a vibração adicional do motor",
+    },
+    linear: {
+      title: "Sensores lineares",
+      both: "Os dois sensores lineares",
+      hint: "Os sensores da suspensão: o garfo no CH0, o amortecedor no CH1.",
+      unsupported: "O firmware deste logger não tem sensores lineares.",
+      fork: "Sensor do garfo",
+      forkOn: "O sensor do garfo é lido e gravado em todas as sessões.",
+      forkOff: "O sensor do garfo não é lido nem gravado.",
+      forkNotSent:
+        "Este firmware grava sempre o garfo; ainda não o deixa desligar.",
+      shock: "Sensor do amortecedor",
+      shockOn: "O sensor do amortecedor é lido e gravado em todas as sessões.",
+      shockOff: "O sensor do amortecedor não é lido nem gravado.",
     },
   },
 };

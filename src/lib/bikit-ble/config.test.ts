@@ -29,12 +29,31 @@ describe("CONFIG / SET", () => {
       sleepMinutes: 5,
       vehicle: "BICYCLE",
       gpsFixProtection: true,
+      forkEnabled: true,
+      shockEnabled: true,
     });
   });
 
   it("is null on a firmware without settings", async () => {
     const device = await BikitDevice.connect(scripted({}));
     expect(await device.readConfig()).toBeNull();
+  });
+
+  it("reads a V19.0.034 logger's linear sensors: the shock, and no fork key", async () => {
+    const device = await BikitDevice.connect(
+      scripted({
+        CONFIG: [
+          "CONFIG GPS_FIX_PROTECTION 1",
+          "CONFIG LINEAR_DETECTION 0",
+          "CONFIG SHOCK_ENABLED 1",
+          "CONFIG_END",
+        ],
+      }),
+    );
+    const config = await device.readConfig();
+    // LINEAR_DETECTION is a presence check, not the fork's switch: ignored.
+    expect(config?.forkEnabled).toBeNull();
+    expect(config?.shockEnabled).toBe(true);
   });
 
   it("leaves out what was not sent or is out of the contract", async () => {
@@ -49,6 +68,8 @@ describe("CONFIG / SET", () => {
       sleepMinutes: null,
       vehicle: null,
       gpsFixProtection: null,
+      forkEnabled: null,
+      shockEnabled: null,
     });
   });
 
@@ -58,6 +79,12 @@ describe("CONFIG / SET", () => {
     expect(stored.sleepMinutes).toBe(15);
     expect((await device.readConfig())?.sleepMinutes).toBe(15);
     expect((await device.setConfig("VEHICLE", "MOTORCYCLE")).vehicle).toBe("MOTORCYCLE");
+    // The linear sensors, each on or off on its own.
+    expect((await device.setConfig("LINEAR_ENABLED", "0")).forkEnabled).toBe(false);
+    expect((await device.setConfig("SHOCK_ENABLED", "0")).shockEnabled).toBe(false);
+    const read = await device.readConfig();
+    expect(read?.forkEnabled).toBe(false);
+    expect(read?.shockEnabled).toBe(false);
     expect((await device.setConfig("GPS_FIX_PROTECTION", "0")).gpsFixProtection).toBe(false);
     expect((await device.readConfig())?.gpsFixProtection).toBe(false);
   });

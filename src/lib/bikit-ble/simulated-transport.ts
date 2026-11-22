@@ -21,6 +21,9 @@ export class SimulatedLoggerTransport implements BikitTransport {
     SLEEP_MIN: "5",
     VEHICLE: "BICYCLE",
     GPS_FIX_PROTECTION: "1",
+    // The linear sensors (firmware V19.0.036), both recorded by default.
+    LINEAR_ENABLED: "1",
+    SHOCK_ENABLED: "1",
   };
 
   private readonly bornAt = Date.now();
@@ -97,7 +100,11 @@ export class SimulatedLoggerTransport implements BikitTransport {
         const k = key.toUpperCase();
         const v = value.toUpperCase();
         const valid =
-          ((k === "AUTO_STOP" || k === "AUTO_SLEEP" || k === "GPS_FIX_PROTECTION") &&
+          ((k === "AUTO_STOP" ||
+            k === "AUTO_SLEEP" ||
+            k === "GPS_FIX_PROTECTION" ||
+            k === "LINEAR_ENABLED" ||
+            k === "SHOCK_ENABLED") &&
             (v === "0" || v === "1")) ||
           (k === "SLEEP_MIN" && ["5", "10", "15"].includes(v)) ||
           (k === "VEHICLE" && (v === "BICYCLE" || v === "MOTORCYCLE"));
