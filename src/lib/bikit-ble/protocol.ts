@@ -199,6 +199,30 @@ export function parseGpsStatus(line: string): BikitGpsStatus | null {
   };
 }
 
+/** One live-SAG reading: each end's compression from its calibrated zero,
+ * mm, positive compressing — null where the logger sent NA (the channel
+ * off, not calibrated, or its last sample older than 300 ms). */
+export interface BikitLiveSag {
+  forkMm: number | null;
+  shockMm: number | null;
+}
+
+/** One `SAG <ch0> <ch1>` line (tenths of a mm, signed, or NA), or null when
+ * it is not one. */
+export function parseLiveSag(line: string): BikitLiveSag | null {
+  const parts = line.trim().split(/\s+/);
+  if (parts[0] !== "SAG" || parts.length !== 3) return null;
+  const mm = (token: string): number | null | undefined => {
+    if (token.toUpperCase() === "NA") return null;
+    if (!/^-?\d+$/.test(token)) return undefined;
+    return Number(token) / 10;
+  };
+  const forkMm = mm(parts[1]);
+  const shockMm = mm(parts[2]);
+  if (forkMm === undefined || shockMm === undefined) return null;
+  return { forkMm, shockMm };
+}
+
 export interface BikitSessionEntry {
   id: number;
   sizeBytes: number;
@@ -267,6 +291,9 @@ export function describeDeviceMessage(raw: string): string {
     // V18.9: a SET while a GET is streaming — a flash write would stall it.
     if (code === "TRANSFER")
       return "O dispositivo está a transferir uma sessão. Espera que termine.";
+    // V19.0.038: a GET while the live SAG is on.
+    if (code === "SAG")
+      return "O dispositivo está a enviar o SAG em direto. Fecha-o e tenta outra vez.";
     return "O dispositivo está ocupado. Tenta outra vez daqui a pouco.";
   }
   if (head === "ERROR") {
@@ -298,6 +325,13 @@ export function describeDeviceMessage(raw: string): string {
         return `O dispositivo devolveu um erro (${code || raw}).`;
     }
   }
+  // The live SAG's refusals (firmware V19.0.038).
+  if (head === "SAG_NO_CAL")
+    return "O logger não tem a suspensão calibrada. Faz a calibração com os sensores montados e tenta outra vez.";
+  if (head === "SAG_BUSY")
+    return "O logger não pode enviar o SAG agora: está a gravar, a calibrar ou a transferir.";
+  if (head === "SAG_SUBSCRIBE")
+    return "O logger não recebeu o pedido de notificações. Desliga e volta a ligar.";
   if (head === "TRANSFER_CANCELLED") return "Transferência cancelada.";
   if (head === "AUTH_FAIL") return "PIN incorreto.";
   return raw;
@@ -342,7 +376,9 @@ export class BikitDevice {
     this.name = name;
     this.unsubscribe.push(
       transport.subscribeStatus((message) => {
-        this.record("in", message);
+        // The live SAG's 20 lines a second would push everything else out
+        // of the log; the lines around it (SAG_OK, SAG_STOPPED) stay.
+        if (!message.startsWith("SAG ")) this.record("in", message);
         for (const handler of [...this.statusHandlers]) handler(message);
       }),
       transport.subscribeData((packet) => {
@@ -447,6 +483,73 @@ export class BikitDevice {
         ),
       );
     });
+  }
+
+  /**
+   * The live SAG (firmware V19.0.038): `SAG START` → `SAG_OK <hz>`, then a
+   * `SAG <ch0> <ch1>` line every 1/hz s until `SAG STOP` (→ `SAG_STOPPED`)
+   * or the link drops. Each reading goes to `onReading`; the logger ending
+   * it on its own (`SAG_BUSY` — a recording or calibration began —, or
+   * `SAG_NO_CAL`) goes to `onEnd` with its reason. Refused at the start
+   * with that same reason (also `SAG_SUBSCRIBE`), as a BikitDeviceError.
+   *
+   * The readings' listener is on before the command goes out, so the first
+   * line after SAG_OK is not lost.
+   */
+  async startLiveSag(
+    onReading: (reading: BikitLiveSag) => void,
+    onEnd: (reason: string) => void,
+  ): Promise<{ rateHz: number; stop: () => Promise<void> }> {
+    let started = false;
+    const listener = (message: string) => {
+      // Started from SAG_OK itself, not from the await after it: a refusal
+      // can come in the same breath as the acceptance.
+      if (message.startsWith("SAG_OK")) started = true;
+      const reading = parseLiveSag(message);
+      if (reading) {
+        onReading(reading);
+        return;
+      }
+      if (started && (message === "SAG_BUSY" || message === "SAG_NO_CAL")) {
+        this.statusHandlers.delete(listener);
+        onEnd(describeDeviceMessage(message));
+      }
+    };
+    this.statusHandlers.add(listener);
+    let answer: { rateHz: number } | { refused: string };
+    try {
+      answer = await this.request("SAG START", (m) => {
+        const [head, rate] = m.split(/\s+/);
+        if (head === "SAG_OK") return { rateHz: Number(rate) || 20 };
+        if (m === "SAG_NO_CAL" || m === "SAG_BUSY" || m === "SAG_SUBSCRIBE")
+          return { refused: m };
+        return undefined;
+      });
+    } catch (e) {
+      this.statusHandlers.delete(listener);
+      throw e;
+    }
+    if ("refused" in answer) {
+      this.statusHandlers.delete(listener);
+      throw new BikitDeviceError(
+        describeDeviceMessage(answer.refused),
+        answer.refused,
+      );
+    }
+    let stopped = false;
+    return {
+      rateHz: answer.rateHz,
+      stop: async () => {
+        if (stopped) return;
+        stopped = true;
+        this.statusHandlers.delete(listener);
+        if (!this.connected) return;
+        // SAG_STOPPED comes even when the mode had already stopped.
+        await this.request("SAG STOP", (m) =>
+          m === "SAG_STOPPED" ? true : undefined,
+        );
+      },
+    };
   }
 
   ping(): Promise<void> {

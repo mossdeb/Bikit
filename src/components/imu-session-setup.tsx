@@ -29,8 +29,10 @@ import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
 import { BikeBalanceArt, SAG_MINT } from "@/components/bike-balance-art";
+import { LiveSagControl, type LiveSagView } from "@/components/imu-live-sag";
 import {
   isStoredRiderSag,
+  linearSagAttitude,
   REAR_DROP_DIVERGENCE_MM,
   rearMinusFrontDropMm,
   RIDER_ATTITUDE_TIE_DEG,
@@ -153,6 +155,29 @@ function toDraft(values: ImuSetupValues): Draft {
     values.frame?.rearTravelMm != null ? String(values.frame.rearTravelMm) : "";
   draft[RIDER_SAG_KEY] = values.riderSag ? JSON.stringify(values.riderSag) : "";
   return draft;
+}
+
+/** The frame's pitch and drops as the linear sensors give them. */
+type LinearAttitude = NonNullable<ReturnType<typeof linearSagAttitude>>;
+
+/** The linear sensors' attitude from the form (the live SAG's readings in
+ * the two SAG fields): a sag may be 0 or a touch negative at rest, the
+ * geometry must be there and positive. */
+function draftLinearAttitude(draft: Draft): LinearAttitude | null {
+  const num = (key: string, positiveOnly: boolean) => {
+    const raw = draft[key]?.trim().replace(",", ".");
+    const n = Number(raw);
+    if (!raw || !Number.isFinite(n)) return null;
+    return positiveOnly && n <= 0 ? null : n;
+  };
+  return linearSagAttitude({
+    forkSagMm: num(damperKey("fork", "sagMm"), false),
+    shockSagMm: num(damperKey("shock", "sagMm"), false),
+    strokeMm: num(damperKey("shock", "travelMm"), true),
+    rearTravelMm: num(REAR_TRAVEL_KEY, true),
+    wheelbaseMm: num(WHEELBASE_KEY, true),
+    headAngleDeg: num(HEAD_ANGLE_KEY, true),
+  });
 }
 
 /** The sag as a share of the travel, from the two strings as typed — the
@@ -432,6 +457,21 @@ export function ImuSessionSetup({
    * the step measured it, or the empty bike — the reference, level. The
    * illustration and the card follow it together. */
   const [withRider, setWithRider] = useState(true);
+  /** The logger's live SAG while it runs (2026-11-22): its readings show in
+   * the two SAG fields — held — and drive the bar, the bike and Bike
+   * Balance, over the draft and without changing it. "Save reading" is
+   * what writes them into the draft. */
+  const [liveSag, setLiveSag] = useState<LiveSagView | null>(null);
+  const shown: Draft = liveSag
+    ? {
+        ...draft,
+        [damperKey("fork", "sagMm")]:
+          liveSag.forkMm != null ? liveSag.forkMm.toFixed(1) : "",
+        [damperKey("shock", "sagMm")]:
+          liveSag.shockMm != null ? liveSag.shockMm.toFixed(1) : "",
+      }
+    : draft;
+  const sensor = liveSag && !liveSag.stale ? draftLinearAttitude(shown) : null;
   async function remove() {
     if (busy || !bikeSetup) return;
     setBusy(true);
@@ -470,6 +510,7 @@ export function ImuSessionSetup({
           setBusy(false);
           setError(null);
           setConfirmingDelete(false);
+          setLiveSag(null);
         }
       }}
     >
@@ -585,12 +626,30 @@ export function ImuSessionSetup({
                 />
               </div>
               {!readOnly && (
-                <RiderSagImport
-                  reading={draftRiderSag(draft)}
-                  onChange={(reading) =>
-                    choose(RIDER_SAG_KEY, reading ? JSON.stringify(reading) : "")
-                  }
-                />
+                <div className="flex flex-wrap items-start justify-end gap-4">
+                  <RiderSagImport
+                    reading={draftRiderSag(draft)}
+                    onChange={(reading) =>
+                      choose(RIDER_SAG_KEY, reading ? JSON.stringify(reading) : "")
+                    }
+                  />
+                  {/* The live SAG, on a bike's setups only — where the sag
+                      is measured, not in a session already ridden. */}
+                  <LiveSagControl
+                    onView={setLiveSag}
+                    onSave={(reading) =>
+                      setDraft((d) => ({
+                        ...d,
+                        ...(reading.forkMm != null && {
+                          [damperKey("fork", "sagMm")]: String(reading.forkMm),
+                        }),
+                        ...(reading.shockMm != null && {
+                          [damperKey("shock", "sagMm")]: String(reading.shockMm),
+                        }),
+                      }))
+                    }
+                  />
+                </div>
               )}
             </div>
           )}
@@ -611,10 +670,11 @@ export function ImuSessionSetup({
               <DamperBlock
                 block="shock"
                 heading={labels.shock || dict.report.setup.shock}
-                draft={draft}
+                draft={shown}
                 set={set}
                 choose={choose}
                 readOnly={readOnly}
+                liveSag={liveSag != null}
               />
               {/* The bike's own card: the frame's wheelbase and head angle,
                   its mark, and the rider-sag reading they turn into mm (by
@@ -653,22 +713,25 @@ export function ImuSessionSetup({
                   <SagIllustration
                     BikeMark={BikeMark}
                     withRider={withRider}
-                    draft={draft}
+                    draft={shown}
+                    sensor={sensor}
                   />
                 </div>
                 <RiderSagReading
-                  draft={draft}
+                  draft={shown}
                   withRider={withRider}
                   onToggleRider={() => setWithRider((on) => !on)}
+                  sensor={sensor}
                 />
               </div>
               <DamperBlock
                 block="fork"
                 heading={labels.fork || dict.report.setup.fork}
-                draft={draft}
+                draft={shown}
                 set={set}
                 choose={choose}
                 readOnly={readOnly}
+                liveSag={liveSag != null}
               />
             </div>
           </div>
@@ -793,7 +856,9 @@ export function ImuSessionSetup({
                 type="submit"
                 className="w-full rounded-full sm:w-auto sm:min-w-[320px] sm:px-12"
                 variant="inverted"
-                disabled={busy || !dirty}
+                // Not while live: the fields show the logger, not the draft,
+                // and Save would keep what is under them.
+                disabled={busy || !dirty || liveSag != null}
               >
                 {busy && !confirmingDelete
                   ? dict.common.saving
@@ -891,6 +956,7 @@ function SagIllustration({
   BikeMark,
   withRider,
   draft,
+  sensor = null,
 }: {
   BikeMark: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   /** Off, the empty bike: the reference, level at 0°. */
@@ -898,9 +964,13 @@ function SagIllustration({
   /** The geometry and the fork's sag, as typed: what splits the two ends'
    * drops, and so how far the line sinks as well as tilts. */
   draft: Draft;
+  /** While the logger's live SAG runs: the linear sensors' pitch and drops,
+   * which the line follows as the rider moves (2026-11-22). */
+  sensor?: LinearAttitude | null;
 }) {
   const locale = useProLocale();
-  const measured = useFormAttitude(draft)?.pitchDeg ?? null;
+  const imuPitch = useFormAttitude(draft)?.pitchDeg ?? null;
+  const measured = sensor ? sensor.pitchDeg : imuPitch;
   const pitch = measured == null ? null : withRider ? measured : 0;
   // The frame sinks as well as tilts (by request, 2026-10-27), once the
   // drops can be split; till then it only tilts.
@@ -911,8 +981,11 @@ function SagIllustration({
   const wheelbaseMm = positive(WHEELBASE_KEY);
   const headAngleDeg = positive(HEAD_ANGLE_KEY);
   const forkSagMm = positive(damperKey("fork", "sagMm"));
-  const drops =
-    withRider &&
+  const drops = sensor
+    ? withRider
+      ? { frontMm: sensor.frontMm, rearMm: sensor.rearMm, wheelbaseMm: wheelbaseMm! }
+      : null
+    : withRider &&
     measured != null &&
     wheelbaseMm != null &&
     headAngleDeg != null &&
@@ -960,18 +1033,23 @@ function RiderSagReading({
   draft,
   withRider,
   onToggleRider,
+  sensor = null,
 }: {
   draft: Draft;
   /** Off, the empty bike — the reference the step measures from: 0°, and
    * no end sunk. */
   withRider: boolean;
   onToggleRider: () => void;
+  /** While the logger's live SAG runs (2026-11-22): the pitch and drops
+   * the linear sensors give, in place of the IMU's. */
+  sensor?: LinearAttitude | null;
 }) {
-  const t = useProDict().report.setup.form.riderSag;
+  const form = useProDict().report.setup.form;
+  const t = form.riderSag;
   const locale = useProLocale();
   const session = useLoadedSession();
   const attitude = useFormAttitude(draft);
-  if (!attitude)
+  if (!attitude && !sensor)
     return session ? (
       <p className="text-xs text-muted-foreground">{t.none}</p>
     ) : null;
@@ -991,7 +1069,7 @@ function RiderSagReading({
   });
   const mm = (n: number) => `${proNumber(Math.abs(n), locale, 0)} mm`;
 
-  const pitch = withRider ? attitude.pitchDeg : 0;
+  const pitch = !withRider ? 0 : sensor ? sensor.pitchDeg : attitude!.pitchDeg;
   const level = Math.abs(pitch) < RIDER_ATTITUDE_TIE_DEG;
   // Signed, as the pitch is: nose up positive.
   const signedDeg = `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`;
@@ -1001,7 +1079,9 @@ function RiderSagReading({
       : null;
   const drops = !withRider
     ? { frontMm: 0, rearMm: 0 }
-    : wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
+    : sensor
+      ? { frontMm: sensor.frontMm, rearMm: sensor.rearMm }
+      : wheelbaseMm != null && headAngleDeg != null && forkSagMm != null
       ? riderSagDropsMm({
           pitchDeg: pitch,
           wheelbaseMm,
@@ -1019,6 +1099,11 @@ function RiderSagReading({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <p className="text-lg font-semibold">{t.title}</p>
+          {sensor && (
+            <span className="text-xs text-muted-foreground">
+              · {form.liveSag.bySensors}
+            </span>
+          )}
           <MetricInfo
             label={t.title}
             description={t.infoDescription}
@@ -1077,8 +1162,16 @@ function RiderSagReading({
         {(
           [
             // The rear first, as the shock's card is (2026-10-27).
-            [t.rear, drops?.rearMm, t.rearCaption],
-            [t.front, drops?.frontMm, t.frontCaption],
+            [
+              t.rear,
+              drops?.rearMm,
+              sensor ? form.liveSag.rearCaption : t.rearCaption,
+            ],
+            [
+              t.front,
+              drops?.frontMm,
+              sensor ? form.liveSag.frontCaption : t.frontCaption,
+            ],
           ] as const
         ).map(([name, value, caption]) => (
           <div key={name} className="min-w-0 rounded-[10px] bg-muted/60 px-3 py-4">
@@ -1262,6 +1355,7 @@ function DamperBlock({
   set,
   choose,
   readOnly = false,
+  liveSag = false,
 }: {
   block: "fork" | "shock";
   heading: string;
@@ -1269,6 +1363,8 @@ function DamperBlock({
   set: Setter;
   choose: Chooser;
   readOnly?: boolean;
+  /** The SAG field is the logger's live reading (2026-11-22). */
+  liveSag?: boolean;
 }) {
   const t = useProDict().report.setup.form;
   const springKey = damperKey(block, "spring");
@@ -1312,6 +1408,7 @@ function DamperBlock({
             onChange={set(damperKey(block, "sagMm"))}
             small
             readOnly={readOnly}
+            live={liveSag}
           />
         </div>
         <SagBar draft={draft} block={block} />
@@ -1507,6 +1604,7 @@ function NumberField({
   className,
   hint,
   readOnly = false,
+  live = false,
 }: {
   id: string;
   label: string;
@@ -1518,6 +1616,9 @@ function NumberField({
   /** A reading under the field — the sag's share of the travel. */
   hint?: string | null;
   readOnly?: boolean;
+  /** Fed by the logger's live SAG (2026-11-22): held, and outlined in
+   * the brand's lime so it reads as a reading, not a typed number. */
+  live?: boolean;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -1531,10 +1632,15 @@ function NumberField({
           value={value ?? ""}
           onChange={onChange}
           placeholder="–"
-          readOnly={readOnly}
+          readOnly={readOnly || live}
+          aria-live={live ? "polite" : undefined}
           // Room for the unit and no more: a wider gutter cut "180" short
           // in the narrow columns.
-          className={cn("tabular-nums", unit.length > 3 ? "pr-14" : "pr-9")}
+          className={cn(
+            "tabular-nums",
+            unit.length > 3 ? "pr-14" : "pr-9",
+            live && "border-[#D9FF00] ring-2 ring-[#D9FF00]/30 dark:border-[#D9FF00]",
+          )}
         />
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
           {unit}

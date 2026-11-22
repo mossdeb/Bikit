@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ImuMountOrientation, ImuRiderSag } from "./format";
 import {
+  linearSagAttitude,
   rearMinusFrontDropMm,
   riderAttitude,
   riderSagDropsMm,
@@ -154,5 +155,36 @@ describe("shockRearDropMm", () => {
     expect(
       shockRearDropMm({ shockSagMm: 24.7, strokeMm: 75, rearTravelMm: null }),
     ).toBeNull();
+  });
+});
+
+describe("linearSagAttitude", () => {
+  // The setup in the screenshot of 2026-11-22: shock 65 mm stroke, 21.2 mm
+  // sag, 170 mm of wheel travel; fork 45.4 mm sag; 1288 mm, 63.9°.
+  const input = {
+    forkSagMm: 45.4,
+    shockSagMm: 21.2,
+    strokeMm: 65,
+    rearTravelMm: 170,
+    wheelbaseMm: 1288,
+    headAngleDeg: 63.9,
+  };
+
+  it("tilts the frame by the two ends' vertical drops", () => {
+    const a = linearSagAttitude(input)!;
+    expect(a.frontMm).toBeCloseTo(45.4 * Math.sin((63.9 * Math.PI) / 180), 6);
+    expect(a.rearMm).toBeCloseTo((21.2 * 170) / 65, 6);
+    // Rear 55.4 mm, front 40.8 mm: 14.7 mm over 1288 mm, nose up.
+    expect(a.pitchDeg).toBeCloseTo(0.65, 2);
+  });
+
+  it("goes nose down when the front sinks more", () => {
+    expect(linearSagAttitude({ ...input, shockSagMm: 5 })!.pitchDeg).toBeLessThan(0);
+  });
+
+  it("is null without every number", () => {
+    expect(linearSagAttitude({ ...input, forkSagMm: null })).toBeNull();
+    expect(linearSagAttitude({ ...input, rearTravelMm: null })).toBeNull();
+    expect(linearSagAttitude({ ...input, wheelbaseMm: null })).toBeNull();
   });
 });

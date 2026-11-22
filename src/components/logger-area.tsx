@@ -4,14 +4,9 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoggerDeviceCard } from "@/components/logger-device-card";
 import { BIKE_ICON_FALLBACK, MotorbikeIcon } from "@/components/bike-type-icon";
@@ -27,14 +22,6 @@ import { useProDict } from "@/components/pro-locale";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
 import {
-  forgetDevicePin,
-  loadDevicePin,
-  saveDevicePin,
-} from "@/lib/bikit-ble/pin-store";
-import {
-  AUTH_REQUIRED,
-  BikitDevice,
-  BikitDeviceError,
   SLEEP_MINUTES,
   type BikitConfigKey,
   type BikitDeviceConfig,
@@ -42,11 +29,7 @@ import {
   type BikitGpsStatus,
   type BikitVehicleType,
 } from "@/lib/bikit-ble/protocol";
-import {
-  WebBluetoothTransport,
-  hasWebBluetooth,
-} from "@/lib/bikit-ble/web-bluetooth-transport";
-import { SimulatedLoggerTransport } from "@/lib/bikit-ble/simulated-transport";
+import { BikitPinForm, useBikitLink } from "@/components/use-bikit-link";
 
 /**
  * The Logger area (2026-11-08): connect to the logger, see it in the header
@@ -67,13 +50,6 @@ import { SimulatedLoggerTransport } from "@/lib/bikit-ble/simulated-transport";
  * phase 1) says so and leaves the controls off.
  */
 
-type Phase =
-  | { kind: "idle" }
-  | { kind: "connecting" }
-  | { kind: "auth"; hadSaved: boolean }
-  | { kind: "authenticating" }
-  | { kind: "connected" };
-
 type ConfigState =
   | { kind: "loading" }
   | { kind: "unsupported" }
@@ -86,22 +62,8 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
   const dict = useProDict();
   const t = dict.logger;
   const td = dict.importing.device;
-  const bluetooth = useSyncExternalStore(
-    () => () => {},
-    () => hasWebBluetooth(),
-    () => true,
-  );
-  const supported = simulate || bluetooth;
-
-  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [info, setInfo] = useState<BikitDeviceInfo | null>(null);
-  const [deviceName, setDeviceName] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({ kind: "loading" });
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [pin, setPin] = useState("");
-  const [rememberPin, setRememberPin] = useState(true);
-  const deviceRef = useRef<BikitDevice | null>(null);
   /** One command on the air at a time: Web Bluetooth refuses a write while
    * another is in flight, and the GPS detail polls beside the settings'
    * SETs (2026-11-09). Each command waits for the one before it. */
@@ -112,122 +74,35 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
     return next;
   }
 
-  useEffect(() => () => deviceRef.current?.disconnect(), []);
-
-  async function connect() {
-    setError(null);
-    setNotice(null);
-    setPhase({ kind: "connecting" });
-    try {
-      deviceRef.current?.disconnect();
-      const device = await BikitDevice.connect(
-        simulate ? new SimulatedLoggerTransport() : new WebBluetoothTransport(),
-      );
-      deviceRef.current = device;
-      setDeviceName(device.name);
-      device.onDisconnect(() => {
-        if (deviceRef.current !== device) return;
-        deviceRef.current = null;
-        setInfo(null);
-        setPhase({ kind: "idle" });
-        setNotice(td.deviceDisconnected);
-      });
-      await device.ping();
-      await authenticate(device);
-    } catch (e) {
-      failConnect(e);
-    }
-  }
-
-  /** The same lock as the import dialog's: a remembered PIN first, then
-   * INFO, and the form only when the device asks for it. */
-  async function authenticate(device: BikitDevice) {
-    setPhase({ kind: "authenticating" });
-    const saved = await loadDevicePin(device.name);
-    if (saved) {
+  // The picker, the PIN and the link's ups and downs are the shared hook's
+  // (2026-11-22, with the setup's live SAG): past the lock, INFO for the
+  // header, then CONFIG for the Settings tab.
+  const link = useBikitLink({
+    simulate,
+    // Through the queue: the GPS detail starts polling as soon as the link
+    // is up, and the two must not write at once.
+    onAuthenticated: async (device) => {
+      setInfo(await serial(() => device.info()));
+      setConfig({ kind: "loading" });
       try {
-        await device.auth(saved);
+        const read = await serial(() => device.readConfig());
+        setConfig(
+          read ? { kind: "ready", config: read } : { kind: "unsupported" },
+        );
       } catch (e) {
-        if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
-          void forgetDevicePin(device.name);
-          setNotice(td.savedPinRefused);
-          setPhase({ kind: "auth", hadSaved: true });
-          return;
-        }
-        throw e;
+        setConfig({ kind: "error", message: describe(e) });
       }
-      await afterAuth(device);
-      return;
-    }
-    try {
-      await afterAuth(device);
-    } catch (e) {
-      if (e instanceof BikitDeviceError && e.raw === AUTH_REQUIRED) {
-        setPhase({ kind: "auth", hadSaved: false });
-        return;
-      }
-      throw e;
-    }
-  }
-
-  async function afterAuth(device: BikitDevice) {
-    setInfo(await device.info());
-    setPhase({ kind: "connected" });
-    setConfig({ kind: "loading" });
-    try {
-      const read = await device.readConfig();
-      setConfig(read ? { kind: "ready", config: read } : { kind: "unsupported" });
-    } catch (e) {
-      setConfig({ kind: "error", message: describe(e) });
-    }
-  }
-
-  async function submitPin() {
-    const device = deviceRef.current;
-    if (!device || !pin.trim()) return;
-    setError(null);
-    setNotice(null);
-    setPhase({ kind: "authenticating" });
-    try {
-      const result = await device.auth(pin);
-      if (result === "ok" && rememberPin)
-        void saveDevicePin(device.name, pin.trim());
-      setPin("");
-      await afterAuth(device);
-    } catch (e) {
-      if (e instanceof BikitDeviceError && e.raw === "AUTH_FAIL") {
-        setError(td.wrongPin);
-        setPhase({ kind: "auth", hadSaved: false });
-        return;
-      }
-      failConnect(e);
-    }
-  }
-
-  function failConnect(e: unknown) {
-    // Closing the picker is a decision, not a failure.
-    if (!/cancel/i.test(describe(e))) setError(describe(e));
-    if (deviceRef.current?.isConnected) {
-      setPhase({ kind: "connected" });
-    } else {
-      deviceRef.current?.disconnect();
-      deviceRef.current = null;
-      setPhase({ kind: "idle" });
-    }
-  }
-
-  function disconnect() {
-    const device = deviceRef.current;
-    deviceRef.current = null;
-    device?.disconnect();
-    setInfo(null);
-    setNotice(null);
-    setPhase({ kind: "idle" });
-  }
+    },
+    onLost: () => setInfo(null),
+  });
+  const { phase, error, notice, deviceName, supported } = link;
+  const linkedDevice = link.device;
+  const connect = link.connect;
+  const disconnect = link.disconnect;
 
   /** One SET; the screen moves to what the logger says it stored. */
   async function save(key: BikitConfigKey, value: string) {
-    const device = deviceRef.current;
+    const device = linkedDevice();
     if (!device) throw new Error(td.deviceDisconnected);
     const stored = await serial(() => device.setConfig(key, value));
     setConfig((c) => {
@@ -251,7 +126,7 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
-      const device = deviceRef.current;
+      const device = linkedDevice();
       if (!device) return;
       try {
         const value = await serial(() => device.gpsStatus());
@@ -273,7 +148,7 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
       if (timer) clearTimeout(timer);
       setGps({ kind: "reading" });
     };
-  }, [isConnected]);
+  }, [isConnected, linkedDevice]);
   // The cell names the state as the GPS detail does (by request,
   // 2026-11-09): "Ready", not "Fix".
   const shownInfo =
@@ -314,46 +189,7 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
               <p className="text-xs text-muted-foreground">{t.simulated}</p>
             )}
             {phase.kind === "auth" && (
-              <form
-                className="max-w-sm space-y-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitPin();
-                }}
-              >
-                <div className="space-y-1.5">
-                  <Label htmlFor="logger-pin">{td.pinLabel}</Label>
-                  <Input
-                    id="logger-pin"
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    autoFocus
-                    placeholder="••••••"
-                    value={pin}
-                    onChange={(event) => setPin(event.target.value)}
-                  />
-                </div>
-                <label
-                  htmlFor="logger-remember"
-                  className="flex items-center gap-2 text-sm text-muted-foreground"
-                >
-                  <Checkbox
-                    id="logger-remember"
-                    checked={rememberPin}
-                    onCheckedChange={(checked) => setRememberPin(checked === true)}
-                  />
-                  {td.rememberPin}
-                </label>
-                <Button
-                  type="submit"
-                  variant="inverted"
-                  className="w-full"
-                  disabled={!pin.trim()}
-                >
-                  {td.authenticate}
-                </Button>
-              </form>
+              <BikitPinForm link={link} idPrefix="logger" />
             )}
             {phase.kind === "authenticating" && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">

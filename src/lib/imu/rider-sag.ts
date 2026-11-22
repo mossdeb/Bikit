@@ -220,3 +220,31 @@ export function riderSagDropsMm(input: {
     rearMm: frontMm + rearMinusFrontDropMm(input.pitchDeg, input.wheelbaseMm),
   };
 }
+
+/**
+ * The frame's pitch from the suspension's linear sensors (firmware
+ * V19.0.038's live SAG, 2026-11-22) instead of the IMU: each end's vertical
+ * drop — the fork's compression stood up by the head angle, the shock's
+ * times the average leverage (shockRearDropMm) — and the angle their
+ * difference makes over the wheelbase, nose up positive (the rear sank
+ * more). Null without every number it needs.
+ *
+ * As approximate as its parts: an average leverage, the unladen head angle,
+ * and no tyre squash — the sensors measure the suspension alone.
+ */
+export function linearSagAttitude(input: {
+  forkSagMm: number | null;
+  shockSagMm: number | null;
+  strokeMm: number | null;
+  rearTravelMm: number | null;
+  wheelbaseMm: number | null;
+  headAngleDeg: number | null;
+}): { pitchDeg: number; frontMm: number; rearMm: number } | null {
+  const { forkSagMm, headAngleDeg, wheelbaseMm } = input;
+  if (forkSagMm == null || headAngleDeg == null || !wheelbaseMm) return null;
+  const rearMm = shockRearDropMm(input);
+  if (rearMm == null) return null;
+  const frontMm = forkSagMm * Math.sin((headAngleDeg * Math.PI) / 180);
+  const pitchDeg = (Math.atan((rearMm - frontMm) / wheelbaseMm) * 180) / Math.PI;
+  return { pitchDeg, frontMm, rearMm };
+}

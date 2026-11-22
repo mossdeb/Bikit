@@ -276,6 +276,26 @@ const en = {
       /** Beside the share on the sag's bar: "33% SAG" (it said "of the
        * travel" until 2026-10-28). */
       sagOfTravel: "SAG",
+      /** The logger's live SAG (firmware V19.0.038, 2026-11-22): both
+       * ends' compression read by the linear sensors as the rider sits. */
+      liveSag: {
+        start: "Live SAG",
+        connecting: "Connecting to the logger…",
+        authenticating: "Unlocking the logger…",
+        starting: "Starting the live reading…",
+        live: "Live",
+        settle: "Sit on the bike in your riding position and hold still.",
+        steady: "Steady — ready to save.",
+        stale: "The logger stopped sending readings.",
+        save: "Save reading",
+        stop: "Stop",
+        cancel: "Cancel",
+        /** The bike's line while live: the pitch the sensors give. */
+        bySensors: "From the linear sensors",
+        /** The drop tiles' captions while live. */
+        rearCaption: "from the shock",
+        frontCaption: "from the fork",
+      },
       /** Deleting a bike's setup from its Pro page (2026-10-27). */
       delete: "Delete",
       deleteConfirm: "Confirm delete",
@@ -660,6 +680,22 @@ const pt: typeof en = {
       headAngle: "Ângulo de direção",
       geometry: "Geometria",
       sagOfTravel: "de SAG",
+      liveSag: {
+        start: "SAG em direto",
+        connecting: "A ligar ao logger…",
+        authenticating: "A desbloquear o logger…",
+        starting: "A iniciar a leitura em direto…",
+        live: "Em direto",
+        settle: "Sobe para a bicicleta na posição de condução e fica quieto.",
+        steady: "Estável — podes guardar.",
+        stale: "O logger deixou de enviar leituras.",
+        save: "Guardar leitura",
+        stop: "Parar",
+        cancel: "Cancelar",
+        bySensors: "Pelos sensores lineares",
+        rearCaption: "pelo amortecedor",
+        frontCaption: "pelo garfo",
+      },
       delete: "Apagar",
       deleteConfirm: "Confirmar apagar",
       deleting: "A apagar…",

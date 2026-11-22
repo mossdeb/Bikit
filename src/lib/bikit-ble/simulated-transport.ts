@@ -2,10 +2,10 @@ import type { BikitTransport } from "./transport";
 
 /**
  * A logger in software (2026-11-08): it speaks the protocol of the Logger
- * area — PING, INFO with its block, SESSIONS, and the CONFIG/SET pair the
- * firmware does not have yet — so the area can be built and checked before
- * the firmware catches up. Reached with `?simulate=1` on /pro/logger;
- * nothing else uses it.
+ * area — PING, INFO with its block, SESSIONS, the CONFIG/SET pair and the
+ * live SAG — so the screens can be built and checked before the firmware
+ * catches up. Reached with `?simulate=1` on /pro/logger and on a bike's
+ * page (the setup's live SAG).
  *
  * It holds its settings for as long as the page lives, and answers with a
  * short delay, so the screen's "saving" state is seen as it will be on the
@@ -27,6 +27,8 @@ export class SimulatedLoggerTransport implements BikitTransport {
   };
 
   private readonly bornAt = Date.now();
+  /** The live SAG's 20 Hz stream (firmware V19.0.038), while it is on. */
+  private sagTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly delayMs = 250) {}
 
@@ -37,7 +39,34 @@ export class SimulatedLoggerTransport implements BikitTransport {
   }
 
   disconnect() {
+    this.stopSag();
     for (const d of [...this.disconnects]) d();
+  }
+
+  private stopSag() {
+    if (this.sagTimer) clearInterval(this.sagTimer);
+    this.sagTimer = null;
+  }
+
+  /**
+   * A rider getting on: both ends compress over ~1.5 s, sway for a couple
+   * of seconds more and settle at 45.4 mm (fork) and 21.2 mm (shock), the
+   * contract's example, with a tenth or two of jitter — so the panel's
+   * "steady" wait can be seen to work.
+   */
+  private startSag() {
+    this.stopSag();
+    const startedAt = Date.now();
+    const at = (target: number, s: number) => {
+      const ramp = Math.min(1, s / 1.5);
+      const sway = s < 4 ? Math.sin(s * 5) * 3 * Math.max(0, 1 - s / 4) : 0;
+      return target * ramp + sway + (Math.random() - 0.5) * 0.3;
+    };
+    this.sagTimer = setInterval(() => {
+      const s = (Date.now() - startedAt) / 1000;
+      const tenths = (mm: number) => String(Math.round(mm * 10));
+      this.send(`SAG ${tenths(at(45.4, s))} ${tenths(at(21.2, s))}`);
+    }, 50);
   }
 
   subscribeStatus(handler: (m: string) => void) {
@@ -89,6 +118,17 @@ export class SimulatedLoggerTransport implements BikitTransport {
         if (s < 9) return this.send("GPS_STATUS 3 9 3 41000 800 LOW_SATS");
         return this.send("GPS_STATUS 3 12 9 4200 600 READY");
       }
+      case "SAG":
+        if (key.toUpperCase() === "START") {
+          this.send("SAG_OK 20");
+          this.startSag();
+          return;
+        }
+        if (key.toUpperCase() === "STOP") {
+          this.stopSag();
+          return this.send("SAG_STOPPED");
+        }
+        return this.send("ERROR UNKNOWN_COMMAND");
       case "SESSIONS":
         return this.send("LIST_BEGIN 0", "LIST_END");
       case "CONFIG":

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BikitDevice, BikitDeviceError, parseGpsStatus } from "./protocol";
+import {
+  BikitDevice,
+  BikitDeviceError,
+  parseGpsStatus,
+  parseLiveSag,
+} from "./protocol";
 import { SimulatedLoggerTransport } from "./simulated-transport";
 import type { BikitTransport } from "./transport";
 
@@ -127,5 +132,56 @@ describe("GPS_STATUS", () => {
     expect((await device.gpsStatus())?.fixType).toBe(2);
     const old = await BikitDevice.connect(scripted({}));
     expect(await old.gpsStatus()).toBeNull();
+  });
+});
+
+describe("live SAG", () => {
+  it("reads a SAG line in tenths of a mm, NA per channel", () => {
+    expect(parseLiveSag("SAG 454 212")).toEqual({ forkMm: 45.4, shockMm: 21.2 });
+    expect(parseLiveSag("SAG 454 NA")).toEqual({ forkMm: 45.4, shockMm: null });
+    expect(parseLiveSag("SAG -12 NA")).toEqual({ forkMm: -1.2, shockMm: null });
+    expect(parseLiveSag("SAG_OK 20")).toBeNull();
+    expect(parseLiveSag("SAG 4.5 1")).toBeNull();
+    expect(parseLiveSag("SAG 454")).toBeNull();
+  });
+
+  it("starts, streams readings and stops", async () => {
+    const device = await BikitDevice.connect(new SimulatedLoggerTransport(0));
+    const readings: { forkMm: number | null; shockMm: number | null }[] = [];
+    const live = await device.startLiveSag(
+      (r) => readings.push(r),
+      () => {},
+    );
+    expect(live.rateHz).toBe(20);
+    await new Promise((r) => setTimeout(r, 180));
+    await live.stop();
+    const count = readings.length;
+    expect(count).toBeGreaterThanOrEqual(2);
+    await new Promise((r) => setTimeout(r, 120));
+    // Nothing after STOP.
+    expect(readings.length).toBe(count);
+    device.disconnect();
+  });
+
+  it("refuses with the logger's reason when the suspension is not calibrated", async () => {
+    const device = await BikitDevice.connect(scripted({ SAG: ["SAG_NO_CAL"] }));
+    await expect(device.startLiveSag(() => {}, () => {})).rejects.toMatchObject({
+      raw: "SAG_NO_CAL",
+    });
+  });
+
+  it("tells when the logger ends it on its own", async () => {
+    const device = await BikitDevice.connect(
+      scripted({ SAG: ["SAG_OK 20", "SAG 400 200", "SAG_BUSY"] }),
+    );
+    const readings: unknown[] = [];
+    let ended: string | null = null;
+    await device.startLiveSag(
+      (r) => readings.push(r),
+      (reason) => (ended = reason),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    expect(readings).toHaveLength(1);
+    expect(ended).toMatch(/a gravar, a calibrar ou a transferir/);
   });
 });
