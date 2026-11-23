@@ -24,7 +24,9 @@ const SAG_LINE_PX = SAG_GROUND_PX - 1 + Math.round((SAG_ART_W * 61) / 101 / 2);
  * the angle, within a bound, and the pill says the real one. */
 const SAG_TILT_GAIN = 2.5;
 const SAG_TILT_MAX_DEG = 12;
-export const SAG_MINT = "#7BF1B8";
+/** The rider-sag line and its pill: the theme's primary, the brand's lime
+ * (by request, 2026-11-23; it was its own mint, #7BF1B8). */
+export const SAG_LINE_COLOUR = "var(--primary)";
 /** The art's hubs are this far apart at SAG_ART_W, px (x 17.97 and 82.91
  * of 101): the wheelbase the drops are scaled by. */
 const SAG_HUBS_PX = ((82.91 - 17.97) / 101) * SAG_ART_W;

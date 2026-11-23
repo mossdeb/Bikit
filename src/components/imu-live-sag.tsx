@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Bluetooth, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { BikeBalanceArt, SAG_MINT } from "@/components/bike-balance-art";
+import { BikeBalanceArt, SAG_LINE_COLOUR } from "@/components/bike-balance-art";
 import { SagBar } from "@/components/imu-sag-bar";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import {
@@ -330,8 +330,8 @@ export function LiveSagDialog({
                       className={cn(
                         "size-2 shrink-0 rounded-full",
                         status.steady
-                          ? "bg-[#3DDC97]"
-                          : "bg-[#D9FF00] motion-safe:animate-pulse",
+                          ? "bg-primary"
+                          : "bg-primary motion-safe:animate-pulse",
                       )}
                     />
                   )}
@@ -465,7 +465,7 @@ function GeometryCard({
                       rearMm: attitude.rearMm,
                       wheelbaseMm: setup.wheelbaseMm,
                     },
-                    colour: SAG_MINT,
+                    colour: SAG_LINE_COLOUR,
                     label: signed(attitude.pitchDeg),
                   },
                 ]

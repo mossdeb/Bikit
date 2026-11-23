@@ -59,7 +59,7 @@ export function SagBar({
         <div
           className={cn(
             "absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ease-out motion-reduce:transition-none",
-            danger ? "bg-[#FF5A39]" : inRange ? "bg-[#3DDC97]" : "bg-[#F5B82E]",
+            danger ? "bg-[#FF5A39]" : inRange ? "bg-primary" : "bg-[#F5B82E]",
           )}
           style={{ width: pct != null ? at(pct) : "0%" }}
         />

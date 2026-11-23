@@ -27,7 +27,7 @@ import { MetricInfo } from "@/components/imu-setup-compare-view";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, proPercent } from "@/lib/i18n/pro";
 import { useLoadedSession } from "@/components/imu-session-data";
-import { BikeBalanceArt, SAG_MINT } from "@/components/bike-balance-art";
+import { BikeBalanceArt, SAG_LINE_COLOUR } from "@/components/bike-balance-art";
 import { SagBar } from "@/components/imu-sag-bar";
 import { LiveSagDialog, type LiveSagSetup } from "@/components/imu-live-sag";
 import {
@@ -914,7 +914,7 @@ function SagIllustration({
                 key: "reading",
                 pitchDeg: pitch,
                 drops,
-                colour: SAG_MINT,
+                colour: SAG_LINE_COLOUR,
                 label: `${pitch > 0 ? "+" : pitch < 0 ? "−" : ""}${proNumber(Math.abs(pitch), locale, 1)}°`,
               },
             ]
