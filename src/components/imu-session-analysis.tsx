@@ -133,6 +133,7 @@ import { ImuSessionMap, type ImuMapLine } from "@/components/imu-session-map";
 import { ImuChartGlyph } from "@/components/imu-pro-logo";
 import { useProDict, useProLocale } from "@/components/pro-locale";
 import { proNumber, type ProDictionary } from "@/lib/i18n/pro";
+import { useAdminUi } from "@/components/admin-ui";
 import type { Locale } from "@/lib/i18n";
 import {
   StatImpactIcon,
@@ -4633,6 +4634,10 @@ function EventCard({
 }) {
   const t = useProDict().analysis.card;
   const locale = useProLocale();
+  // The confidence is the detector's, for tuning it: Admin only
+  // (2026-11-23).
+  const adminUi = useAdminUi();
+  const shownConfidence = adminUi ? confidence : null;
   const compared = metrics.filter((m) => m.now != null || m.progress != null);
   const plain = metrics.filter((m) => m.now == null && m.progress == null);
   const outside = title != null && outsideMs !== 0;
@@ -4740,17 +4745,17 @@ function EventCard({
             )}
           </div>
         </div>
-        {((action && !actionInFoot) || confidence != null) && (
+        {((action && !actionInFoot) || shownConfidence != null) && (
           <div className="ml-auto flex shrink-0 items-center gap-3">
             {/* The confidence as a quiet outlined tag with the event's own
                 mark — a note on the reading, not a figure. */}
-            {confidence != null && (
+            {shownConfidence != null && (
               <span className="inline-flex items-center gap-3 rounded-[6px] border-[0.5px] border-[#c9c9c9] px-2.5 py-0.5 text-xs leading-4 text-[#c9c9c9] dark:border-[#4a4d53] dark:text-[#75787e]">
                 <Icon className="h-3 w-auto max-w-4 shrink-0" />
                 <span>
                   {t.confidence}{" "}
                   <span className="tabular-nums">
-                    {Math.round(confidence * 100)}%
+                    {Math.round(shownConfidence * 100)}%
                   </span>
                 </span>
               </span>

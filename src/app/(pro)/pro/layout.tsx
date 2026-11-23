@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { HeaderBackButton } from "@/components/header-back-button";
 import { AppHeader } from "@/components/app-header";
+import { AdminUiProvider, AdminUiToggle } from "@/components/admin-ui";
 import { AppMain } from "@/components/app-main";
 import { PatentPill } from "@/components/site-footer";
 import { ImuLabTexture } from "@/components/imu-lab-texture";
@@ -58,8 +59,11 @@ export default async function ProLayout({
     .eq("notice", PRIVACY_NOTICE_ID)
     .maybeSingle();
 
+  const admin = isAdmin(user.email as string | undefined);
   return (
     <ProLocaleProvider locale={locale}>
+      {/* The Admin view's switch and the bits it shows (2026-11-23). */}
+      <AdminUiProvider isAdmin={admin}>
       <ToastProvider>
         {/* Counts the pages this account opens (2026-11-09). */}
         <ActivityRecorder />
@@ -78,13 +82,14 @@ export default async function ProLayout({
               <BikitLockup pro className="h-8 w-auto sm:hidden" />
               <div className="hidden items-center gap-3 sm:flex">
                 <PatentPill />
+                <AdminUiToggle />
                 <ThemeToggle />
                 <UserMenu
                   name={user.user_metadata?.full_name}
                   email={user.email as string}
                   common={dict.common}
                   settingsHref="/pro/definicoes"
-                  showAdmin={isAdmin(user.email as string | undefined)}
+                  showAdmin={admin}
                 />
               </div>
             </AppHeader>
@@ -94,6 +99,7 @@ export default async function ProLayout({
         </div>
         <Toaster />
       </ToastProvider>
+      </AdminUiProvider>
     </ProLocaleProvider>
   );
 }

@@ -44,6 +44,7 @@ import {
 } from "@/lib/imu/setup-labels";
 import { isSnapshotDefinition } from "@/lib/imu/snapshot";
 import { loadTimedTracks } from "@/lib/imu/track-candidates";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * Lab: one IMU session's analysis. Same gate as the list — notFound for
@@ -400,10 +401,14 @@ export async function SessionPage({
                     )}
                     <span className="text-foreground">
                       {formatDate(session.created_at, locale)}
-                    </span>{" "}
-                    · {Math.round(session.sample_rate_hz)} Hz ·{" "}
-                    {proNumber(session.sample_count, locale)}{" "}
-                    {t.common.units.samples}
+                    </span>
+                    {/* The file's rate and count: Dev info (2026-11-23). */}
+                    <AdminOnly>
+                      {" "}
+                      · {Math.round(session.sample_rate_hz)} Hz ·{" "}
+                      {proNumber(session.sample_count, locale)}{" "}
+                      {t.common.units.samples}
+                    </AdminOnly>
                   </span>
                 </p>
                 {/* How the file was read — realignment and the front of
