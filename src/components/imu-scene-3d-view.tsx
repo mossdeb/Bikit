@@ -304,6 +304,9 @@ export function Scene3DView({
     };
     const edge = dark ? "rgba(255,255,255,0.17)" : "rgba(255,255,255,0.75)";
     const rim = dark ? "rgba(255,255,255,0.3)" : edge;
+    // The road's sides outlined almost in the ground's own colour (by
+    // request, 2026-11-23): the light rim read as a hatched outline.
+    const roadSide = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.35)";
 
     // The edges fade out in the scene itself (by request, 2026-11-23): each
     // face the more transparent the further it is from the stretch, so the
@@ -346,7 +349,8 @@ export function Scene3DView({
         ctx.lineWidth = 0.6;
         ctx.stroke();
         if (face.material !== 1) {
-          ctx.strokeStyle = face.material === 0 ? edge : rim;
+          ctx.strokeStyle =
+            face.material === 0 ? edge : face.material === 2 ? roadSide : rim;
           ctx.lineWidth = 0.5;
           ctx.stroke();
         }
@@ -645,11 +649,11 @@ export function Scene3DView({
         }}
       />
       {clock && <div className="absolute bottom-4 left-4">{clock}</div>}
-      {/* The plate's soft outline, back on the white (by request,
-          2026-11-23). */}
+      {/* The plate's outline, almost the card's own colour (by request,
+          2026-11-23): there, but barely. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-[16px] ring-1 ring-foreground/10 ring-inset"
+        className="pointer-events-none absolute inset-0 rounded-[16px] ring-1 ring-foreground/[0.04] ring-inset"
       />
       {(views || topLabel) && (
         <div
