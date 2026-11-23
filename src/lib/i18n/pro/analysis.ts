@@ -303,8 +303,6 @@ const en = {
     out: "Zoom out",
     reset: "Reset zoom",
     values: "Values",
-    /** The track's sector lines on the plot and the map (2026-11-10). */
-    splits: "Splits",
     trimSet: "Session trim",
     trim: "Trim the session",
   },
@@ -685,9 +683,6 @@ const pt: typeof en = {
     out: "Afastar",
     reset: "Repor zoom",
     values: "Valores",
-    // "Linhas", not "Sectores" (2026-11-12): the panel switch above is
-    // "Sectores" and shows the card; this one draws the lines.
-    splits: "Linhas",
     trimSet: "Recorte da sessão",
     trim: "Recortar a sessão",
   },

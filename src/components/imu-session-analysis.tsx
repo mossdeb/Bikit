@@ -1364,11 +1364,11 @@ export function ImuSessionAnalysis({
     locale,
   });
   const [trimOpen, setTrimOpen] = useState(false);
-  // The first track's sector lines where this run crossed them — the
-  // "Splits" switch beside "Values" (by request, 2026-11-10), on the plot
-  // and on the map. The owner's account only, with the Perfect Run. Each
-  // run's (each lap's) crossings, on the whole recording's clock.
-  const [splitsOn, setSplitsOn] = useState(false);
+  // The first track's sector lines where this run crossed them, on the plot
+  // and on the map. Each run's (each lap's) crossings, on the whole
+  // recording's clock. Shown with the sectors' card — the panel switch
+  // "Sectores" ("Voltas" on a circuit) — since 2026-11-23; they had a
+  // "Linhas" switch of their own beside "Valores" (2026-11-10).
   const splitTrack = timed?.passed[0] ?? null;
   const splitGates = perfectRun
     ? (splitTrack?.track.definition.splits ?? null)
@@ -1451,6 +1451,7 @@ export function ImuSessionAnalysis({
   // until the rider chooses.
   const [lapsChoice, setLapsChoice] = useState<boolean | null>(null);
   const lapsOn = lapsChoice ?? circuitRuns != null;
+  const splitsOn = lapsOn;
   const setLapsOn = (next: (on: boolean) => boolean) =>
     setLapsChoice(next(lapsOn));
   /** The event kinds drawn on the plot and read in the panel. "Mostrar
@@ -2932,13 +2933,6 @@ export function ImuSessionAnalysis({
                   the file has the step (2026-10-27): its line, and the pitch
                   read from it rather than from the empty bike. Looking
                   only — nothing measured changes. */}
-                  {splitCrossings.length > 0 && (
-                    <SmallSwitch
-                      label={t.zoom.splits}
-                      checked={splitsOn}
-                      onToggle={() => setSplitsOn((on) => !on)}
-                    />
-                  )}
                   {pitchOn && (
                     <>
                       <SmallSwitch
@@ -4650,6 +4644,34 @@ function EventCard({
    */
   const soleFigure = title == null && metrics.length === 1 ? metrics[0] : null;
   const hasBody = metrics.length > 0 && soleFigure == null;
+  /**
+   * Under 600 px wide the action leaves the head for a foot of its own,
+   * pinned to the card's bottom under a rule like the head's (by request,
+   * 2026-11-23): in a narrow card the head wrapped it onto a line of its
+   * own, and a tall card scrolled it away. Measured, not a container query,
+   * so the button is drawn in one place only — it opens a dialog.
+   */
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setNarrow(entry.contentRect.width < EVENT_CARD_FOOT_BELOW_PX),
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const actionInFoot = action != null && narrow;
+  const actionNode = action && (
+    // Outside the event the button keeps its place but is hidden and inert
+    // (by request, 2026-09-28): the card wraps the same way inside and out,
+    // so it never changes height as the cursor crosses the event's edge —
+    // and a Snapshot is not made from a neighbour's event.
+    <div className={cn(outside && "invisible")} inert={outside || undefined}>
+      {action}
+    </div>
+  );
   return (
     // A card of its own on the page (2026-09-28, the supplied layout): no
     // longer a box inside the reading's card. White, the lab's 22px
@@ -4657,9 +4679,13 @@ function EventCard({
     // boxes of their own under it. Outside the event — within its reach
     // but not inside it — the whole card dims to a ghost of the event the
     // cursor just left.
+    // `overflow-clip`, not `hidden`: it still trims the corners, but it is
+    // not a scroll box, so the foot can stick to the bottom of the one that
+    // scrolls around the card.
     <div
+      ref={cardRef}
       className={cn(
-        "@container overflow-hidden rounded-[22px] bg-card",
+        "@container overflow-clip rounded-[22px] bg-card",
         DARK_CARD_HAIRLINE,
         outside && "opacity-30 transition-opacity",
         className,
@@ -4714,7 +4740,7 @@ function EventCard({
             )}
           </div>
         </div>
-        {(action || confidence != null) && (
+        {((action && !actionInFoot) || confidence != null) && (
           <div className="ml-auto flex shrink-0 items-center gap-3">
             {/* The confidence as a quiet outlined tag with the event's own
                 mark — a note on the reading, not a figure. */}
@@ -4729,19 +4755,7 @@ function EventCard({
                 </span>
               </span>
             )}
-            {/* Outside the event the button keeps its place but is hidden
-                and inert (by request, 2026-09-28): the head then wraps the
-                same way inside and out, so the card never changes height as
-                the cursor crosses the event's edge — and a Snapshot is not
-                made from a neighbour's event. */}
-            {action && (
-              <div
-                className={cn(outside && "invisible")}
-                inert={outside || undefined}
-              >
-                {action}
-              </div>
-            )}
+            {!actionInFoot && actionNode}
           </div>
         )}
         {/* The titleless card's figure rides the head's far end: an instant
@@ -4869,9 +4883,20 @@ function EventCard({
           )}
         </div>
       )}
+      {/* The narrow card's foot: the action, the card's width, held at the
+          bottom of the box that scrolls around it, under a rule like the
+          head's. */}
+      {actionInFoot && (
+        <div className="sticky bottom-0 z-10 border-t border-border bg-card p-[22px] [&_button]:w-full [&_button]:justify-center">
+          {actionNode}
+        </div>
+      )}
     </div>
   );
 }
+
+/** Narrower than this, px, the event card's action moves to its foot. */
+const EVENT_CARD_FOOT_BELOW_PX = 600;
 
 /** One row of a filter menu. */
 interface FilterMenuItem {
