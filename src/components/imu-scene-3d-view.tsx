@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import {
   faceLight,
+  polygonProjector,
   projector,
   type Camera,
   type Face,
@@ -45,6 +46,9 @@ export interface View3DFrame {
   paths: Map<string, Vec3[]>;
   /** Where each pass's token stands. */
   tokens: Map<string, Vec3>;
+  /** Which way each token's tip points, radians from +x towards +y — for
+   * triangles; +x without. */
+  headings?: Map<string, number>;
   /** The paths drawn in the page's ink rather than the pass's colour —
    * the ghosts' one line. */
   inkPaths?: Set<string>;
@@ -123,6 +127,7 @@ export function Scene3DView({
   tokenRadiusM,
   tokenShape = "disc",
   snapTo = { azimuth: 0, elevation: TOP_ELEVATION },
+  zoomMin = ZOOM_MIN,
   height,
   clock,
   views,
@@ -140,6 +145,8 @@ export function Scene3DView({
   /** Where the switch swings the camera: straight down by default; the
    * jumps' from the front (2026-11-23). */
   snapTo?: { azimuth: number; elevation: number };
+  /** How close the wheel may go, a share of the framing distance. */
+  zoomMin?: number;
   height: number;
   clock?: React.ReactNode;
   views?: React.ReactNode;
@@ -216,12 +223,12 @@ export function Scene3DView({
       const step = Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
       setCamera((c) => ({
         ...c,
-        zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, c.zoom * step)),
+        zoom: Math.max(zoomMin, Math.min(ZOOM_MAX, c.zoom * step)),
       }));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [zoomMin]);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -260,7 +267,6 @@ export function Scene3DView({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    const project = projector(cam, width, height);
 
     // White in the light. In the dark (by request, 2026-11-23, after a
     // reference image, with more contrast): near-black facets lit up to a
@@ -304,26 +310,26 @@ export function Scene3DView({
       const t = Math.max(0, Math.min(1, (r - 0.45) / 0.5));
       return 1 - t * t * (3 - 2 * t);
     };
+    // Each face cut at the camera's near plane, so close up the ground does
+    // not lose every face with a corner behind it (2026-11-23).
+    const polygon = polygonProjector(cam, width, height);
     const draw = (faces: Face[]) => {
       const placed = faces
         .map((face) => {
-          const a = project(face.a);
-          const b = project(face.b);
-          const c = project(face.c);
-          if (!a || !b || !c) return null;
+          const corners = polygon([face.a, face.b, face.c]);
+          if (!corners) return null;
           const alpha = fadeOf(face);
           if (alpha <= 0.01) return null;
-          return { face, a, b, c, alpha, depth: (a[2] + b[2] + c[2]) / 3 };
+          const depth = corners.reduce((sum, q) => sum + q[2], 0) / corners.length;
+          return { face, corners, alpha, depth };
         })
         .filter((p) => p !== null)
         .sort((p, q) => q.depth - p.depth);
-      for (const { face, a, b, c, alpha } of placed) {
+      for (const { face, corners, alpha } of placed) {
         const fill = tone(face);
         ctx.globalAlpha = alpha;
         ctx.beginPath();
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
-        ctx.lineTo(c[0], c[1]);
+        corners.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
         ctx.closePath();
         ctx.fillStyle = fill;
         ctx.fill();
@@ -463,9 +469,10 @@ export function Scene3DView({
       .sort((g, h) => h.depth - g.depth);
     for (const { p, x, y, z } of placed) {
       const r = radius * (p.key === followedKey ? 1.15 : 1);
+      const turn = frame.headings?.get(p.key) ?? 0;
       const ring = (zz: number, rr: number) =>
         Array.from({ length: SIDES }, (_, i) => {
-          const a = (i / SIDES) * Math.PI * 2;
+          const a = (i / SIDES) * Math.PI * 2 + turn;
           return project([x + Math.cos(a) * rr, y + Math.sin(a) * rr, zz]);
         });
       const shadow = ring(z, r * 1.25);

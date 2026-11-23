@@ -13,6 +13,8 @@ import {
 
 const R = 6_371_000;
 const RAD = Math.PI / 180;
+/** The arrows' heading read over this either side of the cursor, ms. */
+const HEADING_LOOK_MS = 150;
 
 /** A pass as the 3D view needs it. */
 export interface Pass3D extends View3DPass {
@@ -123,6 +125,21 @@ export function SimulationMap3D({
       paths,
       inkPaths: lines ? undefined : new Set([reference.key]),
       tokens: new Map(passes.map((p) => [p.key, tipOf(p.trace)])),
+      // Each arrow along its pass's way at the cursor: from where it was a
+      // little before (a few metres back at speed).
+      headings: new Map(
+        passes.map((p) => {
+          const [x0, y0] = toXY(
+            traceValueAt(p.trace, p.trace.latDeg, cursorMs - HEADING_LOOK_MS),
+            traceValueAt(p.trace, p.trace.lonDeg, cursorMs - HEADING_LOOK_MS),
+          );
+          const [x1, y1] = toXY(
+            traceValueAt(p.trace, p.trace.latDeg, cursorMs + HEADING_LOOK_MS),
+            traceValueAt(p.trace, p.trace.lonDeg, cursorMs + HEADING_LOOK_MS),
+          );
+          return [p.key, Math.atan2(y1 - y0, x1 - x0)];
+        }),
+      ),
       gates: n > 1 ? [gate(0, Math.min(3, n - 1)), gate(n - 1, Math.max(0, n - 4))] : [],
     };
   }, [passes, reference, lines, cursorMs, scene, toXY]);
@@ -133,6 +150,8 @@ export function SimulationMap3D({
       passes={passes}
       followedKey={followedKey}
       frame={frame}
+      // Arrows, as the jumps' (by request, 2026-11-23).
+      tokenShape="triangle"
       height={height}
       clock={clock}
       views={views}

@@ -434,3 +434,64 @@ export function faceLight(face: Face): number {
   const ll = Math.hypot(lx, ly, lz);
   return Math.max(0, (nx * lx + ny * ly + nz * lz) / ll);
 }
+
+/** The nearest the camera draws, m along its view. */
+const NEAR_M = 0.1;
+
+/**
+ * A polygon onto the screen, cut at the camera's near plane rather than
+ * dropped whole when a corner is behind it (2026-11-23): close up, the
+ * ground's large faces always have one, and the ground went blank. The
+ * corners in screen px with their depth; null when nothing is in front.
+ */
+export function polygonProjector(camera: Camera, width: number, height: number) {
+  const { azimuth: a, elevation: e, target, distance } = camera;
+  const pos: Vec3 = [
+    target[0] - Math.sin(a) * Math.cos(e) * distance,
+    target[1] - Math.cos(a) * Math.cos(e) * distance,
+    target[2] + Math.sin(e) * distance,
+  ];
+  const f: Vec3 = [
+    (target[0] - pos[0]) / distance,
+    (target[1] - pos[1]) / distance,
+    (target[2] - pos[2]) / distance,
+  ];
+  const rl = Math.hypot(f[1], f[0]) || 1;
+  const r: Vec3 = [f[1] / rl, -f[0] / rl, 0];
+  const u: Vec3 = [
+    r[1] * f[2] - r[2] * f[1],
+    r[2] * f[0] - r[0] * f[2],
+    r[0] * f[1] - r[1] * f[0],
+  ];
+  const focal = height / 2 / Math.tan(camera.fov / 2);
+  const toView = (p: Vec3): Vec3 => {
+    const d: Vec3 = [p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]];
+    return [
+      d[0] * r[0] + d[1] * r[1] + d[2] * r[2],
+      d[0] * u[0] + d[1] * u[1] + d[2] * u[2],
+      d[0] * f[0] + d[1] * f[1] + d[2] * f[2],
+    ];
+  };
+  return (corners: Vec3[]): [number, number, number][] | null => {
+    const view = corners.map(toView);
+    // Sutherland–Hodgman against z ≥ NEAR_M.
+    const kept: Vec3[] = [];
+    for (let i = 0; i < view.length; i++) {
+      const p = view[i];
+      const q = view[(i + 1) % view.length];
+      const pIn = p[2] >= NEAR_M;
+      const qIn = q[2] >= NEAR_M;
+      if (pIn) kept.push(p);
+      if (pIn !== qIn) {
+        const t = (NEAR_M - p[2]) / (q[2] - p[2]);
+        kept.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, NEAR_M]);
+      }
+    }
+    if (kept.length < 3) return null;
+    return kept.map(([x, y, z]) => [
+      width / 2 + (x / z) * focal,
+      height / 2 - (y / z) * focal,
+      z,
+    ]);
+  };
+}

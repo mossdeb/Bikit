@@ -141,6 +141,10 @@ export function SimulationJump3D({
       // A bike's size against a jump of a few metres.
       tokenRadiusM={0.14}
       tokenShape="triangle"
+      // Closer than the corners (by request, 2026-11-23), to the limit the
+      // owner chose on the jump at 01:35 of R0072: the run across the
+      // plate, the ramps' tops in full.
+      zoomMin={0.22}
       // The switch shows it from the front (by request, 2026-11-23): level
       // with the ramps, square to the run — the side view's angle.
       snapTo={{ azimuth: 0, elevation: 0.06 }}

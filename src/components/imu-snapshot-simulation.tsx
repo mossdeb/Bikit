@@ -493,7 +493,10 @@ export function ImuSnapshotSimulation({
           >
             …
           </div>
-          <div className="invisible absolute bottom-0 left-full flex flex-col gap-2 pl-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+          {/* Opening up and leftwards from the "…" (2026-11-23): to its
+              right it ran past the plate — the jumps' pills are wider —
+              and, hidden or not, scrolled the dialog sideways. */}
+          <div className="invisible absolute right-0 bottom-full flex flex-col items-end gap-2 pb-2 opacity-0 transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
             {readoutPasses.slice(READOUT_PILLS).map((p) => readoutPill(p))}
           </div>
         </div>
