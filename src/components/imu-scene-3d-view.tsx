@@ -242,15 +242,22 @@ export function Scene3DView({
 
   const cam: Camera = useMemo(() => {
     const fov = 0.62;
+    const distance = ((scene.extentM * 0.46) / Math.tan(fov / 2)) * camera.zoom;
+    // Level with the ground (the jumps' front view, below the drag's 0.3),
+    // the camera looks higher, so the ground sits on the plate's bottom and
+    // the flight fills it (by request, 2026-11-23) — eased in as it comes
+    // down, none from 0.3 up.
+    const level = Math.max(0, Math.min(1, (0.3 - camera.elevation) / 0.2));
+    const lift = level * 0.62 * distance * Math.tan(fov / 2);
     return {
       azimuth: camera.azimuth,
       elevation: camera.elevation,
       target: [
         scene.centre[0] + camera.panX,
         scene.centre[1] + camera.panY,
-        scene.centre[2],
+        scene.centre[2] + lift,
       ] as Vec3,
-      distance: ((scene.extentM * 0.46) / Math.tan(fov / 2)) * camera.zoom,
+      distance,
       fov,
     };
   }, [camera, scene]);
