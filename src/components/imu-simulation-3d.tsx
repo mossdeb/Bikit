@@ -237,7 +237,11 @@ export function SimulationMap3D({
       surroundings.length > 1
         ? smoothPolyline(surroundings).map(([lat, lon]) => toXY(lat, lon))
         : stretch;
-    return buildScene(around, stretch, seedFrom(lat0, lon0));
+    // The trail at the reference's real altitude where the GNSS gave one
+    // (2026-11-23); the ground round it stays made up.
+    return buildScene(around, stretch, seedFrom(lat0, lon0), {
+      stretchAltM: reference.trace.altM,
+    });
   }, [reference, surroundings, toXY, lat0, lon0]);
 
   const cam: Camera = useMemo(() => {
@@ -661,21 +665,31 @@ export function SimulationMap3D({
         >
           {views}
           {topLabel && (
-            <div className="flex h-9 items-center rounded-[12px] bg-card p-1 text-sm">
-              <button
-                type="button"
-                aria-pressed={beforeTop !== null}
-                onClick={toggleTop}
+            // A switch (by request, 2026-11-23): the session's "Valores"
+            // track and thumb, on the views' pill.
+            <button
+              type="button"
+              role="switch"
+              aria-checked={beforeTop !== null}
+              onClick={toggleTop}
+              className="flex h-9 cursor-pointer items-center gap-2 rounded-[12px] bg-card px-3 text-sm font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {topLabel}
+              <span
+                aria-hidden
                 className={cn(
-                  "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                  beforeTop !== null
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground",
+                  "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+                  beforeTop !== null ? "bg-foreground" : "bg-muted-foreground/30",
                 )}
               >
-                {topLabel}
-              </button>
-            </div>
+                <span
+                  className={cn(
+                    "absolute top-0.5 left-0.5 size-3 rounded-full bg-background transition-transform",
+                    beforeTop !== null && "translate-x-3",
+                  )}
+                />
+              </span>
+            </button>
           )}
         </div>
       )}

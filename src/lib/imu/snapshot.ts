@@ -768,6 +768,10 @@ export interface SnapshotPassTrace {
   /** Null without a speed. */
   speedKmh: (number | null)[];
   gForce: number[];
+  /** The receiver's altitude, m above sea level, smoothed (2026-11-23, for
+   * the 3D view's trail). Absent from traces made before it and when the
+   * session's fixes carry none. */
+  altM?: number[];
 }
 
 export const SNAPSHOT_TRACE_STEP_MS = 50;
@@ -857,7 +861,44 @@ export function snapshotPassTrace(
     );
     trace.gForce.push(valueAt(tMs, prepared.gForce, at));
   }
+  const altM = altitudeTrace(prepared.session.gps, pass.entryMs, stepMs, steps + 1);
+  if (altM) trace.altM = altM;
   return trace;
+}
+
+/** The altitude at each of a trace's steps, from the fixes by time and
+ * smoothed over about a second either side: a receiver's altitude wanders
+ * a metre or more from fix to fix. Null when the fixes carry none. */
+function altitudeTrace(
+  gps: GpsChannels | null,
+  fromMs: number,
+  stepMs: number,
+  count: number,
+): number[] | null {
+  if (!gps || gps.tMs.length < 2) return null;
+  const t = gps.tMs;
+  const alt = gps.altitudeM;
+  const raw: number[] = [];
+  let k = 0;
+  for (let i = 0; i < count; i++) {
+    const at = fromMs + i * stepMs;
+    while (k + 2 < t.length && t[k + 1] <= at) k++;
+    const span = t[k + 1] - t[k];
+    const f = span > 0 ? Math.max(0, Math.min(1, (at - t[k]) / span)) : 0;
+    const v = alt[k] + f * (alt[k + 1] - alt[k]);
+    if (!Number.isFinite(v)) return null;
+    raw.push(v);
+  }
+  const half = Math.max(1, Math.round(1000 / stepMs));
+  return raw.map((_, i) => {
+    let sum = 0;
+    let n = 0;
+    for (let j = Math.max(0, i - half); j <= Math.min(raw.length - 1, i + half); j++) {
+      sum += raw[j];
+      n++;
+    }
+    return sum / n;
+  });
 }
 
 /** Where the bike was at an instant on the curve through the fixes and

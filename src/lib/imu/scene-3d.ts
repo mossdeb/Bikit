@@ -43,6 +43,10 @@ export interface Scene {
   halfM: number;
 }
 
+/** The real altitude's rise and fall drawn this much taller: a stretch of
+ * a few dozen metres climbs or drops only a few. */
+const ALT_EXAGGERATION = 1.5;
+
 /** Deterministic pseudo-random numbers from a seed (mulberry32). */
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -96,7 +100,12 @@ export function buildScene(
   trail: [number, number][],
   stretch: [number, number][],
   seed: number,
-  options: { cells?: number } = {},
+  options: {
+    cells?: number;
+    /** The stretch's real altitude, m, one per `stretch` point (the GNSS,
+     * 2026-11-23): the trail follows it there, the hills bend to meet it. */
+    stretchAltM?: number[];
+  } = {},
 ): Scene {
   const cells = options.cells ?? 26;
   const random = rng(seed);
@@ -124,7 +133,7 @@ export function buildScene(
   }));
   const tiltX = (random() * 2 - 1) * 0.08;
   const tiltY = (random() * 2 - 1) * 0.08;
-  const base = (x: number, y: number) => {
+  const invented = (x: number, y: number) => {
     let z = (x - cx) * tiltX + (y - cy) * tiltY;
     for (const h of hills) {
       const d2 = ((x - h.x) ** 2 + (y - h.y) ** 2) / (h.r * h.r);
@@ -135,16 +144,60 @@ export function buildScene(
 
   // The road's height along the trail: the ground's, smoothed, so the road
   // climbs and falls with the hills without their bumps.
-  const raw = trail.map(([x, y]) => base(x, y));
-  const roadZ = raw.map((_, k) => {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, k - 6); j <= Math.min(raw.length - 1, k + 6); j++) {
-      sum += raw[j];
-      n++;
+  const smooth = (values: number[], reach: number) =>
+    values.map((_, k) => {
+      let sum = 0;
+      let n = 0;
+      for (let j = Math.max(0, k - reach); j <= Math.min(values.length - 1, k + reach); j++) {
+        sum += values[j];
+        n++;
+      }
+      return sum / n;
+    });
+  const inventedRoad = smooth(trail.map(([x, y]) => invented(x, y)), 6);
+
+  // The real altitude where there is one (by request, 2026-11-23): on the
+  // stretch the trail takes the GNSS's rise and fall, set on the made-up
+  // ground's mean level there; past the stretch it carries on from its
+  // nearer end. What that moved the trail by, the hills are moved by too,
+  // fading with distance, so they meet the trail instead of cutting it.
+  const alt = options.stretchAltM;
+  const delta = trail.map(() => 0);
+  if (alt && alt.length === stretch.length && stretch.length > 1) {
+    const on = trail.map(([x, y]) => {
+      const { d, i, t } = nearestOnLine(stretch, x, y);
+      if (d > roadHalfM * 2) return null;
+      return alt[i] + t * ((alt[Math.min(i + 1, alt.length - 1)] ?? alt[i]) - alt[i]);
+    });
+    const ks = on.flatMap((v, k) => (v == null ? [] : [k]));
+    if (ks.length > 1) {
+      const meanReal = ks.reduce((s, k) => s + (on[k] as number), 0) / ks.length;
+      const meanMade = ks.reduce((s, k) => s + inventedRoad[k], 0) / ks.length;
+      for (const k of ks)
+        delta[k] = meanMade + ((on[k] as number) - meanReal) * ALT_EXAGGERATION - inventedRoad[k];
+      const first = ks[0];
+      const last = ks[ks.length - 1];
+      for (let k = 0; k < first; k++) delta[k] = delta[first];
+      for (let k = last + 1; k < delta.length; k++) delta[k] = delta[last];
     }
-    return sum / n;
-  });
+  }
+  const shift = smooth(delta, 4);
+  const roadZ = inventedRoad.map((z, k) => z + shift[k]);
+  // The hills' share of the shift: the trail's, weighted by nearness.
+  const sigma2 = (span * 0.25) ** 2 * 2;
+  const anchors = trail.filter((_, k) => k % 3 === 0).map((p, j) => [p[0], p[1], shift[j * 3]]);
+  const lift = (x: number, y: number) => {
+    if (!delta.some((v) => v !== 0)) return 0;
+    let sum = 0;
+    let weight = 0;
+    for (const [ax, ay, dz] of anchors) {
+      const w = Math.exp(-((x - ax) ** 2 + (y - ay) ** 2) / sigma2) + 1e-9;
+      sum += w * dz;
+      weight += w;
+    }
+    return sum / weight;
+  };
+  const base = (x: number, y: number) => invented(x, y) + lift(x, y);
   const curb = roadHalfM * 0.45;
   const roadTopAt = (x: number, y: number) => {
     const { i, t } = nearestOnLine(trail, x, y);

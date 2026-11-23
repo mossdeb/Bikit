@@ -30,6 +30,22 @@ describe("buildScene", () => {
     expect(Number.isFinite(scene.roadHeightAt(x, y))).toBe(true);
   });
 
+  it("lays the stretch at its real altitude's rise and fall", () => {
+    const seed = seedFrom(37.1, -7.8);
+    // Climbing 10 m along the stretch.
+    const stretchAltM = stretch.map((_, k) => 100 + k * 0.5);
+    const scene = buildScene(trail, stretch, seed, { stretchAltM });
+    const [x0, y0] = stretch[1];
+    const [x1, y1] = stretch[stretch.length - 2];
+    const rise = scene.roadHeightAt(x1, y1) - scene.roadHeightAt(x0, y0);
+    // 9 m between those two points, drawn 1.5× and a little softened.
+    expect(rise).toBeGreaterThan(9);
+    expect(rise).toBeLessThan(15);
+    // Without it, the made-up hills alone.
+    const plain = buildScene(trail, stretch, seed);
+    expect(plain.roadHeightAt(x1, y1) - plain.roadHeightAt(x0, y0)).not.toBeCloseTo(rise, 1);
+  });
+
   it("keeps the trees and rocks off the road", () => {
     const scene = buildScene(trail, stretch, seedFrom(37.1, -7.8));
     for (const face of scene.props) {
