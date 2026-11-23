@@ -38,7 +38,7 @@ import {
   type SimulationLayout,
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
-import { AdminOnly, useAdminUi } from "@/components/admin-ui";
+import { AdminOnly } from "@/components/admin-ui";
 import { SimulationMap3D } from "@/components/imu-simulation-3d";
 
 /**
@@ -104,6 +104,8 @@ const JUMP_TAIL_MS = 500;
 /** The passes' lines fade in over this many pieces, from this opacity at
  * the entry to full at the dot. */
 const FADE_PIECES = 24;
+/** The corners' map in 3D (2026-11-23); false brings the 2D map back. */
+const MAP_3D: boolean = true;
 const FADE_FROM = 0.05;
 /** The plate's grey made solid — bg-muted/60 over the card. */
 const PLATE_GREY = "color-mix(in srgb, var(--muted) 60%, var(--card))";
@@ -195,10 +197,9 @@ export function ImuSnapshotSimulation({
   // the side. The simulation only ever renders in the browser, once the
   // files are read, so the stored choice is read straight away.
   const [layout, setLayout] = useState<SimulationLayout>(readStoredLayout);
-  // The 3D view, a prototype (2026-11-23): Dev info only, and there always —
-  // its switch removed by request the same day. Others keep the 2D map.
-  const adminUi = useAdminUi();
-  const view3d = adminUi;
+  // The corners' map in 3D for everyone (by request, 2026-11-23; Dev info
+  // only before that). The 2D map stays in the code, one switch away.
+  const view3d = MAP_3D;
   const chooseLayout = (next: SimulationLayout) => {
     setLayout(next);
     try {

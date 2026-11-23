@@ -97,9 +97,9 @@ function colourOf(ink: string, root: HTMLElement): string {
 }
 
 /**
- * The simulation in 3D — a PROTOTYPE (by request, 2026-11-23), shown only
- * in the Dev info view: the same ghosts as the 2D "Fantasmas", riding a
- * raised trail on white low-poly hills in perspective. Drawn on a canvas
+ * The simulation in 3D (by request, 2026-11-23; for everyone since the same
+ * day): the passes of the 2D map, as ghosts or lines, on a trail laid on
+ * white low-poly hills in perspective. Drawn on a canvas
  * by hand (scene-3d.ts), no library: the ground, the road and the
  * decorations once per camera angle, the ghosts over them each frame.
  * Dragging turns the camera. The ground is made up.
