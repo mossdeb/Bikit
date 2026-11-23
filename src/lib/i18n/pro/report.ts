@@ -279,22 +279,24 @@ const en = {
       /** The logger's live SAG (firmware V19.0.038, 2026-11-22): both
        * ends' compression read by the linear sensors as the rider sits. */
       liveSag: {
+        /** The button on the setup and the popup's title (2026-11-23). */
         start: "Live SAG",
+        title: "Live SAG",
+        close: "Close",
         connecting: "Connecting to the logger…",
         authenticating: "Unlocking the logger…",
         starting: "Starting the live reading…",
-        live: "Live",
         settle: "Sit on the bike in your riding position and hold still.",
         steady: "Steady — ready to save.",
         stale: "The logger stopped sending readings.",
         save: "Save reading",
-        stop: "Stop",
-        cancel: "Cancel",
-        /** The bike's line while live: the pitch the sensors give. */
-        bySensors: "From the linear sensors",
-        /** The drop tiles' captions while live. */
-        rearCaption: "from the shock",
-        frontCaption: "from the fork",
+        /** The link failed or was refused: try again from the popup. */
+        retry: "Connect again",
+        /** Beside the share on each end's bar. */
+        ofTravel: "of travel",
+        /** The geometry card without the numbers to tilt the bike. */
+        needsNumbers:
+          "Fill in the stroke, the rear wheel travel, the wheelbase and the head angle to see the bike's balance.",
       },
       /** Deleting a bike's setup from its Pro page (2026-10-27). */
       delete: "Delete",
@@ -682,19 +684,19 @@ const pt: typeof en = {
       sagOfTravel: "de SAG",
       liveSag: {
         start: "SAG em direto",
+        title: "Live SAG",
+        close: "Fechar",
         connecting: "A ligar ao logger…",
         authenticating: "A desbloquear o logger…",
         starting: "A iniciar a leitura em direto…",
-        live: "Em direto",
         settle: "Sobe para a bicicleta na posição de condução e fica quieto.",
         steady: "Estável — podes guardar.",
         stale: "O logger deixou de enviar leituras.",
         save: "Guardar leitura",
-        stop: "Parar",
-        cancel: "Cancelar",
-        bySensors: "Pelos sensores lineares",
-        rearCaption: "pelo amortecedor",
-        frontCaption: "pelo garfo",
+        retry: "Ligar outra vez",
+        ofTravel: "do curso",
+        needsNumbers:
+          "Preenche o stroke, o curso da roda traseira, o entre eixos e o ângulo de direção para ver o equilíbrio da bicicleta.",
       },
       delete: "Apagar",
       deleteConfirm: "Confirmar apagar",

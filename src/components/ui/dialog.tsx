@@ -41,6 +41,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
 function DialogContent({
   className,
   overlayClassName,
+  nested = false,
   children,
   showClose = true,
   ...props
@@ -49,10 +50,14 @@ function DialogContent({
   /** The backdrop's own classes — a popup with a slower exit gives the
    * backdrop the same duration, so the two leave together. */
   overlayClassName?: string
+  /** Opened over another dialog (the setup's Live SAG, 2026-11-23): Base UI
+   * draws no backdrop for a nested dialog unless told to, and the one
+   * under it would stay lit. */
+  nested?: boolean
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay className={overlayClassName} />
+      <DialogOverlay className={overlayClassName} forceRender={nested} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
