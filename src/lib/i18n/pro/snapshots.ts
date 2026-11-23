@@ -62,6 +62,8 @@ const en = {
       label: "Drawing",
       /** The 3D view's camera straight down (2026-11-23). */
       top: "Top view",
+      /** The jumps' 3D camera from the front (2026-11-23). */
+      front: "Front view",
       /** The map's two view buttons (2026-11-05). */
       views: {
         label: "Map view",
@@ -324,6 +326,7 @@ const pt: typeof en = {
     layout: {
       label: "Desenho",
       top: "Vista de topo",
+      front: "Vista de frente",
       views: {
         label: "Vista do mapa",
         alignedTrail: "Linhas",

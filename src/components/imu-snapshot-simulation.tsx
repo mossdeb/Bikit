@@ -39,6 +39,7 @@ import {
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
 import { AdminOnly } from "@/components/admin-ui";
+import { SimulationJump3D } from "@/components/imu-simulation-jump-3d";
 import { SimulationMap3D } from "@/components/imu-simulation-3d";
 
 /**
@@ -106,6 +107,8 @@ const JUMP_TAIL_MS = 500;
 const FADE_PIECES = 24;
 /** The corners' map in 3D (2026-11-23); false brings the 2D map back. */
 const MAP_3D: boolean = true;
+/** The jumps in 3D (2026-11-23); false brings the side view back. */
+const JUMP_3D: boolean = true;
 const FADE_FROM = 0.05;
 /** The plate's grey made solid — bg-muted/60 over the card. */
 const PLATE_GREY = "color-mix(in srgb, var(--muted) 60%, var(--card))";
@@ -200,6 +203,9 @@ export function ImuSnapshotSimulation({
   // The corners' map in 3D for everyone (by request, 2026-11-23; Dev info
   // only before that). The 2D map stays in the code, one switch away.
   const view3d = MAP_3D;
+  // The jumps in 3D for everyone (by request, 2026-11-23; Dev info only
+  // the hour before). The side view stays in the code, one switch away.
+  const jump3d = JUMP_3D;
   const chooseLayout = (next: SimulationLayout) => {
     setLayout(next);
     try {
@@ -508,6 +514,39 @@ export function ImuSnapshotSimulation({
     </p>
   );
 
+  // The jumps' switch between the two clocks, in the plate's corner.
+  const syncSwitch = (
+    <div
+      role="radiogroup"
+      aria-label={words.sync.label}
+      className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
+    >
+      {(["takeoff", "entry"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          role="radio"
+          aria-checked={syncAt === mode}
+          onClick={() => {
+            if (mode === syncAt) return;
+            setSyncAt(mode);
+            setPlaying(false);
+            const [from] = windowFor(mode);
+            cursorRef.current = from;
+            setCursorMs(from);
+          }}
+          className={cn(
+            "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            syncAt === mode
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {words.sync[mode]}
+        </button>
+      ))}
+    </div>
+  );
   return (
     <section
       aria-labelledby="snapshot-simulation-title"
@@ -682,7 +721,20 @@ export function ImuSnapshotSimulation({
       </div>
 
       <div className="min-w-0">
-        {kind === "jump" ? (
+        {kind === "jump" && jump3d ? (
+          <SimulationJump3D
+            passes={passes.filter((p) => !hidden.has(p.key))}
+            framed={passes}
+            reference={reference}
+            followed={followed}
+            inkOf={inkOf}
+            cursorMs={cursorMs}
+            timeOf={(p) => localMs(p, cursorMs)}
+            readout={clock}
+            corner={syncSwitch}
+            topLabel={words.layout.front}
+          />
+        ) : kind === "jump" ? (
           <ImuSnapshotJumpProfile
             passes={passes.filter((p) => !hidden.has(p.key))}
             framed={passes}
@@ -694,38 +746,7 @@ export function ImuSnapshotSimulation({
             readout={clock}
             words={words.jump}
             locale={locale}
-            corner={
-              <div
-                role="radiogroup"
-                aria-label={words.sync.label}
-                className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
-              >
-                {(["takeoff", "entry"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={syncAt === mode}
-                    onClick={() => {
-                      if (mode === syncAt) return;
-                      setSyncAt(mode);
-                      setPlaying(false);
-                      const [from] = windowFor(mode);
-                      cursorRef.current = from;
-                      setCursorMs(from);
-                    }}
-                    className={cn(
-                      "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                      syncAt === mode
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {words.sync[mode]}
-                  </button>
-                ))}
-              </div>
-            }
+            corner={syncSwitch}
           />
         ) : (
           <>
