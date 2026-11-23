@@ -85,6 +85,7 @@ import {
   setupSummary,
   type ImuSetupValues,
 } from "@/lib/imu/setup";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * A Snapshot's page: the reference pass pinned at the top, and under it
@@ -885,13 +886,17 @@ export function ImuSnapshotView({
                     </Link>{" "}
                     {t.snapshots.view.atTime(
                       formatSessionTime(snapshot.referenceEntryMs),
-                    )}{" "}
-                    ·{" "}
+                    )}
                   </>
                 ) : (
-                  `${t.snapshots.view.referenceDeleted} · `
+                  t.snapshots.view.referenceDeleted
                 )}
-                {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
+                {/* Where the gates sit: Dev info (2026-11-23), its "·"
+                    with it so none is left dangling. */}
+                <AdminOnly>
+                  {" · "}
+                  {t.snapshots.view.gatesFromEvent(SNAPSHOT_GATE_OFFSET_M)}
+                </AdminOnly>
               </p>
             </div>
           </div>

@@ -64,6 +64,7 @@ import {
   setImuSessionTrack,
   updateImuTrack,
 } from "@/lib/actions/imu-tracks";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * Start and finish (by request, 2026-10-24): the button beside the
@@ -800,7 +801,10 @@ function TrackView({
         {timed.length <= 1 && pending.length === 0 && (
           <p className="mt-2 text-sm text-muted-foreground">{t.noOtherRuns}</p>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">{t.tie}</p>
+        {/* How fine the lines measure: Dev info (2026-11-23). */}
+        <AdminOnly>
+          <p className="mt-2 text-xs text-muted-foreground">{t.tie}</p>
+        </AdminOnly>
       </div>
 
       {others.length > 0 && (

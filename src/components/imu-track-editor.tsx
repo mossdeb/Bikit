@@ -58,6 +58,7 @@ import {
   type Passed,
   type Prepared,
 } from "@/components/imu-session-track";
+import { useAdminUi } from "@/components/admin-ui";
 
 /**
  * The track editor (by request, 2026-11-09): the start and finish drawn on
@@ -250,6 +251,7 @@ function Editor({
 }) {
   const t = useProDict().tracks;
   const common = useProDict().common;
+  const adminUi = useAdminUi();
   const router = useRouter();
   const sessionHref = `/pro/sessoes/${sessionId}`;
   const route = prepared.track;
@@ -605,9 +607,12 @@ function Editor({
               {/* Under them: the tracks near the run that it does not count
                   on, and "Delete track" at the line's end (by request,
                   2026-11-15). */}
-              {(excluded.length > 0 || editing) && (
+              {((excluded.length > 0 && adminUi) || editing) && (
                 <div className="flex flex-wrap items-start justify-between gap-3 pt-1">
-                  {excluded.length > 0 ? (
+                  {/* The tracks near the run it does not count on: Dev
+                      info (2026-11-23). Without them a spacer keeps
+                      "Delete track" at the line's end. */}
+                  {excluded.length > 0 && adminUi ? (
                     <div className="min-w-0 flex-1 space-y-1 text-sm text-muted-foreground">
                       <p>{t.picker.excludedTitle}</p>
                       <ul className="space-y-0.5">

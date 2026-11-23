@@ -23,6 +23,7 @@ import {
   type EffectKnobId,
   type SagTone,
 } from "@/lib/imu/setup-balance";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * The setup comparison's Balance (by request, 2026-10-28), under the
@@ -302,9 +303,12 @@ export function ImuSetupBalance({
                       </span>
                     ))}
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {words.art.hint}
-                </p>
+                {/* How to read the drawing: Dev info (2026-11-23). */}
+                <AdminOnly>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {words.art.hint}
+                  </p>
+                </AdminOnly>
               </>
             ) : (
               <p className="text-xs text-muted-foreground">{words.art.none}</p>

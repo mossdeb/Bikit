@@ -20,6 +20,7 @@ import {
   SETUP_COMPONENT_CATEGORIES,
   setupLabelsOf,
 } from "@/lib/imu/setup-labels";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * Bikit Pro: one bike, and only its setups (2026-09-24) — the distinct
@@ -145,13 +146,16 @@ export default async function ProBikePage({
               t.common.setup(setups.length),
               t.common.session(sessionCount),
             )}
-            {" · "}
-            <Link
-              href={`/bikes/${bike.id}`}
-              className="text-foreground underline-offset-2 hover:underline"
-            >
-              {t.report.bikes.bikeInApp}
-            </Link>
+            {/* The bike in the maintenance app: Dev info (2026-11-23). */}
+            <AdminOnly>
+              {" · "}
+              <Link
+                href={`/bikes/${bike.id}`}
+                className="text-foreground underline-offset-2 hover:underline"
+              >
+                {t.report.bikes.bikeInApp}
+              </Link>
+            </AdminOnly>
           </p>
         </div>
       </div>

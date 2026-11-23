@@ -38,6 +38,7 @@ import {
   type SimulationLayout,
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * The comparison's simulation (by request, 2026-10-28, from sketches):
@@ -636,10 +637,13 @@ export function ImuSnapshotSimulation({
             );
           })}
         </ul>
+        {/* The passes left out of the replay: Dev info (2026-11-23). */}
         {notShown > 0 && (
-          <p className="mt-3 px-3 text-xs text-muted-foreground">
-            {words.notShown(notShown)}
-          </p>
+          <AdminOnly>
+            <p className="mt-3 px-3 text-xs text-muted-foreground">
+              {words.notShown(notShown)}
+            </p>
+          </AdminOnly>
         )}
       </div>
 
