@@ -38,7 +38,8 @@ import {
   type SimulationLayout,
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
-import { AdminOnly } from "@/components/admin-ui";
+import { AdminOnly, useAdminUi } from "@/components/admin-ui";
+import { SimulationMap3D } from "@/components/imu-simulation-3d";
 
 /**
  * The comparison's simulation (by request, 2026-10-28, from sketches):
@@ -194,6 +195,10 @@ export function ImuSnapshotSimulation({
   // the side. The simulation only ever renders in the browser, once the
   // files are read, so the stored choice is read straight away.
   const [layout, setLayout] = useState<SimulationLayout>(readStoredLayout);
+  // The 3D view, a prototype (2026-11-23): Dev info only, and there always —
+  // its switch removed by request the same day. Others keep the 2D map.
+  const adminUi = useAdminUi();
+  const view3d = adminUi;
   const chooseLayout = (next: SimulationLayout) => {
     setLayout(next);
     try {
@@ -227,6 +232,34 @@ export function ImuSnapshotSimulation({
     p === reference ? REFERENCE_INK : SERIES[others.indexOf(p)];
 
   const totalMs = Math.max(...passes.map((p) => p.trace.durationMs));
+  // The map's views, small in its corner, in 2D and in 3D alike.
+  const viewButtonClass = (on: boolean) =>
+    cn(
+      "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+      on
+        ? "bg-foreground text-background"
+        : "text-muted-foreground hover:text-foreground",
+    );
+  const viewButtons = (
+    <div
+      role="radiogroup"
+      aria-label={words.layout.views.label}
+      className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
+    >
+      {MAP_VIEWS.map((v) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={layout === v}
+          onClick={() => chooseLayout(v)}
+          className={viewButtonClass(layout === v)}
+        >
+          {words.layout.views[v]}
+        </button>
+      ))}
+    </div>
+  );
   // A jump's clock trimmed to the flights (by request, 2026-10-29): the
   // gates stand 20 m either side of the event, so the first two seconds
   // were the run-in, the dots waiting at the plate's edge. From a moment
@@ -725,6 +758,34 @@ export function ImuSnapshotSimulation({
                 </p>
               </div>
             )}
+            {view3d ? (
+              <SimulationMap3D
+                passes={passes
+                  .filter((p) => !hidden.has(p.key))
+                  .map((p) => ({
+                    key: p.key,
+                    trace: p.trace,
+                    ink: inkOf(p),
+                    name: p.name,
+                    rider: p.rider,
+                  }))}
+                reference={{
+                  key: reference.key,
+                  trace: reference.trace,
+                  ink: inkOf(reference),
+                }}
+                followedKey={followed.key}
+                lines={layout !== "ghost"}
+                surroundings={surroundings}
+                cursorMs={cursorMs}
+                // Taller than the 2D plate (by request, 2026-11-23): the
+                // hills want room above the trail.
+                height={560}
+                clock={clock}
+                views={viewButtons}
+                topLabel={words.layout.top}
+              />
+            ) : (
             <SimulationMap
               ghost={layout === "ghost"}
               widened={widened}
@@ -736,33 +797,9 @@ export function ImuSnapshotSimulation({
               surroundings={surroundings}
               cursorMs={cursorMs}
               clock={clock}
-              views={
-                // The map's two views, small in its corner.
-                <div
-                  role="radiogroup"
-                  aria-label={words.layout.views.label}
-                  className="flex h-9 items-center gap-0.5 rounded-[12px] bg-card p-1 text-sm"
-                >
-                  {MAP_VIEWS.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      role="radio"
-                      aria-checked={layout === v}
-                      onClick={() => chooseLayout(v)}
-                      className={cn(
-                        "h-7 rounded-[8px] px-3 font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                        layout === v
-                          ? "bg-foreground text-background"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {words.layout.views[v]}
-                    </button>
-                  ))}
-                </div>
-              }
+              views={viewButtons}
             />
+            )}
             {/* The passes at the cursor, under the map (by request,
                 2026-11-05). */}
             <div className="mt-3">{readout}</div>

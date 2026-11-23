@@ -60,6 +60,8 @@ const en = {
     },
     layout: {
       label: "Drawing",
+      /** The 3D view's camera straight down (2026-11-23). */
+      top: "Top",
       /** The map's two view buttons (2026-11-05). */
       views: {
         label: "Map view",
@@ -321,6 +323,7 @@ const pt: typeof en = {
     },
     layout: {
       label: "Desenho",
+      top: "Topo",
       views: {
         label: "Vista do mapa",
         alignedTrail: "Linhas",
