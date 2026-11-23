@@ -517,12 +517,14 @@ export function Scene3DView({
         ctx.lineWidth = 0.6;
         ctx.stroke();
       }
-      // The top, the colour itself, with a thin light rim.
+      // The top, the colour itself — no light rim (by request, 2026-11-23:
+      // it read as a wireframe outline on the arrows). Stroked in its own
+      // colour, only to close the hairline against the sides.
       polygon(t2);
       ctx.fillStyle = tint(1.04);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = tint(1.04);
+      ctx.lineWidth = 0.6;
       ctx.stroke();
       // Its place on screen: the middle of its top and its widest reach.
       const mx = t2.reduce((s, q) => s + q[0], 0) / SIDES;
