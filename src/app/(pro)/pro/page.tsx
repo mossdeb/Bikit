@@ -21,6 +21,7 @@ import { ImuSessionDeleteButton } from "@/components/imu-session-delete-button";
 import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
 import { ImuSessionThumb } from "@/components/imu-session-thumb";
 import { isTrackIndex } from "@/lib/imu/snapshot";
+import { AdminOnly } from "@/components/admin-ui";
 
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
@@ -171,13 +172,16 @@ export default async function ImuLabPage() {
             <span className="text-foreground">
               {formatDate(session.created_at, locale)}
             </span>
-            <span>
-              · {Math.round(session.sample_rate_hz)} Hz ·{" "}
-              <span className="tabular-nums">
-                {proNumber(session.sample_count, locale)}
-              </span>{" "}
-              {t.common.units.samples}
-            </span>
+            {/* The file's rate and count: Dev info (2026-11-23). */}
+            <AdminOnly>
+              <span>
+                · {Math.round(session.sample_rate_hz)} Hz ·{" "}
+                <span className="tabular-nums">
+                  {proNumber(session.sample_count, locale)}
+                </span>{" "}
+                {t.common.units.samples}
+              </span>
+            </AdminOnly>
           </p>
           {/* The duration to the thousandth with the header's stopwatch (by
               request, 2026-10-24) — trimmed to a track's lines, the run's

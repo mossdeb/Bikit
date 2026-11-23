@@ -4085,10 +4085,13 @@ const SHOW_MOUNTING_BADGE = false;
 
 export function SessionFileBadges() {
   const session = useContext(SessionDataContext);
+  // How the IMU's words were put back is the analysis's business: Dev info
+  // (2026-11-23). The vibration warning stays — it asks the rider to act.
+  const adminUi = useAdminUi();
   if (!session) return null;
   return (
     <p className="mt-1 flex flex-wrap items-baseline gap-x-2.5">
-      <RealignmentBadge session={session} />
+      {adminUi && <RealignmentBadge session={session} />}
       {/* "Bicycle · forward by the logger (57%)" hidden for now (by
           request, 2026-11-12); kept to come back. */}
       {SHOW_MOUNTING_BADGE && <MountingBadge session={session} />}
