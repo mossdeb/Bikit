@@ -125,18 +125,29 @@ export function SimulationMap3D({
       paths,
       inkPaths: lines ? undefined : new Set([reference.key]),
       tokens: new Map(passes.map((p) => [p.key, tipOf(p.trace)])),
-      // Each arrow along its pass's way at the cursor: from where it was a
-      // little before (a few metres back at speed).
+      // Each arrow along its pass's way at the cursor: over a window either
+      // side of it, held inside the pass — at its ends the window slides in
+      // rather than shrink to nothing, which turned a finished pass's arrow
+      // east (seen 2026-11-24, the arrows jumping as each pass ended).
       headings: new Map(
         passes.map((p) => {
-          const [x0, y0] = toXY(
-            traceValueAt(p.trace, p.trace.latDeg, cursorMs - HEADING_LOOK_MS),
-            traceValueAt(p.trace, p.trace.lonDeg, cursorMs - HEADING_LOOK_MS),
-          );
-          const [x1, y1] = toXY(
-            traceValueAt(p.trace, p.trace.latDeg, cursorMs + HEADING_LOOK_MS),
-            traceValueAt(p.trace, p.trace.lonDeg, cursorMs + HEADING_LOOK_MS),
-          );
+          const end = p.trace.durationMs;
+          const span = Math.min(2 * HEADING_LOOK_MS, end);
+          const from = Math.max(0, Math.min(end - span, cursorMs - HEADING_LOOK_MS));
+          const at = (ms: number) =>
+            toXY(
+              traceValueAt(p.trace, p.trace.latDeg, ms),
+              traceValueAt(p.trace, p.trace.lonDeg, ms),
+            );
+          const [x1, y1] = at(from + span);
+          // Stopped (the replay's line holds still under 2 m): look further
+          // back until it had moved, so the arrow keeps the way it came.
+          let back = from;
+          let [x0, y0] = at(back);
+          while (Math.hypot(x1 - x0, y1 - y0) < 0.05 && back > 0) {
+            back = Math.max(0, back - HEADING_LOOK_MS);
+            [x0, y0] = at(back);
+          }
           return [p.key, Math.atan2(y1 - y0, x1 - x0)];
         }),
       ),
