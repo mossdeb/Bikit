@@ -64,6 +64,7 @@ const en = {
       top: "Top view",
       /** The jumps' 3D camera from the front (2026-11-23). */
       front: "Front view",
+      labels: "Names",
       /** The map's two view buttons (2026-11-05). */
       views: {
         label: "Map view",
@@ -327,6 +328,7 @@ const pt: typeof en = {
       label: "Desenho",
       top: "Vista de topo",
       front: "Vista de frente",
+      labels: "Nomes",
       views: {
         label: "Vista do mapa",
         alignedTrail: "Linhas",

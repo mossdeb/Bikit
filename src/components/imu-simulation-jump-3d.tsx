@@ -34,6 +34,8 @@ export function SimulationJump3D({
   readout,
   corner,
   topLabel,
+  caption,
+  namesLabel,
 }: {
   /** The passes on show. */
   passes: SimulationPass[];
@@ -50,6 +52,8 @@ export function SimulationJump3D({
   /** The switch between the two clocks, in the top-left corner. */
   corner?: React.ReactNode;
   topLabel?: string;
+  caption?: React.ReactNode;
+  namesLabel?: string;
 }) {
   const shapeOf = (p: SimulationPass): FlightShape | null =>
     p.flight ? flightShape(p.flight.airtimeMs, p.flight.takeoffKmh) : null;
@@ -152,6 +156,8 @@ export function SimulationJump3D({
       clock={readout}
       views={corner}
       topLabel={topLabel}
+      caption={caption}
+      namesLabel={namesLabel}
     />
   );
 }

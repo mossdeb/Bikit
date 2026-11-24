@@ -818,6 +818,13 @@ export function ImuSnapshotView({
         ]
       : [];
   const notSimulated = others.length - simulatedOthers.length;
+  // Where the reference was ridden, for the simulation's corner
+  // (2026-11-24): its track, as the account names it, over the place.
+  const referenceState = reference ? loaded.get(reference.session.id) : undefined;
+  const referenceGps =
+    referenceState?.status === "done" ? referenceState.prepared.session.gps : null;
+  const referenceTrackName =
+    tracks.find((track) => reference?.trackIds?.includes(track.id))?.name ?? null;
 
   // The head's corner: the popup's close disc, or a saved Snapshot's menu.
   const headAction = draft ? (
@@ -1112,6 +1119,8 @@ export function ImuSnapshotView({
             surroundings={mapData.surroundings}
             notShown={notSimulated}
             kind={snapshot.definition.kind}
+            trackName={referenceTrackName}
+            placeGps={referenceGps}
           />
         )}
     </div>

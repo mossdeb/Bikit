@@ -39,6 +39,8 @@ export function SimulationMap3D({
   clock,
   views,
   topLabel,
+  caption,
+  namesLabel,
 }: {
   passes: Pass3D[];
   reference: Pass3D;
@@ -54,6 +56,8 @@ export function SimulationMap3D({
   views?: React.ReactNode;
   /** The top-view switch's label; no switch without it. */
   topLabel?: string;
+  caption?: React.ReactNode;
+  namesLabel?: string;
 }) {
   // Metres east and north of the reference's entry, as the 2D map.
   const lat0 = reference.trace.latDeg[0];
@@ -167,6 +171,8 @@ export function SimulationMap3D({
       clock={clock}
       views={views}
       topLabel={topLabel}
+      caption={caption}
+      namesLabel={namesLabel}
     />
   );
 }

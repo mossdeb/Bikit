@@ -132,6 +132,8 @@ export function Scene3DView({
   clock,
   views,
   topLabel,
+  caption,
+  namesLabel,
 }: {
   scene: Scene;
   passes: View3DPass[];
@@ -152,6 +154,11 @@ export function Scene3DView({
   views?: React.ReactNode;
   /** The top-view switch's label; no switch without it. */
   topLabel?: string;
+  /** In the bottom-right corner: the track and the place. */
+  caption?: React.ReactNode;
+  /** The names switch's label: every pass's pill over its token, always.
+   * No switch without it. */
+  namesLabel?: string;
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -575,6 +582,38 @@ export function Scene3DView({
     setHover(best ? { key: best.key, x, y } : null);
   };
   const hovered = hover && passes.find((p) => p.key === hover.key);
+
+  // Every pass's pill over its token, always, by a switch (by request,
+  // 2026-11-24). Placed nearest first; a pill that would cover one already
+  // placed climbs above it, a hairline down to its token.
+  const [names, setNames] = useState(false);
+  const pins = useMemo(() => {
+    if (!names || !namesLabel) return [];
+    const project = projector(cam, width, height);
+    const lift = (tokenRadiusM ?? scene.roadHalfM * 0.24) * 0.45;
+    const PILL_H = 26;
+    const placed = passes
+      .flatMap((p) => {
+        const at = frame.tokens.get(p.key);
+        const s = at && project([at[0], at[1], at[2] + lift]);
+        return s && p.name ? [{ p, x: s[0], y: s[1], depth: s[2] }] : [];
+      })
+      .sort((a, b) => a.depth - b.depth);
+    const rects: { l: number; r: number; t: number; b: number }[] = [];
+    return placed.map(({ p, x, y }) => {
+      // The pill's width, near enough: its words at the xs size, the dot
+      // and the padding.
+      const w = (p.name!.length + (p.rider?.length ?? 0)) * 6.2 + 44;
+      const left = Math.min(width - w - 8, Math.max(8, x - w / 2));
+      // Well clear of its arrow (by request, 2026-11-24), a hairline down.
+      let top = y - 56 - PILL_H;
+      const hits = (t: number) =>
+        rects.some((r) => left < r.r && left + w > r.l && t < r.b && t + PILL_H > r.t);
+      while (hits(top) && top > 4) top -= PILL_H + 4;
+      rects.push({ l: left, r: left + w, t: top, b: top + PILL_H });
+      return { p, x, y, left, top, h: PILL_H };
+    });
+  }, [names, namesLabel, cam, width, height, passes, frame, tokenRadiusM, scene]);
   return (
     <div
       ref={boxRef}
@@ -649,6 +688,12 @@ export function Scene3DView({
         }}
       />
       {clock && <div className="absolute bottom-4 left-4">{clock}</div>}
+      {/* Where it was ridden, opposite the clock (2026-11-24). */}
+      {caption && (
+        <div className="pointer-events-none absolute right-4 bottom-4 max-w-[45%]">
+          {caption}
+        </div>
+      )}
       {/* The plate's outline, almost the card's own colour (by request,
           2026-11-23): there, but barely. */}
       <div
@@ -690,9 +735,75 @@ export function Scene3DView({
           )}
         </div>
       )}
+      {namesLabel && (
+        <div
+          className="absolute top-3 right-3"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="switch"
+            aria-checked={names}
+            onClick={() => setNames((on) => !on)}
+            className="flex h-9 cursor-pointer items-center gap-2 rounded-[12px] bg-card px-3 text-sm font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {namesLabel}
+            <span
+              aria-hidden
+              className={cn(
+                "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+                names ? "bg-foreground" : "bg-muted-foreground/30",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 left-0.5 size-3 rounded-full bg-background transition-transform",
+                  names && "translate-x-3",
+                )}
+              />
+            </span>
+          </button>
+        </div>
+      )}
+      {pins.length > 0 && (
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          width={width}
+          height={height}
+        >
+          {pins.map(({ p, x, y, top, h }) =>
+            top + h < y - 8 ? (
+              <line
+                key={p.key}
+                x1={x}
+                y1={top + h}
+                x2={x}
+                y2={y - 6}
+                className="stroke-muted-foreground/50"
+                strokeWidth={1}
+              />
+            ) : null,
+          )}
+        </svg>
+      )}
+      {pins.map(({ p, left, top, h }) => (
+        <div
+          key={p.key}
+          className="pointer-events-none absolute flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-xs whitespace-nowrap shadow-sm"
+          style={{ left, top, height: h }}
+        >
+          <span
+            aria-hidden
+            className={cn("size-2 shrink-0 rounded-full bg-current", p.ink)}
+          />
+          <span className="font-medium">{p.name}</span>
+          {p.rider && <span className="text-muted-foreground">{p.rider}</span>}
+        </div>
+      ))}
       {/* The run and its rider over what the mouse is on, as on the 2D
-          map (by request, 2026-11-23). */}
-      {hover && hovered?.name && (
+          map (by request, 2026-11-23) — not twice, under the names. */}
+      {hover && hovered?.name && !(names && namesLabel) && (
         <div
           className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-full items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm whitespace-nowrap shadow-sm"
           style={{

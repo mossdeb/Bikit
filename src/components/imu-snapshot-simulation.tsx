@@ -39,6 +39,9 @@ import {
   traceValueAt,
 } from "@/lib/imu/snapshot-simulation";
 import { AdminOnly } from "@/components/admin-ui";
+import type { GpsChannels } from "@/lib/imu/format";
+import { FinishFlag } from "@/components/imu-session-track";
+import { lookupPlaceName, readCachedPlace } from "@/lib/imu/place-name";
 import { SimulationJump3D } from "@/components/imu-simulation-jump-3d";
 import { SimulationMap3D } from "@/components/imu-simulation-3d";
 
@@ -187,6 +190,8 @@ export function ImuSnapshotSimulation({
   surroundings,
   notShown,
   kind,
+  trackName = null,
+  placeGps = null,
 }: {
   /** The reference first, then the others in the list's order. */
   passes: SimulationPass[];
@@ -196,9 +201,52 @@ export function ImuSnapshotSimulation({
   notShown: number;
   /** The Snapshot's kind: a jump is drawn from the side, not on a map. */
   kind: SnapshotKind;
+  /** The reference's track, as the account names it. */
+  trackName?: string | null;
+  /** The reference session's GPS, named by OpenStreetMap as the session's
+   * map names it. */
+  placeGps?: GpsChannels | null;
 }) {
   const t = useProDict();
   const locale = useProLocale();
+  // Where it was ridden, in the 3D plate's corner (by request, 2026-11-24):
+  // the track over the place, as the session's map shows them.
+  const [placeName, setPlaceName] = useState<string | null>(() =>
+    placeGps ? readCachedPlace(placeGps, locale) : null,
+  );
+  useEffect(() => {
+    if (!placeGps) return;
+    const ctrl = new AbortController();
+    void lookupPlaceName(placeGps, locale, ctrl.signal).then((label) => {
+      if (label) setPlaceName(label);
+    });
+    return () => ctrl.abort();
+  }, [placeGps, locale]);
+  const caption =
+    trackName || placeName ? (
+      <p className="flex flex-col items-end text-right font-display">
+        {trackName && (
+          // With the track's checkered flag before it (by request,
+          // 2026-11-24), as the track's own marks carry it.
+          <span className="flex max-w-full items-center gap-1.5 text-base leading-tight font-semibold">
+            <FinishFlag className="size-3.5 shrink-0" />
+            <span className="truncate">{trackName}</span>
+          </span>
+        )}
+        {placeName && (
+          <span
+            className={cn(
+              "block max-w-full truncate",
+              trackName
+                ? "text-xs font-medium text-muted-foreground"
+                : "text-sm font-semibold",
+            )}
+          >
+            {placeName}
+          </span>
+        )}
+      </p>
+    ) : null;
   const words = t.snapshots.simulation;
   const reference =
     passesAsRecorded.find((p) => p.isReference) ?? passesAsRecorded[0];
@@ -611,7 +659,7 @@ export function ImuSnapshotSimulation({
         <p className="mt-3 text-sm text-muted-foreground">{words.intro}</p>
 
         {/* Every pass on show, scrolled past a few (2026-11-24). */}
-        <ul className="mt-7 max-h-[560px] space-y-1 overflow-y-auto overscroll-contain">
+        <ul className="mt-7 max-h-[640px] space-y-1 overflow-y-auto overscroll-contain">
           {passes.map((p) => {
             const diff = p.trace.durationMs - reference.trace.durationMs;
             const tone =
@@ -785,6 +833,8 @@ export function ImuSnapshotSimulation({
             readout={clock}
             corner={syncSwitch}
             topLabel={words.layout.front}
+            caption={caption}
+            namesLabel={words.layout.labels}
           />
         ) : kind === "jump" ? (
           <ImuSnapshotJumpProfile
@@ -853,11 +903,14 @@ export function ImuSnapshotSimulation({
                 surroundings={surroundings}
                 cursorMs={cursorMs}
                 // Taller than the 2D plate (by request, 2026-11-23): the
-                // hills want room above the trail.
-                height={560}
+                // hills want room above the trail; a little taller again
+                // on 2026-11-24.
+                height={640}
                 clock={clock}
                 views={viewButtons}
                 topLabel={words.layout.top}
+                caption={caption}
+                namesLabel={words.layout.labels}
               />
             ) : (
             <SimulationMap
