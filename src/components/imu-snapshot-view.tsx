@@ -75,7 +75,6 @@ import {
 import { ImuSnapshotMiniMap } from "@/components/imu-snapshot-mini-map";
 import {
   ImuSnapshotSimulation,
-  SIMULATION_MAX_OTHERS,
   type SimulationPass,
 } from "@/components/imu-snapshot-simulation";
 import {
@@ -784,10 +783,12 @@ export function ImuSnapshotView({
     }
     return out;
   }, [rows, loaded]);
-  // The reference and the first passes on show, in the list's order.
-  const simulatedOthers = others
-    .filter((r) => traces.has(rowKey(r.session.id, r.index)))
-    .slice(0, SIMULATION_MAX_OTHERS);
+  // The reference and every pass on show, in the list's order — the
+  // simulation's list holds them all and replays the first few, the rest
+  // a tick away (by request, 2026-11-24: a rider past the fifth was out).
+  const simulatedOthers = others.filter((r) =>
+    traces.has(rowKey(r.session.id, r.index)),
+  );
   const referenceTrace = reference
     ? traces.get(rowKey(reference.session.id, reference.index))
     : undefined;

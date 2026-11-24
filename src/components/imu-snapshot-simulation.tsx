@@ -75,16 +75,23 @@ export interface SimulationPass {
 /** The passes' colours (by request, 2026-10-28, the lab's palette for
  * lines and charts), ordered so neighbours differ most: the orange and the
  * yellow, a pair hard to tell apart, are never side by side, and the two
- * violets are apart. The reference is the brand's mint. Past five the
- * passes are not replayed: the filters narrow them. */
+ * violets are apart. The reference is the brand's mint. The list holds
+ * every pass, the first few ticked, any of the rest a tick away
+ * (2026-11-24): each ticked one gets a colour no other ticked one has —
+ * past the lab's five, four more, then round again. */
 const SERIES = [
   "text-[#5911F5]",
   "text-[#E02D5A]",
   "text-[#F5AC58]",
   "text-[#4902BD]",
   "text-[#F0DC6C]",
+  "text-[#2EC4B6]",
+  "text-[#FF6FB5]",
+  "text-[#3A86FF]",
+  "text-[#B8BCC6]",
 ];
-export const SIMULATION_MAX_OTHERS = SERIES.length;
+/** The passes ticked when the simulation opens, beside the reference. */
+const TICKED_AT_FIRST = 2;
 const REFERENCE_INK = "text-primary";
 
 /** A gap under this is the gates' own scatter (SNAPSHOT_TIE_MS). */
@@ -235,8 +242,26 @@ export function ImuSnapshotSimulation({
     [passesAsRecorded, reference, drawn],
   );
   const others = passes.filter((p) => p !== reference);
+  // The passes ticked in the list, each with its colour's place in SERIES
+  // (by request, 2026-11-24): the list's first three rows to start with —
+  // the reference and the two after it — and as many more as wanted. Afresh when the passes on show change (the page's filters).
+  const firstTicked = () =>
+    new Map(others.slice(0, TICKED_AT_FIRST).map((p, i) => [p.key, i]));
+  const othersSig = others.map((p) => p.key).join("|");
+  const [tickedSig, setTickedSig] = useState(othersSig);
+  const [colourOf, setColourOf] =
+    useState<ReadonlyMap<string, number>>(firstTicked);
+  const [referenceOff, setReferenceOff] = useState(false);
+  if (tickedSig !== othersSig) {
+    setTickedSig(othersSig);
+    setColourOf(firstTicked());
+  }
   const inkOf = (p: SimulationPass) =>
-    p === reference ? REFERENCE_INK : SERIES[others.indexOf(p)];
+    p === reference
+      ? REFERENCE_INK
+      : colourOf.has(p.key)
+        ? SERIES[colourOf.get(p.key)!]
+        : "text-muted-foreground";
 
   const totalMs = Math.max(...passes.map((p) => p.trace.durationMs));
   // The map's views, small in its corner, in 2D and in 3D alike.
@@ -308,14 +333,32 @@ export function ImuSnapshotSimulation({
   const [followKey, setFollowKey] = useState<string | null>(null);
   // The passes taken off the map and the chart by their box in the list
   // (by request, 2026-10-28). The list keeps them all.
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const toggleShown = (key: string) =>
-    setHidden((prev) => {
-      const next = new Set(prev);
+  const hidden = useMemo<ReadonlySet<string>>(
+    () =>
+      new Set(
+        passes
+          .filter((p) => (p === reference ? referenceOff : !colourOf.has(p.key)))
+          .map((p) => p.key),
+      ),
+    [passes, reference, referenceOff, colourOf],
+  );
+  const toggleShown = (key: string) => {
+    if (key === reference.key) {
+      setReferenceOff((off) => !off);
+      return;
+    }
+    setColourOf((prev) => {
+      const next = new Map(prev);
       if (next.has(key)) next.delete(key);
-      else next.add(key);
+      else {
+        // The first colour no ticked pass has; all taken, round again.
+        const used = new Set(next.values());
+        const free = SERIES.findIndex((_, i) => !used.has(i));
+        next.set(key, free >= 0 ? free : next.size % SERIES.length);
+      }
       return next;
     });
+  };
   const followed =
     passes.find((p) => p.key === followKey) ?? others[0] ?? reference;
   // The trail opened out to hold the lines on the map (2026-11-05), from
@@ -567,7 +610,8 @@ export function ImuSnapshotSimulation({
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">{words.intro}</p>
 
-        <ul className="mt-7 space-y-1">
+        {/* Every pass on show, scrolled past a few (2026-11-24). */}
+        <ul className="mt-7 max-h-[560px] space-y-1 overflow-y-auto overscroll-contain">
           {passes.map((p) => {
             const diff = p.trace.durationMs - reference.trace.durationMs;
             const tone =
@@ -612,7 +656,12 @@ export function ImuSnapshotSimulation({
                   type="button"
                   aria-pressed={p === followed}
                   aria-label={words.select(p.name)}
-                  onClick={() => setFollowKey(p.key)}
+                  onClick={() => {
+                    // Following a pass not on the map ticks it too
+                    // (2026-11-24): there would be nothing to follow.
+                    if (hidden.has(p.key)) toggleShown(p.key);
+                    setFollowKey(p.key);
+                  }}
                   className={cn(
                     // Wraps so a jump's figures take a line of their own,
                     // the whole width (2026-11-06).
