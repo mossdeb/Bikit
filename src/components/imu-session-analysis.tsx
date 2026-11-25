@@ -5060,10 +5060,11 @@ function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
     .map(([ms, v], i) => `${i ? "L" : "M"}${(xPct(ms) / 100) * W},${yPx(v)}`)
     .join(" ");
   return (
-    // Three fifths of the box, on its right (by request, 2026-11-25); the whole
-    // width once the box is too narrow to share.
+    // Three fifths of the box, on its right (by request, 2026-11-25); a row
+    // of its own, the box's width, once the box is too narrow to share —
+    // never wider than it (a 240 px floor ran off a phone's card).
     <div
-      className="relative ml-auto min-w-[240px] flex-1 text-primary @2xl:w-3/5 @2xl:flex-none"
+      className="relative ml-auto w-full min-w-0 text-primary @2xl:w-3/5"
       style={{ height: H + CAPTION }}
     >
       <svg
@@ -5141,9 +5142,14 @@ function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
         >
           <span className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
           {/* The figure big, its unit small (by request, 2026-11-25). */}
+          {/* Kept inside the box near its ends: held by its edge there,
+              not its middle. */}
           <span
-            style={{ marginBottom: lifted[i] ? 30 : 0 }}
-            className="absolute bottom-[12px] -translate-x-1/2 rounded-[10px] border border-border bg-card px-2.5 py-0.5 text-base leading-6 font-bold whitespace-nowrap text-foreground tabular-nums">
+            style={{
+              marginBottom: lifted[i] ? 30 : 0,
+              transform: `translateX(${xPct(m.ms) > 82 ? "calc(-100% + 8px)" : xPct(m.ms) < 18 ? "-8px" : "-50%"})`,
+            }}
+            className="absolute bottom-[12px] rounded-[10px] border border-border bg-card px-2.5 py-0.5 text-base leading-6 font-bold whitespace-nowrap text-foreground tabular-nums">
             {Math.round(m.kmh)}
             <span className="text-xs font-normal"> km/h</span>
           </span>

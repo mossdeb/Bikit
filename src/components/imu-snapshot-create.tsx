@@ -227,7 +227,7 @@ export function ImuSnapshotCreate({
           side, as wide as each other — in the card's foot too. */}
       <div className="grid auto-cols-fr grid-flow-col gap-2">
         <DialogTrigger title={t.snapshots.create.compareTitle} className={pill}>
-          <ArrowLeftRight className="size-5" strokeWidth={1.75} aria-hidden />
+          <ArrowLeftRight className="size-5 shrink-0" strokeWidth={1.75} aria-hidden />
           {t.snapshots.create.compare}
         </DialogTrigger>
         {(kind === "curve" || kind === "jump") && (
@@ -240,7 +240,7 @@ export function ImuSnapshotCreate({
               setToSimulation(true);
             }}
           >
-            <Play className="size-4" strokeWidth={2} aria-hidden />
+            <Play className="size-4 shrink-0" strokeWidth={2} aria-hidden />
             {t.snapshots.create.simulate}
           </button>
         )}
