@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, X } from "lucide-react";
+import { ArrowLeftRight, Play, X } from "lucide-react";
 import { ImuSnapshotGlyph } from "@/components/imu-snapshot-glyph";
 import {
   ImuSnapshotView,
@@ -91,6 +91,10 @@ export function ImuSnapshotCreate({
   const t = useProDict();
   const locale = useProLocale();
   const [open, setOpen] = useState(false);
+  // Opened by "Ver simulação" (by request, 2026-11-25): the same dialog,
+  // scrolled to the simulation once the passes are read and it is drawn.
+  const [toSimulation, setToSimulation] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +157,26 @@ export function ImuSnapshotCreate({
     };
   }, [made, sessionId]);
 
+  // The simulation comes after every file is read, seconds in: watched
+  // for, then scrolled to — once, so the reader's own scroll is theirs.
+  useEffect(() => {
+    if (!open || !toSimulation) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      const title = scrollerRef.current?.querySelector(
+        "#snapshot-simulation-title",
+      );
+      if (title || ++tries > 150) {
+        clearInterval(timer);
+        setToSimulation(false);
+        title
+          ?.closest("section")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 200);
+    return () => clearInterval(timer);
+  }, [open, toSimulation]);
+
   async function save() {
     if (busy || !made) return;
     setBusy(true);
@@ -177,34 +201,50 @@ export function ImuSnapshotCreate({
 
   if (!kind) return null;
   const twin = twins[0] ?? null;
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (next) {
+      setName("");
+      setBusy(false);
+      setError(null);
+      setAnother(false);
+      setSavedId(null);
+      setCandidates(null);
+      setToSimulation(false);
+    }
+  };
+  // The report door's pill, on the event's card: outlined, the mark and
+  // the word (the supplied layout, 2026-09-10) — a control, not a figure,
+  // so it wears the page's outline and not a tile's rules.
+  const pill = cn(
+    "inline-flex shrink-0 items-center justify-center gap-2.5 rounded-[14px] whitespace-nowrap border border-border bg-card px-5 py-3 font-semibold text-foreground",
+    CLICKABLE_CARD_HOVER,
+  );
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) {
-          setName("");
-          setBusy(false);
-          setError(null);
-          setAnother(false);
-          setSavedId(null);
-          setCandidates(null);
-        }
-      }}
-    >
-      <DialogTrigger
-        title={t.snapshots.create.compareTitle}
-        // The report door's pill, on the event's card: outlined, the mark
-        // and the word (the supplied layout, 2026-09-10) — a control, not a
-        // figure, so it wears the page's outline and not a tile's rules.
-        className={cn(
-          "inline-flex shrink-0 items-center gap-2.5 rounded-[14px] border border-border bg-card px-5 py-3 font-semibold text-foreground",
-          CLICKABLE_CARD_HOVER,
+    <Dialog open={open} onOpenChange={changeOpen}>
+      {/* Two doors to the one dialog (by request, 2026-11-25): the
+          simulation had been found only past the whole table. Side by
+          side, as wide as each other — in the card's foot too. */}
+      <div className="grid auto-cols-fr grid-flow-col gap-2">
+        <DialogTrigger title={t.snapshots.create.compareTitle} className={pill}>
+          <ArrowLeftRight className="size-5" strokeWidth={1.75} aria-hidden />
+          {t.snapshots.create.compare}
+        </DialogTrigger>
+        {(kind === "curve" || kind === "jump") && (
+          <button
+            type="button"
+            title={t.snapshots.create.simulateTitle}
+            className={pill}
+            onClick={() => {
+              changeOpen(true);
+              setToSimulation(true);
+            }}
+          >
+            <Play className="size-4" strokeWidth={2} aria-hidden />
+            {t.snapshots.create.simulate}
+          </button>
         )}
-      >
-        <ArrowLeftRight className="size-5" strokeWidth={1.75} aria-hidden />
-        {t.snapshots.create.compare}
-      </DialogTrigger>
+      </div>
       <DialogContent
         // Nearly the whole window (by request, 2026-09-20): the comparison
         // is a page's worth — the passes want ~1030 px to stand in two
@@ -218,7 +258,10 @@ export function ImuSnapshotCreate({
         overlayClassName="data-closed:duration-250"
         className="h-dvh max-h-none w-screen max-w-none grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none bg-background p-0 ring-0 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] data-open:slide-in-from-bottom-[48px] data-open:zoom-in-100! data-closed:duration-250 data-closed:slide-out-to-bottom-[48px] data-closed:zoom-out-100! sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] lg:h-[calc(100dvh-4rem)] lg:max-h-[calc(100dvh-4rem)] lg:w-[calc(100%-4rem)] sm:max-w-none sm:rounded-lg sm:ring-1"
       >
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-[15px] pt-12 pb-6 sm:px-6">
+        <div
+          ref={scrollerRef}
+          className="min-h-0 overflow-y-auto overscroll-contain px-[15px] pt-12 pb-6 sm:px-6"
+        >
           <DialogTitle className="sr-only">
             {t.snapshots.create.dialogTitle}
           </DialogTitle>

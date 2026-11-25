@@ -53,6 +53,7 @@ import {
 } from "@/components/imu-event-icons";
 import { loadImuSession, useImuSession } from "@/lib/imu/use-imu-session";
 import type { ImuSessionTrim } from "@/lib/imu/trim";
+import { lowerBoundIndex, upperBoundIndex } from "@/lib/imu/downsample";
 import {
   ImuSessionLaps,
   ImuSessionSplits,
@@ -376,6 +377,27 @@ interface EventMetric {
   /** The words behind the (i) beside the label — what the figure is and
    * how to read it (the lip's first, 2026-09-27). */
   info?: MetricInfoWords;
+  /** A pace drawn beside the figure — the corner's entry → min → exit
+   * (2026-11-25): the module goes first, the card's width. */
+  profile?: SpeedProfile;
+}
+
+interface SpeedProfile {
+  fromMs: number;
+  toMs: number;
+  /** [ms, km/h] along the window. */
+  points: [number, number][];
+  /** The instants the figure names, in order. */
+  marks: { ms: number; kmh: number }[];
+  /** The cursor's instant, while it is inside the window. */
+  nowMs: number | null;
+  /** The speed at the cursor, km/h — the module's figure (by request,
+   * 2026-11-25): the three instants are the chart's. */
+  nowKmh: number | null;
+  /** The corner itself — the telemetry's hatched span. The entry and exit
+   * are the peaks either side of it, so they stand outside it. */
+  curveFromMs: number;
+  curveToMs: number;
 }
 
 interface MetricInfoWords {
@@ -691,12 +713,51 @@ function describeEvent(
               gps,
             )
           : null;
-        if (momentum) {
+        if (momentum && ctx.speed) {
+          // First and the card's width, with the pace drawn through the
+          // three instants (by request, 2026-11-25): the speed line from a
+          // little before the entry's peak to a little after the exit's,
+          // each of the three marked with its figure, the cursor's instant
+          // on it while it is inside.
+          const speed = ctx.speed;
+          const pad = 0.15 * (momentum.exitMs - momentum.entryMs);
+          const fromMs = momentum.entryMs - pad;
+          const toMs = momentum.exitMs + pad;
+          const i0 = lowerBoundIndex(tMs, fromMs);
+          const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, toMs));
+          const stride = Math.max(1, Math.floor((i1 - i0) / 80));
+          const points: [number, number][] = [];
+          for (let i = i0; i <= i1; i += stride) points.push([tMs[i], speed[i]]);
+          // "Velocidade na curva" goes where this one stands (by request,
+          // 2026-11-25): its "agora" is this box's figure, its range the
+          // chart's — kept only where there is no chart to say it.
+          const curveSpeedAt = metrics.findIndex(
+            (m) => m.label === t.event.curveSpeed,
+          );
+          if (curveSpeedAt >= 0) metrics.splice(curveSpeedAt, 1);
+          const cursorMs = cursorIndex >= 0 ? tMs[cursorIndex] : null;
+          const inside = cursorMs != null && cursorMs >= fromMs && cursorMs <= toMs;
           metrics.push({
             label: t.event.entryMinExit,
+            info: t.event.entryMinExitInfo,
             value: `${Math.round(momentum.entryKmh)} → ${Math.round(momentum.minKmh)} → ${Math.round(momentum.exitKmh)}`,
             unit: "km/h",
             Icon: StatGaugeIcon,
+            ...(inside && { now: `${Math.round(speed[cursorIndex])} km/h` }),
+            profile: {
+              fromMs,
+              toMs,
+              points,
+              marks: [
+                { ms: momentum.entryMs, kmh: momentum.entryKmh },
+                { ms: momentum.minMs, kmh: momentum.minKmh },
+                { ms: momentum.exitMs, kmh: momentum.exitKmh },
+              ],
+              nowMs: inside ? cursorMs : null,
+              nowKmh: cursorIndex >= 0 ? speed[cursorIndex] : null,
+              curveFromMs: event.startMs,
+              curveToMs: event.endMs,
+            },
           });
           // The corrected figure when the track allows it — the hill's free
           // speed taken out, so a downhill corner is not credited with the
@@ -4641,8 +4702,13 @@ function EventCard({
   // (2026-11-23).
   const adminUi = useAdminUi();
   const shownConfidence = adminUi ? confidence : null;
-  const compared = metrics.filter((m) => m.now != null || m.progress != null);
-  const plain = metrics.filter((m) => m.now == null && m.progress == null);
+  const featured = metrics.filter((m) => m.profile);
+  const compared = metrics.filter(
+    (m) => !m.profile && (m.now != null || m.progress != null),
+  );
+  const plain = metrics.filter(
+    (m) => !m.profile && m.now == null && m.progress == null,
+  );
   const outside = title != null && outsideMs !== 0;
   /**
    * The titleless card's single figure, printed in its head. Guarded on the
@@ -4790,6 +4856,39 @@ function EventCard({
           track; a box whose figure is wider than its share grows. */}
       {hasBody && (
         <div className="space-y-3 p-[22px]">
+          {featured.map((metric) => (
+            <div
+              key={metric.label}
+              className="relative flex flex-wrap items-center gap-x-8 gap-y-4 rounded-[16px] border border-border px-5 pt-6 pb-3"
+            >
+              {/* How the three are read, in the corner (by request,
+                  2026-11-25): the entry and exit are peaks either side of
+                  the corner, not its ends. */}
+              {metric.info && (
+                <span className="absolute top-4 right-4">
+                  <MetricInfo label={metric.label} info={metric.info} />
+                </span>
+              )}
+              {/* The speed at the cursor, big (by request, 2026-11-25);
+                  the corner's three figures are the chart's tags. */}
+              <div className="shrink-0">
+                {/* The gauge over the word (by request, 2026-11-25). */}
+                {metric.Icon && <metric.Icon className="mb-2 size-7" />}
+                <p className="flex items-center gap-1.5 text-xs leading-4">
+                  {t.speedNow}
+                </p>
+                <p className="mt-1 text-[48px] leading-[52px] font-bold whitespace-nowrap tabular-nums">
+                  {metric.profile?.nowKmh != null
+                    ? Math.round(metric.profile.nowKmh)
+                    : "–"}
+                  <span className="text-xl font-normal"> km/h</span>
+                </p>
+              </div>
+              {metric.profile && (
+                <SpeedProfileChart profile={metric.profile} />
+              )}
+            </div>
+          ))}
           {plain.length > 0 && (
             <div className="flex flex-wrap gap-3">
               {plain.map((metric) => (
@@ -4899,6 +4998,157 @@ function EventCard({
           {actionNode}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The corner's pace beside its "entry → min → exit" (by request,
+ * 2026-11-25, after a supplied reference): the speed line through the
+ * window in the brand's ink, no fill under it, the three instants as dots
+ * with their figures in small tags above and a dashed drop to the floor,
+ * the cursor as a hairline while it is inside. The line is stretched to the
+ * box; the dots and tags are laid over it, so they keep their shape.
+ */
+function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
+  const { fromMs, toMs, points: raw, marks, nowMs, curveFromMs, curveToMs } =
+    profile;
+  const words = useProDict().analysis.card;
+  /** Room under the plot for each instant's name (by request, 2026-11-25). */
+  const CAPTION = 20;
+  const H = 112;
+  const TOP = 40;
+  const PLOT = 60;
+  // Smoothed for the drawing, as the reference reads: the speed series
+  // carries the wheel's jitter, which at this size is noise. The dots sit
+  // on the smoothed line; their tags keep the figures as measured.
+  const points = raw.map(([ms], i): [number, number] => {
+    const a = Math.max(0, i - 4);
+    const b = Math.min(raw.length - 1, i + 4);
+    let sum = 0;
+    for (let k = a; k <= b; k++) sum += raw[k][1];
+    return [ms, sum / (b - a + 1)];
+  });
+  const onLine = (ms: number) => {
+    const j = points.findIndex((p) => p[0] >= ms);
+    if (j <= 0) return points[Math.max(0, j)]?.[1] ?? 0;
+    const [m0, v0] = points[j - 1];
+    const [m1, v1] = points[j];
+    return v0 + ((v1 - v0) * (ms - m0)) / Math.max(1e-9, m1 - m0);
+  };
+  const values = points.map((p) => p[1]);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = Math.max(1, hi - lo);
+  const xPct = (ms: number) => ((ms - fromMs) / (toMs - fromMs)) * 100;
+  const yPx = (kmh: number) => TOP + (1 - (kmh - lo) / span) * PLOT;
+  // Two instants at one place (an entry that was already the slowest) are
+  // drawn once; near ones both stay — the tags climb, the names join.
+  const shown = marks.filter(
+    (m, i) => marks.findIndex((n) => Math.abs(xPct(n.ms) - xPct(m.ms)) < 0.5) === i,
+  );
+  const joined = shown.map(
+    (m, i) => i > 0 && Math.abs(xPct(m.ms) - xPct(shown[i - 1].ms)) < 12,
+  );
+  // A tag too near the one before it climbs over it rather than cover it.
+  const lifted = shown.map(
+    (m, i) => i > 0 && Math.abs(xPct(m.ms) - xPct(shown[i - 1].ms)) < 20,
+  );
+  for (let i = 2; i < lifted.length; i++) if (lifted[i - 1]) lifted[i] = false;
+  const W = 1000;
+  const line = points
+    .map(([ms, v], i) => `${i ? "L" : "M"}${(xPct(ms) / 100) * W},${yPx(v)}`)
+    .join(" ");
+  return (
+    // Three fifths of the box, on its right (by request, 2026-11-25); the whole
+    // width once the box is too narrow to share.
+    <div
+      className="relative ml-auto min-w-[240px] flex-1 text-primary @2xl:w-3/5 @2xl:flex-none"
+      style={{ height: H + CAPTION }}
+    >
+      <svg
+        aria-hidden
+        // The plot's own height, not the box's: the names' row under it
+        // would stretch the line off its dots.
+        className="absolute inset-x-0 top-0 z-[1] w-full overflow-visible"
+        style={{ height: H }}
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+      >
+        <path
+          d={line}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {shown.map((m, i) => (
+        <div
+          key={i}
+          aria-hidden
+          className="absolute bottom-5 border-l border-dashed border-muted-foreground/40"
+          style={{ left: `${xPct(m.ms)}%`, top: yPx(onLine(m.ms)) }}
+        />
+      ))}
+      {/* The corner's own span, hatched as on the telemetry (2026-11-25):
+          the entry's and exit's peaks were read either side of it, and
+          without it they read as the corner's ends. */}
+      <div
+        aria-hidden
+        className="absolute top-0 bottom-5 bg-foreground/[0.03]"
+        style={{
+          left: `${Math.max(0, xPct(curveFromMs))}%`,
+          right: `${Math.max(0, 100 - xPct(curveToMs))}%`,
+          backgroundImage:
+            "repeating-linear-gradient(135deg, color-mix(in srgb, var(--foreground) 7%, transparent) 0 1px, transparent 1px 7px)",
+        }}
+      />
+      {/* The floor (by request, 2026-11-25): a plain dark rule the drops
+          stand on. */}
+      <div aria-hidden className="absolute inset-x-0 bottom-5 h-px bg-border" />
+      {/* Each instant named under its drop. */}
+      {shown.map((m, i) => {
+        if (joined[i]) return null;
+        const k = marks.indexOf(m);
+        const next = joined[i + 1] ? shown[i + 1] : null;
+        const at = next ? (xPct(m.ms) + xPct(next.ms)) / 2 : xPct(m.ms);
+        return (
+          <span
+            key={`name-${k}`}
+            className="absolute bottom-0 -translate-x-1/2 text-xs leading-4 whitespace-nowrap text-muted-foreground"
+            style={{ left: `${at}%` }}
+          >
+            {words.profileMarks[k]}
+            {next && ` · ${words.profileMarks[marks.indexOf(next)]}`}
+          </span>
+        );
+      })}
+      {nowMs != null && (
+        <div
+          aria-hidden
+          className="absolute top-[28px] bottom-5 w-px bg-foreground/70"
+          style={{ left: `${xPct(nowMs)}%` }}
+        />
+      )}
+      {shown.map((m, i) => (
+        <div
+          key={`dot-${i}`}
+          className="absolute"
+          style={{ left: `${xPct(m.ms)}%`, top: yPx(onLine(m.ms)) }}
+        >
+          <span className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+          {/* The figure big, its unit small (by request, 2026-11-25). */}
+          <span
+            style={{ marginBottom: lifted[i] ? 30 : 0 }}
+            className="absolute bottom-[12px] -translate-x-1/2 rounded-[10px] border border-border bg-card px-2.5 py-0.5 text-base leading-6 font-bold whitespace-nowrap text-foreground tabular-nums">
+            {Math.round(m.kmh)}
+            <span className="text-xs font-normal"> km/h</span>
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

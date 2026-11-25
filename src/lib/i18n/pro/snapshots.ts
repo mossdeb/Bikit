@@ -221,8 +221,10 @@ const en = {
   /** "Compare" on an event's card, and the save at the foot of it
    * (imu-snapshot-create). */
   create: {
-    compare: "Analyse & compare",
+    compare: "Compare",
     compareTitle: "Compare every pass through this stretch",
+    simulate: "View simulation",
+    simulateTitle: "Every pass through this stretch, replayed in 3D",
     dialogTitle: "Compare the passes through this stretch",
     dialogDescription:
       "Every pass through this stretch's two gates, in this session and in the others, side by side.",
@@ -453,8 +455,10 @@ const pt: typeof en = {
   },
 
   create: {
-    compare: "Analisar e comparar",
+    compare: "Comparar",
     compareTitle: "Comparar todas as passagens por este troço",
+    simulate: "Ver simulação",
+    simulateTitle: "Todas as passagens por este troço, repetidas em 3D",
     dialogTitle: "Comparar as passagens por este troço",
     dialogDescription:
       "Todas as passagens pelas duas portas deste troço, nesta sessão e nas outras, lado a lado.",

@@ -134,6 +134,24 @@ const en = {
     radius: "Radius (est.)",
     theoreticalLean: "Theoretical lean",
     entryMinExit: "Entry → min → exit",
+    entryMinExitInfo: {
+      intro:
+        "The big figure is your speed at the cursor. The chart draws the pace from a little before the corner to a little after it; the hatched band is the corner itself, as on the telemetry.",
+      points: [
+        {
+          lead: "Entry:",
+          text: "the fastest you went in the 4 s before the corner — the speed you carried before braking, so it usually sits before the band.",
+        },
+        {
+          lead: "Min:",
+          text: "the slowest point between that entry and the corner's end. If you braked early, it can come before the band too.",
+        },
+        {
+          lead: "Exit:",
+          text: "the fastest you went in the 4 s after the corner, or before the next one if it comes sooner.",
+        },
+      ],
+    },
     retention: "Retention",
     elevationDrop: "Elevation drop",
     curveLeft: "Left-hand corner",
@@ -339,6 +357,8 @@ const en = {
     now: (value: string): string => `Now ${value}`,
     /** The word before the live reading, the value set bold after it. */
     nowWord: "Now",
+    speedNow: "Speed in the corner",
+    profileMarks: ["Entry", "Min", "Exit"],
     before: (seconds: string): string => `${seconds} s before`,
     after: (seconds: string): string => `${seconds} s after`,
   },
@@ -543,6 +563,24 @@ const pt: typeof en = {
     radius: "Raio (est.)",
     theoreticalLean: "Inclinação teórica",
     entryMinExit: "Entrada → mín → saída",
+    entryMinExitInfo: {
+      intro:
+        "O número grande é a tua velocidade no cursor. O gráfico mostra o ritmo desde um pouco antes da curva até um pouco depois; a zona tracejada é a própria curva, como na telemetria.",
+      points: [
+        {
+          lead: "Entrada:",
+          text: "a velocidade mais alta nos 4 s antes da curva — a que levavas antes de travar, por isso costuma ficar antes da zona tracejada.",
+        },
+        {
+          lead: "Mín:",
+          text: "o ponto mais lento entre essa entrada e o fim da curva. Se travaste cedo, também pode ficar antes da zona.",
+        },
+        {
+          lead: "Saída:",
+          text: "a velocidade mais alta nos 4 s depois da curva, ou até à curva seguinte, se vier antes.",
+        },
+      ],
+    },
     retention: "Retenção",
     elevationDrop: "Desnível",
     curveLeft: "Curva à esquerda",
@@ -713,6 +751,8 @@ const pt: typeof en = {
     confidence: "Confiança",
     now: (value) => `Agora ${value}`,
     nowWord: "Agora",
+    speedNow: "Velocidade na curva",
+    profileMarks: ["Entrada", "Mín", "Saída"],
     before: (seconds) => `${seconds} s antes`,
     after: (seconds) => `${seconds} s depois`,
   },
