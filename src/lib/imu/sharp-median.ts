@@ -8,9 +8,9 @@
  * control, and only on a side whose LIN1 says infrared. Nothing here touches
  * the file, the timestamps or the linear sensors' path.
  *
- * Not done here, from the same spec, on purpose for now: the 3.3 V LUT to
- * millimetres (the R0073/R0074 peaks go past its 3701 top, which it may not
- * extrapolate), travel and velocity from it, and the RAW/filtered overlay.
+ * The 3.3 V LUT to millimetres is here too (2026-11-25): the distance to
+ * the target, not travel — that needs the zero at full extension and the
+ * mounting. Not done yet: travel, velocity and the RAW/filtered overlay.
  */
 
 import type { ImuSuspensionTrace } from "./format";
@@ -76,6 +76,41 @@ export function contiguousSegments(tMs: ArrayLike<number>): [number, number][] {
   }
   if (tMs.length > 0) out.push([start, tMs.length]);
   return out;
+}
+
+/** The provisional 3.3 V table, mm ↔ RAW (the spec's section 06, measured
+ * on the bench). To redo at 5 V. */
+export const SHARP_LUT_VERSION = "3v3-1";
+const SHARP_LUT_3V3: readonly { mm: number; raw: number }[] = [
+  { mm: 40, raw: 3701 },
+  { mm: 50, raw: 3136 },
+  { mm: 60, raw: 2695 },
+  { mm: 80, raw: 2060 },
+  { mm: 100, raw: 1633 },
+  { mm: 120, raw: 1373 },
+  { mm: 140, raw: 1173 },
+  { mm: 160, raw: 999 },
+  { mm: 180, raw: 872 },
+  { mm: 200, raw: 774 },
+  { mm: 220, raw: 697 },
+  { mm: 240, raw: 617 },
+  { mm: 260, raw: 556 },
+  { mm: 280, raw: 523 },
+  { mm: 300, raw: 466 },
+];
+
+/** Distance to the target, mm, by straight lines between the table's
+ * points. Outside the table (RAW above 3701 — nearer than 40 mm — or below
+ * 466) it is NaN: no extrapolation and no clamping, as the spec says. */
+export function sharpRawToMm(raw: number): number {
+  if (!Number.isFinite(raw)) return NaN;
+  for (let i = 0; i < SHARP_LUT_3V3.length - 1; i++) {
+    const a = SHARP_LUT_3V3[i];
+    const b = SHARP_LUT_3V3[i + 1];
+    if (raw <= a.raw && raw >= b.raw)
+      return a.mm + ((a.raw - raw) / (a.raw - b.raw)) * (b.mm - a.mm);
+  }
+  return NaN;
 }
 
 /** The trace's RAW through the median, segment by segment, index for index

@@ -807,6 +807,9 @@ export function suspensionSeries(
   /** Readings to draw instead of the firmware's median, index for index
    * with `trace.tMs` — the Sharp's experimental median (sharp-median.ts). */
   readings?: ArrayLike<number>,
+  /** True when `readings` are already mm (the Sharp's distance through its
+   * table): drawn as they are, no scale and no zero applied. */
+  readingsMm = false,
 ): {
   values: Float32Array;
   unit: "mm" | "ADC";
@@ -825,6 +828,8 @@ export function suspensionSeries(
     readings ?? trace.medianRaw,
     1,
   );
+  if (readings && readingsMm)
+    return { values, unit: "mm", travel: false, scaleAssumed: false };
   if (mmPerCount == null)
     return { values, unit: "ADC", travel: false, scaleAssumed: false };
   const cal = trace.calibration;

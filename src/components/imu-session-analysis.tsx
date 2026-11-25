@@ -134,54 +134,69 @@ import {
   SHARP_MEDIAN_WINDOWS,
   type SharpMedianWindow,
   sharpMedianRaw,
+  sharpRawToMm,
 } from "@/lib/imu/sharp-median";
 
-/** The Sharp median's window in this browser — a dev's way of looking,
- * like the Dev info switch itself (admin-ui.tsx). Median 11 until changed. */
+/** The Sharp's dev choices in this browser — a dev's way of looking, like
+ * the Dev info switch itself (admin-ui.tsx): the median's window (11 until
+ * changed) and whether the fork reads in mm through the table (on). */
 const SHARP_MEDIAN_KEY = "bikit.sharpMedian";
-const SHARP_MEDIAN_EVENT = "bikit-sharp-median";
+const SHARP_MM_KEY = "bikit.sharpMm";
+const SHARP_PREF_EVENT = "bikit-sharp-pref";
 
-function readSharpMedian(): SharpMedianWindow {
+function readStoredPref(key: string): string | null {
   try {
-    const stored = window.localStorage.getItem(SHARP_MEDIAN_KEY);
-    if (stored != null)
-      return (
-        SHARP_MEDIAN_WINDOWS.find((w) => w === Number(stored)) ??
-        SHARP_MEDIAN_DEFAULT
-      );
+    return window.localStorage.getItem(key);
   } catch {
-    // Blocked storage: the default.
+    return null; // Blocked storage: the defaults.
   }
-  return SHARP_MEDIAN_DEFAULT;
 }
 
-function subscribeSharpMedian(onChange: () => void) {
-  window.addEventListener(SHARP_MEDIAN_EVENT, onChange);
+function readSharpMedian(): SharpMedianWindow {
+  const stored = readStoredPref(SHARP_MEDIAN_KEY);
+  return (
+    (stored != null &&
+      SHARP_MEDIAN_WINDOWS.find((w) => w === Number(stored))) ||
+    (stored === "0" ? 0 : SHARP_MEDIAN_DEFAULT)
+  );
+}
+
+function readSharpMm(): boolean {
+  return readStoredPref(SHARP_MM_KEY) !== "0";
+}
+
+function subscribeSharpPref(onChange: () => void) {
+  window.addEventListener(SHARP_PREF_EVENT, onChange);
   window.addEventListener("storage", onChange);
   return () => {
-    window.removeEventListener(SHARP_MEDIAN_EVENT, onChange);
+    window.removeEventListener(SHARP_PREF_EVENT, onChange);
     window.removeEventListener("storage", onChange);
   };
 }
 
-function useSharpMedianWindow(): [
-  SharpMedianWindow,
-  (w: SharpMedianWindow) => void,
-] {
-  const w = useSyncExternalStore(
-    subscribeSharpMedian,
+function storeSharpPref(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Blocked storage: the choice stays at the default. Dev only.
+  }
+  window.dispatchEvent(new Event(SHARP_PREF_EVENT));
+}
+
+function useSharpPrefs() {
+  const window_ = useSyncExternalStore(
+    subscribeSharpPref,
     readSharpMedian,
     () => SHARP_MEDIAN_DEFAULT,
   );
-  const set = useCallback((next: SharpMedianWindow) => {
-    try {
-      window.localStorage.setItem(SHARP_MEDIAN_KEY, String(next));
-    } catch {
-      // Blocked storage: the window stays at the default. Dev only.
-    }
-    window.dispatchEvent(new Event(SHARP_MEDIAN_EVENT));
-  }, []);
-  return [w, set];
+  const mm = useSyncExternalStore(subscribeSharpPref, readSharpMm, () => true);
+  return {
+    window: window_,
+    mm,
+    setWindow: (w: SharpMedianWindow) =>
+      storeSharpPref(SHARP_MEDIAN_KEY, String(w)),
+    setMm: (on: boolean) => storeSharpPref(SHARP_MM_KEY, on ? "1" : "0"),
+  };
 }
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
@@ -782,7 +797,8 @@ function describeEvent(
           const i1 = Math.min(tMs.length - 1, upperBoundIndex(tMs, toMs));
           const stride = Math.max(1, Math.floor((i1 - i0) / 80));
           const points: [number, number][] = [];
-          for (let i = i0; i <= i1; i += stride) points.push([tMs[i], speed[i]]);
+          for (let i = i0; i <= i1; i += stride)
+            points.push([tMs[i], speed[i]]);
           // "Velocidade na curva" goes where this one stands (by request,
           // 2026-11-25): its "agora" is this box's figure, its range the
           // chart's — kept only where there is no chart to say it.
@@ -791,7 +807,8 @@ function describeEvent(
           );
           if (curveSpeedAt >= 0) metrics.splice(curveSpeedAt, 1);
           const cursorMs = cursorIndex >= 0 ? tMs[cursorIndex] : null;
-          const inside = cursorMs != null && cursorMs >= fromMs && cursorMs <= toMs;
+          const inside =
+            cursorMs != null && cursorMs >= fromMs && cursorMs <= toMs;
           metrics.push({
             label: t.event.entryMinExit,
             info: t.event.entryMinExitInfo,
@@ -1778,28 +1795,36 @@ export function ImuSessionAnalysis({
   // The Sharp IR fork's experimental median (2026-11-25): Dev info only, and
   // only on a fork whose LIN1 says infrared. Off, the fork is the firmware's
   // median as before; on, the RAW through Median N (sharp-median.ts).
+  // With "mm" on, the readings then go through the 3.3 V table to the
+  // distance to the target; outside the table they are holes in the line.
   const adminUi = useAdminUi();
-  const [sharpStored, setSharpWindow] = useSharpMedianWindow();
+  const sharp = useSharpPrefs();
   const forkInfrared = data?.suspension?.fork?.sensor?.infrared === true;
-  const sharpWindow = adminUi && forkInfrared ? sharpStored : 0;
+  const sharpOn = adminUi && forkInfrared;
+  const sharpWindow = sharpOn ? sharp.window : 0;
+  const sharpMm = sharpOn && sharp.mm;
   const suspension = useMemo(() => {
     const s = data?.suspension;
     if (!data || !s) return null;
     const tMs = data.channels.tMs;
+    let forkReadings: ArrayLike<number> | undefined =
+      s.fork && sharpWindow > 0
+        ? sharpMedianRaw(s.fork, sharpWindow)
+        : undefined;
+    if (s.fork && sharpMm)
+      forkReadings = Float64Array.from(
+        forkReadings ?? s.fork.medianRaw,
+        sharpRawToMm,
+      );
     return {
       fork: s.fork
-        ? suspensionSeries(
-            tMs,
-            s.fork,
-            undefined,
-            sharpWindow > 0 ? sharpMedianRaw(s.fork, sharpWindow) : undefined,
-          )
+        ? suspensionSeries(tMs, s.fork, undefined, forkReadings, sharpMm)
         : null,
       shock: s.shock
         ? suspensionSeries(tMs, s.shock, SHOCK_ASSUMED_SCALE)
         : null,
     };
-  }, [data, sharpWindow]);
+  }, [data, sharpWindow, sharpMm]);
 
   const seriesValues = useMemo(() => {
     if (!data || !gForce) return null;
@@ -2144,13 +2169,17 @@ export function ImuSessionAnalysis({
       unit: side?.unit ?? def.unit,
       // Travel from the mounted zero reads differently from the rod's
       // position along the sensor; the summary says which it is.
-      summary: side?.travel
-        ? words.summaryTravel
-        : side?.unit === "ADC"
-          ? words.summaryRaw
-          : side?.scaleAssumed
-            ? words.summaryAssumed
-            : words.summary,
+      // Dev info's Sharp distance: not the rod's position, so said apart.
+      summary:
+        def.id === "fork" && sharpMm
+          ? "Distância ao alvo · LUT 3,3 V"
+          : side?.travel
+            ? words.summaryTravel
+            : side?.unit === "ADC"
+              ? words.summaryRaw
+              : side?.scaleAssumed
+                ? words.summaryAssumed
+                : words.summary,
     };
   });
   // The GPS series are real pills only when this file recorded a track;
@@ -2638,26 +2667,36 @@ export function ImuSessionAnalysis({
     />
   );
   // Dev info, on a Sharp fork only: the median's window, Off to compare.
-  const sharpMenu = adminUi && forkInfrared && (
+  const sharpMenu = sharpOn && (
     <ImuFilterMenu
       summary={
         <>
           <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
           <span className="truncate">
-            {sharpStored > 0 ? `Median ${sharpStored}` : "Median Off"}
+            {sharp.window > 0 ? `Median ${sharp.window}` : "Median Off"}
+            {sharp.mm && " · mm"}
           </span>
         </>
       }
-      items={SHARP_MEDIAN_WINDOWS.map((w) => ({
-        key: `sharp-${w}`,
-        label: w > 0 ? `Median ${w}` : "Off",
-        sublabel:
-          w > 0
-            ? `${w * 2 - 2} ms${w === SHARP_MEDIAN_DEFAULT ? " · spec" : ""}`
-            : "firmware (mediana de 3)",
-        checked: sharpStored === w,
-        onToggle: () => setSharpWindow(w),
-      }))}
+      items={[
+        {
+          key: "sharp-mm",
+          label: "Distância em mm",
+          sublabel: "LUT 3,3 V · 40–300 mm",
+          checked: sharp.mm,
+          onToggle: () => sharp.setMm(!sharp.mm),
+        },
+        ...SHARP_MEDIAN_WINDOWS.map((w) => ({
+          key: `sharp-${w}`,
+          label: w > 0 ? `Median ${w}` : "Off",
+          sublabel:
+            w > 0
+              ? `${w * 2 - 2} ms${w === SHARP_MEDIAN_DEFAULT ? " · spec" : ""}`
+              : "firmware (mediana de 3)",
+          checked: sharp.window === w,
+          onToggle: () => sharp.setWindow(w),
+        })),
+      ]}
     />
   );
   const eventsMenu = (
@@ -4977,9 +5016,7 @@ function EventCard({
                   <span className="text-xl font-normal"> km/h</span>
                 </p>
               </div>
-              {metric.profile && (
-                <SpeedProfileChart profile={metric.profile} />
-              )}
+              {metric.profile && <SpeedProfileChart profile={metric.profile} />}
             </div>
           ))}
           {plain.length > 0 && (
@@ -5104,8 +5141,15 @@ function EventCard({
  * box; the dots and tags are laid over it, so they keep their shape.
  */
 function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
-  const { fromMs, toMs, points: raw, marks, nowMs, curveFromMs, curveToMs } =
-    profile;
+  const {
+    fromMs,
+    toMs,
+    points: raw,
+    marks,
+    nowMs,
+    curveFromMs,
+    curveToMs,
+  } = profile;
   const words = useProDict().analysis.card;
   /** Room under the plot for each instant's name (by request, 2026-11-25). */
   const CAPTION = 20;
@@ -5138,7 +5182,8 @@ function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
   // Two instants at one place (an entry that was already the slowest) are
   // drawn once; near ones both stay — the tags climb, the names join.
   const shown = marks.filter(
-    (m, i) => marks.findIndex((n) => Math.abs(xPct(n.ms) - xPct(m.ms)) < 0.5) === i,
+    (m, i) =>
+      marks.findIndex((n) => Math.abs(xPct(n.ms) - xPct(m.ms)) < 0.5) === i,
   );
   const joined = shown.map(
     (m, i) => i > 0 && Math.abs(xPct(m.ms) - xPct(shown[i - 1].ms)) < 12,
@@ -5242,7 +5287,8 @@ function SpeedProfileChart({ profile }: { profile: SpeedProfile }) {
               marginBottom: lifted[i] ? 30 : 0,
               transform: `translateX(${xPct(m.ms) > 82 ? "calc(-100% + 8px)" : xPct(m.ms) < 18 ? "-8px" : "-50%"})`,
             }}
-            className="absolute bottom-[12px] rounded-[10px] border border-border bg-card px-2.5 py-0.5 text-base leading-6 font-bold whitespace-nowrap text-foreground tabular-nums">
+            className="absolute bottom-[12px] rounded-[10px] border border-border bg-card px-2.5 py-0.5 text-base leading-6 font-bold whitespace-nowrap text-foreground tabular-nums"
+          >
             {Math.round(m.kmh)}
             <span className="text-xs font-normal"> km/h</span>
           </span>

@@ -379,11 +379,19 @@ export function ImuChart({
         return { id: s.id, color: s.color, d: "", raw: false, min, max };
       const range = max - min || 1;
       let d = "";
+      // A non-finite value is a hole (the Sharp's readings outside its
+      // table): the line lifts there and starts again after it.
+      let penDown = false;
       for (let i = 0; i < points.length; i++) {
+        if (!Number.isFinite(points[i].value)) {
+          penDown = false;
+          continue;
+        }
         const x = ((points[i].tMs - w0) / span) * W;
         const y =
           H - PAD_Y - ((points[i].value - min) / range) * (H - PAD_Y * 2);
-        d += `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+        d += `${penDown ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)}`;
+        penDown = true;
       }
       // Raw when the window has fewer samples than two per bucket — the
       // envelope returns them untouched and the label below says so.

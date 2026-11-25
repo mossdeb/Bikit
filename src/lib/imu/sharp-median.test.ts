@@ -3,6 +3,7 @@ import {
   contiguousSegments,
   medianFilter,
   sharpMedianRaw,
+  sharpRawToMm,
 } from "./sharp-median";
 
 describe("medianFilter", () => {
@@ -27,6 +28,18 @@ describe("medianFilter", () => {
 
   it("refuses an even window", () => {
     expect(() => medianFilter([1, 2], 4)).toThrow();
+  });
+});
+
+describe("sharpRawToMm", () => {
+  it("reads the table's points and interpolates between them", () => {
+    expect(sharpRawToMm(1633)).toBe(100);
+    expect(sharpRawToMm((1633 + 1373) / 2)).toBeCloseTo(110);
+  });
+
+  it("is NaN outside the table, never clamped", () => {
+    expect(sharpRawToMm(3996)).toBeNaN();
+    expect(sharpRawToMm(400)).toBeNaN();
   });
 });
 

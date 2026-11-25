@@ -56,6 +56,10 @@ export function minMaxEnvelope(
     let maxIdx = i;
     let j = i;
     while (j <= to && (tMs[j] <= bucketEnd || j === i)) {
+      // A bucket that opens on a hole (NaN) takes its first real sample,
+      // so a gap costs only its own width, not the bucket's.
+      if (Number.isNaN(values[minIdx]) && !Number.isNaN(values[j]))
+        minIdx = maxIdx = j;
       if (values[j] < values[minIdx]) minIdx = j;
       if (values[j] > values[maxIdx]) maxIdx = j;
       j++;
