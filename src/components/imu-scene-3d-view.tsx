@@ -587,6 +587,21 @@ export function Scene3DView({
   // 2026-11-24). Placed nearest first; a pill that would cover one already
   // placed climbs above it, a hairline down to its token.
   const [names, setNames] = useState(false);
+  // A pill's words (by request, 2026-11-25): the run's number, the rider
+  // in white, then the rest of the run's name — the track — in grey.
+  const pillWords = (p: View3DPass) => {
+    const name = p.name ?? "";
+    const cut = name.indexOf(" - ");
+    const run = cut > 0 ? name.slice(0, cut) : name;
+    const rest = cut > 0 ? name.slice(cut + 3) : "";
+    return (
+      <>
+        <span className="font-medium">{run}</span>
+        {p.rider && <span className="font-medium">{p.rider}</span>}
+        {rest && <span className="text-muted-foreground">{rest}</span>}
+      </>
+    );
+  };
   const pins = useMemo(() => {
     if (!names || !namesLabel) return [];
     const project = projector(cam, width, height);
@@ -797,8 +812,7 @@ export function Scene3DView({
             aria-hidden
             className={cn("size-2 shrink-0 rounded-full bg-current", p.ink)}
           />
-          <span className="font-medium">{p.name}</span>
-          {p.rider && <span className="text-muted-foreground">{p.rider}</span>}
+          {pillWords(p)}
         </div>
       ))}
       {/* The run and its rider over what the mouse is on, as on the 2D
@@ -815,10 +829,7 @@ export function Scene3DView({
             aria-hidden
             className={cn("size-2.5 shrink-0 rounded-full bg-current", hovered.ink)}
           />
-          <span className="font-medium">{hovered.name}</span>
-          {hovered.rider && (
-            <span className="text-muted-foreground">{hovered.rider}</span>
-          )}
+          {pillWords(hovered)}
         </div>
       )}
     </div>
