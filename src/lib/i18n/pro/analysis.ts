@@ -136,19 +136,19 @@ const en = {
     entryMinExit: "Entry → min → exit",
     entryMinExitInfo: {
       intro:
-        "The big figure is your speed at the cursor. The chart draws the pace from a little before the corner to a little after it; the hatched band is the corner itself, as on the telemetry.",
+        "The chart shows how the speed evolved before, during and after the corner; the hatched band is the corner as identified on the telemetry.",
       points: [
         {
           lead: "Entry:",
-          text: "the fastest you went in the 4 s before the corner — the speed you carried before braking, so it usually sits before the band.",
+          text: "the highest speed recorded in the 4 seconds before the corner, usually before braking begins.",
         },
         {
-          lead: "Min:",
-          text: "the slowest point between that entry and the corner's end. If you braked early, it can come before the band too.",
+          lead: "Minimum:",
+          text: "the lowest speed recorded between the entry point and the end of the corner. It can come before the corner if braking starts early.",
         },
         {
           lead: "Exit:",
-          text: "the fastest you went in the 4 s after the corner, or before the next one if it comes sooner.",
+          text: "the highest speed reached in the 4 seconds after the end of the corner, or until the start of the next corner if that comes first.",
         },
       ],
     },
@@ -565,19 +565,19 @@ const pt: typeof en = {
     entryMinExit: "Entrada → mín → saída",
     entryMinExitInfo: {
       intro:
-        "O número grande é a tua velocidade no cursor. O gráfico mostra o ritmo desde um pouco antes da curva até um pouco depois; a zona tracejada é a própria curva, como na telemetria.",
+        "O gráfico mostra a evolução da velocidade antes, durante e depois da curva, sendo a zona tracejada correspondente à curva identificada na telemetria.",
       points: [
         {
           lead: "Entrada:",
-          text: "a velocidade mais alta nos 4 s antes da curva — a que levavas antes de travar, por isso costuma ficar antes da zona tracejada.",
+          text: "velocidade máxima registada nos 4 segundos anteriores à curva, geralmente antes de iniciar a travagem.",
         },
         {
-          lead: "Mín:",
-          text: "o ponto mais lento entre essa entrada e o fim da curva. Se travaste cedo, também pode ficar antes da zona.",
+          lead: "Mínima:",
+          text: "velocidade mais baixa registada entre o ponto de entrada e o final da curva. Pode ocorrer antes da curva, caso a travagem seja antecipada.",
         },
         {
           lead: "Saída:",
-          text: "a velocidade mais alta nos 4 s depois da curva, ou até à curva seguinte, se vier antes.",
+          text: "velocidade máxima atingida nos 4 segundos após o final da curva, ou até ao início da curva seguinte, caso esta ocorra primeiro.",
         },
       ],
     },

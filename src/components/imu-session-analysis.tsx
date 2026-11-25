@@ -4855,7 +4855,7 @@ function EventCard({
           grid, so a short last row stretches instead of leaving an empty
           track; a box whose figure is wider than its share grows. */}
       {hasBody && (
-        <div className="space-y-3 p-[22px]">
+        <div className="space-y-4 p-[22px]">
           {featured.map((metric) => (
             <div
               key={metric.label}
@@ -4890,7 +4890,7 @@ function EventCard({
             </div>
           ))}
           {plain.length > 0 && (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-4">
               {plain.map((metric) => (
                 <div
                   key={metric.label}
@@ -4932,7 +4932,7 @@ function EventCard({
             </div>
           )}
           {compared.length > 0 && (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-4">
               {compared.map((metric) => (
                 <div
                   key={metric.label}
