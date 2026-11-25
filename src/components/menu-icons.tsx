@@ -193,3 +193,50 @@ export function MenuLoggerIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** The suspension sensors' types (2026-11-25), drawn in the settings'
+ *  line: a linear position sensor — an eye at each end, the rod sliding out
+ *  of its body — and an infrared distance sensor — its body, the beam's
+ *  waves, and the surface it measures to. Line ≈ 7 % of the box, as the
+ *  Sleep Mode icons. */
+export function LinearSensorIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`overflow-visible ${className ?? ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="2.8" r="1.8" />
+      <path d="M12 4.6V11" />
+      <rect x="8.5" y="11" width="7" height="8.6" rx="1.6" />
+      <path d="M10.5 14h3" />
+      <circle cx="12" cy="21.4" r="1.8" />
+    </svg>
+  );
+}
+
+export function InfraredSensorIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`overflow-visible ${className ?? ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 2.5h16" />
+      <path d="M9.2 12.4a4 4 0 0 1 5.6 0" />
+      <path d="M6.6 9.4a7.6 7.6 0 0 1 10.8 0" />
+      <rect x="7.5" y="15.5" width="9" height="6" rx="1.6" />
+      <circle cx="12" cy="18.5" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

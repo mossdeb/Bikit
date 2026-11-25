@@ -24,6 +24,9 @@ export class SimulatedLoggerTransport implements BikitTransport {
     // The linear sensors (firmware V19.0.036), both recorded by default.
     LINEAR_ENABLED: "1",
     SHOCK_ENABLED: "1",
+    // What each channel carries (firmware V20.7.2): 0 linear, 1 infrared.
+    LINEAR_TYPE: "0",
+    SHOCK_TYPE: "0",
   };
 
   private readonly bornAt = Date.now();
@@ -144,7 +147,9 @@ export class SimulatedLoggerTransport implements BikitTransport {
             k === "AUTO_SLEEP" ||
             k === "GPS_FIX_PROTECTION" ||
             k === "LINEAR_ENABLED" ||
-            k === "SHOCK_ENABLED") &&
+            k === "SHOCK_ENABLED" ||
+            k === "LINEAR_TYPE" ||
+            k === "SHOCK_TYPE") &&
             (v === "0" || v === "1")) ||
           (k === "SLEEP_MIN" && ["5", "10", "15"].includes(v)) ||
           (k === "VEHICLE" && (v === "BICYCLE" || v === "MOTORCYCLE"));

@@ -104,7 +104,15 @@ export interface BikitDeviceConfig {
   /** SHOCK_ENABLED (firmware V19.0.022+): whether the shock sensor (CH1) is
    * read and recorded at all. On by default since V19.0.024. */
   shockEnabled: boolean | null;
+  /** LINEAR_TYPE / SHOCK_TYPE (firmware V20.7.2, 2026-11-25): what is wired
+   * on each channel — 0 a linear position sensor (900 Hz), 1 an infrared
+   * distance sensor (experimental, 500 Hz ADC, raw 12-bit values for now).
+   * Null on firmware that does not send the key: no type to choose. */
+  forkType: BikitSensorType | null;
+  shockType: BikitSensorType | null;
 }
+
+export type BikitSensorType = "LINEAR" | "INFRARED";
 
 /** A config with nothing read yet — every field null. */
 export function emptyDeviceConfig(): BikitDeviceConfig {
@@ -116,6 +124,8 @@ export function emptyDeviceConfig(): BikitDeviceConfig {
     gpsFixProtection: null,
     forkEnabled: null,
     shockEnabled: null,
+    forkType: null,
+    shockType: null,
   };
 }
 
@@ -126,7 +136,15 @@ export type BikitConfigKey =
   | "VEHICLE"
   | "GPS_FIX_PROTECTION"
   | "LINEAR_ENABLED"
-  | "SHOCK_ENABLED";
+  | "SHOCK_ENABLED"
+  | "LINEAR_TYPE"
+  | "SHOCK_TYPE";
+
+/** A sensor type as SET sends it, and back. */
+export const SENSOR_TYPE_VALUE: Record<BikitSensorType, string> = {
+  LINEAR: "0",
+  INFRARED: "1",
+};
 
 export const SLEEP_MINUTES = [5, 10, 15] as const;
 
@@ -161,6 +179,14 @@ function applyConfigLine(
     case "VEHICLE":
       if (v === "BICYCLE" || v === "MOTORCYCLE") config.vehicle = v;
       return;
+    case "LINEAR_TYPE":
+    case "SHOCK_TYPE": {
+      const type = v === "0" ? "LINEAR" : v === "1" ? "INFRARED" : null;
+      if (type === null) return;
+      if (key === "LINEAR_TYPE") config.forkType = type;
+      else config.shockType = type;
+      return;
+    }
   }
 }
 

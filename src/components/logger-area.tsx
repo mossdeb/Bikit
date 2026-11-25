@@ -17,16 +17,20 @@ import {
   SleepModeIcon,
   SleepTimerIcon,
   TimedSleepIcon,
+  LinearSensorIcon,
+  InfraredSensorIcon,
 } from "@/components/menu-icons";
 import { useProDict } from "@/components/pro-locale";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
 import {
+  SENSOR_TYPE_VALUE,
   SLEEP_MINUTES,
   type BikitConfigKey,
   type BikitDeviceConfig,
   type BikitDeviceInfo,
   type BikitGpsStatus,
+  type BikitSensorType,
   type BikitVehicleType,
 } from "@/lib/bikit-ble/protocol";
 import { BikitPinForm, useBikitLink } from "@/components/use-bikit-link";
@@ -465,7 +469,9 @@ function LoggerSettings({
               onSave={(v: BikitVehicleType) => save("VEHICLE", v)}
             />
           </SettingsCard>
-          {/* Each sensor in or out of the recordings: LINEAR_ENABLED (the
+          {/* The suspension's sensors (renamed from "linear" on 2026-11-25,
+              when the infrared one came): each in or out of the recordings,
+              and under each, while on, its type. LINEAR_ENABLED (the
               fork, CH0) and SHOCK_ENABLED (the shock, CH1), the same switch
               for both (by request, 2026-11-22; firmware V19.0.036). Before
               it the firmware sends only the shock's, and the fork's switch
@@ -505,13 +511,29 @@ function LoggerSettings({
               }
               value={config ? config.forkEnabled : null}
               onSave={(on) => save("LINEAR_ENABLED", on ? "1" : "0")}
-            />
+            >
+              {() => (
+                <SensorTypeRow
+                  label={t.linear.fork}
+                  value={config ? config.forkType : null}
+                  onSave={(type) => save("LINEAR_TYPE", SENSOR_TYPE_VALUE[type])}
+                />
+              )}
+            </ToggleRow>
             <ToggleRow
               label={t.linear.shock}
               hint={(on) => (on === false ? t.linear.shockOff : t.linear.shockOn)}
               value={config ? config.shockEnabled : null}
               onSave={(on) => save("SHOCK_ENABLED", on ? "1" : "0")}
-            />
+            >
+              {() => (
+                <SensorTypeRow
+                  label={t.linear.shock}
+                  value={config ? config.shockType : null}
+                  onSave={(type) => save("SHOCK_TYPE", SENSOR_TYPE_VALUE[type])}
+                />
+              )}
+            </ToggleRow>
           </SettingsCard>
         </div>
       </div>
@@ -602,6 +624,7 @@ function ToggleRow({
   hint,
   value,
   onSave,
+  children,
 }: {
   label: string;
   /** Drawn on the title's line, left of it (Auto Stop, 2026-11-09). */
@@ -610,6 +633,8 @@ function ToggleRow({
   hint: string | ((on: boolean | null) => string);
   value: boolean | null;
   onSave: (on: boolean) => Promise<void>;
+  /** Under the row, while the switch is on — a sensor's type (2026-11-25). */
+  children?: (on: boolean) => ReactNode;
 }) {
   const { shown, saving, message, commit } = useSaving(value, onSave);
   const hintText = typeof hint === "function" ? hint(shown) : hint;
@@ -636,6 +661,59 @@ function ToggleRow({
           />
         </div>
       </div>
+      {message?.bad && <RowStatus saving={false} message={message} />}
+      {children && shown === true && children(true)}
+    </div>
+  );
+}
+
+/**
+ * A sensor's type under its switch (by request, 2026-11-25; LINEAR_TYPE /
+ * SHOCK_TYPE, firmware V20.7.2): a dropdown of the two, saved with its own
+ * SET as every setting. Not drawn where the firmware did not send the key;
+ * the type is kept by the logger while its channel is off, and shown again
+ * when it comes back on.
+ */
+function SensorTypeRow({
+  label,
+  value,
+  onSave,
+}: {
+  label: string;
+  value: BikitSensorType | null;
+  onSave: (type: BikitSensorType) => Promise<void>;
+}) {
+  const t = useProDict().logger.settings.linear;
+  const { shown, saving, message, commit } = useSaving(value, onSave);
+  if (value === null) return null;
+  // Cards as Sleep Mode's, not a dropdown (by request, 2026-11-25).
+  return (
+    <div className="mt-5">
+      <ChoiceCards
+        label={`${label}: ${t.type}`}
+        options={[
+          {
+            value: "LINEAR" as const,
+            label: t.typeLinear,
+            hint: t.typeLinearHint,
+            icon: <LinearSensorIcon className="size-6" />,
+          },
+          {
+            value: "INFRARED" as const,
+            label: t.typeInfrared,
+            hint: t.typeInfraredHint,
+            icon: <InfraredSensorIcon className="size-6" />,
+          },
+        ]}
+        shown={shown}
+        saving={saving}
+        disabled={saving}
+        unread={false}
+        onPick={(v) => void commit(v)}
+      />
+      {shown === "INFRARED" && (
+        <p className="mt-3 text-xs text-muted-foreground">{t.infraredNote}</p>
+      )}
       {message?.bad && <RowStatus saving={false} message={message} />}
     </div>
   );
@@ -816,6 +894,39 @@ function ChoiceRow<T extends string | boolean>({
           </div>
         </div>
       )}
+      <ChoiceCards
+        label={label}
+        options={options}
+        shown={shown}
+        saving={saving}
+        disabled={disabled}
+        unread={value === null}
+        onPick={(v) => void commit(v)}
+      />
+      {message?.bad && <RowStatus saving={false} message={message} />}
+    </div>
+  );
+}
+
+/** The cards of a choice — Sleep Mode's, the vehicle's, a sensor's type. */
+function ChoiceCards<T extends string | boolean>({
+  label,
+  options,
+  shown,
+  saving,
+  disabled,
+  unread,
+  onPick,
+}: {
+  label: string;
+  options: { value: T; label: string; hint: string; icon?: ReactNode }[];
+  shown: T | null;
+  saving: boolean;
+  disabled: boolean;
+  unread: boolean;
+  onPick: (v: T) => void;
+}) {
+  return (
       <div role="radiogroup" aria-label={label} className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => {
           const active = shown === o.value;
@@ -826,7 +937,7 @@ function ChoiceRow<T extends string | boolean>({
               role="radio"
               aria-checked={active}
               disabled={disabled}
-              onClick={() => !active && void commit(o.value)}
+              onClick={() => !active && onPick(o.value)}
               className={cn(
                 // Top-aligned: a button centres its content, which sank the
                 // title of the card with the shorter line.
@@ -835,7 +946,7 @@ function ChoiceRow<T extends string | boolean>({
                   ? "border-foreground bg-muted"
                   : "border-border hover:border-muted-foreground/40",
                 disabled ? "cursor-default" : "cursor-pointer",
-                value === null && "opacity-50",
+                unread && "opacity-50",
               )}
             >
               {o.icon && <span className="mb-3 block text-foreground">{o.icon}</span>}
@@ -853,7 +964,5 @@ function ChoiceRow<T extends string | boolean>({
           );
         })}
       </div>
-      {message?.bad && <RowStatus saving={false} message={message} />}
-    </div>
   );
 }

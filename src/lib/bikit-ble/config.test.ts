@@ -36,7 +36,32 @@ describe("CONFIG / SET", () => {
       gpsFixProtection: true,
       forkEnabled: true,
       shockEnabled: true,
+      forkType: "LINEAR",
+      shockType: "LINEAR",
     });
+  });
+
+  it("reads each channel's sensor type, and none from older firmware", async () => {
+    const device = await BikitDevice.connect(
+      scripted({
+        CONFIG: [
+          "CONFIG LINEAR_ENABLED 1",
+          "CONFIG SHOCK_ENABLED 0",
+          "CONFIG LINEAR_TYPE 1",
+          "CONFIG SHOCK_TYPE 0",
+          "CONFIG_END",
+        ],
+      }),
+    );
+    const config = await device.readConfig();
+    expect(config?.forkType).toBe("INFRARED");
+    expect(config?.shockType).toBe("LINEAR");
+    const older = await BikitDevice.connect(
+      scripted({ CONFIG: ["CONFIG SHOCK_ENABLED 1", "CONFIG LINEAR_TYPE 7", "CONFIG_END"] }),
+    );
+    const read = await older.readConfig();
+    expect(read?.forkType).toBeNull();
+    expect(read?.shockType).toBeNull();
   });
 
   it("is null on a firmware without settings", async () => {
@@ -75,6 +100,8 @@ describe("CONFIG / SET", () => {
       gpsFixProtection: null,
       forkEnabled: null,
       shockEnabled: null,
+      forkType: null,
+      shockType: null,
     });
   });
 
@@ -90,6 +117,13 @@ describe("CONFIG / SET", () => {
     const read = await device.readConfig();
     expect(read?.forkEnabled).toBe(false);
     expect(read?.shockEnabled).toBe(false);
+    // Each channel's type on its own, kept while the channel is off.
+    expect((await device.setConfig("LINEAR_TYPE", "1")).forkType).toBe("INFRARED");
+    expect((await device.setConfig("SHOCK_TYPE", "1")).shockType).toBe("INFRARED");
+    const typed = await device.readConfig();
+    expect(typed?.forkType).toBe("INFRARED");
+    expect(typed?.forkEnabled).toBe(false);
+    expect(typed?.shockType).toBe("INFRARED");
     expect((await device.setConfig("GPS_FIX_PROTECTION", "0")).gpsFixProtection).toBe(false);
     expect((await device.readConfig())?.gpsFixProtection).toBe(false);
   });

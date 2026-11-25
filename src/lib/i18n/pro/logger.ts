@@ -97,12 +97,20 @@ const en = {
     },
     /** The suspension's linear sensors (firmware V20.5, 2026-11-22). */
     linear: {
-      title: "Linear Sensors",
+      title: "Suspension Sensors",
       /** The title-line switch: both sensors on or off at once. */
-      both: "Both linear sensors",
-      hint: "The suspension's sensors: the fork on CH0, the shock on CH1.",
+      both: "Both suspension sensors",
+      hint: "The fork on CH0, the shock on CH1.",
       /** CONFIG sent neither key: a firmware from before the sensors. */
-      unsupported: "This logger's firmware has no linear sensors.",
+      unsupported: "This logger's firmware has no suspension sensors.",
+      /** LINEAR_TYPE / SHOCK_TYPE (firmware V20.7.2, 2026-11-25). */
+      type: "Sensor type",
+      typeLinear: "Linear",
+      typeLinearHint: "Analogue linear position sensor · 900 Hz",
+      typeInfrared: "Infrared",
+      typeInfraredHint: "Distance sensor, experimental · 500 Hz",
+      infraredNote:
+        "Experimental: records raw 12-bit ADC values, with no distance conversion, calibration or suspension speed yet. 500 Hz is the ADC's acquisition rate, not the sensor's own measuring rate.",
       fork: "Fork Sensor",
       forkOn: "The fork sensor is read and recorded in every session.",
       forkOff: "The fork sensor is neither read nor recorded.",
@@ -201,10 +209,17 @@ const pt: typeof en = {
       motorcycleHint: "Motas, com a vibração adicional do motor",
     },
     linear: {
-      title: "Sensores lineares",
-      both: "Os dois sensores lineares",
-      hint: "Os sensores da suspensão: o garfo no CH0, o amortecedor no CH1.",
-      unsupported: "O firmware deste logger não tem sensores lineares.",
+      title: "Sensores de suspensão",
+      both: "Os dois sensores de suspensão",
+      hint: "O garfo no CH0, o amortecedor no CH1.",
+      unsupported: "O firmware deste logger não tem sensores de suspensão.",
+      type: "Tipo de sensor",
+      typeLinear: "Linear",
+      typeLinearHint: "Sensor de posição linear analógico · 900 Hz",
+      typeInfrared: "Infravermelho",
+      typeInfraredHint: "Sensor de distância, experimental · 500 Hz",
+      infraredNote:
+        "Experimental: grava os valores do ADC em bruto (12 bits), ainda sem conversão para distância, calibração nem velocidade da suspensão. Os 500 Hz são a frequência de aquisição do ADC, não a de medição do próprio sensor.",
       fork: "Sensor do garfo",
       forkOn: "O sensor do garfo é lido e gravado em todas as sessões.",
       forkOff: "O sensor do garfo não é lido nem gravado.",
