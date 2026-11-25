@@ -804,6 +804,9 @@ export function suspensionSeries(
   trace: ImuSuspensionTrace,
   /** The scale to use when the file gives none — see SHOCK_ASSUMED_SCALE. */
   assumed?: ImuSuspensionSensor,
+  /** Readings to draw instead of the firmware's median, index for index
+   * with `trace.tMs` — the Sharp's experimental median (sharp-median.ts). */
+  readings?: ArrayLike<number>,
 ): {
   values: Float32Array;
   unit: "mm" | "ADC";
@@ -816,7 +819,12 @@ export function suspensionSeries(
   const span = sensor ? sensor.rawMax - sensor.rawMin : 0;
   const mmPerCount =
     sensor?.strokeMm && span > 0 ? sensor.strokeMm / span : null;
-  const values = resampleGpsSeries(tMs, trace.tMs, trace.medianRaw, 1);
+  const values = resampleGpsSeries(
+    tMs,
+    trace.tMs,
+    readings ?? trace.medianRaw,
+    1,
+  );
   if (mmPerCount == null)
     return { values, unit: "ADC", travel: false, scaleAssumed: false };
   const cal = trace.calibration;

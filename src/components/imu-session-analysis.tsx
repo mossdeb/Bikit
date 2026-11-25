@@ -28,6 +28,7 @@ import {
   Plus,
   RotateCcw,
   Scissors,
+  ShieldCheck,
   TrendingDown,
   TrendingUp,
   Undo2,
@@ -128,6 +129,60 @@ import {
   windowRms,
   formatDurationMillis,
 } from "@/lib/imu/derive";
+import {
+  SHARP_MEDIAN_DEFAULT,
+  SHARP_MEDIAN_WINDOWS,
+  type SharpMedianWindow,
+  sharpMedianRaw,
+} from "@/lib/imu/sharp-median";
+
+/** The Sharp median's window in this browser — a dev's way of looking,
+ * like the Dev info switch itself (admin-ui.tsx). Median 11 until changed. */
+const SHARP_MEDIAN_KEY = "bikit.sharpMedian";
+const SHARP_MEDIAN_EVENT = "bikit-sharp-median";
+
+function readSharpMedian(): SharpMedianWindow {
+  try {
+    const stored = window.localStorage.getItem(SHARP_MEDIAN_KEY);
+    if (stored != null)
+      return (
+        SHARP_MEDIAN_WINDOWS.find((w) => w === Number(stored)) ??
+        SHARP_MEDIAN_DEFAULT
+      );
+  } catch {
+    // Blocked storage: the default.
+  }
+  return SHARP_MEDIAN_DEFAULT;
+}
+
+function subscribeSharpMedian(onChange: () => void) {
+  window.addEventListener(SHARP_MEDIAN_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(SHARP_MEDIAN_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function useSharpMedianWindow(): [
+  SharpMedianWindow,
+  (w: SharpMedianWindow) => void,
+] {
+  const w = useSyncExternalStore(
+    subscribeSharpMedian,
+    readSharpMedian,
+    () => SHARP_MEDIAN_DEFAULT,
+  );
+  const set = useCallback((next: SharpMedianWindow) => {
+    try {
+      window.localStorage.setItem(SHARP_MEDIAN_KEY, String(next));
+    } catch {
+      // Blocked storage: the window stays at the default. Dev only.
+    }
+    window.dispatchEvent(new Event(SHARP_MEDIAN_EVENT));
+  }, []);
+  return [w, set];
+}
 import { ImuChart, type ImuChartSeries } from "@/components/imu-chart";
 import { ImuSessionDashboard } from "@/components/imu-session-dashboard";
 import { ImuSessionMap, type ImuMapLine } from "@/components/imu-session-map";
@@ -1720,17 +1775,31 @@ export function ImuSessionAnalysis({
 
   /** The fork and the shock on the IMU timeline, each with the unit its
    * file allows — apart from seriesValues because the unit travels too. */
+  // The Sharp IR fork's experimental median (2026-11-25): Dev info only, and
+  // only on a fork whose LIN1 says infrared. Off, the fork is the firmware's
+  // median as before; on, the RAW through Median N (sharp-median.ts).
+  const adminUi = useAdminUi();
+  const [sharpStored, setSharpWindow] = useSharpMedianWindow();
+  const forkInfrared = data?.suspension?.fork?.sensor?.infrared === true;
+  const sharpWindow = adminUi && forkInfrared ? sharpStored : 0;
   const suspension = useMemo(() => {
     const s = data?.suspension;
     if (!data || !s) return null;
     const tMs = data.channels.tMs;
     return {
-      fork: s.fork ? suspensionSeries(tMs, s.fork) : null,
+      fork: s.fork
+        ? suspensionSeries(
+            tMs,
+            s.fork,
+            undefined,
+            sharpWindow > 0 ? sharpMedianRaw(s.fork, sharpWindow) : undefined,
+          )
+        : null,
       shock: s.shock
         ? suspensionSeries(tMs, s.shock, SHOCK_ASSUMED_SCALE)
         : null,
     };
-  }, [data]);
+  }, [data, sharpWindow]);
 
   const seriesValues = useMemo(() => {
     if (!data || !gForce) return null;
@@ -2568,6 +2637,29 @@ export function ImuSessionAnalysis({
       ]}
     />
   );
+  // Dev info, on a Sharp fork only: the median's window, Off to compare.
+  const sharpMenu = adminUi && forkInfrared && (
+    <ImuFilterMenu
+      summary={
+        <>
+          <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            {sharpStored > 0 ? `Median ${sharpStored}` : "Median Off"}
+          </span>
+        </>
+      }
+      items={SHARP_MEDIAN_WINDOWS.map((w) => ({
+        key: `sharp-${w}`,
+        label: w > 0 ? `Median ${w}` : "Off",
+        sublabel:
+          w > 0
+            ? `${w * 2 - 2} ms${w === SHARP_MEDIAN_DEFAULT ? " · spec" : ""}`
+            : "firmware (mediana de 3)",
+        checked: sharpStored === w,
+        onToggle: () => setSharpWindow(w),
+      }))}
+    />
+  );
   const eventsMenu = (
     <ImuFilterMenu
       summary={
@@ -2874,6 +2966,7 @@ export function ImuSessionAnalysis({
                 legend={<MetricLegend defs={activeSeriesDefs} />}
                 controls={
                   <>
+                    {sharpMenu}
                     {metricsMenu}
                     {eventsMenu}
                   </>

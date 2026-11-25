@@ -66,6 +66,7 @@
  */
 
 import type { Locale } from "@/lib/i18n";
+import { LIN_FLAG_INFRARED } from "./sharp-median";
 import { getProDictionary } from "@/lib/i18n/pro";
 import type {
   GpsChannels,
@@ -520,6 +521,9 @@ function readSuspensionRecords(
       strokeMm: stroke > 0 ? stroke : null,
       rawMin: view.getUint16(lin + 12, true),
       rawMax: view.getUint16(lin + 14, true),
+      ...(view.getUint8(lin + 17) & LIN_FLAG_INFRARED && {
+        infrared: true as const,
+      }),
     };
   }
 

@@ -249,6 +249,10 @@ export type ImuSuspensionPresence =
 
 export interface ImuSuspensionSensor {
   nominalRateHz: number;
+  /** True when LIN1's flags carry bit 2 (0x04): a Sharp infrared distance
+   * sensor rather than a linear potentiometer (firmware V20.7, R0073 on).
+   * Absent on a linear one. */
+  infrared?: true;
   /** The rod travel that `rawMin`…`rawMax` spans, mm; null when the file
    * says 0 — the shock's, before firmware V19.0.034 wrote its 78 mm. */
   strokeMm: number | null;
