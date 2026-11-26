@@ -6,7 +6,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import {
+  Bluetooth,
+  Check,
+  ChevronDown,
+  Loader2,
+  TriangleAlert,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoggerDeviceCard } from "@/components/logger-device-card";
 import { BIKE_ICON_FALLBACK, MotorbikeIcon } from "@/components/bike-type-icon";
@@ -21,6 +27,16 @@ import {
   InfraredSensorIcon,
 } from "@/components/menu-icons";
 import { useProDict } from "@/components/pro-locale";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DARK_CARD_HAIRLINE } from "@/lib/card-styles";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +46,7 @@ import {
   type BikitDeviceConfig,
   type BikitDeviceInfo,
   type BikitGpsStatus,
+  type BikitRemoteLive,
   type BikitSensorType,
   type BikitVehicleType,
 } from "@/lib/bikit-ble/protocol";
@@ -62,6 +79,10 @@ type ConfigState =
 
 const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** The rider said no before anything was sent: the control goes back, with
+ * no message (the remote's warning, 2026-11-26). */
+class SaveCancelled extends Error {}
+
 export function LoggerArea({ simulate }: { simulate: boolean }) {
   const dict = useProDict();
   const t = dict.logger;
@@ -72,6 +93,20 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
    * another is in flight, and the GPS detail polls beside the settings'
    * SETs (2026-11-09). Each command waits for the one before it. */
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  /** The remote's notifications (2026-11-26), newer than the last CONFIG
+   * for the keys they carry. Listened to from the moment the PIN is
+   * accepted — the logger sends them right after it, before INFO answers. */
+  const [remoteLive, setRemoteLive] = useState<BikitRemoteLive>({});
+  const stopRemoteRef = useRef<(() => void) | null>(null);
+  /** A fresh CONFIG is newer than any notification for the keys it sent. */
+  const takeConfig = (read: BikitDeviceConfig) => {
+    setRemoteLive((live) => ({
+      available: read.remoteAvailable !== null ? undefined : live.available,
+      connected: read.remoteConnected !== null ? undefined : live.connected,
+      battery: read.remoteBattery !== null ? undefined : live.battery,
+    }));
+    setConfig({ kind: "ready", config: read });
+  };
   function serial<T>(fn: () => Promise<T>): Promise<T> {
     const next = queueRef.current.then(fn, fn);
     queueRef.current = next.catch(() => undefined);
@@ -86,18 +121,27 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
     // Through the queue: the GPS detail starts polling as soon as the link
     // is up, and the two must not write at once.
     onAuthenticated: async (device) => {
+      stopRemoteRef.current?.();
+      setRemoteLive({});
+      stopRemoteRef.current = device.watchRemote((live) =>
+        setRemoteLive((r) => ({ ...r, ...live })),
+      );
       setInfo(await serial(() => device.info()));
       setConfig({ kind: "loading" });
       try {
         const read = await serial(() => device.readConfig());
-        setConfig(
-          read ? { kind: "ready", config: read } : { kind: "unsupported" },
-        );
+        if (read) takeConfig(read);
+        else setConfig({ kind: "unsupported" });
       } catch (e) {
         setConfig({ kind: "error", message: describe(e) });
       }
     },
-    onLost: () => setInfo(null),
+    onLost: () => {
+      setInfo(null);
+      stopRemoteRef.current?.();
+      stopRemoteRef.current = null;
+      setRemoteLive({});
+    },
   });
   const { phase, error, notice, deviceName, supported } = link;
   const linkedDevice = link.device;
@@ -116,6 +160,15 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
         if (v !== null) (next as Record<string, unknown>)[k] = v;
       return { kind: "ready", config: next };
     });
+  }
+
+  /** CONFIG again, all of it, and only done at CONFIG_END (the remote's
+   * sync, 2026-11-26): the screen takes the logger's whole answer. */
+  async function resync() {
+    const device = linkedDevice();
+    if (!device) throw new Error(td.deviceDisconnected);
+    const read = await serial(() => device.readConfig({ strict: true }));
+    if (read) takeConfig(read);
   }
 
   const connected = phase.kind !== "idle" && phase.kind !== "connecting";
@@ -218,6 +271,8 @@ export function LoggerArea({ simulate }: { simulate: boolean }) {
             connected={phase.kind === "connected"}
             state={config}
             save={save}
+            resync={resync}
+            remoteLive={remoteLive}
           />
         </TabsContent>
       </Tabs>
@@ -364,13 +419,48 @@ function LoggerSettings({
   connected,
   state,
   save,
+  resync,
+  remoteLive,
 }: {
   connected: boolean;
   state: ConfigState;
   save: SaveFn;
+  resync: () => Promise<void>;
+  remoteLive: BikitRemoteLive;
 }) {
   const t = useProDict().logger.settings;
   const config = connected && state.kind === "ready" ? state.config : null;
+  /** A firmware with the remote works REMOTE_AVAILABLE out from the
+   * suspension's switches, so a change to them is read back — quietly: the
+   * sensor's own SET_OK already counted, and the remote's lock follows the
+   * switches on this side anyway. */
+  const saveSuspension: SaveFn = async (key, value) => {
+    await save(key, value);
+    if (config?.remoteEnabled != null) await resync().catch(() => undefined);
+  };
+  /** Turning a suspension sensor on switches the Bluetooth remote off (its
+   * button and its BLE link), so the rider is warned first (by request,
+   * 2026-11-26) — only when the remote is on and not already locked. No is
+   * thrown as SaveCancelled, before any SET. */
+  const [askRemote, setAskRemote] = useState<((ok: boolean) => void) | null>(
+    null,
+  );
+  const remoteWouldDrop =
+    config !== null &&
+    config.remoteEnabled === true &&
+    config.forkEnabled !== true &&
+    config.shockEnabled !== true;
+  async function confirmSensorsOn(on: boolean) {
+    if (!on || !remoteWouldDrop) return;
+    const ok = await new Promise<boolean>((resolve) =>
+      setAskRemote(() => resolve),
+    );
+    if (!ok) throw new SaveCancelled();
+  }
+  const answerRemote = (ok: boolean) => {
+    askRemote?.(ok);
+    setAskRemote(null);
+  };
   const status = !connected
     ? t.disconnected
     : state.kind === "loading"
@@ -383,6 +473,15 @@ function LoggerSettings({
 
   return (
     <div className="space-y-4">
+      <WarningDialog
+        open={askRemote !== null}
+        onClose={() => answerRemote(false)}
+        title={t.connectivity.warnTitle}
+        text={t.connectivity.warnText}
+        cancel={t.connectivity.warnCancel}
+        confirm={t.connectivity.warnConfirm}
+        onConfirm={() => answerRemote(true)}
+      />
       {status && (
         <p
           className={cn(
@@ -398,7 +497,9 @@ function LoggerSettings({
           {status}
         </p>
       )}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        {/* The left column stacks too: Power, then Connectivity. */}
+        <div className="space-y-4">
         <SettingsCard title={t.power.title}>
           <ToggleRow
             label={t.power.autoStop}
@@ -444,6 +545,27 @@ function LoggerSettings({
             onSave={(n) => save("SLEEP_MIN", String(n))}
           />
         </SettingsCard>
+        {/* Connectivity (2026-11-26): the Bluetooth remote. Drawn and
+            disabled until CONFIG is read, as the other cards (by request,
+            2026-11-26); hidden once a CONFIG without REMOTE_ENABLE says the
+            firmware has no remote. */}
+        {(config === null || config.remoteEnabled !== null) && (
+          <SettingsCard title={t.connectivity.title}>
+            <RemoteRow
+              config={config}
+              live={remoteLive}
+              onSave={async (on) => {
+                await save("REMOTE_ENABLE", on ? "1" : "0");
+                try {
+                  await resync();
+                } catch (e) {
+                  throw new Error(t.connectivity.syncError(describe(e)));
+                }
+              }}
+            />
+          </SettingsCard>
+        )}
+        </div>
         {/* The right column stacks: the vehicle, then the linear sensors
             (2026-11-22), so the left card's height is not left empty. */}
         <div className="space-y-4">
@@ -493,9 +615,10 @@ function LoggerSettings({
                   config ? [config.forkEnabled, config.shockEnabled] : [null]
                 }
                 onSave={async (on) => {
+                  await confirmSensorsOn(on);
                   const value = on ? "1" : "0";
                   await save("LINEAR_ENABLED", value);
-                  await save("SHOCK_ENABLED", value);
+                  await saveSuspension("SHOCK_ENABLED", value);
                 }}
               />
             }
@@ -510,7 +633,10 @@ function LoggerSettings({
                     : t.linear.forkOn
               }
               value={config ? config.forkEnabled : null}
-              onSave={(on) => save("LINEAR_ENABLED", on ? "1" : "0")}
+              onSave={async (on) => {
+                await confirmSensorsOn(on);
+                await saveSuspension("LINEAR_ENABLED", on ? "1" : "0");
+              }}
             >
               {() => (
                 <SensorTypeRow
@@ -524,7 +650,10 @@ function LoggerSettings({
               label={t.linear.shock}
               hint={(on) => (on === false ? t.linear.shockOff : t.linear.shockOn)}
               value={config ? config.shockEnabled : null}
-              onSave={(on) => save("SHOCK_ENABLED", on ? "1" : "0")}
+              onSave={async (on) => {
+                await confirmSensorsOn(on);
+                await saveSuspension("SHOCK_ENABLED", on ? "1" : "0");
+              }}
             >
               {() => (
                 <SensorTypeRow
@@ -538,6 +667,201 @@ function LoggerSettings({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The Bluetooth remote (2026-11-26). The switch is REMOTE_ENABLE, the
+ * rider's preference; REMOTE_AVAILABLE only says whether it can work now,
+ * never that a remote is connected. With a suspension sensor on, the switch
+ * is locked off and nothing is written — the logger keeps the preference,
+ * and the switch shows it again once both sensors are off. A change counts
+ * as saved after SET_OK and a full CONFIG read back to CONFIG_END.
+ */
+function RemoteRow({
+  config,
+  live,
+  onSave,
+}: {
+  /** Null until CONFIG is read: the switch is drawn off and disabled. */
+  config: BikitDeviceConfig | null;
+  live: BikitRemoteLive;
+  onSave: (on: boolean) => Promise<void>;
+}) {
+  const t = useProDict().logger.settings.connectivity;
+  const blocked =
+    config !== null && (config.forkEnabled === true || config.shockEnabled === true);
+  // The notification where one came since the last CONFIG, else CONFIG's.
+  const available = live.available ?? config?.remoteAvailable ?? null;
+  const remoteConnected = live.connected ?? config?.remoteConnected ?? null;
+  const battery =
+    live.battery !== undefined ? live.battery : (config?.remoteBattery ?? null);
+  const { shown, saving, message, commit } = useSaving(
+    blocked ? false : (config?.remoteEnabled ?? null),
+    onSave,
+  );
+  const hint = blocked
+    ? t.blocked
+    : shown === true && !saving && available === false
+      ? t.unavailable
+      : t.remoteHint;
+  /** The locked switch explains itself when clicked (by request,
+   * 2026-11-26): during an acquisition with the suspension sensors on, the
+   * remote's button does nothing. */
+  const [lockedInfo, setLockedInfo] = useState(false);
+  const actions = [
+    [t.singleClick, t.startStop],
+    [t.doubleClick, t.appBluetooth],
+    [t.longPress, t.calibration],
+  ];
+  return (
+    <div>
+      <WarningDialog
+        open={lockedInfo}
+        onClose={() => setLockedInfo(false)}
+        title={t.lockedTitle}
+        text={t.lockedText}
+        confirm={t.lockedOk}
+        onConfirm={() => setLockedInfo(false)}
+      />
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Bluetooth className="size-7 shrink-0" strokeWidth={1.75} aria-hidden />
+          <div className="min-w-0">
+            <p className="text-base font-semibold">{t.remote}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          {!message?.bad && <RowStatus saving={saving} message={message} />}
+          <Switch
+            label={t.remote}
+            checked={shown === true}
+            disabled={!blocked && (shown === null || saving)}
+            dimmed={blocked}
+            onChange={(on) => (blocked ? setLockedInfo(true) : void commit(on))}
+          />
+        </div>
+      </div>
+      {message?.bad && <RowStatus saving={false} message={message} />}
+      {/* The remote itself (REMOTE_CONNECTED / REMOTE_BATTERY): drawn once
+          the logger has said, never guessed from REMOTE_AVAILABLE. The
+          firmware sends no name, so the line names the state alone. */}
+      {shown === true && !blocked && remoteConnected !== null && (
+        <div className="mt-6 flex items-center justify-between gap-4 border-t border-border pt-5">
+          {/* A green dot, the text in ink (by request, 2026-11-26); grey
+              dot and muted text with no remote. */}
+          <p
+            className={cn(
+              "flex items-center gap-2.5 text-base font-medium",
+              !remoteConnected && "text-muted-foreground",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "size-2.5 shrink-0 rounded-full",
+                remoteConnected ? "bg-success" : "bg-muted-foreground/40",
+              )}
+            />
+            {remoteConnected ? t.remoteConnected : t.remoteDisconnected}
+          </p>
+          {remoteConnected && battery !== null && (
+            <RemoteBattery percent={battery} label={t.battery} />
+          )}
+        </div>
+      )}
+      {shown === true && !blocked && (
+        <div className="mt-6 border-t border-border pt-5">
+          <p className="text-xs font-medium text-muted-foreground">{t.actions}</p>
+          <dl className="mt-3 space-y-3">
+            {actions.map(([gesture, action]) => (
+              <div key={gesture}>
+                <dt className="text-sm text-muted-foreground">{gesture}</dt>
+                <dd className="text-base">{action}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The remote's charge, in the header battery's drawing at a row's size —
+ * filled in the ink colour at every level, never green/amber/red (by
+ * request, 2026-11-26). */
+function RemoteBattery({ percent, label }: { percent: number; label: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={`${label} ${percent}%`}
+      className="flex shrink-0 items-center gap-2"
+    >
+      <svg width="25" height="12" viewBox="0 0 50 24" fill="none" aria-hidden>
+        <path
+          d="M4.01286 1H41.9871C43.6511 1 45 2.36352 45 4.04551V19.9545C45 21.6365 43.6511 23 41.9871 23H4.01286C2.3489 23 1 21.6365 1 19.9545V4.04551C1 2.36352 2.3489 1 4.01286 1Z"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          d="M46.2147 7.88477H45V16.1173H46.2147C47.717 16.1173 48.9461 14.8069 48.9461 13.2052V10.7969C48.9461 9.19521 47.717 7.88477 46.2147 7.88477Z"
+          fill="currentColor"
+        />
+        <rect
+          x="4"
+          y="4"
+          width={(37 * Math.max(percent, 4)) / 100}
+          height="16"
+          fill="currentColor"
+        />
+      </svg>
+      <span className="text-base font-semibold tabular-nums">{percent}%</span>
+    </span>
+  );
+}
+
+/**
+ * The Logger area's warnings (2026-11-26): a monochrome warning sign above
+ * the title, twice the dialog's own padding, and the confirm button white
+ * on dark rather than the lime primary — all by request. Without `cancel`
+ * it is a notice with a single button.
+ */
+function WarningDialog({
+  open,
+  onClose,
+  title,
+  text,
+  cancel,
+  confirm,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  text: string;
+  cancel?: string;
+  confirm: string;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent className="p-8">
+        <AlertDialogHeader>
+          <span className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-muted">
+            <TriangleAlert className="size-6 text-foreground" aria-hidden />
+          </span>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{text}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="-mx-8 -mb-8 p-8">
+          {cancel && <AlertDialogCancel>{cancel}</AlertDialogCancel>}
+          <AlertDialogAction type="button" variant="inverted" onClick={onConfirm}>
+            {confirm}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -583,7 +907,9 @@ function useSaving<T>(value: T | null, onSave: (v: T) => Promise<void>) {
       await onSave(next);
       setMessage({ text: t.saved, bad: false });
     } catch (e) {
-      setMessage({ text: describe(e), bad: true });
+      setMessage(
+        e instanceof SaveCancelled ? null : { text: describe(e), bad: true },
+      );
     } finally {
       setPending(null);
     }
@@ -764,11 +1090,14 @@ function Switch({
   label,
   checked,
   disabled,
+  dimmed = false,
   onChange,
 }: {
   label: string;
   checked: boolean;
   disabled: boolean;
+  /** Drawn as disabled yet still clickable — to explain why it is locked. */
+  dimmed?: boolean;
   onChange: (on: boolean) => void;
 }) {
   return (
@@ -778,11 +1107,12 @@ function Switch({
       aria-checked={checked}
       aria-label={label}
       disabled={disabled}
+      aria-disabled={dimmed || undefined}
       onClick={() => onChange(!checked)}
       className={cn(
         "relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
         checked ? "bg-foreground" : "bg-muted-foreground/30",
-        disabled ? "cursor-default opacity-50" : "cursor-pointer",
+        disabled ? "cursor-default opacity-50" : dimmed ? "cursor-pointer opacity-50" : "cursor-pointer",
       )}
     >
       <span

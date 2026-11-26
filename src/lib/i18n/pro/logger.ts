@@ -122,6 +122,42 @@ const en = {
       shockOn: "The shock sensor is read and recorded in every session.",
       shockOff: "The shock sensor is neither read nor recorded.",
     },
+    /** The Bluetooth remote (REMOTE_ENABLE / REMOTE_AVAILABLE, 2026-11-26). */
+    connectivity: {
+      title: "Connectivity",
+      remote: "Bluetooth Remote Control",
+      remoteHint: "Control your logger wirelessly using a compatible Bluetooth remote.",
+      /** LINEAR_ENABLED or SHOCK_ENABLED on: the switch is locked. */
+      blocked:
+        "Bluetooth remote control is unavailable while suspension sensors are enabled.",
+      /** On, no suspension sensor, yet REMOTE_AVAILABLE 0. */
+      unavailable: "The logger reports the remote as unavailable right now.",
+      /** REMOTE_CONNECTED (notification). No name: the firmware sends none. */
+      remoteConnected: "Remote connected",
+      remoteDisconnected: "No remote connected",
+      battery: "Remote battery",
+      /** Before a suspension sensor goes on with the remote on. */
+      warnTitle: "Turn off the Bluetooth remote?",
+      warnText:
+        "With the suspension sensors on, the Bluetooth remote is switched off: its button stops working and its BLE link is turned off. Your preference is kept and comes back once both sensors are off.",
+      warnCancel: "Cancel",
+      warnConfirm: "Turn sensors on",
+      /** The locked switch, clicked: why the remote is off. */
+      lockedTitle: "Bluetooth remote unavailable",
+      lockedText:
+        "While recording with the suspension sensors on, the remote's button does not work. Turn both suspension sensors off to use the Bluetooth remote.",
+      lockedOk: "Got it",
+      /** SET_OK came, the CONFIG re-read did not finish. */
+      syncError: (error: string): string =>
+        `Saved, but the settings could not be read back: ${error}`,
+      actions: "Remote buttons",
+      singleClick: "Single click",
+      doubleClick: "Double click",
+      longPress: "Long press",
+      startStop: "Start / Stop",
+      appBluetooth: "App Bluetooth",
+      calibration: "Calibration",
+    },
   },
 };
 
@@ -228,6 +264,35 @@ const pt: typeof en = {
       shock: "Sensor do amortecedor",
       shockOn: "O sensor do amortecedor é lido e gravado em todas as sessões.",
       shockOff: "O sensor do amortecedor não é lido nem gravado.",
+    },
+    connectivity: {
+      title: "Conectividade",
+      remote: "Comando Bluetooth",
+      remoteHint: "Controla o logger sem fios com um comando Bluetooth compatível.",
+      blocked:
+        "O comando Bluetooth não está disponível enquanto os sensores de suspensão estiverem ligados.",
+      unavailable: "O logger indica que o comando não está disponível neste momento.",
+      remoteConnected: "Comando ligado",
+      remoteDisconnected: "Nenhum comando ligado",
+      battery: "Bateria do comando",
+      warnTitle: "Desligar o comando Bluetooth?",
+      warnText:
+        "Com os sensores de suspensão ligados, o comando Bluetooth é desligado: o botão deixa de funcionar e a ligação BLE do comando é desligada. A tua preferência fica guardada e volta quando os dois sensores estiverem desligados.",
+      warnCancel: "Cancelar",
+      warnConfirm: "Ligar sensores",
+      lockedTitle: "Comando Bluetooth indisponível",
+      lockedText:
+        "Durante a aquisição com os sensores de suspensão ligados, o botão do comando não funciona. Desliga os dois sensores de suspensão para usar o comando Bluetooth.",
+      lockedOk: "Entendido",
+      syncError: (error) =>
+        `Guardado, mas não foi possível voltar a ler as definições: ${error}`,
+      actions: "Botões do comando",
+      singleClick: "Clique simples",
+      doubleClick: "Duplo clique",
+      longPress: "Pressão longa",
+      startStop: "Start / Stop",
+      appBluetooth: "Bluetooth da app",
+      calibration: "Calibração",
     },
   },
 };

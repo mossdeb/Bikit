@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BikitDevice,
   BikitDeviceError,
+  parseRemoteLine,
   parseGpsStatus,
   parseLiveSag,
 } from "./protocol";
@@ -38,7 +39,56 @@ describe("CONFIG / SET", () => {
       shockEnabled: true,
       forkType: "LINEAR",
       shockType: "LINEAR",
+      remoteEnabled: true,
+      remoteAvailable: false,
+      remoteConnected: null,
+      remoteBattery: null,
     });
+  });
+
+  it("reads the remote's notifications", () => {
+    expect(parseRemoteLine("REMOTE_CONNECTED 1")).toEqual({ connected: true });
+    expect(parseRemoteLine("REMOTE_BATTERY 99")).toEqual({ battery: 99 });
+    expect(parseRemoteLine("REMOTE_BATTERY -1")).toEqual({ battery: null });
+    expect(parseRemoteLine("REMOTE_AVAILABLE 0")).toEqual({ available: false });
+    expect(parseRemoteLine("REMOTE_CONNECTED x")).toBeNull();
+    expect(parseRemoteLine("CONFIG_END")).toBeNull();
+  });
+
+  it("hears the remote pair once it becomes available, and drop", async () => {
+    const device = await BikitDevice.connect(new SimulatedLoggerTransport(0));
+    const heard: string[] = [];
+    device.watchRemote((l) => heard.push(JSON.stringify(l)));
+    await device.setConfig("LINEAR_ENABLED", "0");
+    await device.setConfig("SHOCK_ENABLED", "0");
+    await new Promise((r) => setTimeout(r, 1600));
+    expect(heard).toContain(JSON.stringify({ connected: true }));
+    expect(heard).toContain(JSON.stringify({ battery: 99 }));
+    heard.length = 0;
+    await device.setConfig("SHOCK_ENABLED", "1");
+    await new Promise((r) => setTimeout(r, 10));
+    expect(heard).toEqual([
+      JSON.stringify({ available: false }),
+      JSON.stringify({ connected: false }),
+      JSON.stringify({ battery: null }),
+    ]);
+  });
+
+  it("reads the remote's preference apart from its availability", async () => {
+    const device = await BikitDevice.connect(new SimulatedLoggerTransport(0));
+    await device.setConfig("LINEAR_ENABLED", "0");
+    await device.setConfig("SHOCK_ENABLED", "0");
+    const read = await device.readConfig({ strict: true });
+    expect(read?.remoteEnabled).toBe(true);
+    expect(read?.remoteAvailable).toBe(true);
+    const off = await device.setConfig("REMOTE_ENABLE", "0");
+    expect(off.remoteEnabled).toBe(false);
+    expect((await device.readConfig({ strict: true }))?.remoteAvailable).toBe(false);
+    // Older firmware: no key, no card.
+    const older = await BikitDevice.connect(
+      scripted({ CONFIG: ["CONFIG AUTO_STOP 1", "CONFIG_END"] }),
+    );
+    expect((await older.readConfig())?.remoteEnabled).toBeNull();
   });
 
   it("reads each channel's sensor type, and none from older firmware", async () => {
@@ -102,6 +152,10 @@ describe("CONFIG / SET", () => {
       shockEnabled: null,
       forkType: null,
       shockType: null,
+      remoteEnabled: null,
+      remoteAvailable: null,
+      remoteConnected: null,
+      remoteBattery: null,
     });
   });
 

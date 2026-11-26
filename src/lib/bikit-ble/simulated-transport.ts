@@ -27,11 +27,46 @@ export class SimulatedLoggerTransport implements BikitTransport {
     // What each channel carries (firmware V20.7.2): 0 linear, 1 infrared.
     LINEAR_TYPE: "0",
     SHOCK_TYPE: "0",
+    // The Bluetooth remote's preference (2026-11-26). REMOTE_AVAILABLE is
+    // not stored: CONFIG works it out, as the firmware does.
+    REMOTE_ENABLE: "1",
   };
 
   private readonly bornAt = Date.now();
   /** The live SAG's 20 Hz stream (firmware V19.0.038), while it is on. */
   private sagTimer: ReturnType<typeof setInterval> | null = null;
+  /** The Bluetooth remote (2026-11-26): an "AB Shutter3" that pairs a
+   * moment after the remote becomes available, and drops when it stops
+   * being so — sent as the firmware's notifications. */
+  private remoteConnected = false;
+  private remoteTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private remoteAvailable() {
+    const s = this.settings;
+    return s.REMOTE_ENABLE === "1" && s.LINEAR_ENABLED === "0" && s.SHOCK_ENABLED === "0";
+  }
+
+  /** After a change: notify what moved, as the firmware does. */
+  private updateRemote(wasAvailable: boolean) {
+    const available = this.remoteAvailable();
+    if (this.remoteTimer) clearTimeout(this.remoteTimer);
+    this.remoteTimer = null;
+    if (!available) {
+      const lines: string[] = [];
+      if (wasAvailable) lines.push("REMOTE_AVAILABLE 0");
+      if (this.remoteConnected || wasAvailable)
+        lines.push("REMOTE_CONNECTED 0", "REMOTE_BATTERY -1");
+      this.remoteConnected = false;
+      if (lines.length) setTimeout(() => this.send(...lines), this.delayMs);
+      return;
+    }
+    if (!wasAvailable) setTimeout(() => this.send("REMOTE_AVAILABLE 1"), this.delayMs);
+    if (!this.remoteConnected)
+      this.remoteTimer = setTimeout(() => {
+        this.remoteConnected = true;
+        this.send("REMOTE_CONNECTED 1", "REMOTE_BATTERY 99");
+      }, 1500);
+  }
 
   constructor(private readonly delayMs = 250) {}
 
@@ -43,6 +78,7 @@ export class SimulatedLoggerTransport implements BikitTransport {
 
   disconnect() {
     this.stopSag();
+    if (this.remoteTimer) clearTimeout(this.remoteTimer);
     for (const d of [...this.disconnects]) d();
   }
 
@@ -103,6 +139,8 @@ export class SimulatedLoggerTransport implements BikitTransport {
       case "AUTH":
         return this.send("ERROR UNKNOWN_COMMAND");
       case "INFO":
+        // The remote's state, unasked, once the link is up.
+        this.updateRemote(this.remoteAvailable());
         return this.send(
           "INFO 1 18.9.000-sim 0123456789ABCDEF",
           "INFO_BAT 96 4113",
@@ -135,10 +173,16 @@ export class SimulatedLoggerTransport implements BikitTransport {
       case "SESSIONS":
         return this.send("LIST_BEGIN 0", "LIST_END");
       case "CONFIG":
+      {
+        const s = this.settings;
+        const available =
+          s.REMOTE_ENABLE === "1" && s.LINEAR_ENABLED === "0" && s.SHOCK_ENABLED === "0";
         return this.send(
-          ...Object.entries(this.settings).map(([k, v]) => `CONFIG ${k} ${v}`),
+          ...Object.entries(s).map(([k, v]) => `CONFIG ${k} ${v}`),
+          `CONFIG REMOTE_AVAILABLE ${available ? "1" : "0"}`,
           "CONFIG_END",
         );
+      }
       case "SET": {
         const k = key.toUpperCase();
         const v = value.toUpperCase();
@@ -149,13 +193,17 @@ export class SimulatedLoggerTransport implements BikitTransport {
             k === "LINEAR_ENABLED" ||
             k === "SHOCK_ENABLED" ||
             k === "LINEAR_TYPE" ||
-            k === "SHOCK_TYPE") &&
+            k === "SHOCK_TYPE" ||
+            k === "REMOTE_ENABLE") &&
             (v === "0" || v === "1")) ||
           (k === "SLEEP_MIN" && ["5", "10", "15"].includes(v)) ||
           (k === "VEHICLE" && (v === "BICYCLE" || v === "MOTORCYCLE"));
         if (!valid) return this.send("ERROR INVALID_SETTING");
+        const wasAvailable = this.remoteAvailable();
         this.settings[k] = v;
-        return this.send(`SET_OK ${k} ${v}`);
+        this.send(`SET_OK ${k} ${v}`);
+        if (this.remoteAvailable() !== wasAvailable) this.updateRemote(wasAvailable);
+        return;
       }
       default:
         return this.send("ERROR UNKNOWN_COMMAND");

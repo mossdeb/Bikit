@@ -110,6 +110,18 @@ export interface BikitDeviceConfig {
    * Null on firmware that does not send the key: no type to choose. */
   forkType: BikitSensorType | null;
   shockType: BikitSensorType | null;
+  /** REMOTE_ENABLE (2026-11-26): the rider's preference for the Bluetooth
+   * remote — read and written. Null on firmware without the remote, whose
+   * card is then not drawn. */
+  remoteEnabled: boolean | null;
+  /** REMOTE_AVAILABLE, read only: whether the remote can work right now
+   * (the preference, and no suspension sensor on). Availability, never a
+   * remote actually connected. */
+  remoteAvailable: boolean | null;
+  /** REMOTE_CONNECTED / REMOTE_BATTERY, if CONFIG carries them; the live
+   * values come as notifications (see BikitRemoteLive). Null: not sent. */
+  remoteConnected: boolean | null;
+  remoteBattery: number | null;
 }
 
 export type BikitSensorType = "LINEAR" | "INFRARED";
@@ -126,6 +138,10 @@ export function emptyDeviceConfig(): BikitDeviceConfig {
     shockEnabled: null,
     forkType: null,
     shockType: null,
+    remoteEnabled: null,
+    remoteAvailable: null,
+    remoteConnected: null,
+    remoteBattery: null,
   };
 }
 
@@ -138,7 +154,8 @@ export type BikitConfigKey =
   | "LINEAR_ENABLED"
   | "SHOCK_ENABLED"
   | "LINEAR_TYPE"
-  | "SHOCK_TYPE";
+  | "SHOCK_TYPE"
+  | "REMOTE_ENABLE";
 
 /** A sensor type as SET sends it, and back. */
 export const SENSOR_TYPE_VALUE: Record<BikitSensorType, string> = {
@@ -161,13 +178,17 @@ function applyConfigLine(
     case "AUTO_SLEEP":
     case "GPS_FIX_PROTECTION":
     case "LINEAR_ENABLED":
-    case "SHOCK_ENABLED": {
+    case "SHOCK_ENABLED":
+    case "REMOTE_ENABLE":
+    case "REMOTE_AVAILABLE": {
       const on = v === "1" || v === "ON" ? true : v === "0" || v === "OFF" ? false : null;
       if (on === null) return;
       if (key === "AUTO_STOP") config.autoStop = on;
       else if (key === "AUTO_SLEEP") config.autoSleep = on;
       else if (key === "GPS_FIX_PROTECTION") config.gpsFixProtection = on;
       else if (key === "LINEAR_ENABLED") config.forkEnabled = on;
+      else if (key === "REMOTE_ENABLE") config.remoteEnabled = on;
+      else if (key === "REMOTE_AVAILABLE") config.remoteAvailable = on;
       else config.shockEnabled = on;
       return;
     }
@@ -179,6 +200,13 @@ function applyConfigLine(
     case "VEHICLE":
       if (v === "BICYCLE" || v === "MOTORCYCLE") config.vehicle = v;
       return;
+    case "REMOTE_CONNECTED":
+    case "REMOTE_BATTERY": {
+      const live = parseRemoteLine(`${key} ${v}`);
+      if (live?.connected !== undefined) config.remoteConnected = live.connected;
+      if (live?.battery !== undefined) config.remoteBattery = live.battery;
+      return;
+    }
     case "LINEAR_TYPE":
     case "SHOCK_TYPE": {
       const type = v === "0" ? "LINEAR" : v === "1" ? "INFRARED" : null;
@@ -188,6 +216,35 @@ function applyConfigLine(
       return;
     }
   }
+}
+
+/**
+ * The Bluetooth remote's live state (2026-11-26): Status lines the logger
+ * sends unasked, after the PIN and whenever a value changes —
+ * `REMOTE_CONNECTED 0|1`, `REMOTE_BATTERY <0–100|-1>`, `REMOTE_AVAILABLE
+ * 0|1`. Held back by the firmware during transfers, calibration, SAG and
+ * recording. A battery of -1 is "no reading": null. CONFIG may carry the
+ * same keys; they are read there too.
+ */
+export interface BikitRemoteLive {
+  connected?: boolean;
+  battery?: number | null;
+  available?: boolean;
+}
+
+export function parseRemoteLine(line: string): BikitRemoteLive | null {
+  const [head = "", value = ""] = line.trim().split(/\s+/);
+  if (head === "REMOTE_CONNECTED" || head === "REMOTE_AVAILABLE") {
+    const on = value === "1" ? true : value === "0" ? false : null;
+    if (on === null) return null;
+    return head === "REMOTE_CONNECTED" ? { connected: on } : { available: on };
+  }
+  if (head === "REMOTE_BATTERY") {
+    const n = Number(value);
+    if (!Number.isFinite(n) || value === "") return null;
+    return { battery: n >= 0 && n <= 100 ? Math.round(n) : null };
+  }
+  return null;
 }
 
 /** `GPS_STATUS` (firmware V18.10): the receiver's readiness for START, as
@@ -872,8 +929,12 @@ export class BikitDevice {
    * failure. A key the firmware did not send stays null and its control
    * is shown disabled rather than with an invented default; a key this
    * build does not know is ignored.
+   *
+   * `strict` (the remote's re-read after SET_OK, 2026-11-26): the sync only
+   * counts once CONFIG_END arrives — lines without it are an error, not a
+   * partial answer.
    */
-  readConfig(): Promise<BikitDeviceConfig | null> {
+  readConfig({ strict = false }: { strict?: boolean } = {}): Promise<BikitDeviceConfig | null> {
     return new Promise<BikitDeviceConfig | null>((resolve, reject) => {
       const config = emptyDeviceConfig();
       let seen = false;
@@ -892,7 +953,9 @@ export class BikitDevice {
         silence = setTimeout(
           () =>
             finish(() =>
-              seen
+              seen && strict
+                ? reject(new Error("O dispositivo não terminou a resposta a CONFIG."))
+                : seen
                 ? // The lines came but CONFIG_END did not: use what came.
                   resolve(config)
                 : reject(new Error("O dispositivo não respondeu a CONFIG.")),
@@ -948,6 +1011,17 @@ export class BikitDevice {
     const config = emptyDeviceConfig();
     applyConfigLine(config, key, stored);
     return config;
+  }
+
+  /** The remote's notifications as they come (2026-11-26), until the
+   * returned function is called or the link drops. */
+  watchRemote(handler: (live: BikitRemoteLive) => void): () => void {
+    const listener = (m: string) => {
+      const live = parseRemoteLine(m);
+      if (live) handler(live);
+    };
+    this.statusHandlers.add(listener);
+    return () => this.statusHandlers.delete(listener);
   }
 
   /**
