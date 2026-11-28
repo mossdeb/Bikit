@@ -22,6 +22,7 @@ import { ImuSessionGroupSection } from "@/components/imu-session-group-section";
 import { ImuSessionThumb } from "@/components/imu-session-thumb";
 import { isTrackIndex } from "@/lib/imu/snapshot";
 import { AdminOnly } from "@/components/admin-ui";
+import { FinishFlag } from "@/components/imu-session-track";
 
 /**
  * Lab: IMU session analysis. Not linked from anywhere; `notFound` for anyone
@@ -55,33 +56,42 @@ export default async function ImuLabPage() {
   const locale = localeFromMetadata(userData?.claims?.user_metadata);
   const t = getProDictionary(locale);
 
-  const [{ data: sessions }, { data: bikes }, { data: groups }] =
-    await Promise.all([
-      supabase
-        .from("imu_sessions")
-        .select(
-          // No counts: the card stopped printing them, and a column selected
-          // for nobody is a query that grows without a reader.
-          "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track, track_index, engine_filter",
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("bikes")
-        .select("id, name, type")
-        .eq("user_id", userId)
-        .order("name"),
-      // Newest outing first — the order the list shows them in and the order
-      // the import dialog offers them, so "today's" is the first match.
-      supabase
-        .from("imu_session_groups")
-        .select("id, name, day, created_at")
-        .eq("user_id", userId)
-        .order("day", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: sessions },
+    { data: bikes },
+    { data: groups },
+    { data: tracks },
+  ] = await Promise.all([
+    supabase
+      .from("imu_sessions")
+      .select(
+        // No counts: the card stopped printing them, and a column selected
+        // for nobody is a query that grows without a reader.
+        "id, name, rider_name, bike_id, group_id, created_at, duration_ms, sample_rate_hz, sample_count, trim_start_ms, trim_end_ms, trim_by_track, track_index, engine_filter, track_id",
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("bikes")
+      .select("id, name, type")
+      .eq("user_id", userId)
+      .order("name"),
+    // Newest outing first — the order the list shows them in and the order
+    // the import dialog offers them, so "today's" is the first match.
+    supabase
+      .from("imu_session_groups")
+      .select("id, name, day, created_at")
+      .eq("user_id", userId)
+      .order("day", { ascending: false })
+      .order("created_at", { ascending: false }),
+    // The tracks' names, for the card of a run that has one (2026-11-28).
+    supabase.from("imu_tracks").select("id, name").eq("user_id", userId),
+  ]);
 
   const bikeById = new Map((bikes ?? []).map((bike) => [bike.id, bike]));
+  const trackNameById = new Map(
+    (tracks ?? []).map((track) => [track.id, track.name]),
+  );
   type SessionRow = NonNullable<typeof sessions>[number];
 
   // Sessions under their group, in the groups' order; the rest — imported
@@ -116,6 +126,9 @@ export default async function ImuLabPage() {
   function SessionCard({ session }: { session: SessionRow }) {
     const outline = thumbOutline(session.track_index);
     const bike = session.bike_id ? bikeById.get(session.bike_id) : undefined;
+    const trackName = session.track_id
+      ? trackNameById.get(session.track_id)
+      : undefined;
     // A session ridden on a motorbike (engine filter on) draws the dirt
     // bike, whatever its bike's type (2026-11-09).
     const BikeGlyph = !bike
@@ -172,6 +185,17 @@ export default async function ImuLabPage() {
             <span className="text-foreground">
               {formatDate(session.created_at, locale)}
             </span>
+            {/* The run's track, when it has one (by request, 2026-11-28):
+                the one the session page settled on, with its flag. */}
+            {trackName && (
+              <>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 text-foreground">
+                  <FinishFlag className="size-3.5 shrink-0" />
+                  {trackName}
+                </span>
+              </>
+            )}
             {/* The file's rate and count: Dev info (2026-11-23). */}
             <AdminOnly>
               <span>
@@ -201,7 +225,10 @@ export default async function ImuLabPage() {
           </p>
           {/* Above the covering link, so the trash can is clickable. */}
           <div className="pointer-events-auto absolute -top-2 -right-2 z-10">
-            <ImuSessionDeleteButton sessionId={session.id} name={session.name} />
+            <ImuSessionDeleteButton
+              sessionId={session.id}
+              name={session.name}
+            />
           </div>
         </div>
         {/* The route, as the Snapshots' list shows theirs (by request,
@@ -251,7 +278,9 @@ export default async function ImuLabPage() {
         />
       </div>
 
-      <div className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-[22px]")}>
+      <div
+        className={cn("mt-6 pb-10", hasGroups ? "space-y-6" : "space-y-[22px]")}
+      >
         {(sessions ?? []).length === 0 && !hasGroups && (
           <p className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
             {t.sessions.list.empty}
